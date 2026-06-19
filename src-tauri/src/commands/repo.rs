@@ -1,13 +1,14 @@
 use crate::git::repository;
 use crate::state::AppState;
+use crate::error::AppError;
 
 #[tauri::command]
 pub async fn open_repo(
     app: tauri::AppHandle,
     path: String,
     state: tauri::State<'_, AppState>,
-) -> Result<repository::RepoInfo, String> {
-    let info = repository::open_repo(&path).map_err(|e| e.message)?;
+) -> Result<repository::RepoInfo, AppError> {
+    let info = repository::open_repo(&path)?;
 
     // Only register and start watcher if it's not already tracked
     if !state.has_repo(&info.path) {
@@ -20,19 +21,19 @@ pub async fn open_repo(
 }
 
 #[tauri::command]
-pub async fn close_repo(path: String, state: tauri::State<'_, AppState>) -> Result<(), String> {
+pub async fn close_repo(path: String, state: tauri::State<'_, AppState>) -> Result<(), AppError> {
     state.remove_repo(&path);
     Ok(())
 }
 
 #[tauri::command]
-pub async fn get_status(path: String) -> Result<repository::RepoStatus, String> {
-    repository::get_status(&path).map_err(|e| e.message)
+pub async fn get_status(path: String) -> Result<repository::RepoStatus, AppError> {
+    repository::get_status(&path)
 }
 
 #[tauri::command]
-pub async fn list_remotes(path: String) -> Result<Vec<repository::RemoteInfo>, String> {
-    repository::list_remotes(&path).map_err(|e| e.message)
+pub async fn list_remotes(path: String) -> Result<Vec<repository::RemoteInfo>, AppError> {
+    repository::list_remotes(&path)
 }
 
 #[tauri::command]
@@ -41,7 +42,7 @@ pub async fn clean_repository(
     dry_run: bool,
     clean_dirs: bool,
     include_ignored: bool,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<String>, AppError> {
     let mut args = vec!["clean"];
 
     if dry_run {
@@ -62,7 +63,7 @@ pub async fn clean_repository(
         .current_dir(&path)
         .args(&args)
         .output()
-        .map_err(|e| format!("Failed to run git clean: {}", e))?;
+        .map_err(|e| AppError::command(format!("Failed to run git clean: {}", e)))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut cleaned_paths = Vec::new();
@@ -79,6 +80,6 @@ pub async fn clean_repository(
         Ok(cleaned_paths)
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        Err(format!("Git clean failed: {}", stderr))
+        Err(AppError::git(format!("Git clean failed: {}", stderr)))
     }
 }

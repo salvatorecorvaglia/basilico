@@ -3,6 +3,7 @@ Basilico — Bisect Commands
 Command handlers for git bisect operations
 ═══════════════════════════════════════════════════════ */
 
+use crate::error::AppError;
 use git2::Repository;
 use serde::Serialize;
 
@@ -15,12 +16,12 @@ pub struct BisectState {
     pub steps_remaining: Option<usize>,
 }
 
-fn run_git_cmd(repo_path: &str, args: &[&str]) -> Result<String, String> {
+fn run_git_cmd(repo_path: &str, args: &[&str]) -> Result<String, AppError> {
     let output = crate::commands::new_command("git")
         .current_dir(repo_path)
         .args(args)
         .output()
-        .map_err(|e| format!("Failed to execute git command: {}", e))?;
+        .map_err(|e| AppError::command(format!("Failed to execute git command: {}", e)))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -28,7 +29,7 @@ fn run_git_cmd(repo_path: &str, args: &[&str]) -> Result<String, String> {
     if output.status.success() {
         Ok(if stdout.is_empty() { stderr } else { stdout })
     } else {
-        Err(if stderr.is_empty() { stdout } else { stderr })
+        Err(AppError::git(if stderr.is_empty() { stdout } else { stderr }))
     }
 }
 
@@ -67,7 +68,7 @@ pub async fn bisect_start(
     repo_path: String,
     bad: String,
     good: String,
-) -> Result<BisectState, String> {
+) -> Result<BisectState, AppError> {
     // First run reset to clear any stale bisect state
     let _ = run_git_cmd(&repo_path, &["bisect", "reset"]);
 
@@ -79,13 +80,13 @@ pub async fn bisect_start(
 pub async fn bisect_mark(
     repo_path: String,
     status: String, // "good", "bad", "skip"
-) -> Result<BisectState, String> {
+) -> Result<BisectState, AppError> {
     let output = run_git_cmd(&repo_path, &["bisect", &status])?;
     Ok(get_bisect_state(&repo_path, output))
 }
 
 #[tauri::command]
-pub async fn bisect_reset(repo_path: String) -> Result<(), String> {
+pub async fn bisect_reset(repo_path: String) -> Result<(), AppError> {
     run_git_cmd(&repo_path, &["bisect", "reset"])?;
     Ok(())
 }

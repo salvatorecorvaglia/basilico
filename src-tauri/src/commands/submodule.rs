@@ -3,6 +3,7 @@ Basilico — Submodule Commands
 Command handlers for git submodule operations
 ═══════════════════════════════════════════════════════ */
 
+use crate::error::AppError;
 use git2::Repository;
 use serde::Serialize;
 
@@ -17,9 +18,9 @@ pub struct SubmoduleInfo {
 }
 
 #[tauri::command]
-pub async fn list_submodules(repo_path: String) -> Result<Vec<SubmoduleInfo>, String> {
-    let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
-    let submodules = repo.submodules().map_err(|e| e.to_string())?;
+pub async fn list_submodules(repo_path: String) -> Result<Vec<SubmoduleInfo>, AppError> {
+    let repo = Repository::open(&repo_path)?;
+    let submodules = repo.submodules()?;
 
     let mut result = Vec::new();
 
@@ -42,11 +43,7 @@ pub async fn list_submodules(repo_path: String) -> Result<Vec<SubmoduleInfo>, St
             }
             Err(_) => {
                 // Can't open the submodule repo — likely not initialized
-                if sm.head_id().is_some() {
-                    "uninitialized".to_string()
-                } else {
-                    "uninitialized".to_string()
-                }
+                "uninitialized".to_string()
             }
         };
 
@@ -63,7 +60,7 @@ pub async fn list_submodules(repo_path: String) -> Result<Vec<SubmoduleInfo>, St
 }
 
 #[tauri::command]
-pub async fn init_submodules(repo_path: String, paths: Vec<String>) -> Result<(), String> {
+pub async fn init_submodules(repo_path: String, paths: Vec<String>) -> Result<(), AppError> {
     let mut args = vec!["submodule".to_string(), "init".to_string()];
 
     if !paths.is_empty() {
@@ -75,10 +72,10 @@ pub async fn init_submodules(repo_path: String, paths: Vec<String>) -> Result<()
         .args(&args)
         .current_dir(&repo_path)
         .output()
-        .map_err(|e| format!("Failed to run git submodule init: {}", e))?;
+        .map_err(|e| AppError::command(format!("Failed to run git submodule init: {}", e)))?;
 
     if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+        return Err(AppError::submodule(String::from_utf8_lossy(&output.stderr)));
     }
 
     Ok(())
@@ -89,7 +86,7 @@ pub async fn update_submodules(
     repo_path: String,
     paths: Vec<String>,
     recursive: bool,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let mut args = vec![
         "submodule".to_string(),
         "update".to_string(),
@@ -109,17 +106,17 @@ pub async fn update_submodules(
         .args(&args)
         .current_dir(&repo_path)
         .output()
-        .map_err(|e| format!("Failed to run git submodule update: {}", e))?;
+        .map_err(|e| AppError::command(format!("Failed to run git submodule update: {}", e)))?;
 
     if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+        return Err(AppError::submodule(String::from_utf8_lossy(&output.stderr)));
     }
 
     Ok(())
 }
 
 #[tauri::command]
-pub async fn sync_submodules(repo_path: String, paths: Vec<String>) -> Result<(), String> {
+pub async fn sync_submodules(repo_path: String, paths: Vec<String>) -> Result<(), AppError> {
     let mut args = vec!["submodule".to_string(), "sync".to_string()];
 
     if !paths.is_empty() {
@@ -131,25 +128,25 @@ pub async fn sync_submodules(repo_path: String, paths: Vec<String>) -> Result<()
         .args(&args)
         .current_dir(&repo_path)
         .output()
-        .map_err(|e| format!("Failed to run git submodule sync: {}", e))?;
+        .map_err(|e| AppError::command(format!("Failed to run git submodule sync: {}", e)))?;
 
     if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+        return Err(AppError::submodule(String::from_utf8_lossy(&output.stderr)));
     }
 
     Ok(())
 }
 
 #[tauri::command]
-pub async fn add_submodule(repo_path: String, url: String, path: String) -> Result<(), String> {
+pub async fn add_submodule(repo_path: String, url: String, path: String) -> Result<(), AppError> {
     let output = crate::commands::new_command("git")
         .args(["submodule", "add", &url, &path])
         .current_dir(&repo_path)
         .output()
-        .map_err(|e| format!("Failed to run git submodule add: {}", e))?;
+        .map_err(|e| AppError::command(format!("Failed to run git submodule add: {}", e)))?;
 
     if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+        return Err(AppError::submodule(String::from_utf8_lossy(&output.stderr)));
     }
 
     Ok(())

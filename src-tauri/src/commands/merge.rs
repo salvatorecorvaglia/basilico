@@ -1,20 +1,18 @@
+use crate::error::AppError;
 use git2::{build::CheckoutBuilder, MergeOptions, Repository};
 use std::path::Path;
 
 #[tauri::command]
-pub async fn merge_branch(path: String, branch_name: String) -> Result<String, String> {
-    let repo = Repository::open(&path).map_err(|e| e.to_string())?;
+pub async fn merge_branch(path: String, branch_name: String) -> Result<String, AppError> {
+    let repo = Repository::open(&path)?;
 
     // Find the branch reference
     let ref_name = format!("refs/heads/{}", branch_name);
     let reference = repo
         .find_reference(&ref_name)
-        .or_else(|_| repo.find_reference(&format!("refs/remotes/{}", branch_name)))
-        .map_err(|e| e.to_string())?;
+        .or_else(|_| repo.find_reference(&format!("refs/remotes/{}", branch_name)))?;
 
-    let annotated = repo
-        .reference_to_annotated_commit(&reference)
-        .map_err(|e| e.to_string())?;
+    let annotated = repo.reference_to_annotated_commit(&reference)?;
 
     let mut merge_opts = MergeOptions::new();
     let mut checkout_opts = CheckoutBuilder::new();
@@ -24,8 +22,7 @@ pub async fn merge_branch(path: String, branch_name: String) -> Result<String, S
         &[&annotated],
         Some(&mut merge_opts),
         Some(&mut checkout_opts),
-    )
-    .map_err(|e| e.to_string())?;
+    )?;
 
     if repo.index().map(|idx| idx.has_conflicts()).unwrap_or(false) {
         Ok("conflicts".to_string())
@@ -35,16 +32,15 @@ pub async fn merge_branch(path: String, branch_name: String) -> Result<String, S
 }
 
 #[tauri::command]
-pub async fn abort_merge(path: String) -> Result<(), String> {
-    let repo = Repository::open(&path).map_err(|e| e.to_string())?;
+pub async fn abort_merge(path: String) -> Result<(), AppError> {
+    let repo = Repository::open(&path)?;
 
     // Clean up merge state files
-    repo.cleanup_state().map_err(|e| e.to_string())?;
+    repo.cleanup_state()?;
 
     if let Ok(head_ref) = repo.head() {
         if let Ok(commit) = head_ref.peel_to_commit() {
-            repo.reset(commit.as_object(), git2::ResetType::Hard, None)
-                .map_err(|e| e.to_string())?;
+            repo.reset(commit.as_object(), git2::ResetType::Hard, None)?;
         }
     }
 
@@ -52,9 +48,9 @@ pub async fn abort_merge(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn get_conflicts(path: String) -> Result<Vec<String>, String> {
-    let repo = Repository::open(&path).map_err(|e| e.to_string())?;
-    let index = repo.index().map_err(|e| e.to_string())?;
+pub async fn get_conflicts(path: String) -> Result<Vec<String>, AppError> {
+    let repo = Repository::open(&path)?;
+    let index = repo.index()?;
     let mut conflicts = Vec::new();
 
     if let Ok(index_conflicts) = index.conflicts() {
@@ -81,14 +77,12 @@ pub async fn get_conflicts(path: String) -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-pub async fn resolve_conflict(path: String, file_path: String) -> Result<(), String> {
-    let repo = Repository::open(&path).map_err(|e| e.to_string())?;
-    let mut index = repo.index().map_err(|e| e.to_string())?;
+pub async fn resolve_conflict(path: String, file_path: String) -> Result<(), AppError> {
+    let repo = Repository::open(&path)?;
+    let mut index = repo.index()?;
 
     // Adding resolved file to index clears conflict in git
-    index
-        .add_path(Path::new(&file_path))
-        .map_err(|e| e.to_string())?;
-    index.write().map_err(|e| e.to_string())?;
+    index.add_path(Path::new(&file_path))?;
+    index.write()?;
     Ok(())
 }

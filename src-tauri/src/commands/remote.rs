@@ -1,18 +1,17 @@
+use crate::error::AppError;
 use git2::{build::CheckoutBuilder, FetchOptions, MergeOptions, PushOptions, Repository};
 
 #[tauri::command]
-pub async fn fetch(app: tauri::AppHandle, path: String, remote: String) -> Result<(), String> {
-    let repo = Repository::open(&path).map_err(|e| e.to_string())?;
-    let mut remote_obj = repo.find_remote(&remote).map_err(|e| e.to_string())?;
+pub async fn fetch(app: tauri::AppHandle, path: String, remote: String) -> Result<(), AppError> {
+    let repo = Repository::open(&path)?;
+    let mut remote_obj = repo.find_remote(&remote)?;
 
     let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
 
     let mut fetch_opts = FetchOptions::new();
     fetch_opts.remote_callbacks(crate::git::credentials::make_callbacks(ssh_key_path));
 
-    remote_obj
-        .fetch(&[] as &[&str], Some(&mut fetch_opts), None)
-        .map_err(|e| e.to_string())?;
+    remote_obj.fetch(&[] as &[&str], Some(&mut fetch_opts), None)?;
 
     Ok(())
 }
@@ -24,9 +23,9 @@ pub async fn push(
     remote: String,
     branch: String,
     force: bool,
-) -> Result<(), String> {
-    let repo = Repository::open(&path).map_err(|e| e.to_string())?;
-    let mut remote_obj = repo.find_remote(&remote).map_err(|e| e.to_string())?;
+) -> Result<(), AppError> {
+    let repo = Repository::open(&path)?;
+    let mut remote_obj = repo.find_remote(&remote)?;
 
     let refspec = if force {
         format!("+refs/heads/{}:refs/heads/{}", branch, branch)
@@ -39,9 +38,7 @@ pub async fn push(
     let mut push_opts = PushOptions::new();
     push_opts.remote_callbacks(crate::git::credentials::make_callbacks(ssh_key_path));
 
-    remote_obj
-        .push(&[refspec.as_str()], Some(&mut push_opts))
-        .map_err(|e| e.to_string())?;
+    remote_obj.push(&[refspec.as_str()], Some(&mut push_opts))?;
 
     Ok(())
 }
@@ -52,30 +49,24 @@ pub async fn pull(
     path: String,
     remote: String,
     branch: String,
-) -> Result<String, String> {
-    let repo = Repository::open(&path).map_err(|e| e.to_string())?;
+) -> Result<String, AppError> {
+    let repo = Repository::open(&path)?;
 
     let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
 
     // Step 1: Fetch
-    let mut remote_obj = repo.find_remote(&remote).map_err(|e| e.to_string())?;
+    let mut remote_obj = repo.find_remote(&remote)?;
     let mut fetch_opts = FetchOptions::new();
     fetch_opts.remote_callbacks(crate::git::credentials::make_callbacks(
         ssh_key_path.clone(),
     ));
 
-    remote_obj
-        .fetch(&[branch.as_str()], Some(&mut fetch_opts), None)
-        .map_err(|e| e.to_string())?;
+    remote_obj.fetch(&[branch.as_str()], Some(&mut fetch_opts), None)?;
 
     // Step 2: Merge the remote tracking branch into current HEAD
     let remote_ref = format!("refs/remotes/{}/{}", remote, branch);
-    let reference = repo
-        .find_reference(&remote_ref)
-        .map_err(|e| e.to_string())?;
-    let annotated = repo
-        .reference_to_annotated_commit(&reference)
-        .map_err(|e| e.to_string())?;
+    let reference = repo.find_reference(&remote_ref)?;
+    let annotated = repo.reference_to_annotated_commit(&reference)?;
 
     let mut merge_opts = MergeOptions::new();
     let mut checkout_opts = CheckoutBuilder::new();
@@ -85,8 +76,7 @@ pub async fn pull(
         &[&annotated],
         Some(&mut merge_opts),
         Some(&mut checkout_opts),
-    )
-    .map_err(|e| e.to_string())?;
+    )?;
 
     if repo.index().map(|idx| idx.has_conflicts()).unwrap_or(false) {
         Ok("conflicts".to_string())

@@ -3,6 +3,7 @@ Basilico — Worktree Commands
 Command handlers for git worktree operations
 ═══════════════════════════════════════════════════════ */
 
+use crate::error::AppError;
 use serde::Serialize;
 
 #[derive(Debug, Serialize, Clone)]
@@ -15,15 +16,15 @@ pub struct WorktreeInfo {
 }
 
 #[tauri::command]
-pub async fn list_worktrees(repo_path: String) -> Result<Vec<WorktreeInfo>, String> {
+pub async fn list_worktrees(repo_path: String) -> Result<Vec<WorktreeInfo>, AppError> {
     let output = crate::commands::new_command("git")
         .args(["worktree", "list", "--porcelain"])
         .current_dir(&repo_path)
         .output()
-        .map_err(|e| format!("Failed to run git worktree list: {}", e))?;
+        .map_err(|e| AppError::command(format!("Failed to run git worktree list: {}", e)))?;
 
     if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+        return Err(AppError::git(String::from_utf8_lossy(&output.stderr)));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -87,11 +88,11 @@ pub async fn add_worktree(
     path: String,
     branch: Option<String>,
     new_branch: Option<String>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     // Ensure parent directory exists
     if let Some(parent) = std::path::Path::new(&path).parent() {
         std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create parent directory: {}", e))?;
+            .map_err(|e| AppError::io(format!("Failed to create parent directory: {}", e)))?;
     }
 
     let mut args = vec!["worktree".to_string(), "add".to_string()];
@@ -111,10 +112,10 @@ pub async fn add_worktree(
         .args(&args)
         .current_dir(&repo_path)
         .output()
-        .map_err(|e| format!("Failed to run git worktree add: {}", e))?;
+        .map_err(|e| AppError::command(format!("Failed to run git worktree add: {}", e)))?;
 
     if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+        return Err(AppError::git(String::from_utf8_lossy(&output.stderr)));
     }
 
     Ok(())
@@ -125,7 +126,7 @@ pub async fn remove_worktree(
     repo_path: String,
     worktree_path: String,
     force: bool,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let mut args = vec!["worktree", "remove"];
 
     if force {
@@ -138,25 +139,25 @@ pub async fn remove_worktree(
         .args(&args)
         .current_dir(&repo_path)
         .output()
-        .map_err(|e| format!("Failed to run git worktree remove: {}", e))?;
+        .map_err(|e| AppError::command(format!("Failed to run git worktree remove: {}", e)))?;
 
     if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+        return Err(AppError::git(String::from_utf8_lossy(&output.stderr)));
     }
 
     Ok(())
 }
 
 #[tauri::command]
-pub async fn prune_worktrees(repo_path: String) -> Result<(), String> {
+pub async fn prune_worktrees(repo_path: String) -> Result<(), AppError> {
     let output = crate::commands::new_command("git")
         .args(["worktree", "prune"])
         .current_dir(&repo_path)
         .output()
-        .map_err(|e| format!("Failed to run git worktree prune: {}", e))?;
+        .map_err(|e| AppError::command(format!("Failed to run git worktree prune: {}", e)))?;
 
     if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+        return Err(AppError::git(String::from_utf8_lossy(&output.stderr)));
     }
 
     Ok(())

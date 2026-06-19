@@ -4,6 +4,7 @@ Command handlers for git history and code search
 ═══════════════════════════════════════════════════════ */
 
 use crate::git::graph::GraphCommit;
+use crate::error::AppError;
 use git2::{Repository, Sort};
 use serde::Serialize;
 
@@ -16,12 +17,10 @@ pub struct GrepMatch {
 }
 
 #[tauri::command]
-pub async fn search_commits(repo_path: String, query: String) -> Result<Vec<GraphCommit>, String> {
-    let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
-    let mut revwalk = repo.revwalk().map_err(|e| e.to_string())?;
-    revwalk
-        .set_sorting(Sort::TOPOLOGICAL | Sort::TIME)
-        .map_err(|e| e.to_string())?;
+pub async fn search_commits(repo_path: String, query: String) -> Result<Vec<GraphCommit>, AppError> {
+    let repo = Repository::open(&repo_path)?;
+    let mut revwalk = repo.revwalk()?;
+    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
 
     // Push head to revwalk
     if let Ok(_) = repo.head() {
@@ -88,7 +87,7 @@ pub async fn search_commits(repo_path: String, query: String) -> Result<Vec<Grap
 }
 
 #[tauri::command]
-pub async fn grep_code(repo_path: String, query: String) -> Result<Vec<GrepMatch>, String> {
+pub async fn grep_code(repo_path: String, query: String) -> Result<Vec<GrepMatch>, AppError> {
     if query.trim().is_empty() {
         return Ok(Vec::new());
     }
@@ -97,7 +96,7 @@ pub async fn grep_code(repo_path: String, query: String) -> Result<Vec<GrepMatch
         .current_dir(&repo_path)
         .args(&["grep", "-n", "-I", "--no-color", "-e", &query])
         .output()
-        .map_err(|e| format!("Failed to run git grep: {}", e))?;
+        .map_err(|e| AppError::command(format!("Failed to run git grep: {}", e)))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 

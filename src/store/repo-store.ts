@@ -236,7 +236,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const info = await commands.openRepo(path);
+      const info = await commands.openRepo(path, { errorPrefix: 'Failed to open repository' });
 
       const tabId = info.path;
       const existingTab = get().tabs.find((t) => t.id === tabId);
@@ -301,7 +301,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     }
 
     // Tell Rust to clean up
-    commands.closeRepo(tabId).catch(() => {});
+    commands.closeRepo(tabId, { silent: true }).catch(() => {});
   },
 
   switchTab: (tabId: string) => {
@@ -322,7 +322,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isRefreshing: true });
     try {
-      const status = await commands.getStatus(activeTabId);
+      const status = await commands.getStatus(activeTabId, { silent: true });
       set({ status });
     } catch (err) {
       console.error('Failed to refresh status:', err);
@@ -338,21 +338,21 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     set({ isRefreshing: true });
     try {
       const [status, branches, tags, remotes, commits, stashes] = await Promise.all([
-        commands.getStatus(activeTabId),
-        commands.listBranches(activeTabId),
-        commands.listTags(activeTabId),
-        commands.listRemotes(activeTabId),
-        commands.getLog(activeTabId, 500),
-        commands.listStashes(activeTabId),
+        commands.getStatus(activeTabId, { silent: true }),
+        commands.listBranches(activeTabId, { silent: true }),
+        commands.listTags(activeTabId, { silent: true }),
+        commands.listRemotes(activeTabId, { silent: true }),
+        commands.getLog(activeTabId, 500, { silent: true }),
+        commands.listStashes(activeTabId, { silent: true }),
       ]);
 
       set({ status, branches, tags, remotes, commits, stashes });
 
       // Load worktrees and submodules in background (non-blocking)
-      commands.listWorktrees(activeTabId)
+      commands.listWorktrees(activeTabId, { silent: true })
         .then(worktrees => set({ worktrees }))
         .catch(() => set({ worktrees: [] }));
-      commands.listSubmodules(activeTabId)
+      commands.listSubmodules(activeTabId, { silent: true })
         .then(submodules => set({ submodules }))
         .catch(() => set({ submodules: [] }));
     } catch (err) {
@@ -372,7 +372,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      const diff = await commands.getCommitDiff(activeTabId, oid);
+      const diff = await commands.getCommitDiff(activeTabId, oid, { silent: true });
       set({ commitDiff: diff });
     } catch (err) {
       console.error('Failed to load commit diff:', err);
@@ -384,7 +384,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      const moreCommits = await commands.getLog(activeTabId, commits.length + count);
+      const moreCommits = await commands.getLog(activeTabId, commits.length + count, { silent: true });
       set({ commits: moreCommits });
     } catch (err) {
       console.error('Failed to load more commits:', err);
@@ -399,7 +399,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      const diff = await commands.getFileDiff(activeTabId, path, isStaged);
+      const diff = await commands.getFileDiff(activeTabId, path, isStaged, { silent: true });
       set({ localDiff: diff });
     } catch (err) {
       console.error('Failed to load local file diff:', err);
@@ -411,7 +411,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      await commands.stageFiles(activeTabId, files);
+      await commands.stageFiles(activeTabId, files, { errorPrefix: 'Failed to stage files' });
       await get().refreshAll();
       
       // Refresh current diff if it's selected
@@ -430,7 +430,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      await commands.unstageFiles(activeTabId, files);
+      await commands.unstageFiles(activeTabId, files, { errorPrefix: 'Failed to unstage files' });
       await get().refreshAll();
 
       // Refresh current diff if it's selected
@@ -449,7 +449,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      await commands.discardChanges(activeTabId, files);
+      await commands.discardChanges(activeTabId, files, { errorPrefix: 'Failed to discard changes' });
       
       // Reset selected file if discarded
       const { selectedFilePath } = get();
@@ -469,7 +469,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      await commands.applyPatch(activeTabId, patch, location);
+      await commands.applyPatch(activeTabId, patch, location, { errorPrefix: 'Failed to apply patch' });
       await get().refreshAll();
 
       // Refresh current diff if one is selected
@@ -490,7 +490,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      await commands.createCommit(activeTabId, message, null, null, amend);
+      await commands.createCommit(activeTabId, message, null, null, amend, { errorPrefix: 'Failed to commit' });
       set({ selectedFilePath: null, localDiff: null });
       await get().refreshAll();
     } catch (err) {
@@ -508,7 +508,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      await commands.checkoutBranch(activeTabId, branchName);
+      await commands.checkoutBranch(activeTabId, branchName, { errorPrefix: 'Failed to checkout branch' });
       set({ selectedFilePath: null, localDiff: null });
       await get().refreshAll();
     } catch (err) {
@@ -525,7 +525,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      await commands.createBranch(activeTabId, name, startPoint);
+      await commands.createBranch(activeTabId, name, startPoint, { errorPrefix: 'Failed to create branch' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to create branch:', err);
@@ -539,7 +539,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      await commands.deleteBranch(activeTabId, name, isRemote);
+      await commands.deleteBranch(activeTabId, name, isRemote, { errorPrefix: 'Failed to delete branch' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to delete branch:', err);
@@ -553,7 +553,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      await commands.renameBranch(activeTabId, currentName, newName);
+      await commands.renameBranch(activeTabId, currentName, newName, { errorPrefix: 'Failed to rename branch' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to rename branch:', err);
@@ -567,7 +567,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      await commands.deleteTag(activeTabId, name);
+      await commands.deleteTag(activeTabId, name, { errorPrefix: 'Failed to delete tag' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to delete tag:', err);
@@ -582,7 +582,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      const result = await commands.mergeBranch(activeTabId, branchName);
+      const result = await commands.mergeBranch(activeTabId, branchName, { errorPrefix: 'Failed to merge' });
       await get().refreshAll();
       return result;
     } catch (err) {
@@ -600,7 +600,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      await commands.abortMerge(activeTabId);
+      await commands.abortMerge(activeTabId, { errorPrefix: 'Failed to abort merge' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to abort merge:', err);
@@ -615,7 +615,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      await commands.resolveConflict(activeTabId, filePath);
+      await commands.resolveConflict(activeTabId, filePath, { errorPrefix: 'Failed to resolve conflict' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to resolve conflict:', err);
@@ -629,7 +629,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isRefreshing: true });
     try {
-      await commands.fetch(activeTabId, remote);
+      await commands.fetch(activeTabId, remote, { errorPrefix: 'Fetch failed' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to fetch:', err);
@@ -646,7 +646,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      const result = await commands.pull(activeTabId, remote, branch);
+      const result = await commands.pull(activeTabId, remote, branch, { errorPrefix: 'Pull failed' });
       await get().refreshAll();
       return result;
     } catch (err) {
@@ -664,7 +664,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      await commands.push(activeTabId, remote, branch, force);
+      await commands.push(activeTabId, remote, branch, force, { errorPrefix: 'Push failed' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to push:', err);
@@ -736,7 +736,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      const list = await commands.listStashes(activeTabId);
+      const list = await commands.listStashes(activeTabId, { silent: true });
       set({ stashes: list });
     } catch (err) {
       console.error('Failed to load stashes:', err);
@@ -749,7 +749,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      await commands.saveStash(activeTabId, message, includeUntracked);
+      await commands.saveStash(activeTabId, message, includeUntracked, { errorPrefix: 'Failed to save stash' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to save stash:', err);
@@ -766,7 +766,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      await commands.applyStash(activeTabId, index);
+      await commands.applyStash(activeTabId, index, { errorPrefix: 'Failed to apply stash' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to apply stash:', err);
@@ -783,7 +783,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      await commands.popStash(activeTabId, index);
+      await commands.popStash(activeTabId, index, { errorPrefix: 'Failed to pop stash' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to pop stash:', err);
@@ -799,7 +799,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      await commands.dropStash(activeTabId, index);
+      await commands.dropStash(activeTabId, index, { errorPrefix: 'Failed to drop stash' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to drop stash:', err);
@@ -815,7 +815,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      await commands.createTag(activeTabId, name, targetOid, message, force);
+      await commands.createTag(activeTabId, name, targetOid, message, force, { errorPrefix: 'Failed to create tag' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to create tag:', err);
@@ -830,7 +830,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      await commands.pushTag(activeTabId, remote, tagName);
+      await commands.pushTag(activeTabId, remote, tagName, { errorPrefix: 'Failed to push tag' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to push tag:', err);
@@ -849,7 +849,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const items = await commands.rebaseInit(activeTabId, upstream);
+      const items = await commands.rebaseInit(activeTabId, upstream, { errorPrefix: 'Failed to initialize rebase' });
       set({ rebaseTodoItems: items, rebaseStatus: { status: 'stepping', currentOid: null, message: 'Rebase initialized' } });
     } catch (err) {
       console.error('Failed to initialize rebase:', err);
@@ -865,7 +865,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      await commands.rebaseWriteTodo(activeTabId, items);
+      await commands.rebaseWriteTodo(activeTabId, items, { errorPrefix: 'Failed to write rebase todo' });
       set({ rebaseTodoItems: items });
     } catch (err) {
       console.error('Failed to write rebase todo:', err);
@@ -880,7 +880,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const status = await commands.rebaseStep(activeTabId, action, commitMessage);
+      const status = await commands.rebaseStep(activeTabId, action, commitMessage, { errorPrefix: 'Failed to step rebase' });
       set({ rebaseStatus: status });
       await get().refreshAll();
       return status;
@@ -899,7 +899,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const state = await commands.bisectStart(activeTabId, bad, good);
+      const state = await commands.bisectStart(activeTabId, bad, good, { errorPrefix: 'Failed to start bisect' });
       set({ bisectState: state });
       await get().refreshAll();
     } catch (err) {
@@ -917,7 +917,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const state = await commands.bisectMark(activeTabId, status);
+      const state = await commands.bisectMark(activeTabId, status, { errorPrefix: 'Failed to mark bisect' });
       set({ bisectState: state });
       await get().refreshAll();
     } catch (err) {
@@ -935,7 +935,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      await commands.bisectReset(activeTabId);
+      await commands.bisectReset(activeTabId, { errorPrefix: 'Failed to reset bisect' });
       set({ bisectState: null });
       await get().refreshAll();
     } catch (err) {
@@ -958,7 +958,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const results = await commands.searchCommits(activeTabId, query);
+      const results = await commands.searchCommits(activeTabId, query, { errorPrefix: 'Failed to search commits' });
       set({ commitSearchResults: results });
     } catch (err) {
       console.error('Failed to search commits:', err);
@@ -980,7 +980,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const results = await commands.grepCode(activeTabId, query);
+      const results = await commands.grepCode(activeTabId, query, { errorPrefix: 'Failed to search code' });
       set({ grepSearchResults: results });
     } catch (err) {
       console.error('Failed to grep code:', err);
@@ -998,7 +998,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      const worktrees = await commands.listWorktrees(activeTabId);
+      const worktrees = await commands.listWorktrees(activeTabId, { silent: true });
       set({ worktrees });
     } catch (err) {
       console.error('Failed to load worktrees:', err);
@@ -1011,7 +1011,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      await commands.addWorktree(activeTabId, path, branch, newBranch);
+      await commands.addWorktree(activeTabId, path, branch, newBranch, { errorPrefix: 'Failed to add worktree' });
       await get().loadWorktrees();
     } catch (err) {
       console.error('Failed to add worktree:', err);
@@ -1028,7 +1028,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      await commands.removeWorktree(activeTabId, worktreePath, force);
+      await commands.removeWorktree(activeTabId, worktreePath, force, { errorPrefix: 'Failed to remove worktree' });
       await get().loadWorktrees();
     } catch (err) {
       console.error('Failed to remove worktree:', err);
@@ -1044,7 +1044,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      await commands.pruneWorktrees(activeTabId);
+      await commands.pruneWorktrees(activeTabId, { errorPrefix: 'Failed to prune worktrees' });
       await get().loadWorktrees();
     } catch (err) {
       console.error('Failed to prune worktrees:', err);
@@ -1060,7 +1060,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      const submodules = await commands.listSubmodules(activeTabId);
+      const submodules = await commands.listSubmodules(activeTabId, { silent: true });
       set({ submodules });
     } catch (err) {
       console.error('Failed to load submodules:', err);
@@ -1073,7 +1073,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      await commands.initSubmodules(activeTabId, paths);
+      await commands.initSubmodules(activeTabId, paths, { errorPrefix: 'Failed to initialize submodules' });
       await get().loadSubmodules();
     } catch (err) {
       console.error('Failed to init submodules:', err);
@@ -1090,7 +1090,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      await commands.updateSubmodules(activeTabId, paths, recursive);
+      await commands.updateSubmodules(activeTabId, paths, recursive, { errorPrefix: 'Failed to update submodules' });
       await get().loadSubmodules();
     } catch (err) {
       console.error('Failed to update submodules:', err);
@@ -1106,7 +1106,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
 
     try {
-      await commands.syncSubmodules(activeTabId, paths);
+      await commands.syncSubmodules(activeTabId, paths, { errorPrefix: 'Failed to sync submodules' });
       await get().loadSubmodules();
     } catch (err) {
       console.error('Failed to sync submodules:', err);
@@ -1121,7 +1121,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      await commands.addSubmodule(activeTabId, url, path);
+      await commands.addSubmodule(activeTabId, url, path, { errorPrefix: 'Failed to add submodule' });
       await get().loadSubmodules();
       await get().refreshAll();
     } catch (err) {
@@ -1137,7 +1137,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
   loadSettings: async () => {
     try {
-      const settings = await commands.getSettings();
+      const settings = await commands.getSettings({ silent: true });
       set({ settings });
       localStorage.setItem('basilico-theme', settings.theme);
 
@@ -1162,7 +1162,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
   saveSettings: async (settings) => {
     try {
-      await commands.saveSettings(settings);
+      await commands.saveSettings(settings, { errorPrefix: 'Failed to save settings' });
       set({ settings });
       localStorage.setItem('basilico-theme', settings.theme);
 
@@ -1189,7 +1189,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
   generateSshKey: async (comment) => {
     try {
-      const pubKey = await commands.generateSshKey(comment);
+      const pubKey = await commands.generateSshKey(comment, { errorPrefix: 'Failed to generate SSH key' });
       return pubKey;
     } catch (err) {
       console.error('Failed to generate SSH key:', err);
@@ -1205,7 +1205,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) throw new Error('No active repository');
     set({ isLoading: true });
     try {
-      const res = await commands.cherryPickCommit(activeTabId, oid);
+      const res = await commands.cherryPickCommit(activeTabId, oid, { errorPrefix: 'Cherry-pick failed' });
       await get().refreshAll();
       return res as 'success' | 'conflicts';
     } catch (err) {
@@ -1222,7 +1222,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) throw new Error('No active repository');
     set({ isLoading: true });
     try {
-      await commands.cherryPickAbort(activeTabId);
+      await commands.cherryPickAbort(activeTabId, { errorPrefix: 'Cherry-pick abort failed' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to abort cherry-pick:', err);
@@ -1238,7 +1238,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) throw new Error('No active repository');
     set({ isLoading: true });
     try {
-      const res = await commands.revertCommit(activeTabId, oid);
+      const res = await commands.revertCommit(activeTabId, oid, { errorPrefix: 'Revert failed' });
       await get().refreshAll();
       return res as 'success' | 'conflicts';
     } catch (err) {
@@ -1255,7 +1255,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) throw new Error('No active repository');
     set({ isLoading: true });
     try {
-      await commands.revertAbort(activeTabId);
+      await commands.revertAbort(activeTabId, { errorPrefix: 'Revert abort failed' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to abort revert:', err);
@@ -1271,7 +1271,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) throw new Error('No active repository');
     set({ isLoading: true });
     try {
-      await commands.resetToCommit(activeTabId, oid, mode);
+      await commands.resetToCommit(activeTabId, oid, mode, { errorPrefix: 'Reset failed' });
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to reset to commit:', err);
@@ -1287,7 +1287,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) throw new Error('No active repository');
     set({ isLoading: true });
     try {
-      const res = await commands.cleanRepository(activeTabId, dryRun, cleanDirs, includeIgnored);
+      const res = await commands.cleanRepository(activeTabId, dryRun, cleanDirs, includeIgnored, { errorPrefix: 'Clean failed' });
       if (!dryRun) {
         await get().refreshAll();
       }
@@ -1308,7 +1308,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
     set({ isLoading: true, commitTree: [] });
     try {
-      const tree = await commands.getCommitTree(activeTabId, oid);
+      const tree = await commands.getCommitTree(activeTabId, oid, { silent: true });
       set({ commitTree: tree });
     } catch (err) {
       console.error('Failed to load commit tree:', err);
@@ -1330,7 +1330,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       compareFileDiff: null 
     });
     try {
-      const diffs = await commands.getCompareDiff(activeTabId, base, target);
+      const diffs = await commands.getCompareDiff(activeTabId, base, target, { silent: true });
       set({ compareDiff: diffs });
       
       // Auto select first file if available
@@ -1371,7 +1371,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
     set({ isLoading: true, conflictStages: null, activeConflictedPath: filePath });
     try {
-      const stages = await commands.getConflictStages(activeTabId, filePath);
+      const stages = await commands.getConflictStages(activeTabId, filePath, { silent: true });
       set({ conflictStages: stages });
     } catch (err) {
       console.error('Failed to load conflict stages:', err);
@@ -1386,7 +1386,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     if (!activeTabId) return;
     set({ isLoading: true });
     try {
-      await commands.saveMergedResolution(activeTabId, filePath, mergedContent);
+      await commands.saveMergedResolution(activeTabId, filePath, mergedContent, { errorPrefix: 'Failed to resolve conflict' });
       set({ conflictStages: null, activeConflictedPath: null });
       await get().refreshAll();
     } catch (err) {
@@ -1410,7 +1410,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       if (!stash) {
         throw new Error(`Stash at index ${index} not found`);
       }
-      const diff = await commands.getStashDiff(activeTabId, stash.oid);
+      const diff = await commands.getStashDiff(activeTabId, stash.oid, { silent: true });
       set({ stashDiff: diff });
 
       // Automatically select first file
@@ -1450,13 +1450,13 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       }
       
       // 1. Create a branch from stash parent (stash.oid + "^1")
-      await commands.createBranch(activeTabId, branchName, `${stash.oid}^1`);
+      await commands.createBranch(activeTabId, branchName, `${stash.oid}^1`, { errorPrefix: 'Failed to branch from stash' });
       
       // 2. Checkout that new branch
       await get().checkoutBranch(branchName);
       
       // 3. Pop the stash (applies to workspace and drops)
-      await commands.popStash(activeTabId, index);
+      await commands.popStash(activeTabId, index, { errorPrefix: 'Failed to pop stash' });
       
       await get().refreshAll();
     } catch (err) {

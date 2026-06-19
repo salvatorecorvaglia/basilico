@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use git2::{Repository, Sort};
 use serde::Serialize;
 
@@ -18,11 +19,10 @@ pub async fn get_file_history(
     path: String,
     file_path: String,
     max_commits: Option<usize>,
-) -> Result<Vec<FileHistoryEntry>, String> {
-    let repo = Repository::open(&path).map_err(|e| e.to_string())?;
-    let mut walk = repo.revwalk().map_err(|e| e.to_string())?;
-    walk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)
-        .map_err(|e| e.to_string())?;
+) -> Result<Vec<FileHistoryEntry>, AppError> {
+    let repo = Repository::open(&path)?;
+    let mut walk = repo.revwalk()?;
+    walk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
 
     // Start walk from HEAD. If HEAD does not exist (empty repo), return empty list.
     if walk.push_head().is_err() {
@@ -34,11 +34,11 @@ pub async fn get_file_history(
     let mut current_path = file_path.clone();
 
     for oid_res in walk {
-        let oid = oid_res.map_err(|e| e.to_string())?;
-        let commit = repo.find_commit(oid).map_err(|e| e.to_string())?;
+        let oid = oid_res?;
+        let commit = repo.find_commit(oid)?;
 
         // 1. Get commit tree
-        let commit_tree = commit.tree().map_err(|e| e.to_string())?;
+        let commit_tree = commit.tree()?;
 
         // 2. Compare with parents to see if this commit modified the file at current_path
         let parents_count = commit.parent_count();
@@ -56,18 +56,15 @@ pub async fn get_file_history(
         } else {
             // Check diff against parents
             for p_idx in 0..parents_count {
-                let parent = commit.parent(p_idx).map_err(|e| e.to_string())?;
-                let parent_tree = parent.tree().map_err(|e| e.to_string())?;
+                let parent = commit.parent(p_idx)?;
+                let parent_tree = parent.tree()?;
 
                 // Generate diff with rename detection
-                let mut diff = repo
-                    .diff_tree_to_tree(Some(&parent_tree), Some(&commit_tree), None)
-                    .map_err(|e| e.to_string())?;
+                let mut diff = repo.diff_tree_to_tree(Some(&parent_tree), Some(&commit_tree), None)?;
 
                 let mut find_opts = git2::DiffFindOptions::new();
                 find_opts.renames(true);
-                diff.find_similar(Some(&mut find_opts))
-                    .map_err(|e| e.to_string())?;
+                diff.find_similar(Some(&mut find_opts))?;
 
                 for delta_idx in 0..diff.deltas().len() {
                     if let Some(delta) = diff.get_delta(delta_idx) {

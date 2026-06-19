@@ -98,7 +98,7 @@ interface UIState {
   removeNotification: (id: string) => void;
 }
 
-export const useUIStore = create<UIState>((set) => ({
+export const useUIStore = create<UIState>((set, get) => ({
   sidebarVisible: true,
   sidebarWidth: 240,
   detailPanelVisible: true,
@@ -169,6 +169,29 @@ export const useUIStore = create<UIState>((set) => ({
 
   addNotification: (notification) => {
     const id = Math.random().toString(36).slice(2);
+
+    // De-duplication and merging logic for errors to prevent duplicate toasts
+    if (notification.type === 'error') {
+      const existing = get().notifications.find(
+        (n) =>
+          n.type === 'error' &&
+          (n.message.includes(notification.message) ||
+            notification.message.includes(n.message))
+      );
+
+      if (existing) {
+        // If the new message is longer (more detailed), update the existing toast
+        if (notification.message.length > existing.message.length) {
+          set((state) => ({
+            notifications: state.notifications.map((n) =>
+              n.id === existing.id ? { ...n, message: notification.message } : n
+            ),
+          }));
+        }
+        return;
+      }
+    }
+
     const newNotification = { ...notification, id };
 
     set((state) => ({

@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use git2::Repository;
 use serde::Serialize;
 use std::fs;
@@ -14,17 +15,17 @@ pub struct ConflictStages {
 pub async fn get_conflict_stages(
     repo_path: String,
     file_path: String,
-) -> Result<ConflictStages, String> {
-    let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
-    let index = repo.index().map_err(|e| e.to_string())?;
+) -> Result<ConflictStages, AppError> {
+    let repo = Repository::open(&repo_path)?;
+    let index = repo.index()?;
 
     let mut base = None;
     let mut ours = None;
     let mut theirs = None;
 
-    let conflicts = index.conflicts().map_err(|e| e.to_string())?;
+    let conflicts = index.conflicts()?;
     for conflict_res in conflicts {
-        let conflict = conflict_res.map_err(|e| e.to_string())?;
+        let conflict = conflict_res?;
 
         let path_matched = match &conflict.our {
             Some(entry) => String::from_utf8_lossy(&entry.path) == file_path,
@@ -65,17 +66,15 @@ pub async fn save_merged_resolution(
     repo_path: String,
     file_path: String,
     merged_content: String,
-) -> Result<(), String> {
-    let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
+) -> Result<(), AppError> {
+    let repo = Repository::open(&repo_path)?;
 
     let full_path = Path::new(&repo_path).join(&file_path);
-    fs::write(&full_path, merged_content).map_err(|e| e.to_string())?;
+    fs::write(&full_path, merged_content)?;
 
-    let mut index = repo.index().map_err(|e| e.to_string())?;
-    index
-        .add_path(Path::new(&file_path))
-        .map_err(|e| e.to_string())?;
-    index.write().map_err(|e| e.to_string())?;
+    let mut index = repo.index()?;
+    index.add_path(Path::new(&file_path))?;
+    index.write()?;
 
     Ok(())
 }

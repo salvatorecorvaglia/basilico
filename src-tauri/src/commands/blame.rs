@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use git2::Repository;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -20,19 +21,17 @@ pub async fn get_file_blame(
     path: String,
     file_path: String,
     commit_oid: Option<String>,
-) -> Result<Vec<BlameLine>, String> {
-    let repo = Repository::open(&path).map_err(|e| e.to_string())?;
+) -> Result<Vec<BlameLine>, AppError> {
+    let repo = Repository::open(&path)?;
 
     // 1. Get file content at the specified revision or HEAD/workdir
     let (content, resolved_oid) = if let Some(ref oid_str) = commit_oid {
-        let obj = repo.revparse_single(oid_str).map_err(|e| e.to_string())?;
-        let commit = obj.as_commit().ok_or_else(|| "Not a commit".to_string())?;
-        let tree = commit.tree().map_err(|e| e.to_string())?;
-        let entry = tree
-            .get_path(Path::new(&file_path))
-            .map_err(|e| e.to_string())?;
-        let object = entry.to_object(&repo).map_err(|e| e.to_string())?;
-        let blob = object.as_blob().ok_or_else(|| "Not a blob".to_string())?;
+        let obj = repo.revparse_single(oid_str)?;
+        let commit = obj.as_commit().ok_or_else(|| AppError::invalid_state("Not a commit"))?;
+        let tree = commit.tree()?;
+        let entry = tree.get_path(Path::new(&file_path))?;
+        let object = entry.to_object(&repo)?;
+        let blob = object.as_blob().ok_or_else(|| AppError::invalid_state("Not a blob"))?;
         (
             String::from_utf8_lossy(blob.content()).to_string(),
             Some(commit.id()),
@@ -40,7 +39,7 @@ pub async fn get_file_blame(
     } else {
         // Read from workdir
         let text = std::fs::read_to_string(Path::new(&path).join(&file_path))
-            .map_err(|e| format!("Failed to read file from workdir: {}", e))?;
+            .map_err(|e| AppError::io(format!("Failed to read file from workdir: {}", e)))?;
         (text, None)
     };
 
@@ -57,7 +56,7 @@ pub async fn get_file_blame(
             if e.code() == git2::ErrorCode::NotFound {
                 None
             } else {
-                return Err(e.to_string());
+                return Err(AppError::from(e));
             }
         }
     };

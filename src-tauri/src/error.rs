@@ -14,6 +14,65 @@ pub enum ErrorKind {
     NotFound,
     InvalidState,
     WatcherError,
+    GpgError,
+    SettingsError,
+    SubmoduleError,
+    ConflictError,
+    CommandError,
+    Unknown,
+}
+
+impl AppError {
+    pub fn new<S: Into<String>>(message: S, kind: ErrorKind) -> Self {
+        AppError {
+            message: message.into(),
+            kind,
+        }
+    }
+
+    pub fn git<S: Into<String>>(message: S) -> Self {
+        Self::new(message, ErrorKind::GitError)
+    }
+
+    pub fn io<S: Into<String>>(message: S) -> Self {
+        Self::new(message, ErrorKind::IoError)
+    }
+
+    pub fn not_found<S: Into<String>>(message: S) -> Self {
+        Self::new(message, ErrorKind::NotFound)
+    }
+
+    pub fn invalid_state<S: Into<String>>(message: S) -> Self {
+        Self::new(message, ErrorKind::InvalidState)
+    }
+
+    pub fn watcher<S: Into<String>>(message: S) -> Self {
+        Self::new(message, ErrorKind::WatcherError)
+    }
+
+    pub fn gpg<S: Into<String>>(message: S) -> Self {
+        Self::new(message, ErrorKind::GpgError)
+    }
+
+    pub fn settings<S: Into<String>>(message: S) -> Self {
+        Self::new(message, ErrorKind::SettingsError)
+    }
+
+    pub fn submodule<S: Into<String>>(message: S) -> Self {
+        Self::new(message, ErrorKind::SubmoduleError)
+    }
+
+    pub fn conflict<S: Into<String>>(message: S) -> Self {
+        Self::new(message, ErrorKind::ConflictError)
+    }
+
+    pub fn command<S: Into<String>>(message: S) -> Self {
+        Self::new(message, ErrorKind::CommandError)
+    }
+
+    pub fn unknown<S: Into<String>>(message: S) -> Self {
+        Self::new(message, ErrorKind::Unknown)
+    }
 }
 
 impl fmt::Display for AppError {
@@ -57,3 +116,4 @@ impl From<AppError> for String {
         err.message
     }
 }
+

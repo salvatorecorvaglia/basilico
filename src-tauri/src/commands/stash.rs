@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use git2::{Repository, StashFlags};
 use serde::Serialize;
 
@@ -11,8 +12,8 @@ pub struct StashInfo {
 }
 
 #[tauri::command]
-pub async fn list_stashes(path: String) -> Result<Vec<StashInfo>, String> {
-    let mut repo = Repository::open(&path).map_err(|e| e.to_string())?;
+pub async fn list_stashes(path: String) -> Result<Vec<StashInfo>, AppError> {
+    let mut repo = Repository::open(&path)?;
     let mut stashes = Vec::new();
     let mut entries = Vec::new();
 
@@ -45,42 +46,40 @@ pub async fn save_stash(
     path: String,
     message: String,
     include_untracked: bool,
-) -> Result<(), String> {
-    let mut repo = Repository::open(&path).map_err(|e| e.to_string())?;
+) -> Result<(), AppError> {
+    let mut repo = Repository::open(&path)?;
 
     // Find default signature
     let sig = repo
         .signature()
-        .or_else(|_| git2::Signature::now("Basilico", "basilico@example.com"))
-        .map_err(|e| e.to_string())?;
+        .or_else(|_| git2::Signature::now("Basilico", "basilico@example.com"))?;
 
     let mut flags = StashFlags::DEFAULT;
     if include_untracked {
         flags |= StashFlags::INCLUDE_UNTRACKED;
     }
 
-    repo.stash_save(&sig, &message, Some(flags))
-        .map_err(|e| e.to_string())?;
+    repo.stash_save(&sig, &message, Some(flags))?;
     Ok(())
 }
 
 #[tauri::command]
-pub async fn apply_stash(path: String, index: usize) -> Result<(), String> {
-    let mut repo = Repository::open(&path).map_err(|e| e.to_string())?;
-    repo.stash_apply(index, None).map_err(|e| e.to_string())?;
+pub async fn apply_stash(path: String, index: usize) -> Result<(), AppError> {
+    let mut repo = Repository::open(&path)?;
+    repo.stash_apply(index, None)?;
     Ok(())
 }
 
 #[tauri::command]
-pub async fn pop_stash(path: String, index: usize) -> Result<(), String> {
-    let mut repo = Repository::open(&path).map_err(|e| e.to_string())?;
-    repo.stash_pop(index, None).map_err(|e| e.to_string())?;
+pub async fn pop_stash(path: String, index: usize) -> Result<(), AppError> {
+    let mut repo = Repository::open(&path)?;
+    repo.stash_pop(index, None)?;
     Ok(())
 }
 
 #[tauri::command]
-pub async fn drop_stash(path: String, index: usize) -> Result<(), String> {
-    let mut repo = Repository::open(&path).map_err(|e| e.to_string())?;
-    repo.stash_drop(index).map_err(|e| e.to_string())?;
+pub async fn drop_stash(path: String, index: usize) -> Result<(), AppError> {
+    let mut repo = Repository::open(&path)?;
+    repo.stash_drop(index)?;
     Ok(())
 }

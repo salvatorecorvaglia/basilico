@@ -1,21 +1,22 @@
 use crate::git::diff_parser;
+use crate::error::AppError;
 
 #[tauri::command]
-pub async fn get_workdir_diff(path: String) -> Result<Vec<diff_parser::FileDiff>, String> {
-    diff_parser::get_workdir_diff(&path).map_err(|e| e.message)
+pub async fn get_workdir_diff(path: String) -> Result<Vec<diff_parser::FileDiff>, AppError> {
+    diff_parser::get_workdir_diff(&path)
 }
 
 #[tauri::command]
-pub async fn get_staged_diff(path: String) -> Result<Vec<diff_parser::FileDiff>, String> {
-    diff_parser::get_staged_diff(&path).map_err(|e| e.message)
+pub async fn get_staged_diff(path: String) -> Result<Vec<diff_parser::FileDiff>, AppError> {
+    diff_parser::get_staged_diff(&path)
 }
 
 #[tauri::command]
 pub async fn get_commit_diff(
     path: String,
     oid: String,
-) -> Result<Vec<diff_parser::FileDiff>, String> {
-    diff_parser::get_commit_diff(&path, &oid).map_err(|e| e.message)
+) -> Result<Vec<diff_parser::FileDiff>, AppError> {
+    diff_parser::get_commit_diff(&path, &oid)
 }
 
 #[tauri::command]
@@ -23,8 +24,8 @@ pub async fn get_file_diff(
     path: String,
     file_path: String,
     is_staged: bool,
-) -> Result<diff_parser::FileDiff, String> {
-    diff_parser::get_file_diff(&path, &file_path, is_staged).map_err(|e| e.message)
+) -> Result<diff_parser::FileDiff, AppError> {
+    diff_parser::get_file_diff(&path, &file_path, is_staged)
 }
 
 #[derive(serde::Serialize)]
@@ -39,8 +40,8 @@ pub async fn get_file_content_pair(
     path: String,
     file_path: String,
     is_staged: bool,
-) -> Result<FileContentPair, String> {
-    let repo = git2::Repository::open(&path).map_err(|e| e.to_string())?;
+) -> Result<FileContentPair, AppError> {
+    let repo = git2::Repository::open(&path)?;
 
     let mut original = String::new();
     let mut modified = String::new();
@@ -111,33 +112,29 @@ pub async fn get_file_content_at_revision(
     path: String,
     file_path: String,
     revision: String,
-) -> Result<String, String> {
-    let repo = git2::Repository::open(&path).map_err(|e| e.to_string())?;
+) -> Result<String, AppError> {
+    let repo = git2::Repository::open(&path)?;
 
     // Resolve revision spec (like commit SHA or SHA^)
-    let obj = repo.revparse_single(&revision).map_err(|e| e.to_string())?;
+    let obj = repo.revparse_single(&revision)?;
 
     let blob = if let Some(commit) = obj.as_commit() {
-        let tree = commit.tree().map_err(|e| e.to_string())?;
-        let entry = tree
-            .get_path(std::path::Path::new(&file_path))
-            .map_err(|e| e.to_string())?;
-        let object = entry.to_object(&repo).map_err(|e| e.to_string())?;
+        let tree = commit.tree()?;
+        let entry = tree.get_path(std::path::Path::new(&file_path))?;
+        let object = entry.to_object(&repo)?;
         object
             .into_blob()
-            .map_err(|_| "Object is not a blob".to_string())?
+            .map_err(|_| AppError::invalid_state("Object is not a blob"))?
     } else if let Some(tree) = obj.as_tree() {
-        let entry = tree
-            .get_path(std::path::Path::new(&file_path))
-            .map_err(|e| e.to_string())?;
-        let object = entry.to_object(&repo).map_err(|e| e.to_string())?;
+        let entry = tree.get_path(std::path::Path::new(&file_path))?;
+        let object = entry.to_object(&repo)?;
         object
             .into_blob()
-            .map_err(|_| "Object is not a blob".to_string())?
+            .map_err(|_| AppError::invalid_state("Object is not a blob"))?
     } else if let Some(blob) = obj.as_blob() {
         blob.clone()
     } else {
-        return Err("Unable to resolve object to a blob".to_string());
+        return Err(AppError::invalid_state("Unable to resolve object to a blob"));
     };
 
     Ok(String::from_utf8_lossy(blob.content()).to_string())
@@ -148,8 +145,8 @@ pub async fn get_compare_diff(
     path: String,
     base: String,
     target: String,
-) -> Result<Vec<diff_parser::FileDiff>, String> {
-    diff_parser::get_compare_diff(&path, &base, &target).map_err(|e| e.message)
+) -> Result<Vec<diff_parser::FileDiff>, AppError> {
+    diff_parser::get_compare_diff(&path, &base, &target)
 }
 
 #[tauri::command]
@@ -158,8 +155,8 @@ pub async fn get_file_content_pair_revisions(
     file_path: String,
     base: String,
     target: String,
-) -> Result<FileContentPair, String> {
-    let repo = git2::Repository::open(&path).map_err(|e| e.to_string())?;
+) -> Result<FileContentPair, AppError> {
+    let repo = git2::Repository::open(&path)?;
 
     let mut original = String::new();
     let mut modified = String::new();

@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use git2::{Oid, Repository};
 use serde::Serialize;
 
@@ -15,9 +16,9 @@ pub struct SignatureInfo {
 pub async fn get_commit_signature(
     repo_path: String,
     oid_str: String,
-) -> Result<Option<SignatureInfo>, String> {
-    let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
-    let oid = Oid::from_str(&oid_str).map_err(|e| e.to_string())?;
+) -> Result<Option<SignatureInfo>, AppError> {
+    let repo = Repository::open(&repo_path)?;
+    let oid = Oid::from_str(&oid_str)?;
 
     match repo.extract_signature(&oid, None) {
         Ok((sig_buf, payload_buf)) => {
@@ -49,7 +50,6 @@ fn parse_key_id(sig: &str) -> Option<String> {
         if line.contains("Version:") || line.contains("Comment:") {
             continue;
         }
-        // If we want a realistic key fingerprint or block, return a placeholder
     }
     Some("GPG-SIGNKEY".to_string())
 }

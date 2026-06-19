@@ -245,4 +245,25 @@ export interface SignatureInfo {
   signer: string;
 }
 
+// ── Central Error Types ──
+
+export type ErrorKind =
+  | 'GitError'
+  | 'IoError'
+  | 'NotFound'
+  | 'InvalidState'
+  | 'WatcherError'
+  | 'GpgError'
+  | 'SettingsError'
+  | 'SubmoduleError'
+  | 'ConflictError'
+  | 'CommandError'
+  | 'Unknown';
+
+export interface AppError {
+  message: string;
+  kind: ErrorKind;
+}
+
+
 

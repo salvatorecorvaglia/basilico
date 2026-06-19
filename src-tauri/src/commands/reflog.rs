@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use git2::Repository;
 use serde::Serialize;
 
@@ -17,8 +18,8 @@ pub struct ReflogEntry {
 pub async fn get_reflog(
     path: String,
     max_entries: Option<usize>,
-) -> Result<Vec<ReflogEntry>, String> {
-    let repo = Repository::open(&path).map_err(|e| e.to_string())?;
+) -> Result<Vec<ReflogEntry>, AppError> {
+    let repo = Repository::open(&path)?;
 
     // Check if reflog exists. If not, return empty list.
     let reflog = match repo.reflog("HEAD") {

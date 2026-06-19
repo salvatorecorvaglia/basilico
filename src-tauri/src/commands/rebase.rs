@@ -3,6 +3,7 @@ Basilico — Rebase Commands
 Command handlers for git rebase operations
 ═══════════════════════════════════════════════════════ */
 
+use crate::error::AppError;
 use git2::{RebaseOptions, Repository, Signature};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -27,20 +28,17 @@ pub struct RebaseStatus {
 pub async fn rebase_init(
     repo_path: String,
     upstream: String,
-) -> Result<Vec<RebaseTodoItem>, String> {
-    let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
+) -> Result<Vec<RebaseTodoItem>, AppError> {
+    let repo = Repository::open(&repo_path)?;
 
     let mut rebase = if let Ok(r) = repo.open_rebase(None) {
         r
     } else {
-        let upstream_obj = repo.revparse_single(&upstream).map_err(|e| e.to_string())?;
-        let upstream_commit = repo
-            .find_annotated_commit(upstream_obj.id())
-            .map_err(|e| e.to_string())?;
+        let upstream_obj = repo.revparse_single(&upstream)?;
+        let upstream_commit = repo.find_annotated_commit(upstream_obj.id())?;
 
         let mut opts = RebaseOptions::new();
-        repo.rebase(None, Some(&upstream_commit), None, Some(&mut opts))
-            .map_err(|e| e.to_string())?
+        repo.rebase(None, Some(&upstream_commit), None, Some(&mut opts))?
     };
 
     let mut items = Vec::new();
@@ -77,8 +75,8 @@ pub async fn rebase_init(
 pub async fn rebase_write_todo(
     repo_path: String,
     items: Vec<RebaseTodoItem>,
-) -> Result<(), String> {
-    let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
+) -> Result<(), AppError> {
+    let repo = Repository::open(&repo_path)?;
     let todo_path = repo.path().join("rebase-merge/git-rebase-todo");
 
     let mut content = String::new();
@@ -91,7 +89,7 @@ pub async fn rebase_write_todo(
         content.push_str(&format!("{} {} {}\n", item.action, short_oid, item.summary));
     }
 
-    fs::write(todo_path, content).map_err(|e| e.to_string())?;
+    fs::write(todo_path, content)?;
     Ok(())
 }
 
@@ -100,16 +98,16 @@ pub async fn rebase_step(
     repo_path: String,
     action: String,
     commit_message: Option<String>,
-) -> Result<RebaseStatus, String> {
-    let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
-    let mut rebase = repo.open_rebase(None).map_err(|e| e.to_string())?;
+) -> Result<RebaseStatus, AppError> {
+    let repo = Repository::open(&repo_path)?;
+    let mut rebase = repo.open_rebase(None)?;
 
     let signature = repo
         .signature()
         .unwrap_or_else(|_| Signature::now("Basilico User", "user@basilico.io").unwrap());
 
     if action == "abort" {
-        rebase.abort().map_err(|e| e.to_string())?;
+        rebase.abort()?;
         return Ok(RebaseStatus {
             status: "none".to_string(),
             current_oid: None,
@@ -118,9 +116,9 @@ pub async fn rebase_step(
     }
 
     if action == "continue" {
-        let index = repo.index().map_err(|e| e.to_string())?;
+        let index = repo.index()?;
         if index.has_conflicts() {
-            return Err("Cannot continue rebase while there are merge conflicts.".to_string());
+            return Err(AppError::conflict("Cannot continue rebase while there are merge conflicts."));
         }
         let _ = rebase.commit(None, &signature, commit_message.as_deref());
     }
@@ -128,13 +126,13 @@ pub async fn rebase_step(
     let next_op = match rebase.next() {
         Some(Ok(op)) => Some(op),
         None => None,
-        Some(Err(e)) => return Err(e.to_string()),
+        Some(Err(e)) => return Err(AppError::from(e)),
     };
 
     let status = match next_op {
         Some(op) => {
             let oid = op.id();
-            let index = repo.index().map_err(|e| e.to_string())?;
+            let index = repo.index()?;
             if index.has_conflicts() {
                 RebaseStatus {
                     status: "conflict".to_string(),
@@ -173,7 +171,7 @@ pub async fn rebase_step(
             }
         }
         None => {
-            rebase.finish(None).map_err(|e| e.to_string())?;
+            rebase.finish(None)?;
             RebaseStatus {
                 status: "finished".to_string(),
                 current_oid: None,
