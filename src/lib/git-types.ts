@@ -131,9 +131,7 @@ export interface RepoTab {
   isActive: boolean;
 }
 
-// ── UI State ──
-
-export type ActiveView = 'graph' | 'staging' | 'diff' | 'blame' | 'history' | 'reflog' | 'search';
+export type ActiveView = 'graph' | 'staging' | 'diff' | 'blame' | 'history' | 'reflog' | 'search' | 'rebase' | 'bisect';
 
 // ── Phase 3: Blame, History, Reflog, Stash Types ──
 
@@ -172,5 +170,32 @@ export interface StashInfo {
   name: string;
   oid: string;
   message: string;
+}
+
+// ── Phase 4: Rebase, Bisect, Search Types ──
+
+export interface RebaseTodoItem {
+  action: 'pick' | 'reword' | 'edit' | 'squash' | 'fixup' | 'drop';
+  oid: string;
+  summary: string;
+}
+
+export interface RebaseStatus {
+  status: 'none' | 'success' | 'conflict' | 'stepping' | 'finished';
+  currentOid: string | null;
+  message: string | null;
+}
+
+export interface BisectState {
+  isBisecting: boolean;
+  message: string;
+  currentOid: string | null;
+  stepsRemaining: number | null;
+}
+
+export interface GrepMatch {
+  filePath: string;
+  lineNumber: number;
+  content: string;
 }
 

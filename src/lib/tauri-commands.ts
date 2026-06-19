@@ -15,6 +15,10 @@ import type {
   FileHistoryEntry,
   ReflogEntry,
   StashInfo,
+  RebaseTodoItem,
+  RebaseStatus,
+  BisectState,
+  GrepMatch,
 } from './git-types';
 
 // ── Repository Commands ──
@@ -181,3 +185,34 @@ export const createTag = (
 
 export const pushTag = (path: string, remote: string, tagName: string) =>
   invoke<void>('push_tag', { path, remote, tagName });
+
+// ── Phase 4: Rebase Commands ──
+
+export const rebaseInit = (repoPath: string, upstream: string) =>
+  invoke<RebaseTodoItem[]>('rebase_init', { repoPath, upstream });
+
+export const rebaseWriteTodo = (repoPath: string, items: RebaseTodoItem[]) =>
+  invoke<void>('rebase_write_todo', { repoPath, items });
+
+export const rebaseStep = (repoPath: string, action: string) =>
+  invoke<RebaseStatus>('rebase_step', { repoPath, action });
+
+// ── Phase 4: Bisect Commands ──
+
+export const bisectStart = (repoPath: string, bad: string, good: string) =>
+  invoke<BisectState>('bisect_start', { repoPath, bad, good });
+
+export const bisectMark = (repoPath: string, status: string) =>
+  invoke<BisectState>('bisect_mark', { repoPath, status });
+
+export const bisectReset = (repoPath: string) =>
+  invoke<void>('bisect_reset', { repoPath });
+
+// ── Phase 4: Search Commands ──
+
+export const searchCommits = (repoPath: string, query: string) =>
+  invoke<GraphCommit[]>('search_commits', { repoPath, query });
+
+export const grepCode = (repoPath: string, query: string) =>
+  invoke<GrepMatch[]>('grep_code', { repoPath, query });
+

@@ -155,7 +155,11 @@ export function Toolbar() {
         >
           <RefreshCw size={14} />
         </button>
-        <button className="toolbar-btn toolbar-icon-btn" title="Search (Ctrl+F)">
+        <button 
+          className="toolbar-btn toolbar-icon-btn" 
+          onClick={() => setActiveView('search')}
+          title="Search (Ctrl+F)"
+        >
           <Search size={14} />
         </button>
         <button

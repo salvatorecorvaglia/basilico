@@ -17,6 +17,10 @@ import type {
   FileHistoryEntry,
   ReflogEntry,
   StashInfo,
+  RebaseTodoItem,
+  RebaseStatus,
+  BisectState,
+  GrepMatch,
 } from '../lib/git-types';
 import * as commands from '../lib/tauri-commands';
 
@@ -102,6 +106,23 @@ interface RepoState {
   fetch: (remote: string) => Promise<void>;
   pull: (remote: string, branch: string) => Promise<'success' | 'conflicts'>;
   push: (remote: string, branch: string, force: boolean) => Promise<void>;
+
+  // Phase 4 State
+  rebaseTodoItems: RebaseTodoItem[];
+  rebaseStatus: RebaseStatus | null;
+  bisectState: BisectState | null;
+  commitSearchResults: GraphCommit[];
+  grepSearchResults: GrepMatch[];
+
+  // Phase 4 Actions
+  initRebase: (upstream: string) => Promise<void>;
+  writeRebaseTodo: (items: RebaseTodoItem[]) => Promise<void>;
+  stepRebase: (action: string) => Promise<RebaseStatus>;
+  startBisect: (bad: string, good: string) => Promise<void>;
+  markBisect: (status: string) => Promise<void>;
+  resetBisect: () => Promise<void>;
+  searchCommits: (query: string) => Promise<void>;
+  grepCode: (query: string) => Promise<void>;
 }
 
 export const useRepoStore = create<RepoState>((set, get) => ({
@@ -120,6 +141,11 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   fileHistory: [],
   reflogEntries: [],
   stashes: [],
+  rebaseTodoItems: [],
+  rebaseStatus: null,
+  bisectState: null,
+  commitSearchResults: [],
+  grepSearchResults: [],
   selectedFilePath: null,
   selectedFileIsStaged: false,
   localDiff: null,
@@ -721,6 +747,156 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to push tag:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ── Phase 4: Rebase, Bisect, Search Actions ──
+
+  initRebase: async (upstream) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true, error: null });
+    try {
+      const items = await commands.rebaseInit(activeTabId, upstream);
+      set({ rebaseTodoItems: items, rebaseStatus: { status: 'stepping', currentOid: null, message: 'Rebase initialized' } });
+    } catch (err) {
+      console.error('Failed to initialize rebase:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  writeRebaseTodo: async (items) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      await commands.rebaseWriteTodo(activeTabId, items);
+      set({ rebaseTodoItems: items });
+    } catch (err) {
+      console.error('Failed to write rebase todo:', err);
+      set({ error: String(err) });
+      throw err;
+    }
+  },
+
+  stepRebase: async (action) => {
+    const { activeTabId } = get();
+    if (!activeTabId) throw new Error('No active repository');
+
+    set({ isLoading: true, error: null });
+    try {
+      const status = await commands.rebaseStep(activeTabId, action);
+      set({ rebaseStatus: status });
+      await get().refreshAll();
+      return status;
+    } catch (err) {
+      console.error('Failed to step rebase:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  startBisect: async (bad, good) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true, error: null });
+    try {
+      const state = await commands.bisectStart(activeTabId, bad, good);
+      set({ bisectState: state });
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to start bisect:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  markBisect: async (status) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true, error: null });
+    try {
+      const state = await commands.bisectMark(activeTabId, status);
+      set({ bisectState: state });
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to mark bisect:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  resetBisect: async () => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true, error: null });
+    try {
+      await commands.bisectReset(activeTabId);
+      set({ bisectState: null });
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to reset bisect:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  searchCommits: async (query) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    if (!query.trim()) {
+      set({ commitSearchResults: [] });
+      return;
+    }
+
+    set({ isLoading: true, error: null });
+    try {
+      const results = await commands.searchCommits(activeTabId, query);
+      set({ commitSearchResults: results });
+    } catch (err) {
+      console.error('Failed to search commits:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  grepCode: async (query) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    if (!query.trim()) {
+      set({ grepSearchResults: [] });
+      return;
+    }
+
+    set({ isLoading: true, error: null });
+    try {
+      const results = await commands.grepCode(activeTabId, query);
+      set({ grepSearchResults: results });
+    } catch (err) {
+      console.error('Failed to grep code:', err);
       set({ error: String(err) });
       throw err;
     } finally {

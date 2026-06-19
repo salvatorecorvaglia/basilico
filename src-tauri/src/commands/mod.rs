@@ -11,3 +11,6 @@ pub mod blame;
 pub mod history;
 pub mod reflog;
 pub mod stash;
+pub mod rebase;
+pub mod bisect;
+pub mod search;

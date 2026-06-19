@@ -72,6 +72,17 @@ pub fn run() {
             commands::remote::fetch,
             commands::remote::push,
             commands::remote::pull,
+            // Rebase commands
+            commands::rebase::rebase_init,
+            commands::rebase::rebase_write_todo,
+            commands::rebase::rebase_step,
+            // Bisect commands
+            commands::bisect::bisect_start,
+            commands::bisect::bisect_mark,
+            commands::bisect::bisect_reset,
+            // Search commands
+            commands::search::search_commits,
+            commands::search::grep_code,
         ])
         .setup(|app| {
             log::info!("Basilico starting...");

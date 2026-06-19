@@ -16,6 +16,10 @@ import { DiffView } from './components/diff/DiffView';
 import { BlameView } from './components/blame/BlameView';
 import { FileHistory } from './components/history/FileHistory';
 import { ReflogView } from './components/reflog/ReflogView';
+import { RepoSearch } from './components/search/RepoSearch';
+import { CommandPalette } from './components/command-palette/CommandPalette';
+import { RebaseEditor } from './components/rebase/RebaseEditor';
+import { BisectWizard } from './components/bisect/BisectWizard';
 import { useRepoStore } from './store/repo-store';
 import { useUIStore } from './store/ui-store';
 import './App.css';
@@ -30,6 +34,9 @@ function App() {
     <div className="app">
       {/* Tab Bar */}
       <TabBar />
+
+      {/* Command Palette Overlay */}
+      <CommandPalette />
 
       {hasOpenRepo ? (
         <>
@@ -90,6 +97,12 @@ function App() {
                   <FileHistory />
                 ) : activeView === 'reflog' ? (
                   <ReflogView />
+                ) : activeView === 'search' ? (
+                  <RepoSearch />
+                ) : activeView === 'rebase' ? (
+                  <RebaseEditor />
+                ) : activeView === 'bisect' ? (
+                  <BisectWizard />
                 ) : (
                   <div className="view-fallback">
                     <h3>{activeView.toUpperCase()} View</h3>
