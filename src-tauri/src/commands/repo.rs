@@ -3,11 +3,18 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub async fn open_repo(
+    app: tauri::AppHandle,
     path: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<repository::RepoInfo, String> {
     let info = repository::open_repo(&path).map_err(|e| e.message)?;
-    state.add_repo(info.path.clone(), std::path::PathBuf::from(&info.path));
+    
+    // Only register and start watcher if it's not already tracked
+    if !state.has_repo(&info.path) {
+        state.add_repo(info.path.clone());
+        crate::watcher::start_watching(app, info.path.clone());
+    }
+    
     Ok(info)
 }
 
