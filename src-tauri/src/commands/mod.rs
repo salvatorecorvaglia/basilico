@@ -1,5 +1,9 @@
 pub mod branch;
+pub mod commit;
 pub mod diff;
 pub mod log;
+pub mod merge;
+pub mod remote;
 pub mod repo;
+pub mod staging;
 pub mod tag;

@@ -1,0 +1,333 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — DiffView Styles
+   ═══════════════════════════════════════════════════════ */
+
+.diff-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #0d1117;
+  overflow: hidden;
+}
+
+.diff-view-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-tertiary);
+  gap: 12px;
+}
+
+.diff-view-empty h3 {
+  color: var(--text-primary);
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.diff-view-empty p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.diff-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  min-height: 46px;
+  gap: 16px;
+}
+
+.diff-view-file-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 0;
+}
+
+.diff-view-file-name {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.diff-view-file-stats {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.diff-view-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Segmented Control */
+.diff-segmented-control {
+  display: flex;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.diff-control-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.diff-control-btn.active {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.diff-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.diff-action-btn:hover, .diff-action-btn.active {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
+}
+
+.diff-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.diff-btn-primary {
+  background: var(--accent-color);
+  border: 1px solid var(--accent-color);
+  color: #0d1117;
+}
+
+.diff-btn-primary:hover {
+  opacity: 0.9;
+}
+
+.diff-btn-secondary {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.diff-btn-secondary:hover {
+  background: var(--bg-hover);
+}
+
+.diff-btn-danger {
+  background: transparent;
+  border: 1px solid rgba(248, 81, 73, 0.4);
+  color: #ff7b72;
+}
+
+.diff-btn-danger:hover {
+  background: rgba(248, 81, 73, 0.1);
+  border-color: #ff7b72;
+}
+
+.diff-view-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.diff-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+  gap: 12px;
+}
+
+.spinner-large {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--accent-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.diff-binary-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-tertiary);
+  gap: 12px;
+}
+
+/* Granular Hunk Staging styles */
+.diff-hunk-list {
+  height: 100%;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.diff-hunk-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.diff-hunk-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.hunk-range {
+  font-size: 11px;
+  color: #79c0ff;
+}
+
+.hunk-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.hunk-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hunk-btn-primary {
+  background: var(--accent-color);
+  border: 1px solid var(--accent-color);
+  color: #0d1117;
+}
+
+.hunk-btn-primary:hover {
+  opacity: 0.9;
+}
+
+.hunk-btn-secondary {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.hunk-btn-secondary:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.diff-hunk-body {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.hunk-line {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  min-height: 22px;
+  color: var(--text-secondary);
+}
+
+.hunk-line-added {
+  background: rgba(63, 185, 80, 0.15);
+  color: #58a6ff;
+}
+
+.hunk-line-removed {
+  background: rgba(248, 81, 73, 0.15);
+  color: #ff7b72;
+}
+
+.hunk-line-checkbox {
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  cursor: pointer;
+  accent-color: var(--accent-color);
+}
+
+.hunk-line-spacer {
+  width: 12px;
+  margin-right: 8px;
+}
+
+.line-prefix {
+  width: 14px;
+  display: inline-block;
+  user-select: none;
+  font-weight: 700;
+}
+
+.line-content {
+  flex: 1;
+}
+
+/* Custom Scrollbar for Hunks */
+.diff-hunk-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.diff-hunk-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.diff-hunk-list::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}

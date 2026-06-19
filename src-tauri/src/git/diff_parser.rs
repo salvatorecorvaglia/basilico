@@ -77,13 +77,26 @@ pub fn get_commit_diff(path: &str, oid_str: &str) -> Result<Vec<FileDiff>, AppEr
     parse_diff(&diff)
 }
 
-/// Get diff for a single file (unstaged).
-pub fn get_file_diff(path: &str, file_path: &str) -> Result<FileDiff, AppError> {
+/// Get diff for a single file (staged or unstaged).
+pub fn get_file_diff(path: &str, file_path: &str, is_staged: bool) -> Result<FileDiff, AppError> {
     let repo = Repository::open(path)?;
     let mut opts = DiffOptions::new();
     opts.pathspec(file_path);
 
-    let diff = repo.diff_index_to_workdir(None, Some(&mut opts))?;
+    let diff = if is_staged {
+        if let Ok(head_ref) = repo.head() {
+            if let Ok(head_tree) = head_ref.peel_to_tree() {
+                repo.diff_tree_to_index(Some(&head_tree), None, Some(&mut opts))?
+            } else {
+                repo.diff_tree_to_index(None, None, Some(&mut opts))?
+            }
+        } else {
+            repo.diff_tree_to_index(None, None, Some(&mut opts))?
+        }
+    } else {
+        repo.diff_index_to_workdir(None, Some(&mut opts))?
+    };
+
     let files = parse_diff(&diff)?;
     files.into_iter().next().ok_or_else(|| AppError {
         message: format!("No diff found for file: {}", file_path),

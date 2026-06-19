@@ -1,0 +1,152 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — CommitBox Styles
+   ═══════════════════════════════════════════════════════ */
+
+.commit-box {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  padding: 12px;
+  gap: 10px;
+}
+
+.commit-conventional {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+
+.conventional-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.conventional-btn:hover {
+  border-color: var(--accent-color);
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.commit-inputs {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+.commit-summary-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.commit-summary-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.commit-desc-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  resize: none;
+}
+
+.commit-desc-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.commit-inputs:focus-within {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.2);
+}
+
+.commit-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.commit-amend-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.commit-amend-label input {
+  cursor: pointer;
+  accent-color: var(--accent-color);
+}
+
+.commit-submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-tertiary);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: not-allowed;
+  transition: all 0.2s ease;
+}
+
+.commit-submit-btn.active {
+  background: linear-gradient(135deg, #2dd4bf, #0d9488);
+  border: none;
+  color: #0d1117;
+  cursor: pointer;
+}
+
+.commit-submit-btn.active:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.commit-submit-btn.active:active {
+  transform: translateY(0);
+}
+
+.spinner-small {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(13, 17, 23, 0.2);
+  border-top-color: #0d1117;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

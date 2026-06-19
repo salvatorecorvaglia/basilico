@@ -33,6 +33,11 @@ interface RepoState {
   selectedCommitOid: string | null;
   commitDiff: FileDiff[];
 
+  // Staging area & local diffs
+  selectedFilePath: string | null;
+  selectedFileIsStaged: boolean;
+  localDiff: FileDiff | null;
+
   // Loading states
   isLoading: boolean;
   isRefreshing: boolean;
@@ -46,6 +51,35 @@ interface RepoState {
   refreshAll: () => Promise<void>;
   selectCommit: (oid: string | null) => Promise<void>;
   loadMoreCommits: (count: number) => Promise<void>;
+  
+  // Staging & Local Diff Actions
+  selectLocalFile: (path: string | null, isStaged: boolean) => Promise<void>;
+  stageFiles: (files: string[]) => Promise<void>;
+  unstageFiles: (files: string[]) => Promise<void>;
+  discardChanges: (files: string[]) => Promise<void>;
+  applyPatch: (patch: string, location: 'index' | 'workdir' | 'both') => Promise<void>;
+
+  // Commit Actions
+  commit: (message: string, amend?: boolean) => Promise<void>;
+
+  // Branch Actions
+  checkoutBranch: (branchName: string) => Promise<void>;
+  createBranch: (name: string, startPoint?: string | null) => Promise<void>;
+  deleteBranch: (name: string, isRemote: boolean) => Promise<void>;
+  renameBranch: (currentName: string, newName: string) => Promise<void>;
+
+  // Tag Actions
+  deleteTag: (name: string) => Promise<void>;
+
+  // Merge Actions
+  mergeBranch: (branchName: string) => Promise<'success' | 'conflicts'>;
+  abortMerge: () => Promise<void>;
+  resolveConflict: (filePath: string) => Promise<void>;
+
+  // Remote Actions
+  fetch: (remote: string) => Promise<void>;
+  pull: (remote: string, branch: string) => Promise<'success' | 'conflicts'>;
+  push: (remote: string, branch: string, force: boolean) => Promise<void>;
 }
 
 export const useRepoStore = create<RepoState>((set, get) => ({
@@ -60,6 +94,9 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   commits: [],
   selectedCommitOid: null,
   commitDiff: [],
+  selectedFilePath: null,
+  selectedFileIsStaged: false,
+  localDiff: null,
   isLoading: false,
   isRefreshing: false,
   error: null,
@@ -211,6 +248,290 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       set({ commits: moreCommits });
     } catch (err) {
       console.error('Failed to load more commits:', err);
+    }
+  },
+
+  selectLocalFile: async (path, isStaged) => {
+    set({ selectedFilePath: path, selectedFileIsStaged: isStaged, localDiff: null });
+    if (!path) return;
+
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      const diff = await commands.getFileDiff(activeTabId, path, isStaged);
+      set({ localDiff: diff });
+    } catch (err) {
+      console.error('Failed to load local file diff:', err);
+    }
+  },
+
+  stageFiles: async (files) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      await commands.stageFiles(activeTabId, files);
+      await get().refreshAll();
+      
+      // Refresh current diff if it's selected
+      const { selectedFilePath } = get();
+      if (selectedFilePath && files.includes(selectedFilePath)) {
+        await get().selectLocalFile(selectedFilePath, true);
+      }
+    } catch (err) {
+      console.error('Failed to stage files:', err);
+      set({ error: String(err) });
+    }
+  },
+
+  unstageFiles: async (files) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      await commands.unstageFiles(activeTabId, files);
+      await get().refreshAll();
+
+      // Refresh current diff if it's selected
+      const { selectedFilePath } = get();
+      if (selectedFilePath && files.includes(selectedFilePath)) {
+        await get().selectLocalFile(selectedFilePath, false);
+      }
+    } catch (err) {
+      console.error('Failed to unstage files:', err);
+      set({ error: String(err) });
+    }
+  },
+
+  discardChanges: async (files) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      await commands.discardChanges(activeTabId, files);
+      
+      // Reset selected file if discarded
+      const { selectedFilePath } = get();
+      if (selectedFilePath && files.includes(selectedFilePath)) {
+        set({ selectedFilePath: null, localDiff: null });
+      }
+
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to discard changes:', err);
+      set({ error: String(err) });
+    }
+  },
+
+  applyPatch: async (patch, location) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      await commands.applyPatch(activeTabId, patch, location);
+      await get().refreshAll();
+
+      // Refresh current diff if one is selected
+      const { selectedFilePath, selectedFileIsStaged } = get();
+      if (selectedFilePath) {
+        await get().selectLocalFile(selectedFilePath, selectedFileIsStaged);
+      }
+    } catch (err) {
+      console.error('Failed to apply patch:', err);
+      set({ error: String(err) });
+      throw err;
+    }
+  },
+
+  commit: async (message, amend = false) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true });
+    try {
+      await commands.createCommit(activeTabId, message, null, null, amend);
+      set({ selectedFilePath: null, localDiff: null });
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to commit:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  checkoutBranch: async (branchName) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true });
+    try {
+      await commands.checkoutBranch(activeTabId, branchName);
+      set({ selectedFilePath: null, localDiff: null });
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to checkout branch:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  createBranch: async (name, startPoint = null) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      await commands.createBranch(activeTabId, name, startPoint);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to create branch:', err);
+      set({ error: String(err) });
+      throw err;
+    }
+  },
+
+  deleteBranch: async (name, isRemote) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      await commands.deleteBranch(activeTabId, name, isRemote);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to delete branch:', err);
+      set({ error: String(err) });
+      throw err;
+    }
+  },
+
+  renameBranch: async (currentName, newName) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      await commands.renameBranch(activeTabId, currentName, newName);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to rename branch:', err);
+      set({ error: String(err) });
+      throw err;
+    }
+  },
+
+  deleteTag: async (name) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      await commands.deleteTag(activeTabId, name);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to delete tag:', err);
+      set({ error: String(err) });
+      throw err;
+    }
+  },
+
+  mergeBranch: async (branchName) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return 'conflicts';
+
+    set({ isLoading: true });
+    try {
+      const result = await commands.mergeBranch(activeTabId, branchName);
+      await get().refreshAll();
+      return result;
+    } catch (err) {
+      console.error('Failed to merge branch:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  abortMerge: async () => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true });
+    try {
+      await commands.abortMerge(activeTabId);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to abort merge:', err);
+      set({ error: String(err) });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  resolveConflict: async (filePath) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      await commands.resolveConflict(activeTabId, filePath);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to resolve conflict:', err);
+      set({ error: String(err) });
+    }
+  },
+
+  fetch: async (remote) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isRefreshing: true });
+    try {
+      await commands.fetch(activeTabId, remote);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to fetch:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isRefreshing: false });
+    }
+  },
+
+  pull: async (remote, branch) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return 'conflicts';
+
+    set({ isLoading: true });
+    try {
+      const result = await commands.pull(activeTabId, remote, branch);
+      await get().refreshAll();
+      return result;
+    } catch (err) {
+      console.error('Failed to pull:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  push: async (remote, branch, force) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true });
+    try {
+      await commands.push(activeTabId, remote, branch, force);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to push:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
     }
   },
 }));

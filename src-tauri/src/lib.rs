@@ -31,10 +31,32 @@ pub fn run() {
             commands::diff::get_staged_diff,
             commands::diff::get_commit_diff,
             commands::diff::get_file_diff,
+            commands::diff::get_file_content_pair,
             // Branch commands
             commands::branch::list_branches,
+            commands::branch::create_branch,
+            commands::branch::delete_branch,
+            commands::branch::checkout_branch,
+            commands::branch::rename_branch,
             // Tag commands
             commands::tag::list_tags,
+            commands::tag::delete_tag,
+            // Staging commands
+            commands::staging::stage_files,
+            commands::staging::unstage_files,
+            commands::staging::apply_patch,
+            commands::staging::discard_changes,
+            // Commit commands
+            commands::commit::create_commit,
+            // Merge commands
+            commands::merge::merge_branch,
+            commands::merge::abort_merge,
+            commands::merge::get_conflicts,
+            commands::merge::resolve_conflict,
+            // Remote commands
+            commands::remote::fetch,
+            commands::remote::push,
+            commands::remote::pull,
         ])
         .setup(|app| {
             log::info!("Basilico starting...");

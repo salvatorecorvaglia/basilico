@@ -22,6 +22,86 @@ pub async fn get_commit_diff(
 pub async fn get_file_diff(
     path: String,
     file_path: String,
+    is_staged: bool,
 ) -> Result<diff_parser::FileDiff, String> {
-    diff_parser::get_file_diff(&path, &file_path).map_err(|e| e.message)
+    diff_parser::get_file_diff(&path, &file_path, is_staged).map_err(|e| e.message)
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileContentPair {
+    pub original: String,
+    pub modified: String,
+}
+
+#[tauri::command]
+pub async fn get_file_content_pair(
+    path: String,
+    file_path: String,
+    is_staged: bool,
+) -> Result<FileContentPair, String> {
+    let repo = git2::Repository::open(&path).map_err(|e| e.to_string())?;
+
+    let mut original = String::new();
+    let mut modified = String::new();
+
+    if is_staged {
+        // Original: from HEAD commit
+        if let Ok(head_ref) = repo.head() {
+            if let Ok(commit) = head_ref.peel_to_commit() {
+                if let Ok(tree) = commit.tree() {
+                    if let Ok(entry) = tree.get_path(std::path::Path::new(&file_path)) {
+                        if let Ok(blob) = repo.find_blob(entry.id()) {
+                            original = String::from_utf8_lossy(blob.content()).to_string();
+                        }
+                    }
+                }
+            }
+        }
+
+        // Modified: from Index
+        if let Ok(index) = repo.index() {
+            if let Some(entry) = index.get_path(std::path::Path::new(&file_path), 0) {
+                if let Ok(blob) = repo.find_blob(entry.id) {
+                    modified = String::from_utf8_lossy(blob.content()).to_string();
+                }
+            }
+        }
+    } else {
+        // Original: from Index (fallback to HEAD if not in index)
+        let mut found_original = false;
+        if let Ok(index) = repo.index() {
+            if let Some(entry) = index.get_path(std::path::Path::new(&file_path), 0) {
+                if let Ok(blob) = repo.find_blob(entry.id) {
+                    original = String::from_utf8_lossy(blob.content()).to_string();
+                    found_original = true;
+                }
+            }
+        }
+        if !found_original {
+            if let Ok(head_ref) = repo.head() {
+                if let Ok(commit) = head_ref.peel_to_commit() {
+                    if let Ok(tree) = commit.tree() {
+                        if let Ok(entry) = tree.get_path(std::path::Path::new(&file_path)) {
+                            if let Ok(blob) = repo.find_blob(entry.id()) {
+                                original = String::from_utf8_lossy(blob.content()).to_string();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Modified: from Working Directory
+        if let Some(workdir) = repo.workdir() {
+            let full_path = workdir.join(&file_path);
+            if full_path.exists() && full_path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(full_path) {
+                    modified = content;
+                }
+            }
+        }
+    }
+
+    Ok(FileContentPair { original, modified })
 }
