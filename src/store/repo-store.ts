@@ -1113,6 +1113,21 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     try {
       const settings = await commands.getSettings();
       set({ settings });
+
+      // Apply theme preset color to CSS custom variables
+      const THEME_PRESETS = [
+        { id: 'sage-green',      color: '#2ea043' },
+        { id: 'royal-blue',      color: '#1f6feb' },
+        { id: 'amethyst-purple',  color: '#8b5cf6' },
+        { id: 'amber-gold',      color: '#d29922' },
+        { id: 'crimson-red',     color: '#f85149' },
+        { id: 'ocean-teal',      color: '#2dd4bf' },
+      ];
+      const preset = THEME_PRESETS.find(p => p.id === settings.theme);
+      if (preset) {
+        document.documentElement.style.setProperty('--accent-primary', preset.color);
+        document.documentElement.style.setProperty('--accent-primary-hover', preset.color + 'cc');
+      }
     } catch (err) {
       console.error('Failed to load settings:', err);
     }
@@ -1122,6 +1137,21 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     try {
       await commands.saveSettings(settings);
       set({ settings });
+
+      // Apply theme preset color to CSS custom variables
+      const THEME_PRESETS = [
+        { id: 'sage-green',      color: '#2ea043' },
+        { id: 'royal-blue',      color: '#1f6feb' },
+        { id: 'amethyst-purple',  color: '#8b5cf6' },
+        { id: 'amber-gold',      color: '#d29922' },
+        { id: 'crimson-red',     color: '#f85149' },
+        { id: 'ocean-teal',      color: '#2dd4bf' },
+      ];
+      const preset = THEME_PRESETS.find(p => p.id === settings.theme);
+      if (preset) {
+        document.documentElement.style.setProperty('--accent-primary', preset.color);
+        document.documentElement.style.setProperty('--accent-primary-hover', preset.color + 'cc');
+      }
     } catch (err) {
       console.error('Failed to save settings:', err);
       set({ error: String(err) });
