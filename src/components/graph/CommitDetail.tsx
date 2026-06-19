@@ -172,7 +172,7 @@ export function CommitDetail() {
     isLoading
   } = useRepoStore();
 
-  const { setActiveView, addNotification, openFileViewer } = useUIStore();
+  const { setActiveView, addNotification, openFileViewer, openPrompt } = useUIStore();
   const [copiedOid, setCopiedOid] = useState(false);
   const [activeTab, setActiveTab] = useState<'changes' | 'tree'>('changes');
   const [sigInfo, setSigInfo] = useState<SignatureInfo | null>(null);
@@ -225,19 +225,37 @@ export function CommitDetail() {
     setTimeout(() => setCopiedOid(false), 2000);
   };
 
-  const handleCreateTagPrompt = async () => {
+  const handleCreateTagPrompt = () => {
     if (!commit) return;
-    const name = prompt('Enter new tag name:');
-    if (!name || !name.trim()) return;
-
-    const message = prompt('Enter tag message (optional, leave empty for lightweight tag):');
-
-    try {
-      await createTag(name.trim(), commit.oid, message?.trim() || null);
-      addNotification({ type: 'success', message: `Created tag "${name}" at ${commit.oid.slice(0, 7)}` });
-    } catch (err) {
-      addNotification({ type: 'error', message: `Failed to create tag: ${err}` });
-    }
+    openPrompt({
+      title: 'Create Tag',
+      description: `Create a new tag at commit ${commit.oid.slice(0, 7)}.`,
+      fields: [
+        {
+          name: 'name',
+          label: 'Tag Name',
+          placeholder: 'e.g. v1.2.0',
+          required: true,
+        },
+        {
+          name: 'message',
+          label: 'Tag Message (optional)',
+          placeholder: 'e.g. Release version',
+          type: 'textarea',
+        }
+      ],
+      submitLabel: 'Create Tag',
+      onSubmit: async (values) => {
+        const name = values.name.trim();
+        const message = values.message.trim();
+        try {
+          await createTag(name, commit.oid, message || null);
+          addNotification({ type: 'success', message: `Created tag "${name}" at ${commit.oid.slice(0, 7)}` });
+        } catch (err) {
+          addNotification({ type: 'error', message: `Failed to create tag: ${err}` });
+        }
+      }
+    });
   };
 
   const handleFileContextMenu = (e: React.MouseEvent, filePath: string) => {

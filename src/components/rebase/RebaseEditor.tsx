@@ -28,7 +28,7 @@ export function RebaseEditor() {
     stepRebase 
   } = useRepoStore();
 
-  const { addNotification } = useUIStore();
+  const { addNotification, openPrompt } = useUIStore();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // If no rebase active
@@ -85,18 +85,52 @@ export function RebaseEditor() {
     writeRebaseTodo(updated);
   };
 
+  const handleRebaseResult = (res: any) => {
+    if (res.status === 'finished') {
+      addNotification({ type: 'success', message: 'Interactive rebase completed!' });
+    } else if (res.status === 'conflict') {
+      addNotification({ 
+        type: 'warning', 
+        message: 'Conflicts detected! Resolve them in the staging area and click Continue.' 
+      });
+    }
+  };
+
   // Step controls
   const handleStep = async (action: 'continue' | 'skip' | 'abort') => {
+    if (action === 'continue' && rebaseStatus?.status === 'reword' && rebaseStatus.currentOid) {
+      const currentTodoItem = rebaseTodoItems.find(item => item.oid === rebaseStatus.currentOid);
+      const originalMessage = currentTodoItem?.summary || '';
+      
+      openPrompt({
+        title: 'Reword Commit Message',
+        description: 'Edit commit message for reword:',
+        fields: [
+          {
+            name: 'message',
+            label: 'Commit Message',
+            type: 'textarea',
+            defaultValue: originalMessage,
+            required: true
+          }
+        ],
+        submitLabel: 'Continue',
+        onSubmit: async (values) => {
+          const userMessage = (values.message || '').trim();
+          try {
+            const res = await stepRebase('continue', userMessage);
+            handleRebaseResult(res);
+          } catch (err) {
+            addNotification({ type: 'error', message: `Rebase step failed: ${err}` });
+          }
+        }
+      });
+      return;
+    }
+
     try {
       const res = await stepRebase(action);
-      if (res.status === 'finished') {
-        addNotification({ type: 'success', message: 'Interactive rebase completed!' });
-      } else if (res.status === 'conflict') {
-        addNotification({ 
-          type: 'warning', 
-          message: 'Conflicts detected! Resolve them in the staging area and click Continue.' 
-        });
-      }
+      handleRebaseResult(res);
     } catch (err) {
       addNotification({ type: 'error', message: `Rebase step failed: ${err}` });
     }

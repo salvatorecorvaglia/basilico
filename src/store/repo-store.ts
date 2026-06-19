@@ -145,7 +145,7 @@ interface RepoState {
   // Phase 4 Actions
   initRebase: (upstream: string) => Promise<void>;
   writeRebaseTodo: (items: RebaseTodoItem[]) => Promise<void>;
-  stepRebase: (action: string) => Promise<RebaseStatus>;
+  stepRebase: (action: string, commitMessage?: string | null) => Promise<RebaseStatus>;
   startBisect: (bad: string, good: string) => Promise<void>;
   markBisect: (status: string) => Promise<void>;
   resetBisect: () => Promise<void>;
@@ -874,20 +874,9 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     }
   },
 
-  stepRebase: async (action) => {
-    const { activeTabId, rebaseStatus, rebaseTodoItems } = get();
+  stepRebase: async (action, commitMessage = null) => {
+    const { activeTabId } = get();
     if (!activeTabId) throw new Error('No active repository');
-
-    let commitMessage: string | null = null;
-    if (action === 'continue' && rebaseStatus?.status === 'reword' && rebaseStatus.currentOid) {
-      const currentTodoItem = rebaseTodoItems.find(item => item.oid === rebaseStatus.currentOid);
-      const originalMessage = currentTodoItem?.summary || '';
-      const userMessage = prompt('Edit commit message for reword:', originalMessage);
-      if (userMessage === null) {
-        throw new Error('Rebase reword cancelled by user');
-      }
-      commitMessage = userMessage.trim();
-    }
 
     set({ isLoading: true, error: null });
     try {

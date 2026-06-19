@@ -58,7 +58,7 @@ interface ConflictBlock {
 
 export function MergeEditor() {
   const { activeConflictedPath, conflictStages, loadConflictStages, resolveConflictStages } = useRepoStore();
-  const { setActiveView, addNotification } = useUIStore();
+  const { setActiveView, addNotification, openConfirm } = useUIStore();
 
   const [mergedValue, setMergedValue] = useState<string>('');
   const [oursValue, setOursValue] = useState<string>('');
@@ -167,22 +167,30 @@ export function MergeEditor() {
     }
   };
 
-  const handleSave = async () => {
+  const doSave = async () => {
     if (!activeConflictedPath) return;
-
-    if (conflictBlocks.length > 0) {
-      const confirmSave = window.confirm(
-        `There are still ${conflictBlocks.length} unresolved conflict markers in the file. Are you sure you want to save?`
-      );
-      if (!confirmSave) return;
-    }
-
     try {
       await resolveConflictStages(activeConflictedPath, mergedValue);
       addNotification({ type: 'success', message: `Resolved conflict in ${activeConflictedPath.split('/').pop()}` });
       setActiveView('staging');
     } catch (err) {
       addNotification({ type: 'error', message: `Failed to save resolution: ${err}` });
+    }
+  };
+
+  const handleSave = () => {
+    if (!activeConflictedPath) return;
+
+    if (conflictBlocks.length > 0) {
+      openConfirm({
+        title: 'Save with Conflicts?',
+        message: `There are still ${conflictBlocks.length} unresolved conflict markers in the file. Are you sure you want to save?`,
+        confirmLabel: 'Save Anyway',
+        isDanger: true,
+        onConfirm: doSave
+      });
+    } else {
+      doSave();
     }
   };
 

@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { DiffEditor } from '@monaco-editor/react';
 import { Eye, FileCode, Check, ArrowLeftRight, Trash2 } from 'lucide-react';
 import { useRepoStore } from '../../store/repo-store';
+import { useUIStore } from '../../store/ui-store';
 import { getFileContentPair, FileContentPair } from '../../lib/tauri-commands';
 import type { DiffHunkInfo } from '../../lib/git-types';
 import './DiffView.css';
@@ -64,6 +65,8 @@ export function DiffView() {
     discardChanges,
     applyPatch
   } = useRepoStore();
+ 
+  const { openConfirm, addNotification } = useUIStore();
 
   const [viewMode, setViewMode] = useState<'visual' | 'hunk'>('visual');
   const [splitView, setSplitView] = useState(true);
@@ -114,26 +117,35 @@ export function DiffView() {
   };
 
   const handleDiscardFile = () => {
-    if (confirm(`Are you sure you want to discard all changes in ${selectedFilePath}?`)) {
-      discardChanges([selectedFilePath]);
-    }
+    openConfirm({
+      title: 'Discard Changes',
+      message: `Are you sure you want to discard all changes in ${selectedFilePath}? This action cannot be undone.`,
+      confirmLabel: 'Discard Changes',
+      isDanger: true,
+      onConfirm: () => {
+        discardChanges([selectedFilePath]);
+      }
+    });
   };
-
+ 
   // Staging specific Hunk
   const handleStageHunk = async (hunk: DiffHunkInfo) => {
     const patch = constructHunkPatch(selectedFilePath, hunk, undefined, selectedFileIsStaged);
     try {
       await applyPatch(patch, 'index');
     } catch (err) {
-      alert(`Failed to ${selectedFileIsStaged ? 'unstage' : 'stage'} hunk: ${err}`);
+      addNotification({
+        type: 'error',
+        message: `Failed to ${selectedFileIsStaged ? 'unstage' : 'stage'} hunk: ${err}`
+      });
     }
   };
-
+ 
   // Staging selected lines
   const handleStageSelectedLines = async (hunkIndex: number, hunk: DiffHunkInfo) => {
     const lineIndices = selectedLines[hunkIndex];
     if (!lineIndices || lineIndices.size === 0) return;
-
+ 
     const patch = constructHunkPatch(selectedFilePath, hunk, lineIndices, selectedFileIsStaged);
     try {
       await applyPatch(patch, 'index');
@@ -143,7 +155,10 @@ export function DiffView() {
         [hunkIndex]: new Set()
       }));
     } catch (err) {
-      alert(`Failed to ${selectedFileIsStaged ? 'unstage' : 'stage'} selected lines: ${err}`);
+      addNotification({
+        type: 'error',
+        message: `Failed to ${selectedFileIsStaged ? 'unstage' : 'stage'} selected lines: ${err}`
+      });
     }
   };
 

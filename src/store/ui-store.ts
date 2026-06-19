@@ -13,6 +13,34 @@ interface Notification {
   timeout?: number;
 }
 
+export interface PromptField {
+  name: string;
+  label: string;
+  placeholder?: string;
+  type?: 'text' | 'textarea';
+  defaultValue?: string;
+  required?: boolean;
+}
+
+export interface PromptOptions {
+  title: string;
+  description?: string;
+  fields: PromptField[];
+  submitLabel?: string;
+  onSubmit: (values: Record<string, string>) => void | Promise<void>;
+  onCancel?: () => void;
+}
+
+export interface ConfirmOptions {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  isDanger?: boolean;
+  onConfirm: () => void | Promise<void>;
+  onCancel?: () => void;
+}
+
 interface UIState {
   // Panels
   sidebarVisible: boolean;
@@ -41,6 +69,10 @@ interface UIState {
   fileViewerPath: string | null;
   fileViewerOid: string | null;
 
+  // Custom modals
+  promptOptions: PromptOptions | null;
+  confirmOptions: ConfirmOptions | null;
+
   // Notifications
   notifications: Notification[];
 
@@ -58,6 +90,10 @@ interface UIState {
   closeCleanModal: () => void;
   openFileViewer: (filePath: string, oid: string) => void;
   closeFileViewer: () => void;
+  openPrompt: (options: PromptOptions) => void;
+  closePrompt: () => void;
+  openConfirm: (options: ConfirmOptions) => void;
+  closeConfirm: () => void;
   addNotification: (notification: Omit<Notification, 'id'>) => void;
   removeNotification: (id: string) => void;
 }
@@ -76,6 +112,8 @@ export const useUIStore = create<UIState>((set) => ({
   fileViewerOpen: false,
   fileViewerPath: null,
   fileViewerOid: null,
+  promptOptions: null,
+  confirmOptions: null,
   notifications: [],
 
   toggleSidebar: () =>
@@ -117,6 +155,17 @@ export const useUIStore = create<UIState>((set) => ({
   closeFileViewer: () =>
     set({ fileViewerOpen: false, fileViewerPath: null, fileViewerOid: null }),
 
+  openPrompt: (options) =>
+    set({ promptOptions: options }),
+
+  closePrompt: () =>
+    set({ promptOptions: null }),
+
+  openConfirm: (options) =>
+    set({ confirmOptions: options }),
+
+  closeConfirm: () =>
+    set({ confirmOptions: null }),
 
   addNotification: (notification) => {
     const id = Math.random().toString(36).slice(2);

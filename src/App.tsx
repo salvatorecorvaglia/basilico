@@ -50,12 +50,16 @@ import { FileViewerModal } from './components/graph/FileViewerModal';
 import { MergeEditor } from './components/staging/MergeEditor';
 import { PullRequestReview } from './components/layout/PullRequestReview';
 import { StashInspector } from './components/staging/StashInspector';
+import { NotificationToast } from './components/layout/NotificationToast';
+import { PromptModal } from './components/layout/PromptModal';
+import { ConfirmModal } from './components/layout/ConfirmModal';
+import { open } from '@tauri-apps/plugin-dialog';
 import { useRepoStore } from './store/repo-store';
 import { useUIStore } from './store/ui-store';
 import './App.css';
 
 function App() {
-  const { tabs, activeTabId, loadSettings, settings, refreshAll } = useRepoStore();
+  const { tabs, activeTabId, loadSettings, settings, refreshAll, openRepository } = useRepoStore();
   const { sidebarVisible, activeView, toggleSettings, toggleCommandPalette, setActiveView, addNotification } = useUIStore();
 
   // Load settings on mount
@@ -104,6 +108,19 @@ function App() {
         } else if (meta && e.shiftKey && e.key === 'P') {
           e.preventDefault();
           toggleCommandPalette();
+        } else if (meta && e.key.toLowerCase() === 'o') {
+          e.preventDefault();
+          const handleOpen = async () => {
+            const selected = await open({
+              directory: true,
+              multiple: false,
+              title: 'Open Git Repository',
+            });
+            if (selected) {
+              await openRepository(selected as string);
+            }
+          };
+          handleOpen();
         }
         return;
       }
@@ -114,6 +131,19 @@ function App() {
       } else if (matchesShortcut(e, shortcuts.commandPalette || 'CmdOrCtrl+Shift+P')) {
         e.preventDefault();
         toggleCommandPalette();
+      } else if (matchesShortcut(e, 'CmdOrCtrl+o')) {
+        e.preventDefault();
+        const handleOpen = async () => {
+          const selected = await open({
+            directory: true,
+            multiple: false,
+            title: 'Open Git Repository',
+          });
+          if (selected) {
+            await openRepository(selected as string);
+          }
+        };
+        handleOpen();
       } else if (!isInputFocused && matchesShortcut(e, shortcuts.search || 'CmdOrCtrl+F')) {
         e.preventDefault();
         setActiveView('search');
@@ -127,12 +157,19 @@ function App() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [settings, toggleSettings, toggleCommandPalette, setActiveView, refreshAll, addNotification]);
+  }, [settings, toggleSettings, toggleCommandPalette, setActiveView, refreshAll, addNotification, openRepository]);
 
   const hasOpenRepo = tabs.length > 0 && activeTabId;
 
   return (
     <div className="app">
+      {/* Notifications */}
+      <NotificationToast />
+
+      {/* Global prompts/confirms */}
+      <PromptModal />
+      <ConfirmModal />
+
       {/* Tab Bar */}
       <TabBar />
 

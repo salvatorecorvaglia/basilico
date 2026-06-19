@@ -49,12 +49,11 @@ export function WelcomeScreen() {
           </button>
 
           <button
-            className="welcome-btn welcome-btn-secondary"
-            style={{ marginTop: '12px', border: '1px dashed rgba(255,255,255,0.15)', background: 'transparent', width: '100%', padding: '12px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            className="welcome-btn-dev"
             onClick={() => openRepository('/Users/salvatorecorvaglia/github/basilico')}
             disabled={isLoading}
           >
-            <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 500 }}>🌿 Open Basilico Repository (Dev)</span>
+            <span className="welcome-btn-dev-text">🌿 Open Basilico Repository (Dev)</span>
           </button>
         </div>
 

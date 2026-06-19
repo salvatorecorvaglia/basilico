@@ -22,7 +22,7 @@
 }
 
 .bisect-header h2 {
-  font-size: 16px;
+  font-size: var(--text-lg);
   font-weight: 600;
   margin: 0;
 }
@@ -34,7 +34,7 @@
 }
 
 .badge-bisect-state {
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 600;
   text-transform: uppercase;
   padding: 2px 8px;
@@ -53,7 +53,7 @@
 }
 
 .subtitle {
-  font-size: 12px;
+  font-size: var(--text-sm);
   margin-top: 4px;
 }
 
@@ -74,7 +74,7 @@
 }
 
 .form-group label {
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -85,7 +85,7 @@
   border-radius: 6px;
   color: var(--text-primary);
   padding: 8px 12px;
-  font-size: 13px;
+  font-size: var(--text-base);
   outline: none;
   transition: all var(--transition-fast);
 }
@@ -96,7 +96,7 @@
 }
 
 .help-text {
-  font-size: 10px;
+  font-size: var(--text-xs);
   color: var(--text-tertiary);
 }
 
@@ -104,7 +104,7 @@
   background: var(--accent-color);
   color: #121820;
   border: none;
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 600;
   padding: 10px 16px;
   border-radius: 6px;
@@ -138,7 +138,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 4px;
@@ -159,7 +159,7 @@
 }
 
 .bisect-card-label {
-  font-size: 10px;
+  font-size: var(--text-xs);
   color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -167,7 +167,7 @@
 }
 
 .bisect-steps-info {
-  font-size: 14px;
+  font-size: var(--text-md);
   font-weight: 500;
   display: flex;
   align-items: center;
@@ -175,7 +175,7 @@
 }
 
 .commits-left {
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 
 .commit-test-details {
@@ -185,18 +185,18 @@
 }
 
 .commit-sha {
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 600;
 }
 
 .commit-message {
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 500;
   color: var(--text-primary);
 }
 
 .commit-author {
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .bisect-actions {
@@ -212,7 +212,7 @@
   justify-content: center;
   gap: 8px;
   border: none;
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 600;
   padding: 12px 16px;
   border-radius: 6px;
@@ -267,7 +267,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 15px;
+  font-size: var(--text-lg);
   font-weight: 600;
 }
 
@@ -276,7 +276,7 @@
   border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 12px;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-primary);
   white-space: pre-wrap;
 }
@@ -293,7 +293,7 @@
 .terminal-header {
   background: var(--bg-secondary);
   padding: 6px 12px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--text-tertiary);
   text-transform: uppercase;
@@ -306,7 +306,7 @@
   padding: 12px;
   display: flex;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--text-sm);
   min-height: 80px;
 }
 

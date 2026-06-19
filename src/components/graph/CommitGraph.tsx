@@ -6,11 +6,6 @@
 import { useRef, useEffect, useMemo } from 'react';
 import type { GraphCommit } from '../../lib/git-types';
 
-const LANE_COLORS = [
-  '#58a6ff', '#3fb950', '#f0883e', '#bc8cff', '#f85149',
-  '#2dd4bf', '#d2a8ff', '#ffa657', '#ff7b72', '#79c0ff',
-];
-
 const NODE_RADIUS = 4;
 const LANE_WIDTH = 16;
 const LANE_OFFSET = 16;
@@ -50,6 +45,16 @@ export function CommitGraph({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // Fetch theme colors dynamically from CSS variables
+    const docStyle = getComputedStyle(document.documentElement);
+    const fallbackColors = [
+      '#58a6ff', '#3fb950', '#f0883e', '#bc8cff', '#f85149',
+      '#2dd4bf', '#d2a8ff', '#ffa657', '#ff7b72', '#79c0ff',
+    ];
+    const laneColors = Array.from({ length: 10 }, (_, i) => {
+      return docStyle.getPropertyValue(`--lane-${i}`).trim() || fallbackColors[i];
+    });
+
     let animationFrameId: number;
 
     const render = () => {
@@ -82,7 +87,7 @@ export function CommitGraph({
           if (targetIdx === undefined) continue;
 
           const toY = targetIdx * rowHeight + rowHeight / 2 - scrollOffset;
-          const color = LANE_COLORS[edge.fromLane % LANE_COLORS.length];
+          const color = laneColors[edge.fromLane % laneColors.length];
 
           ctx.strokeStyle = color;
           ctx.lineWidth = 1.5;
@@ -106,7 +111,7 @@ export function CommitGraph({
       // Draw vertical lane lines for context
       for (let lane = 0; lane <= maxLane && lane < 6; lane++) {
         const x = LANE_OFFSET + lane * LANE_WIDTH;
-        ctx.strokeStyle = LANE_COLORS[lane % LANE_COLORS.length];
+        ctx.strokeStyle = laneColors[lane % laneColors.length];
         ctx.globalAlpha = 0.08;
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -121,7 +126,7 @@ export function CommitGraph({
         const commit = commits[i];
         const x = LANE_OFFSET + commit.lane * LANE_WIDTH;
         const y = i * rowHeight + rowHeight / 2 - scrollOffset;
-        const color = LANE_COLORS[commit.lane % LANE_COLORS.length];
+        const color = laneColors[commit.lane % laneColors.length];
 
         const isMerge = commit.parentOids.length > 1;
         const hasRefs = commit.refs.length > 0;

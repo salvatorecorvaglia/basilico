@@ -7,21 +7,27 @@ import './ReflogView.css';
 
 export function ReflogView() {
   const { reflogEntries, loadReflog, checkoutBranch, isLoading } = useRepoStore();
-  const { setActiveView, addNotification } = useUIStore();
+  const { setActiveView, addNotification, openConfirm } = useUIStore();
 
   useEffect(() => {
     loadReflog();
   }, []);
 
-  const handleRecover = async (oid: string, selector: string) => {
-    if (confirm(`Are you sure you want to checkout/recover reflog commit ${oid.slice(0, 8)} (${selector})? This will detach HEAD.`)) {
-      try {
-        await checkoutBranch(oid);
-        addNotification({ type: 'success', message: `Successfully recovered state at ${selector}` });
-      } catch (err) {
-        addNotification({ type: 'error', message: `Recovery failed: ${err}` });
+  const handleRecover = (oid: string, selector: string) => {
+    openConfirm({
+      title: 'Recover Commit',
+      message: `Are you sure you want to checkout/recover reflog commit ${oid.slice(0, 8)} (${selector})? This will detach HEAD.`,
+      confirmLabel: 'Recover & Checkout',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await checkoutBranch(oid);
+          addNotification({ type: 'success', message: `Successfully recovered state at ${selector}` });
+        } catch (err) {
+          addNotification({ type: 'error', message: `Recovery failed: ${err}` });
+        }
       }
-    }
+    });
   };
 
   return (

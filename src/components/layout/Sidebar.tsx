@@ -92,7 +92,7 @@ export function Sidebar() {
     loadStashDetail,
   } = useRepoStore();
 
-  const { addNotification, setActiveView, openCleanModal, activeView } = useUIStore();
+  const { addNotification, setActiveView, openCleanModal, activeView, openPrompt, openConfirm } = useUIStore();
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -126,33 +126,62 @@ export function Sidebar() {
     }
   };
 
-  const handleCreateBranch = async () => {
-    const name = prompt('Enter new branch name:');
-    if (name && name.trim()) {
-      try {
-        await createBranch(name.trim());
-        addNotification({ type: 'success', message: `Created branch "${name}"` });
-      } catch (err) {
-        addNotification({ type: 'error', message: `Failed to create branch: ${err}` });
+  const handleCreateBranch = () => {
+    openPrompt({
+      title: 'Create Branch',
+      description: 'Enter a name for the new local branch.',
+      fields: [
+        {
+          name: 'name',
+          label: 'Branch Name',
+          placeholder: 'e.g. feature/login',
+          required: true,
+        }
+      ],
+      submitLabel: 'Create Branch',
+      onSubmit: async (values) => {
+        const name = values.name.trim();
+        try {
+          await createBranch(name);
+          addNotification({ type: 'success', message: `Created branch "${name}"` });
+        } catch (err) {
+          addNotification({ type: 'error', message: `Failed to create branch: ${err}` });
+        }
       }
-    }
+    });
   };
 
-  const handleCreateTagPrompt = async () => {
-    const name = prompt('Enter new tag name:');
-    if (!name || !name.trim()) return;
-
-    const message = prompt('Enter tag message (optional, leave empty for lightweight tag):');
-    
-    // Target OID can be selectedCommitOid, otherwise "HEAD"
-    const target = selectedCommitOid || 'HEAD';
-
-    try {
-      await createTag(name.trim(), target, message?.trim() || null);
-      addNotification({ type: 'success', message: `Created tag "${name}" at ${target.slice(0, 7)}` });
-    } catch (err) {
-      addNotification({ type: 'error', message: `Failed to create tag: ${err}` });
-    }
+  const handleCreateTagPrompt = () => {
+    openPrompt({
+      title: 'Create Tag',
+      description: 'Create a new lightweight or annotated tag at the selected commit.',
+      fields: [
+        {
+          name: 'name',
+          label: 'Tag Name',
+          placeholder: 'e.g. v1.0.0',
+          required: true,
+        },
+        {
+          name: 'message',
+          label: 'Tag Message (optional)',
+          placeholder: 'e.g. Release version 1.0.0',
+          type: 'textarea',
+        }
+      ],
+      submitLabel: 'Create Tag',
+      onSubmit: async (values) => {
+        const name = values.name.trim();
+        const msg = values.message.trim();
+        const target = selectedCommitOid || 'HEAD';
+        try {
+          await createTag(name, target, msg || null);
+          addNotification({ type: 'success', message: `Created tag "${name}" at ${target.slice(0, 7)}` });
+        } catch (err) {
+          addNotification({ type: 'error', message: `Failed to create tag: ${err}` });
+        }
+      }
+    });
   };
 
   const openMenu = (
@@ -183,26 +212,38 @@ export function Sidebar() {
     openMenu(e, tagName, 'tag');
   };
 
-  const handleDeleteBranch = async (name: string, isRemote: boolean) => {
-    if (confirm(`Are you sure you want to delete ${isRemote ? 'remote' : 'local'} branch "${name}"?`)) {
-      try {
-        await deleteBranch(name, isRemote);
-        addNotification({ type: 'success', message: `Deleted branch "${name}"` });
-      } catch (err) {
-        addNotification({ type: 'error', message: `Failed to delete branch: ${err}` });
+  const handleDeleteBranch = (name: string, isRemote: boolean) => {
+    openConfirm({
+      title: 'Delete Branch',
+      message: `Are you sure you want to delete ${isRemote ? 'remote' : 'local'} branch "${name}"? This action cannot be undone.`,
+      confirmLabel: 'Delete Branch',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await deleteBranch(name, isRemote);
+          addNotification({ type: 'success', message: `Deleted branch "${name}"` });
+        } catch (err) {
+          addNotification({ type: 'error', message: `Failed to delete branch: ${err}` });
+        }
       }
-    }
+    });
   };
 
-  const handleDeleteTag = async (name: string) => {
-    if (confirm(`Are you sure you want to delete tag "${name}"?`)) {
-      try {
-        await deleteTag(name);
-        addNotification({ type: 'success', message: `Deleted tag "${name}"` });
-      } catch (err) {
-        addNotification({ type: 'error', message: `Failed to delete tag: ${err}` });
+  const handleDeleteTag = (name: string) => {
+    openConfirm({
+      title: 'Delete Tag',
+      message: `Are you sure you want to delete tag "${name}"?`,
+      confirmLabel: 'Delete Tag',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await deleteTag(name);
+          addNotification({ type: 'success', message: `Deleted tag "${name}"` });
+        } catch (err) {
+          addNotification({ type: 'error', message: `Failed to delete tag: ${err}` });
+        }
       }
-    }
+    });
   };
 
   const handlePushTag = async (name: string) => {
@@ -241,45 +282,71 @@ export function Sidebar() {
     }
   };
 
-  const handleDropStash = async (index: number) => {
-    if (confirm(`Are you sure you want to drop stash@{${index}}?`)) {
-      try {
-        await dropStash(index);
-        addNotification({ type: 'success', message: `Stash dropped successfully` });
-      } catch (err) {
-        addNotification({ type: 'error', message: `Failed to drop stash: ${err}` });
-      }
-    }
-  };
-
-  const handleRenameBranch = async (name: string) => {
-    const newName = prompt(`Rename branch "${name}" to:`, name);
-    if (newName && newName.trim() && newName.trim() !== name) {
-      try {
-        await renameBranch(name, newName.trim());
-        addNotification({ type: 'success', message: `Renamed branch to "${newName}"` });
-      } catch (err) {
-        addNotification({ type: 'error', message: `Failed to rename branch: ${err}` });
-      }
-    }
-  };
-
-  const handleMergeBranch = async (name: string) => {
-    if (confirm(`Are you sure you want to merge branch "${name}" into the active branch?`)) {
-      try {
-        const result = await mergeBranch(name);
-        if (result === 'conflicts') {
-          addNotification({ 
-            type: 'warning', 
-            message: `Merge conflict in workspace! Please resolve conflicts in the staging area.` 
-          });
-        } else {
-          addNotification({ type: 'success', message: `Merged branch "${name}" successfully` });
+  const handleDropStash = (index: number) => {
+    openConfirm({
+      title: 'Drop Stash',
+      message: `Are you sure you want to drop stash@{${index}}? This action cannot be undone.`,
+      confirmLabel: 'Drop Stash',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await dropStash(index);
+          addNotification({ type: 'success', message: `Stash dropped successfully` });
+        } catch (err) {
+          addNotification({ type: 'error', message: `Failed to drop stash: ${err}` });
         }
-      } catch (err) {
-        addNotification({ type: 'error', message: `Failed to merge: ${err}` });
       }
-    }
+    });
+  };
+
+  const handleRenameBranch = (name: string) => {
+    openPrompt({
+      title: 'Rename Branch',
+      description: `Enter a new name for branch "${name}".`,
+      fields: [
+        {
+          name: 'newName',
+          label: 'New Branch Name',
+          placeholder: 'e.g. feature/new-login',
+          defaultValue: name,
+          required: true,
+        }
+      ],
+      submitLabel: 'Rename Branch',
+      onSubmit: async (values) => {
+        const newName = values.newName.trim();
+        if (newName === name) return;
+        try {
+          await renameBranch(name, newName);
+          addNotification({ type: 'success', message: `Renamed branch to "${newName}"` });
+        } catch (err) {
+          addNotification({ type: 'error', message: `Failed to rename branch: ${err}` });
+        }
+      }
+    });
+  };
+
+  const handleMergeBranch = (name: string) => {
+    openConfirm({
+      title: 'Merge Branch',
+      message: `Are you sure you want to merge branch "${name}" into the active branch?`,
+      confirmLabel: 'Merge Branch',
+      onConfirm: async () => {
+        try {
+          const result = await mergeBranch(name);
+          if (result === 'conflicts') {
+            addNotification({ 
+              type: 'warning', 
+              message: `Merge conflict in workspace! Please resolve conflicts in the staging area.` 
+            });
+          } else {
+            addNotification({ type: 'success', message: `Merged branch "${name}" successfully` });
+          }
+        } catch (err) {
+          addNotification({ type: 'error', message: `Failed to merge: ${err}` });
+        }
+      }
+    });
   };
 
   return (
@@ -629,15 +696,22 @@ export function Sidebar() {
               </button>
               <button
                 className="context-menu-item context-menu-danger"
-                onClick={async () => {
-                  if (confirm(`Remove worktree at "${contextMenu.targetName}"?`)) {
-                    try {
-                      await removeWorktree(contextMenu.targetName, false);
-                      addNotification({ type: 'success', message: 'Worktree removed' });
-                    } catch (err) {
-                      addNotification({ type: 'error', message: `Remove failed: ${err}` });
+                onClick={() => {
+                  const target = contextMenu.targetName;
+                  openConfirm({
+                    title: 'Remove Worktree',
+                    message: `Remove worktree at "${target}"?`,
+                    confirmLabel: 'Remove Worktree',
+                    isDanger: true,
+                    onConfirm: async () => {
+                      try {
+                        await removeWorktree(target, false);
+                        addNotification({ type: 'success', message: 'Worktree removed' });
+                      } catch (err) {
+                        addNotification({ type: 'error', message: `Remove failed: ${err}` });
+                      }
                     }
-                  }
+                  });
                   setContextMenu(null);
                 }}
               >

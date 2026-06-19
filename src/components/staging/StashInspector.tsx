@@ -78,7 +78,7 @@ export function StashInspector() {
     dropStash
   } = useRepoStore();
 
-  const { addNotification, setActiveView } = useUIStore();
+  const { addNotification, setActiveView, openConfirm, openPrompt } = useUIStore();
   const [splitView, setSplitView] = useState(true);
   const [contents, setContents] = useState<FileContentPair | null>(null);
   const [loadingContents, setLoadingContents] = useState(false);
@@ -138,32 +138,53 @@ export function StashInspector() {
     }
   };
 
-  const handleDrop = async () => {
-    if (confirm(`Are you sure you want to delete stash@{${selectedStashIndex}}?`)) {
-      try {
-        await dropStash(selectedStashIndex);
-        addNotification({ type: 'success', message: `Dropped stash@{${selectedStashIndex}} successfully` });
-        setActiveView('graph');
-      } catch (err) {
-        addNotification({ type: 'error', message: `Failed to drop stash: ${err}` });
+  const handleDrop = () => {
+    openConfirm({
+      title: 'Delete Stash',
+      message: `Are you sure you want to delete stash@{${selectedStashIndex}}? This action cannot be undone.`,
+      confirmLabel: 'Delete Stash',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await dropStash(selectedStashIndex);
+          addNotification({ type: 'success', message: `Dropped stash@{${selectedStashIndex}} successfully` });
+          setActiveView('graph');
+        } catch (err) {
+          addNotification({ type: 'error', message: `Failed to drop stash: ${err}` });
+        }
       }
-    }
+    });
   };
 
-  const handleBranch = async () => {
-    const branchName = prompt(`Create branch from stash@{${selectedStashIndex}}. Enter new branch name:`);
-    if (branchName && branchName.trim()) {
-      try {
-        await createBranchFromStash(selectedStashIndex, branchName.trim());
-        addNotification({ 
-          type: 'success', 
-          message: `Created branch "${branchName.trim()}" and popped stash@{${selectedStashIndex}}` 
-        });
-        setActiveView('graph');
-      } catch (err) {
-        addNotification({ type: 'error', message: `Failed to branch from stash: ${err}` });
+  const handleBranch = () => {
+    openPrompt({
+      title: 'Create Branch from Stash',
+      description: `Create branch from stash@{${selectedStashIndex}}. Enter new branch name:`,
+      fields: [
+        {
+          name: 'branchName',
+          label: 'Branch Name',
+          placeholder: 'e.g. feature-stash',
+          required: true
+        }
+      ],
+      submitLabel: 'Create & Pop',
+      onSubmit: async (values) => {
+        const branchName = values.branchName || '';
+        if (branchName.trim()) {
+          try {
+            await createBranchFromStash(selectedStashIndex, branchName.trim());
+            addNotification({ 
+              type: 'success', 
+              message: `Created branch "${branchName.trim()}" and popped stash@{${selectedStashIndex}}` 
+            });
+            setActiveView('graph');
+          } catch (err) {
+            addNotification({ type: 'error', message: `Failed to branch from stash: ${err}` });
+          }
+        }
       }
-    }
+    });
   };
 
   return (

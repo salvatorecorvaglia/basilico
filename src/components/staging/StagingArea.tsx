@@ -31,7 +31,7 @@ export function StagingArea() {
     revertAbort
   } = useRepoStore();
 
-  const { setActiveView, addNotification } = useUIStore();
+  const { setActiveView, addNotification, openPrompt, openConfirm } = useUIStore();
 
   const [stagedOpen, setStagedOpen] = useState(true);
   const [unstagedOpen, setUnstagedOpen] = useState(true);
@@ -50,18 +50,45 @@ export function StagingArea() {
     });
   };
 
-  const handleSaveStashPrompt = async () => {
-    const message = prompt('Enter stash message (optional):');
-    if (message === null) return; // User cancelled
-
-    const includeUntracked = confirm('Include untracked files in the stash?');
-    
-    try {
-      await saveStash(message.trim(), includeUntracked);
-      addNotification({ type: 'success', message: 'Stash saved successfully' });
-    } catch (err) {
-      addNotification({ type: 'error', message: `Failed to save stash: ${err}` });
-    }
+  const handleSaveStashPrompt = () => {
+    openPrompt({
+      title: 'Save Stash',
+      description: 'Enter a message to describe your stash (optional).',
+      fields: [
+        {
+          name: 'message',
+          label: 'Stash Message',
+          placeholder: 'e.g., work in progress',
+          required: false,
+        }
+      ],
+      submitLabel: 'Next',
+      onSubmit: (values) => {
+        const message = values.message || '';
+        openConfirm({
+          title: 'Include Untracked Files?',
+          message: 'Would you like to include untracked files in the stash?',
+          confirmLabel: 'Include Untracked',
+          cancelLabel: 'Only Tracked Files',
+          onConfirm: async () => {
+            try {
+              await saveStash(message.trim(), true);
+              addNotification({ type: 'success', message: 'Stash saved successfully' });
+            } catch (err) {
+              addNotification({ type: 'error', message: `Failed to save stash: ${err}` });
+            }
+          },
+          onCancel: async () => {
+            try {
+              await saveStash(message.trim(), false);
+              addNotification({ type: 'success', message: 'Stash saved successfully' });
+            } catch (err) {
+              addNotification({ type: 'error', message: `Failed to save stash: ${err}` });
+            }
+          }
+        });
+      }
+    });
   };
 
   if (!status) {
@@ -305,9 +332,13 @@ export function StagingArea() {
                         className="staging-discard-btn"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm(`Are you sure you want to discard all changes in ${getFileName(file.path)}?`)) {
-                            discardChanges([file.path]);
-                          }
+                          openConfirm({
+                            title: 'Discard Changes',
+                            message: `Are you sure you want to discard all changes in ${getFileName(file.path)}? This action cannot be undone.`,
+                            confirmLabel: 'Discard',
+                            isDanger: true,
+                            onConfirm: () => discardChanges([file.path])
+                          });
                         }}
                         title="Discard changes"
                       >
@@ -339,9 +370,13 @@ export function StagingArea() {
                         className="staging-discard-btn"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm(`Are you sure you want to delete ${getFileName(file)}?`)) {
-                            discardChanges([file]);
-                          }
+                          openConfirm({
+                            title: 'Delete File',
+                            message: `Are you sure you want to delete ${getFileName(file)}? This will permanently delete the file.`,
+                            confirmLabel: 'Delete',
+                            isDanger: true,
+                            onConfirm: () => discardChanges([file])
+                          });
                         }}
                         title="Delete file"
                       >

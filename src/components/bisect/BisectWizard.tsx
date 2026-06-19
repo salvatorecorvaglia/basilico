@@ -25,7 +25,7 @@ export function BisectWizard() {
     commits 
   } = useRepoStore();
 
-  const { addNotification } = useUIStore();
+  const { addNotification, openConfirm } = useUIStore();
 
   // Form states for setup
   const [badCommit, setBadCommit] = useState('HEAD');
@@ -59,15 +59,21 @@ export function BisectWizard() {
     }
   };
 
-  const handleReset = async () => {
-    if (confirm('Are you sure you want to abort the active bisect session?')) {
-      try {
-        await resetBisect();
-        addNotification({ type: 'success', message: 'Bisect session reset' });
-      } catch (err) {
-        addNotification({ type: 'error', message: `Failed to reset bisect: ${err}` });
+  const handleReset = () => {
+    openConfirm({
+      title: 'Abort Bisect',
+      message: 'Are you sure you want to abort the active bisect session?',
+      confirmLabel: 'Abort Session',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await resetBisect();
+          addNotification({ type: 'success', message: 'Bisect session reset' });
+        } catch (err) {
+          addNotification({ type: 'error', message: `Failed to reset bisect: ${err}` });
+        }
       }
-    }
+    });
   };
 
   // Find commit message for current checked out commit

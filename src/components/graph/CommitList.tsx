@@ -53,7 +53,7 @@ export function CommitList() {
     startComparison
   } = useRepoStore();
 
-  const { openResetModal, addNotification, setActiveView } = useUIStore();
+  const { openResetModal, addNotification, setActiveView, openPrompt } = useUIStore();
 
   const parentRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(600);
@@ -165,36 +165,67 @@ export function CommitList() {
     }
   };
 
-  const handleCreateBranchPrompt = async (oid: string) => {
-    const name = prompt('Enter new branch name:');
-    if (name && name.trim()) {
-      try {
-        await createBranch(name.trim(), oid);
-        addNotification({ 
-          type: 'success', 
-          message: `Created branch "${name}" at ${oid.slice(0, 7)}` 
-        });
-      } catch (err) {
-        addNotification({ type: 'error', message: `Failed to create branch: ${err}` });
+  const handleCreateBranchPrompt = (oid: string) => {
+    openPrompt({
+      title: 'Create Branch',
+      description: `Create a new branch at commit ${oid.slice(0, 7)}.`,
+      fields: [
+        {
+          name: 'name',
+          label: 'Branch Name',
+          placeholder: 'e.g. feature/checkout-fix',
+          required: true,
+        }
+      ],
+      submitLabel: 'Create Branch',
+      onSubmit: async (values) => {
+        const name = values.name.trim();
+        try {
+          await createBranch(name, oid);
+          addNotification({ 
+            type: 'success', 
+            message: `Created branch "${name}" at ${oid.slice(0, 7)}` 
+          });
+        } catch (err) {
+          addNotification({ type: 'error', message: `Failed to create branch: ${err}` });
+        }
       }
-    }
+    });
   };
 
-  const handleCreateTagPrompt = async (oid: string) => {
-    const name = prompt('Enter new tag name:');
-    if (!name || !name.trim()) return;
-
-    const message = prompt('Enter tag message (optional, leave empty for lightweight tag):');
-
-    try {
-      await createTag(name.trim(), oid, message?.trim() || null);
-      addNotification({ 
-        type: 'success', 
-        message: `Created tag "${name}" at ${oid.slice(0, 7)}` 
-      });
-    } catch (err) {
-      addNotification({ type: 'error', message: `Failed to create tag: ${err}` });
-    }
+  const handleCreateTagPrompt = (oid: string) => {
+    openPrompt({
+      title: 'Create Tag',
+      description: `Create a new tag at commit ${oid.slice(0, 7)}.`,
+      fields: [
+        {
+          name: 'name',
+          label: 'Tag Name',
+          placeholder: 'e.g. v1.1.2',
+          required: true,
+        },
+        {
+          name: 'message',
+          label: 'Tag Message (optional)',
+          placeholder: 'e.g. Tag release at commit OID',
+          type: 'textarea',
+        }
+      ],
+      submitLabel: 'Create Tag',
+      onSubmit: async (values) => {
+        const name = values.name.trim();
+        const message = values.message.trim();
+        try {
+          await createTag(name, oid, message || null);
+          addNotification({ 
+            type: 'success', 
+            message: `Created tag "${name}" at ${oid.slice(0, 7)}` 
+          });
+        } catch (err) {
+          addNotification({ type: 'error', message: `Failed to create tag: ${err}` });
+        }
+      }
+    });
   };
 
   if (commits.length === 0) {

@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Check, Edit2 } from 'lucide-react';
 import { useRepoStore } from '../../store/repo-store';
+import { useUIStore } from '../../store/ui-store';
 import './CommitBox.css';
 
 const CONVENTIONAL_TYPES = [
@@ -20,6 +21,7 @@ const CONVENTIONAL_TYPES = [
 
 export function CommitBox() {
   const { commits, status, commit, isLoading } = useRepoStore();
+  const { addNotification } = useUIStore();
   const [summary, setSummary] = useState('');
   const [description, setDescription] = useState('');
   const [amend, setAmend] = useState(false);
@@ -67,7 +69,7 @@ export function CommitBox() {
       setUserSummaryBackup('');
       setUserDescriptionBackup('');
     } catch (err) {
-      alert(`Failed to commit: ${err}`);
+      addNotification({ type: 'error', message: `Failed to commit: ${err}` });
     }
   };
 

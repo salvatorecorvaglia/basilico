@@ -18,7 +18,7 @@ interface PaletteItem {
 }
 
 export function CommandPalette() {
-  const { commandPaletteOpen, toggleCommandPalette, setActiveView, addNotification } = useUIStore();
+  const { commandPaletteOpen, toggleCommandPalette, setActiveView, addNotification, openPrompt } = useUIStore();
   const { 
     refreshAll, 
     fetch, 
@@ -128,52 +128,98 @@ export function CommandPalette() {
       id: 'branch-create',
       name: 'Create new branch...',
       category: 'Branch Management',
-      action: async () => {
-        const name = prompt('Enter new branch name:');
-        if (name && name.trim()) {
-          try {
-            await createBranch(name.trim());
-            addNotification({ type: 'success', message: `Created branch "${name}"` });
-          } catch (err) {
-            addNotification({ type: 'error', message: `Failed to create branch: ${err}` });
+      action: () => {
+        openPrompt({
+          title: 'Create Branch',
+          description: 'Enter a name for the new local branch.',
+          fields: [
+            {
+              name: 'name',
+              label: 'Branch Name',
+              placeholder: 'e.g. feature/palette-fix',
+              required: true,
+            }
+          ],
+          submitLabel: 'Create Branch',
+          onSubmit: async (values) => {
+            const name = values.name.trim();
+            try {
+              await createBranch(name);
+              addNotification({ type: 'success', message: `Created branch "${name}"` });
+            } catch (err) {
+              addNotification({ type: 'error', message: `Failed to create branch: ${err}` });
+            }
           }
-        }
+        });
       },
     },
     {
       id: 'rebase-interactive',
       name: 'Start visual Interactive Rebase...',
       category: 'Interactive Rebase',
-      action: async () => {
-        const upstream = prompt('Enter upstream branch or commit to rebase onto (e.g. main, origin/main):');
-        if (upstream && upstream.trim()) {
-          try {
-            await initRebase(upstream.trim());
-            setActiveView('rebase');
-            addNotification({ type: 'info', message: 'Rebase initialized' });
-          } catch (err) {
-            addNotification({ type: 'error', message: `Failed to initialize rebase: ${err}` });
+      action: () => {
+        openPrompt({
+          title: 'Interactive Rebase',
+          description: 'Rebase active branch onto a base commit/upstream branch.',
+          fields: [
+            {
+              name: 'upstream',
+              label: 'Upstream Commit or Branch',
+              placeholder: 'e.g. main, origin/main, HEAD~3',
+              defaultValue: 'main',
+              required: true,
+            }
+          ],
+          submitLabel: 'Initialize Rebase',
+          onSubmit: async (values) => {
+            const upstream = values.upstream.trim();
+            try {
+              await initRebase(upstream);
+              setActiveView('rebase');
+              addNotification({ type: 'info', message: 'Rebase initialized' });
+            } catch (err) {
+              addNotification({ type: 'error', message: `Failed to initialize rebase: ${err}` });
+            }
           }
-        }
+        });
       },
     },
     {
       id: 'bisect-start',
       name: 'Start Git Bisect session...',
       category: 'Git Bisect',
-      action: async () => {
-        const bad = prompt('Enter known BAD commit OID or revision (defaults to HEAD):', 'HEAD');
-        if (bad === null) return;
-        const good = prompt('Enter known GOOD commit OID or revision:');
-        if (good && good.trim()) {
-          try {
-            await startBisect(bad.trim() || 'HEAD', good.trim());
-            setActiveView('bisect');
-            addNotification({ type: 'info', message: 'Bisect started' });
-          } catch (err) {
-            addNotification({ type: 'error', message: `Failed to start bisect: ${err}` });
+      action: () => {
+        openPrompt({
+          title: 'Start Git Bisect',
+          description: 'Initialize a binary search session to find a bug.',
+          fields: [
+            {
+              name: 'bad',
+              label: 'Known BAD Commit OID or Branch',
+              placeholder: 'defaults to HEAD',
+              defaultValue: 'HEAD',
+              required: true,
+            },
+            {
+              name: 'good',
+              label: 'Known GOOD Commit OID or Branch',
+              placeholder: 'e.g. main, or OID',
+              required: true,
+            }
+          ],
+          submitLabel: 'Start Bisect',
+          onSubmit: async (values) => {
+            const bad = values.bad.trim();
+            const good = values.good.trim();
+            try {
+              await startBisect(bad || 'HEAD', good);
+              setActiveView('bisect');
+              addNotification({ type: 'info', message: 'Bisect started' });
+            } catch (err) {
+              addNotification({ type: 'error', message: `Failed to start bisect: ${err}` });
+            }
           }
-        }
+        });
       },
     },
     {

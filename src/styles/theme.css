@@ -127,4 +127,18 @@
   --statusbar-height: 28px;
   --tabbar-height: 36px;
   --scrollbar-width: 8px;
+
+  /* ── Design System Alias & Compatibility Tokens ── */
+  --bg-primary:     var(--bg-base);
+  --bg-secondary:   var(--bg-surface);
+  --bg-tertiary:    var(--bg-elevated);
+  --bg-hover:       var(--bg-overlay);
+  --bg-active:      rgba(46, 160, 67, 0.08);
+  --border-color:   var(--border-default);
+  --border-active:  var(--border-accent);
+  --accent-color:   var(--accent-primary);
+  --color-primary:  var(--accent-primary);
+  --color-primary-hover: var(--accent-primary-hover);
+  --color-danger-hover: var(--color-danger);
 }
+
