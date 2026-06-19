@@ -40,22 +40,19 @@ pub async fn get_file_history(
         // 1. Get commit tree
         let commit_tree = commit.tree().map_err(|e| e.to_string())?;
 
-        // 2. Check if file existed at current_path in this commit
-        let file_exists = commit_tree
-            .get_path(std::path::Path::new(&current_path))
-            .is_ok();
-        if !file_exists {
-            continue;
-        }
-
-        // 3. Compare with parents to see if this commit modified the file at current_path
+        // 2. Compare with parents to see if this commit modified the file at current_path
         let parents_count = commit.parent_count();
         let mut modified = false;
         let mut renamed_path = None;
 
         if parents_count == 0 {
-            // Root commit: it added the file, so it's a modification
-            modified = true;
+            // Root commit: it added the file if it exists in the tree
+            if commit_tree
+                .get_path(std::path::Path::new(&current_path))
+                .is_ok()
+            {
+                modified = true;
+            }
         } else {
             // Check diff against parents
             for p_idx in 0..parents_count {
@@ -77,16 +74,17 @@ pub async fn get_file_history(
                         let new_file_path = delta.new_file().path().and_then(|p| p.to_str());
                         let old_file_path = delta.old_file().path().and_then(|p| p.to_str());
 
-                        if let Some(n_path) = new_file_path {
-                            if n_path == current_path {
-                                modified = true;
-                                if delta.status() == git2::Delta::Renamed {
-                                    if let Some(o_path) = old_file_path {
-                                        renamed_path = Some(o_path.to_string());
-                                    }
+                        let matches_new = new_file_path.map(|p| p == current_path).unwrap_or(false);
+                        let matches_old = old_file_path.map(|p| p == current_path).unwrap_or(false);
+
+                        if matches_new || matches_old {
+                            modified = true;
+                            if delta.status() == git2::Delta::Renamed {
+                                if let Some(o_path) = old_file_path {
+                                    renamed_path = Some(o_path.to_string());
                                 }
-                                break;
                             }
+                            break;
                         }
                     }
                 }
@@ -120,4 +118,106 @@ pub async fn get_file_history(
     }
 
     Ok(history)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{self, File};
+    use std::io::Write;
+    use std::path::PathBuf;
+    use uuid::Uuid;
+
+    struct TempRepo {
+        path: PathBuf,
+        repo: git2::Repository,
+    }
+
+    impl TempRepo {
+        fn new() -> Self {
+            let uuid = Uuid::new_v4().to_string();
+            let mut path = std::env::current_dir().unwrap();
+            if !path.ends_with("src-tauri") {
+                path.push("src-tauri");
+            }
+            path.push("target");
+            path.push(format!("test-repo-history-{}", uuid));
+            fs::create_dir_all(&path).unwrap();
+
+            let repo = git2::Repository::init(&path).unwrap();
+            let mut config = repo.config().unwrap();
+            config.set_str("user.name", "Test").unwrap();
+            config.set_str("user.email", "test@example.com").unwrap();
+
+            Self { path, repo }
+        }
+
+        fn write_file(&self, name: &str, content: &str) {
+            let file_path = self.path.join(name);
+            let mut file = File::create(file_path).unwrap();
+            file.write_all(content.as_bytes()).unwrap();
+        }
+
+        fn remove_file(&self, name: &str) {
+            let file_path = self.path.join(name);
+            fs::remove_file(file_path).unwrap();
+        }
+
+        fn commit(&self, msg: &str) {
+            let mut index = self.repo.index().unwrap();
+            index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None).unwrap();
+            index.write().unwrap();
+            let tree_id = index.write_tree().unwrap();
+            let tree = self.repo.find_tree(tree_id).unwrap();
+            let sig = self.repo.signature().unwrap();
+            
+            let mut parents = Vec::new();
+            if let Ok(head) = self.repo.head() {
+                parents.push(head.peel_to_commit().unwrap());
+            }
+            
+            let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
+            self.repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &parent_refs).unwrap();
+        }
+
+        fn path_str(&self) -> &str {
+            self.path.to_str().unwrap()
+        }
+    }
+
+    impl Drop for TempRepo {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_file_history_deletions() {
+        let repo = TempRepo::new();
+        
+        // 1. Create file and commit
+        repo.write_file("test.txt", "hello");
+        repo.commit("initial");
+        
+        // 2. Modify and commit
+        repo.write_file("test.txt", "hello world");
+        repo.commit("modify");
+        
+        // 3. Delete and commit
+        repo.remove_file("test.txt");
+        repo.commit("delete file");
+        
+        // 4. Recreate and commit
+        repo.write_file("test.txt", "reborn file");
+        repo.commit("recreate");
+
+        let history = get_file_history(repo.path_str().to_string(), "test.txt".to_string(), None).await.unwrap();
+        
+        // Should contain all 4 stages: recreate, delete file, modify, initial
+        assert_eq!(history.len(), 4);
+        assert_eq!(history[0].commit_summary, "recreate");
+        assert_eq!(history[1].commit_summary, "delete file");
+        assert_eq!(history[2].commit_summary, "modify");
+        assert_eq!(history[3].commit_summary, "initial");
+    }
 }

@@ -3,13 +3,21 @@ use std::path::PathBuf;
 
 /// Build remote callbacks with credential handling.
 /// Supports SSH agent, SSH key files, and username/password.
-pub fn make_callbacks<'a>() -> RemoteCallbacks<'a> {
+pub fn make_callbacks<'a>(custom_ssh_path: Option<String>) -> RemoteCallbacks<'a> {
     let mut callbacks = RemoteCallbacks::new();
 
-    callbacks.credentials(|_url, username_from_url, allowed_types| {
-        // Try SSH agent first
+    callbacks.credentials(move |_url, username_from_url, allowed_types| {
+        // Try SSH keys
         if allowed_types.contains(CredentialType::SSH_KEY) {
             if let Some(username) = username_from_url {
+                // Try custom key first if provided
+                if let Some(ref path_str) = custom_ssh_path {
+                    let path = PathBuf::from(path_str);
+                    if path.exists() {
+                        return Cred::ssh_key(username, None, &path, None);
+                    }
+                }
+
                 let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
                 let key_path = home.join(".ssh").join("id_rsa");
                 let ed25519_path = home.join(".ssh").join("id_ed25519");

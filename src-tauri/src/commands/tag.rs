@@ -39,14 +39,21 @@ pub async fn create_tag(
 }
 
 #[tauri::command]
-pub async fn push_tag(path: String, remote: String, tag_name: String) -> Result<(), String> {
+pub async fn push_tag(
+    app: tauri::AppHandle,
+    path: String,
+    remote: String,
+    tag_name: String,
+) -> Result<(), String> {
     let repo = git2::Repository::open(&path).map_err(|e| e.to_string())?;
     let mut remote_obj = repo.find_remote(&remote).map_err(|e| e.to_string())?;
 
     let refspec = format!("refs/tags/{}:refs/tags/{}", tag_name, tag_name);
 
+    let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
+
     let mut push_opts = git2::PushOptions::new();
-    push_opts.remote_callbacks(crate::git::credentials::make_callbacks());
+    push_opts.remote_callbacks(crate::git::credentials::make_callbacks(ssh_key_path));
 
     remote_obj
         .push(&[refspec.as_str()], Some(&mut push_opts))

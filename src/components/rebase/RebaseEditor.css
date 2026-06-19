@@ -88,6 +88,18 @@
   border: 1px solid rgba(255, 158, 44, 0.2);
 }
 
+.rebase-info-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--accent-color);
+  background: rgba(45, 212, 191, 0.1);
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(45, 212, 191, 0.2);
+}
+
 .rebase-btn {
   display: flex;
   align-items: center;

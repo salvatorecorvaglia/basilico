@@ -14,17 +14,28 @@ pub struct StashInfo {
 pub async fn list_stashes(path: String) -> Result<Vec<StashInfo>, String> {
     let mut repo = Repository::open(&path).map_err(|e| e.to_string())?;
     let mut stashes = Vec::new();
+    let mut entries = Vec::new();
 
-    // Iterate through stashes
+    // Iterate through stashes and collect fields to avoid borrow checker issues
     let _ = repo.stash_foreach(|idx, name, oid| {
-        stashes.push(StashInfo {
-            index: idx,
-            name: name.to_string(),
-            oid: oid.to_string(),
-            message: name.to_string(),
-        });
+        entries.push((idx, name.to_string(), *oid));
         true
     });
+
+    for (idx, name, oid) in entries {
+        let msg = repo
+            .find_commit(oid)
+            .ok()
+            .and_then(|c| c.message().map(|m| m.trim().to_string()))
+            .unwrap_or_else(|| name.clone());
+
+        stashes.push(StashInfo {
+            index: idx,
+            name,
+            oid: oid.to_string(),
+            message: msg,
+        });
+    }
 
     Ok(stashes)
 }

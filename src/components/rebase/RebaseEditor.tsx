@@ -12,7 +12,8 @@ import {
   ArrowDown, 
   Menu, 
   XCircle, 
-  HelpCircle
+  HelpCircle,
+  Info
 } from 'lucide-react';
 import { useRepoStore } from '../../store/repo-store';
 import { useUIStore } from '../../store/ui-store';
@@ -107,7 +108,7 @@ export function RebaseEditor() {
         <div className="rebase-header-left">
           <h2>Interactive Rebase</h2>
           <span className="badge-rebase-state">
-            {rebaseStatus.status === 'conflict' ? 'Conflict' : 'Stepping'}
+            {rebaseStatus.status}
           </span>
         </div>
 
@@ -116,6 +117,18 @@ export function RebaseEditor() {
             <div className="rebase-conflict-warning">
               <AlertTriangle size={14} />
               <span>Resolve conflicts in Staging before continuing</span>
+            </div>
+          )}
+          {rebaseStatus.status === 'edit' && (
+            <div className="rebase-info-banner">
+              <Info size={14} />
+              <span>Edit files, stage, then click Continue</span>
+            </div>
+          )}
+          {rebaseStatus.status === 'reword' && (
+            <div className="rebase-info-banner">
+              <Info size={14} />
+              <span>Click Continue to reword commit</span>
             </div>
           )}
           <button 

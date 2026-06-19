@@ -1,23 +1,23 @@
 use parking_lot::Mutex;
-use std::collections::HashSet;
+use std::collections::HashMap;
 
-/// Holds open repository paths.
+/// Holds open repository paths and their active watcher session IDs.
 /// Wrapped in Mutex for thread-safe access from Tauri commands.
 pub struct AppState {
-    /// Set of active repository paths
-    pub repos: Mutex<HashSet<String>>,
+    /// Map of active repository paths to their unique watcher session ID
+    pub repos: Mutex<HashMap<String, String>>,
 }
 
 impl AppState {
     pub fn new() -> Self {
         Self {
-            repos: Mutex::new(HashSet::new()),
+            repos: Mutex::new(HashMap::new()),
         }
     }
 
-    pub fn add_repo(&self, path: String) {
+    pub fn add_repo(&self, path: String, watcher_id: String) {
         let mut repos = self.repos.lock();
-        repos.insert(path);
+        repos.insert(path, watcher_id);
     }
 
     pub fn remove_repo(&self, path: &str) {
@@ -25,9 +25,14 @@ impl AppState {
         repos.remove(path);
     }
 
+    pub fn get_watcher_id(&self, path: &str) -> Option<String> {
+        let repos = self.repos.lock();
+        repos.get(path).cloned()
+    }
+
     pub fn has_repo(&self, path: &str) -> bool {
         let repos = self.repos.lock();
-        repos.contains(path)
+        repos.contains_key(path)
     }
 }
 

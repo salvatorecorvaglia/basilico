@@ -86,6 +86,14 @@ function App() {
   // Global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInputFocused = target && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        target.closest('.monaco-editor')
+      );
+
       const shortcuts = settings?.keyboardShortcuts;
       if (!shortcuts) {
         // Fallback to hardcoded defaults if settings haven't loaded yet
@@ -106,13 +114,13 @@ function App() {
       } else if (matchesShortcut(e, shortcuts.commandPalette || 'CmdOrCtrl+Shift+P')) {
         e.preventDefault();
         toggleCommandPalette();
-      } else if (matchesShortcut(e, shortcuts.search || 'CmdOrCtrl+F')) {
+      } else if (!isInputFocused && matchesShortcut(e, shortcuts.search || 'CmdOrCtrl+F')) {
         e.preventDefault();
         setActiveView('search');
-      } else if (matchesShortcut(e, shortcuts.staging || 'CmdOrCtrl+Shift+S')) {
+      } else if (!isInputFocused && matchesShortcut(e, shortcuts.staging || 'CmdOrCtrl+Shift+S')) {
         e.preventDefault();
         setActiveView('staging');
-      } else if (matchesShortcut(e, shortcuts.refresh || 'CmdOrCtrl+R')) {
+      } else if (!isInputFocused && matchesShortcut(e, shortcuts.refresh || 'CmdOrCtrl+R')) {
         e.preventDefault();
         refreshAll().then(() => addNotification({ type: 'success', message: 'Repository refreshed successfully' }));
       }

@@ -15,7 +15,7 @@ pub struct RepoChangedPayload {
 
 /// Start watching a repository for file changes.
 /// Emits "repo:changed" events to the frontend with debouncing.
-pub fn start_watching(app: AppHandle, repo_path: String) {
+pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
     std::thread::spawn(move || {
         let (tx, rx) = mpsc::channel();
 
@@ -36,7 +36,7 @@ pub fn start_watching(app: AppHandle, repo_path: String) {
             return;
         }
 
-        log::info!("Watching repository: {}", repo_path);
+        log::info!("Watching repository: {} (session: {})", repo_path, watcher_id);
 
         loop {
             // Wakes up periodically to check if the repository is still open in AppState.
@@ -44,19 +44,22 @@ pub fn start_watching(app: AppHandle, repo_path: String) {
             match rx.recv_timeout(Duration::from_secs(5)) {
                 Ok(Ok(events)) => {
                     let state = app.state::<AppState>();
-                    if !state.has_repo(&repo_path) {
+                    if state.get_watcher_id(&repo_path).as_deref() != Some(&watcher_id) {
                         log::info!(
-                            "Repository no longer active. Stopping watcher for: {}",
+                            "Repository no longer active or watcher session expired. Stopping watcher for: {}",
                             repo_path
                         );
                         break;
                     }
 
-                    // Filter out .git/index.lock and other transient files
+                    // Filter out .git/index.lock, transient files, and massive ignored directories
                     let significant = events.iter().any(|e| {
                         let path_str = e.path.to_string_lossy();
                         !path_str.contains(".git/index.lock")
                             && !path_str.contains(".git/FETCH_HEAD")
+                            && !path_str.contains(".git/objects/")
+                            && !path_str.contains("node_modules/")
+                            && !path_str.contains("target/")
                             && !path_str.ends_with(".swp")
                             && !path_str.ends_with("~")
                     });
@@ -75,8 +78,11 @@ pub fn start_watching(app: AppHandle, repo_path: String) {
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {
                     let state = app.state::<AppState>();
-                    if !state.has_repo(&repo_path) {
-                        log::info!("Watcher timeout: repository no longer active. Stopping watcher for: {}", repo_path);
+                    if state.get_watcher_id(&repo_path).as_deref() != Some(&watcher_id) {
+                        log::info!(
+                            "Watcher timeout: repository no longer active or session expired. Stopping watcher for: {}",
+                            repo_path
+                        );
                         break;
                     }
                 }

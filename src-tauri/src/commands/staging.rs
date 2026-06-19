@@ -57,12 +57,43 @@ pub async fn apply_patch(path: String, patch: String, location: String) -> Resul
 #[tauri::command]
 pub async fn discard_changes(path: String, files: Vec<String>) -> Result<(), String> {
     let repo = Repository::open(&path).map_err(|e| e.to_string())?;
-    let mut opts = CheckoutBuilder::new();
-    opts.force();
+    let index = repo.index().map_err(|e| e.to_string())?;
+    let repo_dir = Path::new(&path);
+
+    let mut tracked_files = Vec::new();
+    let mut untracked_files = Vec::new();
+
     for file in &files {
-        opts.path(Path::new(file));
+        let file_path = Path::new(file);
+        if index.get_path(file_path, 0).is_some() {
+            tracked_files.push(file);
+        } else {
+            untracked_files.push(file);
+        }
     }
-    repo.checkout_index(None, Some(&mut opts))
-        .map_err(|e| e.to_string())?;
+
+    // 1. Discard changes in tracked files
+    if !tracked_files.is_empty() {
+        let mut opts = CheckoutBuilder::new();
+        opts.force();
+        for file in &tracked_files {
+            opts.path(Path::new(file));
+        }
+        repo.checkout_index(None, Some(&mut opts))
+            .map_err(|e| e.to_string())?;
+    }
+
+    // 2. Delete untracked files from disk
+    for file in untracked_files {
+        let full_path = repo_dir.join(file);
+        if full_path.exists() {
+            if full_path.is_dir() {
+                std::fs::remove_dir_all(&full_path).map_err(|e| e.to_string())?;
+            } else {
+                std::fs::remove_file(&full_path).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+
     Ok(())
 }

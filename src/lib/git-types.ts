@@ -181,7 +181,7 @@ export interface RebaseTodoItem {
 }
 
 export interface RebaseStatus {
-  status: 'none' | 'success' | 'conflict' | 'stepping' | 'finished';
+  status: 'none' | 'success' | 'conflict' | 'stepping' | 'finished' | 'edit' | 'reword';
   currentOid: string | null;
   message: string | null;
 }

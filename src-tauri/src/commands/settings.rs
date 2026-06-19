@@ -50,6 +50,19 @@ fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(config_dir.join("settings.json"))
 }
 
+pub fn get_custom_ssh_path(app: &tauri::AppHandle) -> Option<String> {
+    let path = settings_path(app).ok()?;
+    if !path.exists() {
+        return None;
+    }
+    let content = fs::read_to_string(path).ok()?;
+    let settings: serde_json::Value = serde_json::from_str(&content).ok()?;
+    settings
+        .get("sshKeyPath")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
 #[tauri::command]
 pub async fn get_settings(app: tauri::AppHandle) -> Result<UserSettings, String> {
     let path = settings_path(&app)?;

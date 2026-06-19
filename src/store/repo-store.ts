@@ -875,12 +875,23 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   },
 
   stepRebase: async (action) => {
-    const { activeTabId } = get();
+    const { activeTabId, rebaseStatus, rebaseTodoItems } = get();
     if (!activeTabId) throw new Error('No active repository');
+
+    let commitMessage: string | null = null;
+    if (action === 'continue' && rebaseStatus?.status === 'reword' && rebaseStatus.currentOid) {
+      const currentTodoItem = rebaseTodoItems.find(item => item.oid === rebaseStatus.currentOid);
+      const originalMessage = currentTodoItem?.summary || '';
+      const userMessage = prompt('Edit commit message for reword:', originalMessage);
+      if (userMessage === null) {
+        throw new Error('Rebase reword cancelled by user');
+      }
+      commitMessage = userMessage.trim();
+    }
 
     set({ isLoading: true, error: null });
     try {
-      const status = await commands.rebaseStep(activeTabId, action);
+      const status = await commands.rebaseStep(activeTabId, action, commitMessage);
       set({ rebaseStatus: status });
       await get().refreshAll();
       return status;
@@ -1139,6 +1150,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     try {
       const settings = await commands.getSettings();
       set({ settings });
+      localStorage.setItem('basilico-theme', settings.theme);
 
       // Apply theme preset color to CSS custom variables
       const THEME_PRESETS = [
@@ -1163,6 +1175,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     try {
       await commands.saveSettings(settings);
       set({ settings });
+      localStorage.setItem('basilico-theme', settings.theme);
 
       // Apply theme preset color to CSS custom variables
       const THEME_PRESETS = [

@@ -96,7 +96,11 @@ pub async fn rebase_write_todo(
 }
 
 #[tauri::command]
-pub async fn rebase_step(repo_path: String, action: String) -> Result<RebaseStatus, String> {
+pub async fn rebase_step(
+    repo_path: String,
+    action: String,
+    commit_message: Option<String>,
+) -> Result<RebaseStatus, String> {
     let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
     let mut rebase = repo.open_rebase(None).map_err(|e| e.to_string())?;
 
@@ -118,17 +122,18 @@ pub async fn rebase_step(repo_path: String, action: String) -> Result<RebaseStat
         if index.has_conflicts() {
             return Err("Cannot continue rebase while there are merge conflicts.".to_string());
         }
-        let _ = rebase.commit(None, &signature, None);
+        let _ = rebase.commit(None, &signature, commit_message.as_deref());
     }
 
-    let next_oid = match rebase.next() {
-        Some(Ok(op)) => Some(op.id()),
+    let next_op = match rebase.next() {
+        Some(Ok(op)) => Some(op),
         None => None,
         Some(Err(e)) => return Err(e.to_string()),
     };
 
-    let status = match next_oid {
-        Some(oid) => {
+    let status = match next_op {
+        Some(op) => {
+            let oid = op.id();
             let index = repo.index().map_err(|e| e.to_string())?;
             if index.has_conflicts() {
                 RebaseStatus {
@@ -137,17 +142,33 @@ pub async fn rebase_step(repo_path: String, action: String) -> Result<RebaseStat
                     message: Some(format!("Conflict at commit {}", oid)),
                 }
             } else {
-                match rebase.commit(None, &signature, None) {
-                    Ok(_) => RebaseStatus {
-                        status: "stepping".to_string(),
+                let kind = op.kind().unwrap_or(git2::RebaseOperationType::Pick);
+                match kind {
+                    git2::RebaseOperationType::Edit => RebaseStatus {
+                        status: "edit".to_string(),
                         current_oid: Some(oid.to_string()),
-                        message: Some(format!("Applied commit {}", oid)),
+                        message: Some(format!("Paused for editing at commit {}", oid)),
                     },
-                    Err(e) => RebaseStatus {
-                        status: "stepping".to_string(),
+                    git2::RebaseOperationType::Reword => RebaseStatus {
+                        status: "reword".to_string(),
                         current_oid: Some(oid.to_string()),
-                        message: Some(format!("Applied commit {} ({})", oid, e)),
+                        message: Some(format!("Paused for rewording at commit {}", oid)),
                     },
+                    _ => {
+                        // Pick, Squash, Fixup, Exec: auto commit
+                        match rebase.commit(None, &signature, None) {
+                            Ok(_) => RebaseStatus {
+                                status: "stepping".to_string(),
+                                current_oid: Some(oid.to_string()),
+                                message: Some(format!("Applied commit {}", oid)),
+                            },
+                            Err(e) => RebaseStatus {
+                                status: "stepping".to_string(),
+                                current_oid: Some(oid.to_string()),
+                                message: Some(format!("Applied commit {} ({})", oid, e)),
+                            },
+                        }
+                    }
                 }
             }
         }

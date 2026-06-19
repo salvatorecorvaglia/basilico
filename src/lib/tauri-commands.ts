@@ -200,8 +200,8 @@ export const rebaseInit = (repoPath: string, upstream: string) =>
 export const rebaseWriteTodo = (repoPath: string, items: RebaseTodoItem[]) =>
   invoke<void>('rebase_write_todo', { repoPath, items });
 
-export const rebaseStep = (repoPath: string, action: string) =>
-  invoke<RebaseStatus>('rebase_step', { repoPath, action });
+export const rebaseStep = (repoPath: string, action: string, commitMessage?: string | null) =>
+  invoke<RebaseStatus>('rebase_step', { repoPath, action, commitMessage });
 
 // ── Phase 4: Bisect Commands ──
 

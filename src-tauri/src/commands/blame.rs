@@ -51,9 +51,16 @@ pub async fn get_file_blame(
     }
 
     // 3. Compute blame
-    let blame = repo
-        .blame_file(Path::new(&file_path), Some(&mut blame_opts))
-        .map_err(|e| e.to_string())?;
+    let blame = match repo.blame_file(Path::new(&file_path), Some(&mut blame_opts)) {
+        Ok(b) => Some(b),
+        Err(e) => {
+            if e.code() == git2::ErrorCode::NotFound {
+                None
+            } else {
+                return Err(e.to_string());
+            }
+        }
+    };
 
     // 4. Align lines with hunks
     let lines: Vec<&str> = content.lines().collect();
@@ -62,50 +69,57 @@ pub async fn get_file_blame(
 
     for (idx, line_content) in lines.iter().enumerate() {
         let line_no = idx + 1; // 1-based index
-        if let Some(hunk) = blame.get_line(line_no) {
-            let final_oid = hunk.final_commit_id();
-            let final_oid_str = final_oid.to_string();
-            let short_oid = if final_oid_str.len() >= 8 {
-                final_oid_str[..8].to_string()
-            } else {
-                final_oid_str.clone()
-            };
+        let mut resolved = false;
 
-            // Fetch commit details (caching to avoid disk requests)
-            let (author_name, author_email, summary) =
-                if let Some(cached) = commit_cache.get(&final_oid) {
-                    cached
+        if let Some(ref b) = blame {
+            if let Some(hunk) = b.get_line(line_no) {
+                let final_oid = hunk.final_commit_id();
+                let final_oid_str = final_oid.to_string();
+                let short_oid = if final_oid_str.len() >= 8 {
+                    final_oid_str[..8].to_string()
                 } else {
-                    let (name, email, summ) = if let Ok(commit) = repo.find_commit(final_oid) {
-                        let sig = commit.author();
-                        let name = sig.name().unwrap_or("Unknown").to_string();
-                        let email = sig.email().unwrap_or("").to_string();
-                        let summary = commit.summary().unwrap_or("").to_string();
-                        (name, email, summary)
-                    } else {
-                        ("Unknown".to_string(), "".to_string(), "".to_string())
-                    };
-                    commit_cache.insert(final_oid, (name.clone(), email.clone(), summ.clone()));
-                    commit_cache.get(&final_oid).unwrap()
+                    final_oid_str.clone()
                 };
 
-            blame_lines.push(BlameLine {
-                line_no,
-                commit_oid: final_oid_str,
-                short_oid,
-                author_name: author_name.clone(),
-                author_email: author_email.clone(),
-                commit_summary: summary.clone(),
-                line_content: line_content.to_string(),
-            });
-        } else {
+                // Fetch commit details (caching to avoid disk requests)
+                let (author_name, author_email, summary) =
+                    if let Some(cached) = commit_cache.get(&final_oid) {
+                        cached
+                    } else {
+                        let (name, email, summ) = if let Ok(commit) = repo.find_commit(final_oid) {
+                            let sig = commit.author();
+                            let name = sig.name().unwrap_or("Unknown").to_string();
+                            let email = sig.email().unwrap_or("").to_string();
+                            let summary = commit.summary().unwrap_or("").to_string();
+                            (name, email, summary)
+                        } else {
+                            ("Unknown".to_string(), "".to_string(), "".to_string())
+                        };
+                        commit_cache.insert(final_oid, (name.clone(), email.clone(), summ.clone()));
+                        commit_cache.get(&final_oid).unwrap()
+                    };
+
+                blame_lines.push(BlameLine {
+                    line_no,
+                    commit_oid: final_oid_str,
+                    short_oid,
+                    author_name: author_name.clone(),
+                    author_email: author_email.clone(),
+                    commit_summary: summary.clone(),
+                    line_content: line_content.to_string(),
+                });
+                resolved = true;
+            }
+        }
+
+        if !resolved {
             blame_lines.push(BlameLine {
                 line_no,
                 commit_oid: "".to_string(),
                 short_oid: "".to_string(),
-                author_name: "Unknown".to_string(),
+                author_name: "Not Committed Yet".to_string(),
                 author_email: "".to_string(),
-                commit_summary: "".to_string(),
+                commit_summary: "Local modifications".to_string(),
                 line_content: line_content.to_string(),
             });
         }

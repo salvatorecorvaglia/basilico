@@ -11,8 +11,9 @@ pub async fn open_repo(
 
     // Only register and start watcher if it's not already tracked
     if !state.has_repo(&info.path) {
-        state.add_repo(info.path.clone());
-        crate::watcher::start_watching(app, info.path.clone());
+        let watcher_id = uuid::Uuid::new_v4().to_string();
+        state.add_repo(info.path.clone(), watcher_id.clone());
+        crate::watcher::start_watching(app, info.path.clone(), watcher_id);
     }
 
     Ok(info)

@@ -1,12 +1,14 @@
 use git2::{build::CheckoutBuilder, FetchOptions, MergeOptions, PushOptions, Repository};
 
 #[tauri::command]
-pub async fn fetch(path: String, remote: String) -> Result<(), String> {
+pub async fn fetch(app: tauri::AppHandle, path: String, remote: String) -> Result<(), String> {
     let repo = Repository::open(&path).map_err(|e| e.to_string())?;
     let mut remote_obj = repo.find_remote(&remote).map_err(|e| e.to_string())?;
 
+    let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
+
     let mut fetch_opts = FetchOptions::new();
-    fetch_opts.remote_callbacks(crate::git::credentials::make_callbacks());
+    fetch_opts.remote_callbacks(crate::git::credentials::make_callbacks(ssh_key_path));
 
     remote_obj
         .fetch(&[] as &[&str], Some(&mut fetch_opts), None)
@@ -16,7 +18,13 @@ pub async fn fetch(path: String, remote: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn push(path: String, remote: String, branch: String, force: bool) -> Result<(), String> {
+pub async fn push(
+    app: tauri::AppHandle,
+    path: String,
+    remote: String,
+    branch: String,
+    force: bool,
+) -> Result<(), String> {
     let repo = Repository::open(&path).map_err(|e| e.to_string())?;
     let mut remote_obj = repo.find_remote(&remote).map_err(|e| e.to_string())?;
 
@@ -26,8 +34,10 @@ pub async fn push(path: String, remote: String, branch: String, force: bool) -> 
         format!("refs/heads/{}:refs/heads/{}", branch, branch)
     };
 
+    let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
+
     let mut push_opts = PushOptions::new();
-    push_opts.remote_callbacks(crate::git::credentials::make_callbacks());
+    push_opts.remote_callbacks(crate::git::credentials::make_callbacks(ssh_key_path));
 
     remote_obj
         .push(&[refspec.as_str()], Some(&mut push_opts))
@@ -37,13 +47,20 @@ pub async fn push(path: String, remote: String, branch: String, force: bool) -> 
 }
 
 #[tauri::command]
-pub async fn pull(path: String, remote: String, branch: String) -> Result<String, String> {
+pub async fn pull(
+    app: tauri::AppHandle,
+    path: String,
+    remote: String,
+    branch: String,
+) -> Result<String, String> {
     let repo = Repository::open(&path).map_err(|e| e.to_string())?;
+
+    let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
 
     // Step 1: Fetch
     let mut remote_obj = repo.find_remote(&remote).map_err(|e| e.to_string())?;
     let mut fetch_opts = FetchOptions::new();
-    fetch_opts.remote_callbacks(crate::git::credentials::make_callbacks());
+    fetch_opts.remote_callbacks(crate::git::credentials::make_callbacks(ssh_key_path.clone()));
 
     remote_obj
         .fetch(&[branch.as_str()], Some(&mut fetch_opts), None)
