@@ -1,0 +1,263 @@
+use git2::{Repository, Sort};
+use serde::Serialize;
+use std::collections::HashMap;
+
+use crate::error::AppError;
+
+/// A single commit node in the graph.
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphCommit {
+    pub oid: String,
+    pub short_oid: String,
+    pub message: String,
+    pub author_name: String,
+    pub author_email: String,
+    pub author_date: i64,
+    pub committer_name: String,
+    pub committer_date: i64,
+    pub parent_oids: Vec<String>,
+    pub refs: Vec<RefLabel>,
+    /// Lane index for graph rendering (assigned in compute_lanes)
+    pub lane: usize,
+    /// Connections to parent commits for graph edges
+    pub edges: Vec<GraphEdge>,
+}
+
+/// A ref label (branch, tag, HEAD) attached to a commit.
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RefLabel {
+    pub name: String,
+    pub kind: RefKind,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub enum RefKind {
+    LocalBranch,
+    RemoteBranch,
+    Tag,
+    Head,
+}
+
+/// An edge connecting a commit to its parent in the graph.
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphEdge {
+    pub from_lane: usize,
+    pub to_lane: usize,
+    pub to_oid: String,
+    pub is_merge: bool,
+}
+
+/// Build the commit graph with lane assignments for rendering.
+pub fn build_graph(path: &str, max_commits: usize) -> Result<Vec<GraphCommit>, AppError> {
+    let repo = Repository::open(path)?;
+
+    // Collect refs for labeling
+    let ref_map = build_ref_map(&repo)?;
+
+    // Walk commits
+    let mut revwalk = repo.revwalk()?;
+    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
+    revwalk.push_head()?;
+
+    // Also push all branches/tags so we see the full graph
+    for reference in repo.references()? {
+        if let Ok(r) = reference {
+            if let Some(oid) = r.target() {
+                let _ = revwalk.push(oid);
+            }
+        }
+    }
+
+    let mut commits: Vec<GraphCommit> = Vec::new();
+
+    for (i, oid_result) in revwalk.enumerate() {
+        if i >= max_commits {
+            break;
+        }
+
+        let oid = oid_result?;
+        let commit = repo.find_commit(oid)?;
+
+        let parent_oids: Vec<String> = commit.parent_ids().map(|p| p.to_string()).collect();
+        let refs = ref_map
+            .get(&oid.to_string())
+            .cloned()
+            .unwrap_or_default();
+
+        let author = commit.author();
+        let committer = commit.committer();
+
+        commits.push(GraphCommit {
+            oid: oid.to_string(),
+            short_oid: oid.to_string()[..7.min(oid.to_string().len())].to_string(),
+            message: commit
+                .message()
+                .unwrap_or("")
+                .lines()
+                .next()
+                .unwrap_or("")
+                .to_string(),
+            author_name: author.name().unwrap_or("").to_string(),
+            author_email: author.email().unwrap_or("").to_string(),
+            author_date: author.when().seconds(),
+            committer_name: committer.name().unwrap_or("").to_string(),
+            committer_date: committer.when().seconds(),
+            parent_oids,
+            refs,
+            lane: 0,
+            edges: Vec::new(),
+        });
+    }
+
+    // Assign lanes and edges
+    compute_lanes(&mut commits);
+
+    Ok(commits)
+}
+
+/// Build a map of oid -> ref labels.
+fn build_ref_map(repo: &Repository) -> Result<HashMap<String, Vec<RefLabel>>, AppError> {
+    let mut map: HashMap<String, Vec<RefLabel>> = HashMap::new();
+
+    // HEAD
+    if let Ok(head) = repo.head() {
+        if let Some(oid) = head.target() {
+            map.entry(oid.to_string())
+                .or_default()
+                .push(RefLabel {
+                    name: "HEAD".to_string(),
+                    kind: RefKind::Head,
+                });
+        }
+    }
+
+    // Branches
+    for branch_result in repo.branches(None)? {
+        let (branch, branch_type) = branch_result?;
+        let name = branch.name()?.unwrap_or("").to_string();
+        if let Some(oid) = branch.get().target() {
+            let kind = match branch_type {
+                git2::BranchType::Local => RefKind::LocalBranch,
+                git2::BranchType::Remote => RefKind::RemoteBranch,
+            };
+            map.entry(oid.to_string())
+                .or_default()
+                .push(RefLabel { name, kind });
+        }
+    }
+
+    // Tags
+    repo.tag_foreach(|oid, name_bytes| {
+        let name = String::from_utf8_lossy(name_bytes)
+            .trim_start_matches("refs/tags/")
+            .to_string();
+
+        // Resolve annotated tags to their target commit
+        let target_oid = match repo.find_tag(oid) {
+            Ok(tag) => tag.target_id().to_string(),
+            Err(_) => oid.to_string(),
+        };
+
+        map.entry(target_oid)
+            .or_default()
+            .push(RefLabel {
+                name,
+                kind: RefKind::Tag,
+            });
+
+        true
+    })?;
+
+    Ok(map)
+}
+
+/// Compute lane assignments for graph rendering.
+/// Uses a simple greedy lane allocation algorithm.
+fn compute_lanes(commits: &mut Vec<GraphCommit>) {
+    if commits.is_empty() {
+        return;
+    }
+
+    // Map oid -> index for quick lookup
+    let _oid_to_idx: HashMap<String, usize> = commits
+        .iter()
+        .enumerate()
+        .map(|(i, c)| (c.oid.clone(), i))
+        .collect();
+
+    // Active lanes: each lane tracks which oid it's expecting next
+    let mut active_lanes: Vec<Option<String>> = Vec::new();
+
+    for i in 0..commits.len() {
+        let oid = commits[i].oid.clone();
+        let parent_oids = commits[i].parent_oids.clone();
+
+        // Find existing lane for this commit
+        let lane = active_lanes
+            .iter()
+            .position(|l| l.as_deref() == Some(&oid))
+            .unwrap_or_else(|| {
+                // Allocate new lane
+                let free = active_lanes.iter().position(|l| l.is_none());
+                match free {
+                    Some(idx) => idx,
+                    None => {
+                        active_lanes.push(None);
+                        active_lanes.len() - 1
+                    }
+                }
+            });
+
+        commits[i].lane = lane;
+
+        // Clear all lanes pointing to this commit
+        for l in active_lanes.iter_mut() {
+            if l.as_deref() == Some(&oid) {
+                *l = None;
+            }
+        }
+
+        // Assign parents to lanes
+        let mut edges = Vec::new();
+
+        for (p_idx, parent_oid) in parent_oids.iter().enumerate() {
+            let target_lane = if p_idx == 0 {
+                // First parent takes current lane
+                active_lanes[lane] = Some(parent_oid.clone());
+                lane
+            } else {
+                // Merge parents get a new or free lane
+                let existing = active_lanes
+                    .iter()
+                    .position(|l| l.as_deref() == Some(parent_oid));
+                match existing {
+                    Some(l) => l,
+                    None => {
+                        let free = active_lanes.iter().position(|l| l.is_none());
+                        let new_lane = match free {
+                            Some(idx) => idx,
+                            None => {
+                                active_lanes.push(None);
+                                active_lanes.len() - 1
+                            }
+                        };
+                        active_lanes[new_lane] = Some(parent_oid.clone());
+                        new_lane
+                    }
+                }
+            };
+
+            edges.push(GraphEdge {
+                from_lane: lane,
+                to_lane: target_lane,
+                to_oid: parent_oid.clone(),
+                is_merge: p_idx > 0,
+            });
+        }
+
+        commits[i].edges = edges;
+    }
+}

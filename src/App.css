@@ -1,0 +1,51 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — App Layout Styles
+   ═══════════════════════════════════════════════════════ */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+
+.app-content {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Resize Handles ── */
+.resize-handle {
+  position: relative;
+  z-index: 10;
+  transition: background var(--transition-fast);
+}
+
+.resize-handle-horizontal {
+  width: 3px;
+  background: var(--border-default);
+  cursor: col-resize;
+}
+
+.resize-handle-horizontal:hover,
+.resize-handle-horizontal[data-resize-handle-active] {
+  background: var(--accent-primary);
+}
+
+.resize-handle-vertical {
+  height: 3px;
+  background: var(--border-default);
+  cursor: row-resize;
+}
+
+.resize-handle-vertical:hover,
+.resize-handle-vertical[data-resize-handle-active] {
+  background: var(--accent-primary);
+}
+
+/* Add a subtle glow on active drag */
+.resize-handle[data-resize-handle-active] {
+  box-shadow: 0 0 6px rgba(46, 160, 67, 0.3);
+}

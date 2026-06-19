@@ -1,0 +1,130 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — Dark Theme Design Tokens
+   Premium dark palette with teal/green accents
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Base Colors ── */
+  --bg-base:        #0d1117;
+  --bg-surface:     #161b22;
+  --bg-elevated:    #1c2128;
+  --bg-overlay:     #21262d;
+  --bg-inset:       #0a0e13;
+
+  /* ── Border Colors ── */
+  --border-default: #30363d;
+  --border-muted:   #21262d;
+  --border-subtle:  #1b2027;
+  --border-accent:  #2ea04370;
+
+  /* ── Text Colors ── */
+  --text-primary:   #e6edf3;
+  --text-secondary: #8b949e;
+  --text-tertiary:  #6e7681;
+  --text-link:      #58a6ff;
+  --text-inverse:   #0d1117;
+
+  /* ── Accent Colors ── */
+  --accent-primary:   #2ea043;
+  --accent-primary-hover: #3fb950;
+  --accent-secondary: #1f6feb;
+  --accent-secondary-hover: #388bfd;
+  --accent-teal:      #2dd4bf;
+  --accent-teal-hover:#5eead4;
+
+  /* ── Semantic Colors ── */
+  --color-success:  #2ea043;
+  --color-warning:  #d29922;
+  --color-danger:   #f85149;
+  --color-info:     #58a6ff;
+
+  /* ── Diff Colors ── */
+  --diff-add-bg:    #12261e;
+  --diff-add-text:  #3fb950;
+  --diff-add-line:  #1a3a2a;
+  --diff-del-bg:    #2d1215;
+  --diff-del-text:  #f85149;
+  --diff-del-line:  #3d1519;
+  --diff-hunk-bg:   #1c2d4f;
+  --diff-hunk-text: #58a6ff;
+
+  /* ── Graph Lane Colors ── */
+  --lane-0: #58a6ff;
+  --lane-1: #3fb950;
+  --lane-2: #f0883e;
+  --lane-3: #bc8cff;
+  --lane-4: #f85149;
+  --lane-5: #2dd4bf;
+  --lane-6: #d2a8ff;
+  --lane-7: #ffa657;
+  --lane-8: #ff7b72;
+  --lane-9: #79c0ff;
+
+  /* ── Spacing Scale ── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ── Typography ── */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'SF Mono', Consolas, monospace;
+
+  --text-xs:   11px;
+  --text-sm:   12px;
+  --text-base: 13px;
+  --text-md:   14px;
+  --text-lg:   16px;
+  --text-xl:   18px;
+  --text-2xl:  24px;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75;
+
+  /* ── Border Radius ── */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* ── Shadows ── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px rgba(46, 160, 67, 0.15);
+
+  /* ── Transitions ── */
+  --transition-fast: 100ms ease;
+  --transition-normal: 200ms ease;
+  --transition-slow: 300ms ease;
+  --transition-spring: 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Z-Index Scale ── */
+  --z-base:     0;
+  --z-dropdown: 100;
+  --z-sticky:   200;
+  --z-overlay:  300;
+  --z-modal:    400;
+  --z-toast:    500;
+  --z-tooltip:  600;
+
+  /* ── Layout ── */
+  --sidebar-width: 240px;
+  --toolbar-height: 44px;
+  --statusbar-height: 28px;
+  --tabbar-height: 36px;
+  --scrollbar-width: 8px;
+}

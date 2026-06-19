@@ -1,0 +1,39 @@
+[package]
+name = "basilico"
+version = "0.1.0"
+description = "A modern, fast Git client"
+authors = ["Salvatore Corvaglia"]
+edition = "2021"
+
+[lib]
+name = "basilico_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-store = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+git2 = { version = "0.20", features = ["ssh", "https"] }
+notify = "8"
+notify-debouncer-mini = "0.6"
+tokio = { version = "1", features = ["full"] }
+chrono = { version = "0.4", features = ["serde"] }
+parking_lot = "0.12"
+log = "0.4"
+env_logger = "0.11"
+thiserror = "2"
+uuid = { version = "1", features = ["v4"] }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = "s"

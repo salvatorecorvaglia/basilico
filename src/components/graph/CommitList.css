@@ -1,0 +1,169 @@
+.commit-list-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-base);
+}
+
+.commit-list-header {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--space-3);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.commit-list-header-graph { flex-shrink: 0; }
+.commit-list-header-message { flex: 1; min-width: 0; padding-left: var(--space-2); }
+.commit-list-header-author { width: 160px; flex-shrink: 0; }
+.commit-list-header-date { width: 80px; flex-shrink: 0; text-align: right; }
+.commit-list-header-sha { width: 70px; flex-shrink: 0; text-align: right; padding-right: var(--space-3); }
+
+.commit-list-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.commit-list-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-tertiary);
+  font-size: var(--text-md);
+}
+
+/* ── Commit Row ── */
+.commit-row {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--transition-fast);
+}
+
+.commit-row:hover {
+  background: var(--bg-elevated);
+}
+
+.commit-row.selected {
+  background: rgba(46, 160, 67, 0.08);
+  border-bottom-color: rgba(46, 160, 67, 0.15);
+}
+
+.commit-col-graph {
+  flex-shrink: 0;
+}
+
+.commit-col-message {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: var(--space-2);
+  overflow: hidden;
+}
+
+.commit-message {
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+.commit-row.selected .commit-message {
+  color: var(--text-primary);
+  font-weight: var(--weight-medium);
+}
+
+/* ── Ref Badges ── */
+.commit-ref {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  height: 18px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ref-head {
+  background: rgba(46, 160, 67, 0.2);
+  color: var(--accent-primary);
+  border: 1px solid rgba(46, 160, 67, 0.3);
+}
+
+.ref-branch {
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--text-link);
+  border: 1px solid rgba(88, 166, 255, 0.25);
+}
+
+.ref-remote {
+  background: rgba(188, 140, 255, 0.15);
+  color: #bc8cff;
+  border: 1px solid rgba(188, 140, 255, 0.25);
+}
+
+.ref-tag {
+  background: rgba(210, 153, 34, 0.15);
+  color: var(--color-warning);
+  border: 1px solid rgba(210, 153, 34, 0.25);
+}
+
+/* ── Author Column ── */
+.commit-col-author {
+  width: 160px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.commit-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: var(--weight-bold);
+  color: white;
+  flex-shrink: 0;
+}
+
+.commit-author-name {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* ── Date Column ── */
+.commit-col-date {
+  width: 80px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+/* ── SHA Column ── */
+.commit-col-sha {
+  width: 70px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  padding-right: var(--space-3);
+}
