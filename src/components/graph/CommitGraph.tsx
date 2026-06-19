@@ -55,14 +55,6 @@ export function CommitGraph({
     const render = () => {
       const dpr = window.devicePixelRatio || 1;
 
-      // Update size settings only if they differ
-      if (canvas.width !== graphWidth * dpr || canvas.height !== containerHeight * dpr) {
-        canvas.width = graphWidth * dpr;
-        canvas.height = containerHeight * dpr;
-        canvas.style.width = `${graphWidth}px`;
-        canvas.style.height = `${containerHeight}px`;
-      }
-
       ctx.save();
       ctx.scale(dpr, dpr);
 
@@ -170,16 +162,22 @@ export function CommitGraph({
     };
   }, [commits, commitIndices, rowHeight, graphWidth, scrollOffset, containerHeight, maxLane]);
 
+  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+
   return (
     <canvas
       ref={canvasRef}
       className="commit-graph-canvas"
+      width={graphWidth * dpr}
+      height={containerHeight * dpr}
       style={{
         position: 'absolute',
         top: 0,
         left: 12,
         pointerEvents: 'none',
         zIndex: 1,
+        width: `${graphWidth}px`,
+        height: `${containerHeight}px`,
       }}
     />
   );

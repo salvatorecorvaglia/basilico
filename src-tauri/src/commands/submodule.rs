@@ -72,7 +72,7 @@ pub async fn init_submodules(repo_path: String, paths: Vec<String>) -> Result<()
         args.extend(paths);
     }
 
-    let output = Command::new("git")
+    let output = crate::commands::new_command("git")
         .args(&args)
         .current_dir(&repo_path)
         .output()
@@ -106,7 +106,7 @@ pub async fn update_submodules(
         args.extend(paths);
     }
 
-    let output = Command::new("git")
+    let output = crate::commands::new_command("git")
         .args(&args)
         .current_dir(&repo_path)
         .output()
@@ -128,7 +128,7 @@ pub async fn sync_submodules(repo_path: String, paths: Vec<String>) -> Result<()
         args.extend(paths);
     }
 
-    let output = Command::new("git")
+    let output = crate::commands::new_command("git")
         .args(&args)
         .current_dir(&repo_path)
         .output()
@@ -143,7 +143,7 @@ pub async fn sync_submodules(repo_path: String, paths: Vec<String>) -> Result<()
 
 #[tauri::command]
 pub async fn add_submodule(repo_path: String, url: String, path: String) -> Result<(), String> {
-    let output = Command::new("git")
+    let output = crate::commands::new_command("git")
         .args(["submodule", "add", &url, &path])
         .current_dir(&repo_path)
         .output()

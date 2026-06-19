@@ -216,13 +216,22 @@ pub fn get_ahead_behind(repo: &Repository) -> Result<(usize, usize), AppError> {
         kind: crate::error::ErrorKind::GitError,
     })?;
 
-    let branch = head.shorthand().unwrap_or("HEAD");
-    let upstream_name = format!("refs/remotes/origin/{}", branch);
+    let branch_name = head.shorthand().unwrap_or("HEAD");
+    if branch_name == "HEAD" {
+        return Ok((0, 0));
+    }
 
-    let upstream_ref = match repo.find_reference(&upstream_name) {
-        Ok(r) => r,
+    let local_branch = match repo.find_branch(branch_name, git2::BranchType::Local) {
+        Ok(b) => b,
         Err(_) => return Ok((0, 0)),
     };
+
+    let upstream_branch = match local_branch.upstream() {
+        Ok(u) => u,
+        Err(_) => return Ok((0, 0)),
+    };
+
+    let upstream_ref = upstream_branch.into_reference();
     let upstream_oid = upstream_ref.target().ok_or_else(|| AppError {
         message: "upstream has no target".to_string(),
         kind: crate::error::ErrorKind::GitError,

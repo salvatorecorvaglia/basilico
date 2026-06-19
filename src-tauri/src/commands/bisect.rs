@@ -17,7 +17,7 @@ pub struct BisectState {
 }
 
 fn run_git_cmd(repo_path: &str, args: &[&str]) -> Result<String, String> {
-    let output = Command::new("git")
+    let output = crate::commands::new_command("git")
         .current_dir(repo_path)
         .args(args)
         .output()

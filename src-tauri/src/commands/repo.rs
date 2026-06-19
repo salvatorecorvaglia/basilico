@@ -61,7 +61,7 @@ pub async fn clean_repository(
         args.push("-x");
     }
     
-    let output = Command::new("git")
+    let output = crate::commands::new_command("git")
         .current_dir(&path)
         .args(&args)
         .output()

@@ -4,7 +4,8 @@ use serde::Serialize;
 use std::path::Path;
 use std::sync::mpsc;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
+use crate::state::AppState;
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -38,8 +39,16 @@ pub fn start_watching(app: AppHandle, repo_path: String) {
         log::info!("Watching repository: {}", repo_path);
 
         loop {
-            match rx.recv() {
+            // Wakes up periodically to check if the repository is still open in AppState.
+            // This prevents background thread leaks when repositories are closed.
+            match rx.recv_timeout(Duration::from_secs(5)) {
                 Ok(Ok(events)) => {
+                    let state = app.state::<AppState>();
+                    if !state.has_repo(&repo_path) {
+                        log::info!("Repository no longer active. Stopping watcher for: {}", repo_path);
+                        break;
+                    }
+
                     // Filter out .git/index.lock and other transient files
                     let significant = events.iter().any(|e| {
                         let path_str = e.path.to_string_lossy();
@@ -61,7 +70,14 @@ pub fn start_watching(app: AppHandle, repo_path: String) {
                 Ok(Err(e)) => {
                     log::error!("Watcher error: {:?}", e);
                 }
-                Err(_) => {
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    let state = app.state::<AppState>();
+                    if !state.has_repo(&repo_path) {
+                        log::info!("Watcher timeout: repository no longer active. Stopping watcher for: {}", repo_path);
+                        break;
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
                     log::info!("Watcher channel closed for: {}", repo_path);
                     break;
                 }

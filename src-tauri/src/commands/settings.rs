@@ -101,11 +101,13 @@ pub async fn generate_ssh_key(comment: String) -> Result<String, String> {
             .map_err(|e| format!("Key already exists but failed to read public key: {}", e));
     }
 
-    let output = Command::new("ssh-keygen")
+    let key_path_str = key_path.to_str().ok_or_else(|| "Invalid UTF-8 in key path".to_string())?;
+
+    let output = crate::commands::new_command("ssh-keygen")
         .args([
             "-t", "ed25519",
             "-C", &comment,
-            "-f", key_path.to_str().unwrap(),
+            "-f", key_path_str,
             "-N", "",
         ])
         .output()

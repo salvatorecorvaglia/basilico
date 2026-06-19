@@ -4,6 +4,27 @@
    ═══════════════════════════════════════════════════════ */
 
 import { useEffect } from 'react';
+import { listen } from '@tauri-apps/api/event';
+
+function matchesShortcut(e: KeyboardEvent, shortcutStr: string): boolean {
+  const parts = shortcutStr.split('+');
+  let meta = false;
+  let shift = false;
+  let key = '';
+  for (const part of parts) {
+    if (part === 'CmdOrCtrl') {
+      meta = e.metaKey || e.ctrlKey;
+    } else if (part === 'Shift') {
+      shift = e.shiftKey;
+    } else {
+      key = part.toLowerCase();
+    }
+  }
+  
+  if (key === 'enter') return meta && shift === e.shiftKey && e.key === 'Enter';
+  if (key === ',') return meta && shift === e.shiftKey && e.key === ',';
+  return meta && shift === e.shiftKey && e.key.toLowerCase() === key;
+}
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { TabBar } from './components/layout/TabBar';
 import { Toolbar } from './components/layout/Toolbar';
@@ -34,29 +55,71 @@ import { useUIStore } from './store/ui-store';
 import './App.css';
 
 function App() {
-  const { tabs, activeTabId, loadSettings } = useRepoStore();
-  const { sidebarVisible, activeView, toggleSettings, toggleCommandPalette } = useUIStore();
+  const { tabs, activeTabId, loadSettings, settings, refreshAll } = useRepoStore();
+  const { sidebarVisible, activeView, toggleSettings, toggleCommandPalette, setActiveView, addNotification } = useUIStore();
 
   // Load settings on mount
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
 
+  // Listen to file system changes from Rust watcher
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    const setupListener = async () => {
+      unsubscribe = await listen<{ repoPath: string }>('repo:changed', (event) => {
+        const currentActive = useRepoStore.getState().activeTabId;
+        if (currentActive === event.payload.repoPath) {
+          refreshAll();
+        }
+      });
+    };
+
+    setupListener();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [refreshAll]);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const meta = e.metaKey || e.ctrlKey;
-      if (meta && e.key === ',') {
+      const shortcuts = settings?.keyboardShortcuts;
+      if (!shortcuts) {
+        // Fallback to hardcoded defaults if settings haven't loaded yet
+        const meta = e.metaKey || e.ctrlKey;
+        if (meta && e.key === ',') {
+          e.preventDefault();
+          toggleSettings();
+        } else if (meta && e.shiftKey && e.key === 'P') {
+          e.preventDefault();
+          toggleCommandPalette();
+        }
+        return;
+      }
+
+      if (matchesShortcut(e, shortcuts.openSettings || 'CmdOrCtrl+,')) {
         e.preventDefault();
         toggleSettings();
-      } else if (meta && e.shiftKey && e.key === 'P') {
+      } else if (matchesShortcut(e, shortcuts.commandPalette || 'CmdOrCtrl+Shift+P')) {
         e.preventDefault();
         toggleCommandPalette();
+      } else if (matchesShortcut(e, shortcuts.search || 'CmdOrCtrl+F')) {
+        e.preventDefault();
+        setActiveView('search');
+      } else if (matchesShortcut(e, shortcuts.staging || 'CmdOrCtrl+Shift+S')) {
+        e.preventDefault();
+        setActiveView('staging');
+      } else if (matchesShortcut(e, shortcuts.refresh || 'CmdOrCtrl+R')) {
+        e.preventDefault();
+        refreshAll().then(() => addNotification({ type: 'success', message: 'Repository refreshed successfully' }));
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [toggleSettings, toggleCommandPalette]);
+  }, [settings, toggleSettings, toggleCommandPalette, setActiveView, refreshAll, addNotification]);
 
   const hasOpenRepo = tabs.length > 0 && activeTabId;
 

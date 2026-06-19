@@ -17,7 +17,7 @@ pub struct WorktreeInfo {
 
 #[tauri::command]
 pub async fn list_worktrees(repo_path: String) -> Result<Vec<WorktreeInfo>, String> {
-    let output = Command::new("git")
+    let output = crate::commands::new_command("git")
         .args(["worktree", "list", "--porcelain"])
         .current_dir(&repo_path)
         .output()
@@ -108,7 +108,7 @@ pub async fn add_worktree(
         args.push(b.clone());
     }
 
-    let output = Command::new("git")
+    let output = crate::commands::new_command("git")
         .args(&args)
         .current_dir(&repo_path)
         .output()
@@ -135,7 +135,7 @@ pub async fn remove_worktree(
 
     args.push(&worktree_path);
 
-    let output = Command::new("git")
+    let output = crate::commands::new_command("git")
         .args(&args)
         .current_dir(&repo_path)
         .output()
@@ -150,7 +150,7 @@ pub async fn remove_worktree(
 
 #[tauri::command]
 pub async fn prune_worktrees(repo_path: String) -> Result<(), String> {
-    let output = Command::new("git")
+    let output = crate::commands::new_command("git")
         .args(["worktree", "prune"])
         .current_dir(&repo_path)
         .output()

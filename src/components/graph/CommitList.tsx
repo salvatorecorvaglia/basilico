@@ -56,12 +56,27 @@ export function CommitList() {
   const { openResetModal, addNotification, setActiveView } = useUIStore();
 
   const parentRef = useRef<HTMLDivElement>(null);
+  const [containerHeight, setContainerHeight] = useState(600);
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
     oid: string;
   } | null>(null);
+
+  useEffect(() => {
+    const el = parentRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerHeight(entry.contentRect.height);
+      }
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Close context menu on any click outside
   useEffect(() => {
@@ -89,9 +104,13 @@ export function CommitList() {
 
   const handleRowContextMenu = (e: React.MouseEvent, oid: string) => {
     e.preventDefault();
+    const menuWidth = 220;
+    const menuHeight = 320;
+    const x = e.clientX + menuWidth > window.innerWidth ? e.clientX - menuWidth : e.clientX;
+    const y = e.clientY + menuHeight > window.innerHeight ? e.clientY - menuHeight : e.clientY;
     setContextMenu({
-      x: e.clientX,
-      y: e.clientY,
+      x,
+      y,
       oid,
     });
   };
@@ -220,7 +239,7 @@ export function CommitList() {
             rowHeight={ROW_HEIGHT}
             graphWidth={GRAPH_WIDTH}
             scrollOffset={virtualizer.scrollOffset ?? 0}
-            containerHeight={parentRef.current?.clientHeight ?? 600}
+            containerHeight={containerHeight}
             maxLane={maxLane}
           />
 

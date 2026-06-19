@@ -37,12 +37,9 @@ pub async fn abort_merge(path: String) -> Result<(), String> {
     // Clean up merge state files
     repo.cleanup_state().map_err(|e| e.to_string())?;
 
-    // Reset working directory to HEAD
     if let Ok(head_ref) = repo.head() {
         if let Ok(commit) = head_ref.peel_to_commit() {
-            let mut opts = CheckoutBuilder::new();
-            opts.force();
-            repo.checkout_tree(commit.as_object(), Some(&mut opts))
+            repo.reset(commit.as_object(), git2::ResetType::Hard, None)
                 .map_err(|e| e.to_string())?;
         }
     }

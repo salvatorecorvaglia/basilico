@@ -57,9 +57,12 @@ pub fn get_workdir_diff(path: &str) -> Result<Vec<FileDiff>, AppError> {
 pub fn get_staged_diff(path: &str) -> Result<Vec<FileDiff>, AppError> {
     let repo = Repository::open(path)?;
 
-    let head_tree = repo.head()?.peel_to_tree()?;
+    let head_tree = match repo.head() {
+        Ok(head_ref) => Some(head_ref.peel_to_tree()?),
+        Err(_) => None,
+    };
     let mut opts = DiffOptions::new();
-    let diff = repo.diff_tree_to_index(Some(&head_tree), None, Some(&mut opts))?;
+    let diff = repo.diff_tree_to_index(head_tree.as_ref(), None, Some(&mut opts))?;
     parse_diff(&diff)
 }
 
@@ -134,6 +137,8 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
             git2::Delta::Renamed => "renamed",
             git2::Delta::Copied => "copied",
             git2::Delta::Typechange => "typechange",
+            git2::Delta::Untracked => "untracked",
+            git2::Delta::Ignored => "ignored",
             _ => "unknown",
         }
         .to_string();
@@ -154,10 +159,6 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
     }
 
     // Now walk the diff to populate hunks and lines
-    let mut current_file_idx: Option<usize> = None;
-    let mut additions: usize = 0;
-    let mut deletions: usize = 0;
-
     diff.print(DiffFormat::Patch, |delta, hunk, line| {
         let file_path = delta
             .new_file()
@@ -171,19 +172,6 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
         });
 
         if let Some(idx) = file_idx {
-            if current_file_idx != Some(idx) {
-                // Save stats for previous file
-                if let Some(prev_idx) = current_file_idx {
-                    files[prev_idx].stats = DiffStats {
-                        additions,
-                        deletions,
-                    };
-                }
-                current_file_idx = Some(idx);
-                additions = 0;
-                deletions = 0;
-            }
-
             if let Some(hunk_info) = hunk {
                 let header = String::from_utf8_lossy(hunk_info.header()).trim().to_string();
 
@@ -207,11 +195,11 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
 
                 let origin = match line.origin() {
                     '+' => {
-                        additions += 1;
+                        files[idx].stats.additions += 1;
                         "+".to_string()
                     }
                     '-' => {
-                        deletions += 1;
+                        files[idx].stats.deletions += 1;
                         "-".to_string()
                     }
                     ' ' => " ".to_string(),
@@ -234,13 +222,104 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
         true
     })?;
 
-    // Save stats for last file
-    if let Some(idx) = current_file_idx {
-        files[idx].stats = DiffStats {
-            additions,
-            deletions,
-        };
+    Ok(files)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{self, File};
+    use std::io::Write;
+    use std::path::PathBuf;
+    use uuid::Uuid;
+
+    struct TempRepo {
+        path: PathBuf,
     }
 
-    Ok(files)
+    impl TempRepo {
+        fn new() -> Self {
+            let uuid = Uuid::new_v4().to_string();
+            let mut path = std::env::current_dir().unwrap();
+            // Ensure we are inside a target folder in the workspace
+            if !path.ends_with("src-tauri") {
+                path.push("src-tauri");
+            }
+            path.push("target");
+            path.push(format!("test-repo-{}", uuid));
+            fs::create_dir_all(&path).unwrap();
+
+            // Initialize repo
+            let repo = Repository::init(&path).unwrap();
+
+            // Configure identity for commits
+            let mut config = repo.config().unwrap();
+            config.set_str("user.name", "Test User").unwrap();
+            config.set_str("user.email", "test@example.com").unwrap();
+
+            Self { path }
+        }
+
+        fn write_file(&self, name: &str, content: &str) {
+            let file_path = self.path.join(name);
+            let mut file = File::create(file_path).unwrap();
+            file.write_all(content.as_bytes()).unwrap();
+        }
+
+        fn path_str(&self) -> &str {
+            self.path.to_str().unwrap()
+        }
+    }
+
+    impl Drop for TempRepo {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[test]
+    fn test_empty_repo_diffs() {
+        let repo = TempRepo::new();
+
+        // 1. Staged diff on empty repo (no commits, no staging yet)
+        let staged = get_staged_diff(repo.path_str()).unwrap();
+        assert!(staged.is_empty());
+
+        // 2. Unstaged diff (no files yet)
+        let workdir = get_workdir_diff(repo.path_str()).unwrap();
+        assert!(workdir.is_empty());
+    }
+
+    #[test]
+    fn test_workdir_and_staged_diff_parsing() {
+        let repo = TempRepo::new();
+        repo.write_file("test.txt", "hello world\nline2\n");
+
+        // 1. Unstaged diff should show the added file test.txt
+        let workdir = get_workdir_diff(repo.path_str()).unwrap();
+        assert_eq!(workdir.len(), 1);
+        assert_eq!(workdir[0].new_path.as_deref(), Some("test.txt"));
+        assert_eq!(workdir[0].status, "untracked");
+        assert_eq!(workdir[0].stats.additions, 0);
+
+        // 2. Stage the file
+        let git_repo = Repository::open(repo.path_str()).unwrap();
+        let mut index = git_repo.index().unwrap();
+        index.add_path(std::path::Path::new("test.txt")).unwrap();
+        index.write().unwrap();
+
+        // 3. Staged diff should show the file
+        let staged = get_staged_diff(repo.path_str()).unwrap();
+        assert_eq!(staged.len(), 1);
+        assert_eq!(staged[0].new_path.as_deref(), Some("test.txt"));
+        assert_eq!(staged[0].status, "added");
+        assert_eq!(staged[0].stats.additions, 2);
+
+        // 4. Modify staged file in workdir
+        repo.write_file("test.txt", "hello world\nline2\nline3\n");
+        let workdir2 = get_workdir_diff(repo.path_str()).unwrap();
+        assert_eq!(workdir2.len(), 1);
+        assert_eq!(workdir2[0].status, "modified");
+        assert_eq!(workdir2[0].stats.additions, 1);
+    }
 }

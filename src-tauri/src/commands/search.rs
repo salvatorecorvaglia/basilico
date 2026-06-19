@@ -93,7 +93,7 @@ pub async fn grep_code(repo_path: String, query: String) -> Result<Vec<GrepMatch
         return Ok(Vec::new());
     }
 
-    let output = Command::new("git")
+    let output = crate::commands::new_command("git")
         .current_dir(&repo_path)
         .args(&["grep", "-n", "-I", "--no-color", "-e", &query])
         .output()

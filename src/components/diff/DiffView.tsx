@@ -121,11 +121,11 @@ export function DiffView() {
 
   // Staging specific Hunk
   const handleStageHunk = async (hunk: DiffHunkInfo) => {
-    const patch = constructHunkPatch(selectedFilePath, hunk);
+    const patch = constructHunkPatch(selectedFilePath, hunk, undefined, selectedFileIsStaged);
     try {
-      await applyPatch(patch, selectedFileIsStaged ? 'workdir' : 'index');
+      await applyPatch(patch, 'index');
     } catch (err) {
-      alert(`Failed to stage hunk: ${err}`);
+      alert(`Failed to ${selectedFileIsStaged ? 'unstage' : 'stage'} hunk: ${err}`);
     }
   };
 
@@ -134,16 +134,16 @@ export function DiffView() {
     const lineIndices = selectedLines[hunkIndex];
     if (!lineIndices || lineIndices.size === 0) return;
 
-    const patch = constructHunkPatch(selectedFilePath, hunk, lineIndices);
+    const patch = constructHunkPatch(selectedFilePath, hunk, lineIndices, selectedFileIsStaged);
     try {
-      await applyPatch(patch, selectedFileIsStaged ? 'workdir' : 'index');
+      await applyPatch(patch, 'index');
       // Clear selection
       setSelectedLines(prev => ({
         ...prev,
         [hunkIndex]: new Set()
       }));
     } catch (err) {
-      alert(`Failed to stage selected lines: ${err}`);
+      alert(`Failed to ${selectedFileIsStaged ? 'unstage' : 'stage'} selected lines: ${err}`);
     }
   };
 
@@ -166,7 +166,8 @@ export function DiffView() {
   const constructHunkPatch = (
     filePath: string,
     hunk: DiffHunkInfo,
-    selectedLineIndices?: Set<number>
+    selectedLineIndices?: Set<number>,
+    reverse = false
   ): string => {
     let patch = `diff --git a/${filePath} b/${filePath}\n`;
     patch += `--- a/${filePath}\n`;
@@ -189,7 +190,11 @@ export function DiffView() {
       newLines = (newLines as number) + newLineDelta;
     }
 
-    patch += `@@ -${hunk.oldStart},${oldLines} +${hunk.newStart},${newLines} @@\n`;
+    if (reverse) {
+      patch += `@@ -${hunk.newStart},${newLines} +${hunk.oldStart},${oldLines} @@\n`;
+    } else {
+      patch += `@@ -${hunk.oldStart},${oldLines} +${hunk.newStart},${newLines} @@\n`;
+    }
 
     hunk.lines.forEach((line, idx) => {
       if (line.origin === ' ') {
@@ -197,12 +202,12 @@ export function DiffView() {
       } else if (line.origin === '+') {
         const isSelected = selectedLineIndices ? selectedLineIndices.has(idx) : true;
         if (isSelected) {
-          patch += `+${line.content}`;
+          patch += reverse ? `-${line.content}` : `+${line.content}`;
         }
       } else if (line.origin === '-') {
         const isSelected = selectedLineIndices ? selectedLineIndices.has(idx) : true;
         if (isSelected) {
-          patch += `-${line.content}`;
+          patch += reverse ? `+${line.content}` : `-${line.content}`;
         } else {
           // Unselected deletion: keep original line
           patch += ` ${line.content}`;

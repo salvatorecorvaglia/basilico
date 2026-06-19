@@ -57,7 +57,7 @@ pub async fn create_commit(
 pub async fn cherry_pick_commit(path: String, oid: String) -> Result<String, String> {
     let repo = Repository::open(&path).map_err(|e| e.to_string())?;
     
-    let output = Command::new("git")
+    let output = crate::commands::new_command("git")
         .current_dir(&path)
         .args(&["cherry-pick", &oid])
         .output()
@@ -80,7 +80,7 @@ pub async fn cherry_pick_commit(path: String, oid: String) -> Result<String, Str
 
 #[tauri::command]
 pub async fn cherry_pick_abort(path: String) -> Result<(), String> {
-    let output = Command::new("git")
+    let output = crate::commands::new_command("git")
         .current_dir(&path)
         .args(&["cherry-pick", "--abort"])
         .output()
@@ -98,7 +98,7 @@ pub async fn cherry_pick_abort(path: String) -> Result<(), String> {
 pub async fn revert_commit(path: String, oid: String) -> Result<String, String> {
     let repo = Repository::open(&path).map_err(|e| e.to_string())?;
     
-    let output = Command::new("git")
+    let output = crate::commands::new_command("git")
         .current_dir(&path)
         .args(&["revert", "--no-edit", &oid])
         .output()
@@ -121,7 +121,7 @@ pub async fn revert_commit(path: String, oid: String) -> Result<String, String> 
 
 #[tauri::command]
 pub async fn revert_abort(path: String) -> Result<(), String> {
-    let output = Command::new("git")
+    let output = crate::commands::new_command("git")
         .current_dir(&path)
         .args(&["revert", "--abort"])
         .output()

@@ -155,25 +155,32 @@ export function Sidebar() {
     }
   };
 
-  const handleContextMenu = (e: React.MouseEvent, branchName: string, isRemote: boolean) => {
+  const openMenu = (
+    e: React.MouseEvent,
+    targetName: string,
+    type: 'branch' | 'tag' | 'stash' | 'worktree' | 'submodule',
+    isRemote?: boolean
+  ) => {
     e.preventDefault();
+    const menuWidth = 200;
+    const menuHeight = type === 'branch' ? 240 : type === 'tag' ? 180 : type === 'worktree' ? 180 : type === 'submodule' ? 200 : 150;
+    const x = e.clientX + menuWidth > window.innerWidth ? e.clientX - menuWidth : e.clientX;
+    const y = e.clientY + menuHeight > window.innerHeight ? e.clientY - menuHeight : e.clientY;
     setContextMenu({
-      x: e.clientX,
-      y: e.clientY,
-      targetName: branchName,
-      type: 'branch',
+      x,
+      y,
+      targetName,
+      type,
       isRemote,
     });
   };
 
+  const handleContextMenu = (e: React.MouseEvent, branchName: string, isRemote: boolean) => {
+    openMenu(e, branchName, 'branch', isRemote);
+  };
+
   const handleTagContextMenu = (e: React.MouseEvent, tagName: string) => {
-    e.preventDefault();
-    setContextMenu({
-      x: e.clientX,
-      y: e.clientY,
-      targetName: tagName,
-      type: 'tag',
-    });
+    openMenu(e, tagName, 'tag');
   };
 
   const handleDeleteBranch = async (name: string, isRemote: boolean) => {
@@ -213,13 +220,7 @@ export function Sidebar() {
   };
 
   const handleStashContextMenu = (e: React.MouseEvent, index: number) => {
-    e.preventDefault();
-    setContextMenu({
-      x: e.clientX,
-      y: e.clientY,
-      targetName: index.toString(),
-      type: 'stash',
-    });
+    openMenu(e, index.toString(), 'stash');
   };
 
   const handleApplyStash = async (index: number) => {
@@ -463,10 +464,7 @@ export function Sidebar() {
                 key={wt.path}
                 className="sidebar-item"
                 title={wt.path}
-                onContextMenu={e => {
-                  e.preventDefault();
-                  setContextMenu({ x: e.clientX, y: e.clientY, targetName: wt.path, type: 'worktree' });
-                }}
+                onContextMenu={e => openMenu(e, wt.path, 'worktree')}
                 onDoubleClick={() => openRepository(wt.path)}
               >
                 <FolderOpen size={12} className="sidebar-item-dot" />
@@ -501,10 +499,7 @@ export function Sidebar() {
                 key={sm.name}
                 className="sidebar-item"
                 title={sm.url || sm.path}
-                onContextMenu={e => {
-                  e.preventDefault();
-                  setContextMenu({ x: e.clientX, y: e.clientY, targetName: sm.path, type: 'submodule' });
-                }}
+                onContextMenu={e => openMenu(e, sm.path, 'submodule')}
                 onDoubleClick={() => {
                   // Open submodule as a new tab
                   const repoPath = useRepoStore.getState().repoInfo?.path;

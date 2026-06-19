@@ -1,4 +1,5 @@
 use git2::{Cred, CredentialType, RemoteCallbacks};
+use std::path::PathBuf;
 
 /// Build remote callbacks with credential handling.
 /// Supports SSH agent, SSH key files, and username/password.
@@ -9,8 +10,7 @@ pub fn make_callbacks<'a>() -> RemoteCallbacks<'a> {
         // Try SSH agent first
         if allowed_types.contains(CredentialType::SSH_KEY) {
             if let Some(username) = username_from_url {
-                // Try the default SSH key locations
-                let home = dirs_home();
+                let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
                 let key_path = home.join(".ssh").join("id_rsa");
                 let ed25519_path = home.join(".ssh").join("id_ed25519");
 
@@ -28,12 +28,14 @@ pub fn make_callbacks<'a>() -> RemoteCallbacks<'a> {
 
         if allowed_types.contains(CredentialType::USER_PASS_PLAINTEXT) {
             // For HTTPS — use credential helper or prompt
-            if let Ok(cred) = Cred::credential_helper(
-                &git2::Config::open_default().unwrap(),
-                _url,
-                username_from_url,
-            ) {
-                return Ok(cred);
+            if let Ok(config) = git2::Config::open_default() {
+                if let Ok(cred) = Cred::credential_helper(
+                    &config,
+                    _url,
+                    username_from_url,
+                ) {
+                    return Ok(cred);
+                }
             }
         }
 
@@ -55,19 +57,4 @@ pub fn make_callbacks<'a>() -> RemoteCallbacks<'a> {
     });
 
     callbacks
-}
-
-fn dirs_home() -> std::path::PathBuf {
-    #[cfg(target_os = "windows")]
-    {
-        std::env::var("USERPROFILE")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|_| std::path::PathBuf::from("C:\\"))
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        std::env::var("HOME")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|_| std::path::PathBuf::from("/"))
-    }
 }
