@@ -24,12 +24,12 @@ import './SettingsModal.css';
 type SettingsTab = 'appearance' | 'git' | 'ssh' | 'shortcuts';
 
 const THEME_PRESETS = [
-  { id: 'sage-green',      name: 'Sage Green',       color: '#2ea043' },
-  { id: 'royal-blue',      name: 'Royal Blue',       color: '#1f6feb' },
-  { id: 'amethyst-purple',  name: 'Amethyst Purple', color: '#8b5cf6' },
-  { id: 'amber-gold',      name: 'Amber Gold',       color: '#d29922' },
-  { id: 'crimson-red',     name: 'Crimson Red',      color: '#f85149' },
-  { id: 'ocean-teal',      name: 'Ocean Teal',       color: '#2dd4bf' },
+  { id: 'sage-green', name: 'Sage Green', color: '#2ea043' },
+  { id: 'royal-blue', name: 'Royal Blue', color: '#1f6feb' },
+  { id: 'amethyst-purple', name: 'Amethyst Purple', color: '#8b5cf6' },
+  { id: 'amber-gold', name: 'Amber Gold', color: '#d29922' },
+  { id: 'crimson-red', name: 'Crimson Red', color: '#f85149' },
+  { id: 'ocean-teal', name: 'Ocean Teal', color: '#2dd4bf' },
 ];
 
 const SHORTCUT_LABELS: Record<string, string> = {
@@ -210,7 +210,7 @@ export function SettingsModal() {
                   <input
                     className="settings-input"
                     type="text"
-                    placeholder="e.g. Jane Doe"
+                    placeholder="e.g. Mario Rossi"
                     value={draft.gitAuthorName || ''}
                     onChange={e => setDraft({ ...draft, gitAuthorName: e.target.value || null })}
                   />
@@ -220,7 +220,7 @@ export function SettingsModal() {
                   <input
                     className="settings-input"
                     type="email"
-                    placeholder="e.g. jane@example.com"
+                    placeholder="e.g. mario.rossi@basilico.com"
                     value={draft.gitAuthorEmail || ''}
                     onChange={e => setDraft({ ...draft, gitAuthorEmail: e.target.value || null })}
                   />
