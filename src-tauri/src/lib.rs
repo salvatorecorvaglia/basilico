@@ -32,6 +32,7 @@ pub fn run() {
             commands::diff::get_commit_diff,
             commands::diff::get_file_diff,
             commands::diff::get_file_content_pair,
+            commands::diff::get_file_content_at_revision,
             // Branch commands
             commands::branch::list_branches,
             commands::branch::create_branch,
@@ -41,6 +42,20 @@ pub fn run() {
             // Tag commands
             commands::tag::list_tags,
             commands::tag::delete_tag,
+            commands::tag::create_tag,
+            commands::tag::push_tag,
+            // Blame commands
+            commands::blame::get_file_blame,
+            // History commands
+            commands::history::get_file_history,
+            // Reflog commands
+            commands::reflog::get_reflog,
+            // Stash commands
+            commands::stash::list_stashes,
+            commands::stash::save_stash,
+            commands::stash::apply_stash,
+            commands::stash::pop_stash,
+            commands::stash::drop_stash,
             // Staging commands
             commands::staging::stage_files,
             commands::staging::unstage_files,

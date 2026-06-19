@@ -15,7 +15,10 @@ import {
   Plus,
   GitMerge,
   Edit,
-  Trash
+  Trash,
+  Clock,
+  Check,
+  RotateCcw
 } from 'lucide-react';
 import { useRepoStore } from '../../store/repo-store';
 import { useUIStore } from '../../store/ui-store';
@@ -54,21 +57,29 @@ export function Sidebar() {
     branches, 
     tags, 
     remotes, 
+    stashes,
     checkoutBranch, 
     createBranch, 
     deleteBranch, 
     renameBranch,
     mergeBranch,
-    deleteTag
+    deleteTag,
+    pushTag,
+    applyStash,
+    popStash,
+    dropStash,
+    selectCommit,
+    selectedCommitOid,
+    createTag
   } = useRepoStore();
 
-  const { addNotification } = useUIStore();
+  const { addNotification, setActiveView } = useUIStore();
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
     targetName: string;
-    type: 'branch' | 'tag';
+    type: 'branch' | 'tag' | 'stash';
     isRemote?: boolean;
   } | null>(null);
 
@@ -102,6 +113,23 @@ export function Sidebar() {
       } catch (err) {
         addNotification({ type: 'error', message: `Failed to create branch: ${err}` });
       }
+    }
+  };
+
+  const handleCreateTagPrompt = async () => {
+    const name = prompt('Enter new tag name:');
+    if (!name || !name.trim()) return;
+
+    const message = prompt('Enter tag message (optional, leave empty for lightweight tag):');
+    
+    // Target OID can be selectedCommitOid, otherwise "HEAD"
+    const target = selectedCommitOid || 'HEAD';
+
+    try {
+      await createTag(name.trim(), target, message?.trim() || null);
+      addNotification({ type: 'success', message: `Created tag "${name}" at ${target.slice(0, 7)}` });
+    } catch (err) {
+      addNotification({ type: 'error', message: `Failed to create tag: ${err}` });
     }
   };
 
@@ -144,6 +172,59 @@ export function Sidebar() {
         addNotification({ type: 'success', message: `Deleted tag "${name}"` });
       } catch (err) {
         addNotification({ type: 'error', message: `Failed to delete tag: ${err}` });
+      }
+    }
+  };
+
+  const handlePushTag = async (name: string) => {
+    try {
+      await pushTag('origin', name);
+      addNotification({ type: 'success', message: `Successfully pushed tag "${name}" to remote` });
+    } catch (err) {
+      addNotification({ type: 'error', message: `Failed to push tag: ${err}` });
+    }
+  };
+
+  const handleStashSelect = async (oid: string) => {
+    await selectCommit(oid);
+    setActiveView('graph');
+  };
+
+  const handleStashContextMenu = (e: React.MouseEvent, index: number) => {
+    e.preventDefault();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      targetName: index.toString(),
+      type: 'stash',
+    });
+  };
+
+  const handleApplyStash = async (index: number) => {
+    try {
+      await applyStash(index);
+      addNotification({ type: 'success', message: `Stash applied successfully` });
+    } catch (err) {
+      addNotification({ type: 'error', message: `Failed to apply stash: ${err}` });
+    }
+  };
+
+  const handlePopStash = async (index: number) => {
+    try {
+      await popStash(index);
+      addNotification({ type: 'success', message: `Stash popped successfully` });
+    } catch (err) {
+      addNotification({ type: 'error', message: `Failed to pop stash: ${err}` });
+    }
+  };
+
+  const handleDropStash = async (index: number) => {
+    if (confirm(`Are you sure you want to drop stash@{${index}}?`)) {
+      try {
+        await dropStash(index);
+        addNotification({ type: 'success', message: `Stash dropped successfully` });
+      } catch (err) {
+        addNotification({ type: 'error', message: `Failed to drop stash: ${err}` });
       }
     }
   };
@@ -262,6 +343,15 @@ export function Sidebar() {
           icon={<Tag size={14} />}
           count={tags.length}
           defaultOpen={false}
+          action={
+            <button 
+              className="sidebar-header-btn" 
+              onClick={handleCreateTagPrompt} 
+              title="Create new tag"
+            >
+              <Plus size={13} />
+            </button>
+          }
         >
           {tags.map((tag) => (
             <button 
@@ -278,15 +368,38 @@ export function Sidebar() {
           ))}
         </TreeSection>
  
-        {/* Stashes (placeholder for Phase 3) */}
+        {/* Stashes */}
         <TreeSection
           title="Stashes"
           icon={<Archive size={14} />}
-          count={0}
+          count={stashes.length}
           defaultOpen={false}
         >
-          <div className="sidebar-empty">No stashes</div>
+          {stashes.length === 0 ? (
+            <div className="sidebar-empty">No stashes</div>
+          ) : (
+            stashes.map((stash) => (
+              <button 
+                key={stash.index} 
+                className="sidebar-item" 
+                onClick={() => handleStashSelect(stash.oid)}
+                onContextMenu={(e) => handleStashContextMenu(e, stash.index)}
+                title={stash.message}
+              >
+                <Archive size={12} className="sidebar-item-dot" />
+                <span className="sidebar-item-name truncate">{stash.message}</span>
+              </button>
+            ))
+          )}
         </TreeSection>
+
+        {/* Reflog Link */}
+        <div className="sidebar-reflog-item" style={{ marginTop: 'var(--space-2)' }}>
+          <button className="sidebar-item" onClick={() => setActiveView('reflog')}>
+            <Clock size={12} className="sidebar-item-dot" />
+            <span className="sidebar-item-name truncate" style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--text-primary)' }}>Reflog (HEAD)</span>
+          </button>
+        </div>
       </div>
 
       {/* Floating Context Menu */}
@@ -331,7 +444,7 @@ export function Sidebar() {
                 <span>Delete Branch</span>
               </button>
             </>
-          ) : (
+          ) : contextMenu.type === 'tag' ? (
             <>
               <button 
                 className="context-menu-item" 
@@ -341,11 +454,42 @@ export function Sidebar() {
                 <span>Checkout Tag</span>
               </button>
               <button 
+                className="context-menu-item" 
+                onClick={() => { handlePushTag(contextMenu.targetName); setContextMenu(null); }}
+              >
+                <Globe size={12} />
+                <span>Push Tag to Remote</span>
+              </button>
+              <button 
                 className="context-menu-item context-menu-danger" 
                 onClick={() => { handleDeleteTag(contextMenu.targetName); setContextMenu(null); }}
               >
                 <Trash size={12} />
                 <span>Delete Tag</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button 
+                className="context-menu-item" 
+                onClick={() => { handleApplyStash(parseInt(contextMenu.targetName)); setContextMenu(null); }}
+              >
+                <Check size={12} />
+                <span>Apply Stash</span>
+              </button>
+              <button 
+                className="context-menu-item" 
+                onClick={() => { handlePopStash(parseInt(contextMenu.targetName)); setContextMenu(null); }}
+              >
+                <RotateCcw size={12} />
+                <span>Pop Stash</span>
+              </button>
+              <button 
+                className="context-menu-item context-menu-danger" 
+                onClick={() => { handleDropStash(parseInt(contextMenu.targetName)); setContextMenu(null); }}
+              >
+                <Trash size={12} />
+                <span>Drop Stash</span>
               </button>
             </>
           )}

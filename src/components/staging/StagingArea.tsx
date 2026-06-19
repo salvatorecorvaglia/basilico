@@ -8,9 +8,12 @@ import {
   ChevronDown, 
   ChevronRight, 
   Trash2, 
-  AlertTriangle 
+  AlertTriangle,
+  Clock,
+  Calendar
 } from 'lucide-react';
 import { useRepoStore } from '../../store/repo-store';
+import { useUIStore } from '../../store/ui-store';
 import { CommitBox } from './CommitBox';
 import { getFileName, getDirectory, getStatusColor, getStatusIcon } from '../../lib/utils';
 import './StagingArea.css';
@@ -22,11 +25,42 @@ export function StagingArea() {
     selectLocalFile, 
     stageFiles, 
     unstageFiles, 
-    discardChanges 
+    discardChanges,
+    saveStash
   } = useRepoStore();
+
+  const { setActiveView, addNotification } = useUIStore();
 
   const [stagedOpen, setStagedOpen] = useState(true);
   const [unstagedOpen, setUnstagedOpen] = useState(true);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    filePath: string;
+  } | null>(null);
+
+  const handleFileContextMenu = (e: React.MouseEvent, filePath: string) => {
+    e.preventDefault();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      filePath,
+    });
+  };
+
+  const handleSaveStashPrompt = async () => {
+    const message = prompt('Enter stash message (optional):');
+    if (message === null) return; // User cancelled
+
+    const includeUntracked = confirm('Include untracked files in the stash?');
+    
+    try {
+      await saveStash(message.trim(), includeUntracked);
+      addNotification({ type: 'success', message: 'Stash saved successfully' });
+    } catch (err) {
+      addNotification({ type: 'error', message: `Failed to save stash: ${err}` });
+    }
+  };
 
   if (!status) {
     return (
@@ -69,7 +103,7 @@ export function StagingArea() {
   };
 
   return (
-    <div className="staging-area">
+    <div className="staging-area" onClick={() => setContextMenu(null)}>
       <div className="staging-lists">
         {/* Conflicted Files */}
         {conflicted.length > 0 && (
@@ -87,6 +121,7 @@ export function StagingArea() {
                   key={file} 
                   className={`staging-file-row ${selectedFilePath === file ? 'selected' : ''}`}
                   onClick={() => handleFileClick(file, false)}
+                  onContextMenu={(e) => handleFileContextMenu(e, file)}
                 >
                   <span className="staging-file-icon text-warning">⚠</span>
                   <div className="staging-file-paths truncate">
@@ -107,10 +142,19 @@ export function StagingArea() {
             </button>
             <span className="staging-section-title">Staged Changes</span>
             <span className="staging-count">{staged.length}</span>
+            <button 
+              className="staging-action-btn" 
+              onClick={(e) => { e.stopPropagation(); handleSaveStashPrompt(); }}
+              title="Stash staged and unstaged changes"
+              style={{ marginLeft: staged.length > 0 ? '8px' : 'auto' }}
+            >
+              Stash...
+            </button>
             {staged.length > 0 && (
               <button 
                 className="staging-action-btn" 
                 onClick={(e) => { e.stopPropagation(); handleUnstageAll(); }}
+                style={{ marginLeft: '8px' }}
               >
                 Unstage All
               </button>
@@ -127,6 +171,7 @@ export function StagingArea() {
                     key={file.path} 
                     className={`staging-file-row ${selectedFilePath === file.path ? 'selected' : ''}`}
                     onClick={() => handleFileClick(file.path, true)}
+                    onContextMenu={(e) => handleFileContextMenu(e, file.path)}
                   >
                     <input 
                       type="checkbox" 
@@ -181,6 +226,7 @@ export function StagingArea() {
                       key={file.path} 
                       className={`staging-file-row ${selectedFilePath === file.path ? 'selected' : ''}`}
                       onClick={() => handleFileClick(file.path, false)}
+                      onContextMenu={(e) => handleFileContextMenu(e, file.path)}
                     >
                       <input 
                         type="checkbox" 
@@ -219,6 +265,7 @@ export function StagingArea() {
                       key={file} 
                       className={`staging-file-row ${selectedFilePath === file ? 'selected' : ''}`}
                       onClick={() => handleFileClick(file, false)}
+                      onContextMenu={(e) => handleFileContextMenu(e, file)}
                     >
                       <input 
                         type="checkbox" 
@@ -254,6 +301,40 @@ export function StagingArea() {
 
       {/* Commit Box at bottom */}
       <CommitBox />
+
+      {/* File Context Menu */}
+      {contextMenu && (
+        <div 
+          className="sidebar-context-menu animate-fade-in"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button 
+            className="context-menu-item" 
+            onClick={() => {
+              const isStaged = status.staged.some(f => f.path === contextMenu.filePath);
+              selectLocalFile(contextMenu.filePath, isStaged);
+              setActiveView('blame');
+              setContextMenu(null);
+            }}
+          >
+            <Clock size={12} />
+            <span>View Blame</span>
+          </button>
+          <button 
+            className="context-menu-item" 
+            onClick={() => {
+              const isStaged = status.staged.some(f => f.path === contextMenu.filePath);
+              selectLocalFile(contextMenu.filePath, isStaged);
+              setActiveView('history');
+              setContextMenu(null);
+            }}
+          >
+            <Calendar size={12} />
+            <span>View File History</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

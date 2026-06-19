@@ -7,3 +7,7 @@ pub mod remote;
 pub mod repo;
 pub mod staging;
 pub mod tag;
+pub mod blame;
+pub mod history;
+pub mod reflog;
+pub mod stash;

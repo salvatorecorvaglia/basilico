@@ -51,6 +51,33 @@ pub async fn delete_branch(path: String, name: String, is_remote: bool) -> Resul
 pub async fn checkout_branch(path: String, name: String) -> Result<(), String> {
     let repo = Repository::open(&path).map_err(|e| e.to_string())?;
 
+    // Check if name is a direct 40-character hexadecimal commit OID
+    if git2::Oid::from_str(&name).is_ok() {
+        let oid = git2::Oid::from_str(&name).map_err(|e| e.to_string())?;
+        let commit = repo.find_commit(oid).map_err(|e| e.to_string())?;
+        let obj = commit.into_object();
+
+        let mut opts = git2::build::CheckoutBuilder::new();
+        opts.safe();
+        repo.checkout_tree(&obj, Some(&mut opts)).map_err(|e| e.to_string())?;
+        repo.set_head_detached(oid).map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    // Check if it is a tag reference (refs/tags/...)
+    if name.starts_with("refs/tags/") {
+        let reference = repo.find_reference(&name).map_err(|e| e.to_string())?;
+        let commit = reference.peel_to_commit().map_err(|e| e.to_string())?;
+        let obj = commit.clone().into_object();
+
+        let mut opts = git2::build::CheckoutBuilder::new();
+        opts.safe();
+        repo.checkout_tree(&obj, Some(&mut opts)).map_err(|e| e.to_string())?;
+        repo.set_head_detached(commit.id()).map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    // Handle normal branches and remote branches
     let ref_name = if name.contains('/') && !name.starts_with("refs/") {
         // Handle remote branches: "origin/feature" -> checkout local tracking branch "feature"
         let parts: Vec<&str> = name.splitn(2, '/').collect();

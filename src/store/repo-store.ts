@@ -13,6 +13,10 @@ import type {
   RemoteInfo,
   GraphCommit,
   FileDiff,
+  BlameLine,
+  FileHistoryEntry,
+  ReflogEntry,
+  StashInfo,
 } from '../lib/git-types';
 import * as commands from '../lib/tauri-commands';
 
@@ -32,6 +36,12 @@ interface RepoState {
   // Selected commit
   selectedCommitOid: string | null;
   commitDiff: FileDiff[];
+
+  // Phase 3 State
+  blameLines: BlameLine[];
+  fileHistory: FileHistoryEntry[];
+  reflogEntries: ReflogEntry[];
+  stashes: StashInfo[];
 
   // Staging area & local diffs
   selectedFilePath: string | null;
@@ -70,6 +80,18 @@ interface RepoState {
 
   // Tag Actions
   deleteTag: (name: string) => Promise<void>;
+  createTag: (name: string, targetOid: string, message?: string | null, force?: boolean) => Promise<void>;
+  pushTag: (remote: string, tagName: string) => Promise<void>;
+
+  // Phase 3 Actions
+  loadFileBlame: (filePath: string, commitOid?: string | null) => Promise<void>;
+  loadFileHistory: (filePath: string) => Promise<void>;
+  loadReflog: () => Promise<void>;
+  loadStashes: () => Promise<void>;
+  saveStash: (message: string, includeUntracked: boolean) => Promise<void>;
+  applyStash: (index: number) => Promise<void>;
+  popStash: (index: number) => Promise<void>;
+  dropStash: (index: number) => Promise<void>;
 
   // Merge Actions
   mergeBranch: (branchName: string) => Promise<'success' | 'conflicts'>;
@@ -94,6 +116,10 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   commits: [],
   selectedCommitOid: null,
   commitDiff: [],
+  blameLines: [],
+  fileHistory: [],
+  reflogEntries: [],
+  stashes: [],
   selectedFilePath: null,
   selectedFileIsStaged: false,
   localDiff: null,
@@ -206,15 +232,16 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isRefreshing: true });
     try {
-      const [status, branches, tags, remotes, commits] = await Promise.all([
+      const [status, branches, tags, remotes, commits, stashes] = await Promise.all([
         commands.getStatus(activeTabId),
         commands.listBranches(activeTabId),
         commands.listTags(activeTabId),
         commands.listRemotes(activeTabId),
         commands.getLog(activeTabId, 500),
+        commands.listStashes(activeTabId),
       ]);
 
-      set({ status, branches, tags, remotes, commits });
+      set({ status, branches, tags, remotes, commits, stashes });
     } catch (err) {
       console.error('Failed to refresh:', err);
       set({ error: String(err) });
@@ -528,6 +555,172 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to push:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ── Phase 3: Blame Actions ──
+
+  loadFileBlame: async (filePath, commitOid = null) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true, blameLines: [] });
+    try {
+      const lines = await commands.getFileBlame(activeTabId, filePath, commitOid);
+      set({ blameLines: lines });
+    } catch (err) {
+      console.error('Failed to load file blame:', err);
+      set({ error: String(err) });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ── Phase 3: History Actions ──
+
+  loadFileHistory: async (filePath) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true, fileHistory: [] });
+    try {
+      const history = await commands.getFileHistory(activeTabId, filePath);
+      set({ fileHistory: history });
+    } catch (err) {
+      console.error('Failed to load file history:', err);
+      set({ error: String(err) });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ── Phase 3: Reflog Actions ──
+
+  loadReflog: async () => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true, reflogEntries: [] });
+    try {
+      const entries = await commands.getReflog(activeTabId);
+      set({ reflogEntries: entries });
+    } catch (err) {
+      console.error('Failed to load reflog:', err);
+      set({ error: String(err) });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ── Phase 3: Stash Actions ──
+
+  loadStashes: async () => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      const list = await commands.listStashes(activeTabId);
+      set({ stashes: list });
+    } catch (err) {
+      console.error('Failed to load stashes:', err);
+    }
+  },
+
+  saveStash: async (message, includeUntracked) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true });
+    try {
+      await commands.saveStash(activeTabId, message, includeUntracked);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to save stash:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  applyStash: async (index) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true });
+    try {
+      await commands.applyStash(activeTabId, index);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to apply stash:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  popStash: async (index) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true });
+    try {
+      await commands.popStash(activeTabId, index);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to pop stash:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  dropStash: async (index) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      await commands.dropStash(activeTabId, index);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to drop stash:', err);
+      set({ error: String(err) });
+      throw err;
+    }
+  },
+
+  // ── Phase 3: Tag Creation & Push ──
+
+  createTag: async (name, targetOid, message = null, force = false) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      await commands.createTag(activeTabId, name, targetOid, message, force);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to create tag:', err);
+      set({ error: String(err) });
+      throw err;
+    }
+  },
+
+  pushTag: async (remote, tagName) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true });
+    try {
+      await commands.pushTag(activeTabId, remote, tagName);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to push tag:', err);
       set({ error: String(err) });
       throw err;
     } finally {

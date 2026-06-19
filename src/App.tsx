@@ -13,6 +13,9 @@ import { CommitDetail } from './components/graph/CommitDetail';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { StagingArea } from './components/staging/StagingArea';
 import { DiffView } from './components/diff/DiffView';
+import { BlameView } from './components/blame/BlameView';
+import { FileHistory } from './components/history/FileHistory';
+import { ReflogView } from './components/reflog/ReflogView';
 import { useRepoStore } from './store/repo-store';
 import { useUIStore } from './store/ui-store';
 import './App.css';
@@ -81,6 +84,12 @@ function App() {
                       <DiffView />
                     </Panel>
                   </Group>
+                ) : activeView === 'blame' ? (
+                  <BlameView />
+                ) : activeView === 'history' ? (
+                  <FileHistory />
+                ) : activeView === 'reflog' ? (
+                  <ReflogView />
                 ) : (
                   <div className="view-fallback">
                     <h3>{activeView.toUpperCase()} View</h3>

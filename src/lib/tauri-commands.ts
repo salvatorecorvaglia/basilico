@@ -11,6 +11,10 @@ import type {
   TagInfo,
   GraphCommit,
   FileDiff,
+  BlameLine,
+  FileHistoryEntry,
+  ReflogEntry,
+  StashInfo,
 } from './git-types';
 
 // ── Repository Commands ──
@@ -53,6 +57,9 @@ export interface FileContentPair {
 
 export const getFileContentPair = (path: string, filePath: string, isStaged: boolean) =>
   invoke<FileContentPair>('get_file_content_pair', { path, filePath, isStaged });
+
+export const getFileContentAtRevision = (path: string, filePath: string, revision: string) =>
+  invoke<string>('get_file_content_at_revision', { path, filePath, revision });
 
 // ── Branch Commands ──
 
@@ -129,3 +136,48 @@ export const push = (path: string, remote: string, branch: string, force: boolea
 
 export const pull = (path: string, remote: string, branch: string) =>
   invoke<'success' | 'conflicts'>('pull', { path, remote, branch });
+
+// ── Phase 3: Blame Commands ──
+
+export const getFileBlame = (path: string, filePath: string, commitOid?: string | null) =>
+  invoke<BlameLine[]>('get_file_blame', { path, filePath, commitOid });
+
+// ── Phase 3: History Commands ──
+
+export const getFileHistory = (path: string, filePath: string, maxCommits?: number | null) =>
+  invoke<FileHistoryEntry[]>('get_file_history', { path, filePath, maxCommits });
+
+// ── Phase 3: Reflog Commands ──
+
+export const getReflog = (path: string, maxEntries?: number | null) =>
+  invoke<ReflogEntry[]>('get_reflog', { path, maxEntries });
+
+// ── Phase 3: Stash Commands ──
+
+export const listStashes = (path: string) =>
+  invoke<StashInfo[]>('list_stashes', { path });
+
+export const saveStash = (path: string, message: string, includeUntracked: boolean) =>
+  invoke<void>('save_stash', { path, message, includeUntracked });
+
+export const applyStash = (path: string, index: number) =>
+  invoke<void>('apply_stash', { path, index });
+
+export const popStash = (path: string, index: number) =>
+  invoke<void>('pop_stash', { path, index });
+
+export const dropStash = (path: string, index: number) =>
+  invoke<void>('drop_stash', { path, index });
+
+// ── Phase 3: Tag Creation & Push Commands ──
+
+export const createTag = (
+  path: string,
+  name: string,
+  targetOid: string,
+  message?: string | null,
+  force?: boolean
+) => invoke<void>('create_tag', { path, name, targetOid, message, force: !!force });
+
+export const pushTag = (path: string, remote: string, tagName: string) =>
+  invoke<void>('push_tag', { path, remote, tagName });

@@ -134,3 +134,43 @@ export interface RepoTab {
 // ── UI State ──
 
 export type ActiveView = 'graph' | 'staging' | 'diff' | 'blame' | 'history' | 'reflog' | 'search';
+
+// ── Phase 3: Blame, History, Reflog, Stash Types ──
+
+export interface BlameLine {
+  lineNo: number;
+  commitOid: string;
+  shortOid: string;
+  authorName: string;
+  authorEmail: string;
+  commitSummary: string;
+  lineContent: string;
+}
+
+export interface FileHistoryEntry {
+  commitOid: string;
+  shortOid: string;
+  authorName: string;
+  authorEmail: string;
+  authorDate: number;
+  commitSummary: string;
+  filePath: string;
+}
+
+export interface ReflogEntry {
+  index: number;
+  newOid: string;
+  oldOid: string;
+  selector: string;
+  committerName: string;
+  committerDate: number;
+  message: string;
+}
+
+export interface StashInfo {
+  index: number;
+  name: string;
+  oid: string;
+  message: string;
+}
+

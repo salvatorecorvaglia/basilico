@@ -105,3 +105,32 @@ pub async fn get_file_content_pair(
 
     Ok(FileContentPair { original, modified })
 }
+
+#[tauri::command]
+pub async fn get_file_content_at_revision(
+    path: String,
+    file_path: String,
+    revision: String,
+) -> Result<String, String> {
+    let repo = git2::Repository::open(&path).map_err(|e| e.to_string())?;
+    
+    // Resolve revision spec (like commit SHA or SHA^)
+    let obj = repo.revparse_single(&revision).map_err(|e| e.to_string())?;
+    
+    let blob = if let Some(commit) = obj.as_commit() {
+        let tree = commit.tree().map_err(|e| e.to_string())?;
+        let entry = tree.get_path(std::path::Path::new(&file_path)).map_err(|e| e.to_string())?;
+        let object = entry.to_object(&repo).map_err(|e| e.to_string())?;
+        object.into_blob().map_err(|_| "Object is not a blob".to_string())?
+    } else if let Some(tree) = obj.as_tree() {
+        let entry = tree.get_path(std::path::Path::new(&file_path)).map_err(|e| e.to_string())?;
+        let object = entry.to_object(&repo).map_err(|e| e.to_string())?;
+        object.into_blob().map_err(|_| "Object is not a blob".to_string())?
+    } else if let Some(blob) = obj.as_blob() {
+        blob.clone()
+    } else {
+        return Err("Unable to resolve object to a blob".to_string());
+    };
+
+    Ok(String::from_utf8_lossy(blob.content()).to_string())
+}
