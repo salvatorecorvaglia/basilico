@@ -69,6 +69,12 @@ interface RepoState {
   conflictStages: ConflictStages | null;
   activeConflictedPath: string | null;
 
+  // Phase 10 State
+  selectedStashIndex: number | null;
+  stashDiff: FileDiff[];
+  selectedStashFile: string | null;
+  selectedStashFileDiff: FileDiff | null;
+
   // Staging area & local diffs
   selectedFilePath: string | null;
   selectedFileIsStaged: boolean;
@@ -176,6 +182,11 @@ interface RepoState {
   // Phase 9 Actions
   loadConflictStages: (filePath: string) => Promise<void>;
   resolveConflictStages: (filePath: string, mergedContent: string) => Promise<void>;
+
+  // Phase 10 Actions
+  loadStashDetail: (index: number) => Promise<void>;
+  selectStashFile: (filePath: string | null) => Promise<void>;
+  createBranchFromStash: (index: number, branchName: string) => Promise<void>;
 }
 
 export const useRepoStore = create<RepoState>((set, get) => ({
@@ -210,6 +221,10 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   compareFileDiff: null,
   conflictStages: null,
   activeConflictedPath: null,
+  selectedStashIndex: null,
+  stashDiff: [],
+  selectedStashFile: null,
+  selectedStashFileDiff: null,
   selectedFilePath: null,
   selectedFileIsStaged: false,
   localDiff: null,
@@ -1374,6 +1389,76 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       await get().refreshAll();
     } catch (err) {
       console.error('Failed to resolve conflict:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ── Phase 10 Actions ──
+
+  loadStashDetail: async (index) => {
+    const { activeTabId, stashes } = get();
+    if (!activeTabId) return;
+
+    set({ selectedStashIndex: index, stashDiff: [], selectedStashFile: null, selectedStashFileDiff: null, isLoading: true });
+    try {
+      const stash = stashes.find(s => s.index === index);
+      if (!stash) {
+        throw new Error(`Stash at index ${index} not found`);
+      }
+      const diff = await commands.getStashDiff(activeTabId, stash.oid);
+      set({ stashDiff: diff });
+
+      // Automatically select first file
+      if (diff.length > 0) {
+        const firstFile = diff[0].newPath || diff[0].oldPath;
+        if (firstFile) {
+          await get().selectStashFile(firstFile);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load stash diff:', err);
+      set({ error: String(err) });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  selectStashFile: async (filePath) => {
+    set({ selectedStashFile: filePath, selectedStashFileDiff: null });
+    if (!filePath) return;
+
+    const diff = get().stashDiff.find(d => d.newPath === filePath || d.oldPath === filePath);
+    if (diff) {
+      set({ selectedStashFileDiff: diff });
+    }
+  },
+
+  createBranchFromStash: async (index, branchName) => {
+    const { activeTabId, stashes } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true });
+    try {
+      const stash = stashes.find(s => s.index === index);
+      if (!stash) {
+        throw new Error(`Stash at index ${index} not found`);
+      }
+      
+      // 1. Create a branch from stash parent (stash.oid + "^1")
+      await commands.createBranch(activeTabId, branchName, `${stash.oid}^1`);
+      
+      // 2. Checkout that new branch
+      await get().checkoutBranch(branchName);
+      
+      // 3. Pop the stash (applies to workspace and drops)
+      await commands.popStash(activeTabId, index);
+      
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to create branch from stash:', err);
       set({ error: String(err) });
       throw err;
     } finally {

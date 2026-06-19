@@ -111,6 +111,10 @@ pub fn run() {
             // Conflict resolver commands
             commands::conflict_resolver::get_conflict_stages,
             commands::conflict_resolver::save_merged_resolution,
+            // GPG commands
+            commands::gpg::get_commit_signature,
+            // Stash inspector commands
+            commands::stash_inspector::get_stash_diff,
         ])
         .setup(|app| {
             log::info!("Basilico starting...");

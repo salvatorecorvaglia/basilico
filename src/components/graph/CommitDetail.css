@@ -242,3 +242,24 @@
   color: var(--text-tertiary);
   gap: var(--space-2);
 }
+
+.commit-gpg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(46, 160, 67, 0.15);
+  border: 1px solid rgba(46, 160, 67, 0.4);
+  color: #56d364;
+  padding: 1px 6px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: var(--weight-medium);
+  vertical-align: middle;
+  cursor: help;
+  transition: all var(--transition-fast) ease;
+}
+
+.commit-gpg-badge:hover {
+  background: rgba(46, 160, 67, 0.25);
+  border-color: #56d364;
+}

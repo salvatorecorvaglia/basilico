@@ -131,7 +131,7 @@ export interface RepoTab {
   isActive: boolean;
 }
 
-export type ActiveView = 'graph' | 'staging' | 'diff' | 'blame' | 'history' | 'reflog' | 'search' | 'rebase' | 'bisect' | 'compare' | 'conflict-resolver' | 'pull-requests';
+export type ActiveView = 'graph' | 'staging' | 'diff' | 'blame' | 'history' | 'reflog' | 'search' | 'rebase' | 'bisect' | 'compare' | 'conflict-resolver' | 'pull-requests' | 'stash-inspector';
 
 // ── Phase 3: Blame, History, Reflog, Stash Types ──
 
@@ -235,6 +235,14 @@ export interface ConflictStages {
   base: string | null;
   ours: string | null;
   theirs: string | null;
+}
+
+export interface SignatureInfo {
+  signature: string;
+  payload: string;
+  status: string;
+  keyId: string;
+  signer: string;
 }
 
 

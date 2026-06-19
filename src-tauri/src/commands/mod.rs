@@ -18,3 +18,5 @@ pub mod worktree;
 pub mod submodule;
 pub mod settings;
 pub mod conflict_resolver;
+pub mod gpg;
+pub mod stash_inspector;

@@ -1,0 +1,346 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — StashInspector Styles
+   ═══════════════════════════════════════════════════════ */
+
+.stash-inspector {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.stash-inspector-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-tertiary);
+  gap: var(--space-4);
+}
+
+.stash-inspector-empty h3 {
+  margin: 0;
+  font-size: var(--font-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+}
+
+.stash-inspector-empty p {
+  margin: 0;
+  font-size: var(--font-sm);
+}
+
+/* Header */
+.stash-inspector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  gap: var(--space-4);
+}
+
+.stash-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.stash-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-md);
+  font-weight: var(--weight-bold);
+}
+
+.stash-icon-accent {
+  color: var(--accent-primary);
+}
+
+.stash-index {
+  color: var(--text-primary);
+}
+
+.stash-oid {
+  background: var(--bg-hover);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-xs);
+  border: 1px solid var(--border-color);
+}
+
+.stash-msg {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+}
+
+.stash-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.stash-action-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-xs);
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all var(--transition-fast) ease;
+}
+
+.stash-action-btn.btn-secondary {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.stash-action-btn.btn-secondary:hover {
+  background: var(--border-color);
+  border-color: var(--text-tertiary);
+  transform: translateY(-1px);
+}
+
+.stash-action-btn.btn-danger {
+  background: rgba(248, 81, 73, 0.1);
+  color: #ff6b6b;
+  border-color: rgba(248, 81, 73, 0.2);
+}
+
+.stash-action-btn.btn-danger:hover {
+  background: rgba(248, 81, 73, 0.25);
+  border-color: #ff6b6b;
+  transform: translateY(-1px);
+}
+
+/* Split Body Layout */
+.stash-inspector-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-primary);
+}
+
+/* Sidebar List of Files */
+.stash-files-list {
+  width: 280px;
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+}
+
+.stash-list-header {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-primary);
+}
+
+.stash-files-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+}
+
+.stash-files-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-4);
+  color: var(--text-tertiary);
+  text-align: center;
+  gap: var(--space-2);
+}
+
+.stash-files-empty p {
+  margin: 0;
+  font-size: var(--font-xs);
+}
+
+.stash-file-item {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-xs);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition-fast) ease;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.stash-file-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.stash-file-item.active {
+  background: var(--accent-primary);
+  color: #ffffff;
+}
+
+.stash-file-item .chevron {
+  opacity: 0.3;
+  flex-shrink: 0;
+  transition: transform var(--transition-fast) ease;
+}
+
+.stash-file-item.active .chevron {
+  opacity: 0.8;
+  transform: rotate(90deg);
+}
+
+.stash-file-item .file-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.stash-file-item .file-stats {
+  display: flex;
+  gap: var(--space-1);
+  font-size: var(--font-xs);
+  flex-shrink: 0;
+}
+
+.stash-file-item .file-stats .add {
+  color: #2ea043;
+}
+
+.stash-file-item .file-stats .del {
+  color: #f85149;
+}
+
+.stash-file-item.active .file-stats .add,
+.stash-file-item.active .file-stats .del {
+  color: #ffffff;
+}
+
+/* Diff Editor Panel */
+.stash-diff-editor {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.stash-editor-header {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.selected-file-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+}
+
+.layout-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding: var(--space-1-5) var(--space-2-5);
+  font-size: var(--font-xs);
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast) ease;
+}
+
+.layout-toggle-btn:hover,
+.layout-toggle-btn.active {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
+}
+
+.stash-editor-container {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: #1e1e1e; /* Monaco default bg fallback */
+}
+
+.stash-diff-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-tertiary);
+  gap: var(--space-3);
+  background: var(--bg-primary);
+}
+
+.stash-diff-placeholder h3 {
+  margin: 0;
+  font-size: var(--font-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+}
+
+.stash-diff-placeholder p {
+  margin: 0;
+  font-size: var(--font-sm);
+}
+
+/* Spinner Loading */
+.stash-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-tertiary);
+  gap: var(--space-3);
+  background: var(--bg-primary);
+}
+
+.spinner-large {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

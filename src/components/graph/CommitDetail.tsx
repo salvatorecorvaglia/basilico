@@ -15,12 +15,14 @@ import {
   ChevronDown, 
   Folder, 
   File, 
-  Layers 
+  Layers,
+  ShieldCheck
 } from 'lucide-react';
 import { useRepoStore } from '../../store/repo-store';
 import { useUIStore } from '../../store/ui-store';
+import { getCommitSignature } from '../../lib/tauri-commands';
 import { formatDateTime, getStatusIcon, getStatusColor, getFileName, getDirectory } from '../../lib/utils';
-import type { TreeEntryInfo } from '../../lib/git-types';
+import type { TreeEntryInfo, SignatureInfo } from '../../lib/git-types';
 import './CommitDetail.css';
 
 interface TreeNode {
@@ -159,6 +161,7 @@ function TreeViewNode({ node, level, onFileClick }: TreeViewNodeProps) {
 
 export function CommitDetail() {
   const { 
+    activeTabId,
     commits, 
     selectedCommitOid, 
     commitDiff, 
@@ -172,6 +175,7 @@ export function CommitDetail() {
   const { setActiveView, addNotification, openFileViewer } = useUIStore();
   const [copiedOid, setCopiedOid] = useState(false);
   const [activeTab, setActiveTab] = useState<'changes' | 'tree'>('changes');
+  const [sigInfo, setSigInfo] = useState<SignatureInfo | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -186,6 +190,20 @@ export function CommitDetail() {
       loadCommitTree(selectedCommitOid);
     }
   }, [activeTab, selectedCommitOid, loadCommitTree]);
+
+  // Load GPG signature details
+  useEffect(() => {
+    setSigInfo(null);
+    if (!activeTabId || !selectedCommitOid) return;
+
+    getCommitSignature(activeTabId, selectedCommitOid)
+      .then((info) => {
+        setSigInfo(info);
+      })
+      .catch((err) => {
+        console.error('Failed to load commit signature:', err);
+      });
+  }, [activeTabId, selectedCommitOid]);
 
   // Reset tab on commit change
   useEffect(() => {
@@ -239,9 +257,15 @@ export function CommitDetail() {
       <div className="commit-detail-header">
         <div className="commit-detail-message">{commit.message}</div>
         <div className="commit-detail-meta">
-          <div className="commit-detail-author">
+          <div className="commit-detail-author" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
             <strong>{commit.authorName}</strong>
             <span className="text-secondary"> &lt;{commit.authorEmail}&gt;</span>
+            {sigInfo && (
+              <span className="commit-gpg-badge" title={`GPG Key ID: ${sigInfo.keyId}\nSigner: ${sigInfo.signer}`}>
+                <ShieldCheck size={12} />
+                <span>Verified</span>
+              </span>
+            )}
           </div>
           <div className="commit-detail-date text-secondary">
             {formatDateTime(commit.authorDate)}

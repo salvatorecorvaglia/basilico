@@ -39,7 +39,10 @@
     "macOS": {
       "minimumSystemVersion": "10.15",
       "dmg": {
-        "windowSize": [660, 400]
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        }
       }
     },
     "windows": {

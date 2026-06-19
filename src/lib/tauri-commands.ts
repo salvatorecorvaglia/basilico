@@ -24,6 +24,7 @@ import type {
   UserSettings,
   TreeEntryInfo,
   ConflictStages,
+  SignatureInfo,
 } from './git-types';
 
 // ── Repository Commands ──
@@ -308,6 +309,14 @@ export const getConflictStages = (repoPath: string, filePath: string) =>
 
 export const saveMergedResolution = (repoPath: string, filePath: string, mergedContent: string) =>
   invoke<void>('save_merged_resolution', { repoPath, filePath, mergedContent });
+
+// ── Phase 10: GPG & Stash Inspector Commands ──
+
+export const getCommitSignature = (repoPath: string, oidStr: string) =>
+  invoke<SignatureInfo | null>('get_commit_signature', { repoPath, oidStr });
+
+export const getStashDiff = (repoPath: string, stashOid: string) =>
+  invoke<FileDiff[]>('get_stash_diff', { repoPath, stashOid });
 
 
 

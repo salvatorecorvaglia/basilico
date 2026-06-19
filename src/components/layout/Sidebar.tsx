@@ -80,7 +80,6 @@ export function Sidebar() {
     applyStash,
     popStash,
     dropStash,
-    selectCommit,
     selectedCommitOid,
     createTag,
     removeWorktree,
@@ -90,6 +89,7 @@ export function Sidebar() {
     syncSubmodules,
     openRepository,
     startComparison,
+    loadStashDetail,
   } = useRepoStore();
 
   const { addNotification, setActiveView, openCleanModal, activeView } = useUIStore();
@@ -207,9 +207,9 @@ export function Sidebar() {
     }
   };
 
-  const handleStashSelect = async (oid: string) => {
-    await selectCommit(oid);
-    setActiveView('graph');
+  const handleStashSelect = async (index: number) => {
+    await loadStashDetail(index);
+    setActiveView('stash-inspector');
   };
 
   const handleStashContextMenu = (e: React.MouseEvent, index: number) => {
@@ -404,7 +404,7 @@ export function Sidebar() {
               <button 
                 key={stash.index} 
                 className="sidebar-item" 
-                onClick={() => handleStashSelect(stash.oid)}
+                onClick={() => handleStashSelect(stash.index)}
                 onContextMenu={(e) => handleStashContextMenu(e, stash.index)}
                 title={stash.message}
               >

@@ -28,6 +28,7 @@ import { CompareView } from './components/compare/CompareView';
 import { FileViewerModal } from './components/graph/FileViewerModal';
 import { MergeEditor } from './components/staging/MergeEditor';
 import { PullRequestReview } from './components/layout/PullRequestReview';
+import { StashInspector } from './components/staging/StashInspector';
 import { useRepoStore } from './store/repo-store';
 import { useUIStore } from './store/ui-store';
 import './App.css';
@@ -150,6 +151,8 @@ function App() {
                   <MergeEditor />
                 ) : activeView === 'pull-requests' ? (
                   <PullRequestReview />
+                ) : activeView === 'stash-inspector' ? (
+                  <StashInspector />
                 ) : (
                   <div className="view-fallback">
                     <h3>{activeView.toUpperCase()} View</h3>
