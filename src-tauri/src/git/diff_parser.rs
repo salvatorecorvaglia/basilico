@@ -77,6 +77,20 @@ pub fn get_commit_diff(path: &str, oid_str: &str) -> Result<Vec<FileDiff>, AppEr
     parse_diff(&diff)
 }
 
+/// Get the diff comparing two revisions.
+pub fn get_compare_diff(path: &str, base: &str, target: &str) -> Result<Vec<FileDiff>, AppError> {
+    let repo = Repository::open(path)?;
+    let base_obj = repo.revparse_single(base)?;
+    let target_obj = repo.revparse_single(target)?;
+    
+    let base_tree = base_obj.peel_to_tree()?;
+    let target_tree = target_obj.peel_to_tree()?;
+
+    let mut opts = DiffOptions::new();
+    let diff = repo.diff_tree_to_tree(Some(&base_tree), Some(&target_tree), Some(&mut opts))?;
+    parse_diff(&diff)
+}
+
 /// Get diff for a single file (staged or unstaged).
 pub fn get_file_diff(path: &str, file_path: &str, is_staged: bool) -> Result<FileDiff, AppError> {
     let repo = Repository::open(path)?;
@@ -105,7 +119,7 @@ pub fn get_file_diff(path: &str, file_path: &str, is_staged: bool) -> Result<Fil
 }
 
 /// Parse a git2::Diff into structured FileDiff data.
-fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
+pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
     let mut files: Vec<FileDiff> = Vec::new();
 
     let num_deltas = diff.deltas().len();

@@ -1,5 +1,6 @@
 use git2::{Repository, Signature};
 use std::process::Command;
+use serde::Serialize;
 
 #[tauri::command]
 pub async fn create_commit(
@@ -154,4 +155,54 @@ pub async fn reset_to_commit(
     repo.reset(commit.as_object(), reset_type, None).map_err(|e| e.to_string())?;
     Ok(())
 }
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TreeEntryInfo {
+    pub path: String,
+    pub name: String,
+    pub is_dir: bool,
+    pub size: Option<u64>,
+}
+
+#[tauri::command]
+pub async fn get_commit_tree(path: String, oid: String) -> Result<Vec<TreeEntryInfo>, String> {
+    let repo = Repository::open(&path).map_err(|e| e.to_string())?;
+    let object = repo.revparse_single(&oid).map_err(|e| e.to_string())?;
+    let commit = object.as_commit().ok_or_else(|| "Object is not a commit".to_string())?;
+    let tree = commit.tree().map_err(|e| e.to_string())?;
+
+    let mut entries = Vec::new();
+    tree.walk(git2::TreeWalkMode::PreOrder, |root, entry| {
+        let name = entry.name().unwrap_or("").to_string();
+        let rel_path = if root.is_empty() {
+            name.clone()
+        } else {
+            format!("{}{}", root, name)
+        };
+
+        let is_dir = entry.kind() == Some(git2::ObjectType::Tree);
+        let size = if !is_dir {
+            if let Ok(obj) = entry.to_object(&repo) {
+                obj.as_blob().map(|b| b.size() as u64)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        entries.push(TreeEntryInfo {
+            path: rel_path,
+            name,
+            is_dir,
+            size,
+        });
+
+        git2::TreeWalkResult::Ok
+    }).map_err(|e| e.to_string())?;
+
+    Ok(entries)
+}
+
 

@@ -6,7 +6,8 @@ import {
   Tag, 
   RotateCcw, 
   Scissors, 
-  FolderSync 
+  FolderSync,
+  ArrowLeftRight
 } from 'lucide-react';
 import { useRepoStore } from '../../store/repo-store';
 import { useUIStore } from '../../store/ui-store';
@@ -48,10 +49,11 @@ export function CommitList() {
     createBranch,
     createTag,
     cherryPickCommit,
-    revertCommit
+    revertCommit,
+    startComparison
   } = useRepoStore();
 
-  const { openResetModal, addNotification } = useUIStore();
+  const { openResetModal, addNotification, setActiveView } = useUIStore();
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -317,6 +319,32 @@ export function CommitList() {
             <FolderSync size={12} />
             <span>Reset current branch to this commit...</span>
           </button>
+
+          <div className="context-menu-divider" />
+
+          <button 
+            className="context-menu-item" 
+            onClick={() => {
+              startComparison(contextMenu.oid, 'HEAD').then(() => setActiveView('compare'));
+              setContextMenu(null);
+            }}
+          >
+            <ArrowLeftRight size={12} />
+            <span>Compare with HEAD</span>
+          </button>
+
+          {selectedCommitOid && selectedCommitOid !== contextMenu.oid && (
+            <button 
+              className="context-menu-item" 
+              onClick={() => {
+                startComparison(selectedCommitOid, contextMenu.oid).then(() => setActiveView('compare'));
+                setContextMenu(null);
+              }}
+            >
+              <ArrowLeftRight size={12} />
+              <span>Compare with Selected Commit</span>
+            </button>
+          )}
 
           <div className="context-menu-divider" />
 

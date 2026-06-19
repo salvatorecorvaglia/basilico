@@ -36,6 +36,11 @@ interface UIState {
   // Clean modal (Phase 6)
   cleanModalOpen: boolean;
 
+  // File Viewer (Phase 7)
+  fileViewerOpen: boolean;
+  fileViewerPath: string | null;
+  fileViewerOid: string | null;
+
   // Notifications
   notifications: Notification[];
 
@@ -51,6 +56,8 @@ interface UIState {
   closeResetModal: () => void;
   openCleanModal: () => void;
   closeCleanModal: () => void;
+  openFileViewer: (filePath: string, oid: string) => void;
+  closeFileViewer: () => void;
   addNotification: (notification: Omit<Notification, 'id'>) => void;
   removeNotification: (id: string) => void;
 }
@@ -66,6 +73,9 @@ export const useUIStore = create<UIState>((set) => ({
   resetModalOpen: false,
   resetCommitOid: null,
   cleanModalOpen: false,
+  fileViewerOpen: false,
+  fileViewerPath: null,
+  fileViewerOid: null,
   notifications: [],
 
   toggleSidebar: () =>
@@ -100,6 +110,12 @@ export const useUIStore = create<UIState>((set) => ({
 
   closeCleanModal: () =>
     set({ cleanModalOpen: false }),
+
+  openFileViewer: (filePath: string, oid: string) =>
+    set({ fileViewerOpen: true, fileViewerPath: filePath, fileViewerOid: oid }),
+
+  closeFileViewer: () =>
+    set({ fileViewerOpen: false, fileViewerPath: null, fileViewerOid: null }),
 
 
   addNotification: (notification) => {

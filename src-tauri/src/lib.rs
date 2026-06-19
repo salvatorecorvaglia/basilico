@@ -34,6 +34,8 @@ pub fn run() {
             commands::diff::get_file_diff,
             commands::diff::get_file_content_pair,
             commands::diff::get_file_content_at_revision,
+            commands::diff::get_compare_diff,
+            commands::diff::get_file_content_pair_revisions,
             // Branch commands
             commands::branch::list_branches,
             commands::branch::create_branch,
@@ -69,6 +71,7 @@ pub fn run() {
             commands::commit::revert_commit,
             commands::commit::revert_abort,
             commands::commit::reset_to_commit,
+            commands::commit::get_commit_tree,
             // Merge commands
             commands::merge::merge_branch,
             commands::merge::abort_merge,

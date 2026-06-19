@@ -24,6 +24,8 @@ import { BisectWizard } from './components/bisect/BisectWizard';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { ResetModal } from './components/graph/ResetModal';
 import { CleanModal } from './components/clean/CleanModal';
+import { CompareView } from './components/compare/CompareView';
+import { FileViewerModal } from './components/graph/FileViewerModal';
 import { useRepoStore } from './store/repo-store';
 import { useUIStore } from './store/ui-store';
 import './App.css';
@@ -71,6 +73,9 @@ function App() {
 
       {/* Clean Modal */}
       <CleanModal />
+
+      {/* File Viewer Modal */}
+      <FileViewerModal />
 
       {hasOpenRepo ? (
         <>
@@ -137,6 +142,8 @@ function App() {
                   <RebaseEditor />
                 ) : activeView === 'bisect' ? (
                   <BisectWizard />
+                ) : activeView === 'compare' ? (
+                  <CompareView />
                 ) : (
                   <div className="view-fallback">
                     <h3>{activeView.toUpperCase()} View</h3>

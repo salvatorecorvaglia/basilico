@@ -131,7 +131,7 @@ export interface RepoTab {
   isActive: boolean;
 }
 
-export type ActiveView = 'graph' | 'staging' | 'diff' | 'blame' | 'history' | 'reflog' | 'search' | 'rebase' | 'bisect';
+export type ActiveView = 'graph' | 'staging' | 'diff' | 'blame' | 'history' | 'reflog' | 'search' | 'rebase' | 'bisect' | 'compare';
 
 // ── Phase 3: Blame, History, Reflog, Stash Types ──
 
@@ -223,4 +223,12 @@ export interface UserSettings {
   gitAuthorEmail: string | null;
   keyboardShortcuts: Record<string, string>;
 }
+
+export interface TreeEntryInfo {
+  path: string;
+  name: string;
+  isDir: boolean;
+  size: number | null;
+}
+
 

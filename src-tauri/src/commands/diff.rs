@@ -134,3 +134,50 @@ pub async fn get_file_content_at_revision(
 
     Ok(String::from_utf8_lossy(blob.content()).to_string())
 }
+
+#[tauri::command]
+pub async fn get_compare_diff(
+    path: String,
+    base: String,
+    target: String,
+) -> Result<Vec<diff_parser::FileDiff>, String> {
+    diff_parser::get_compare_diff(&path, &base, &target).map_err(|e| e.message)
+}
+
+#[tauri::command]
+pub async fn get_file_content_pair_revisions(
+    path: String,
+    file_path: String,
+    base: String,
+    target: String,
+) -> Result<FileContentPair, String> {
+    let repo = git2::Repository::open(&path).map_err(|e| e.to_string())?;
+    
+    let mut original = String::new();
+    let mut modified = String::new();
+    
+    // Resolve base revision spec
+    if let Ok(base_obj) = repo.revparse_single(&base) {
+        if let Ok(tree) = base_obj.peel_to_tree() {
+            if let Ok(entry) = tree.get_path(std::path::Path::new(&file_path)) {
+                if let Ok(blob) = repo.find_blob(entry.id()) {
+                    original = String::from_utf8_lossy(blob.content()).to_string();
+                }
+            }
+        }
+    }
+    
+    // Resolve target revision spec
+    if let Ok(target_obj) = repo.revparse_single(&target) {
+        if let Ok(tree) = target_obj.peel_to_tree() {
+            if let Ok(entry) = tree.get_path(std::path::Path::new(&file_path)) {
+                if let Ok(blob) = repo.find_blob(entry.id()) {
+                    modified = String::from_utf8_lossy(blob.content()).to_string();
+                }
+            }
+        }
+    }
+    
+    Ok(FileContentPair { original, modified })
+}
+

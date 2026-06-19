@@ -24,6 +24,7 @@ import type {
   WorktreeInfo,
   SubmoduleInfo,
   UserSettings,
+  TreeEntryInfo,
 } from '../lib/git-types';
 import * as commands from '../lib/tauri-commands';
 
@@ -54,6 +55,14 @@ interface RepoState {
   worktrees: WorktreeInfo[];
   submodules: SubmoduleInfo[];
   settings: UserSettings | null;
+
+  // Phase 7 State
+  commitTree: TreeEntryInfo[];
+  compareDiff: FileDiff[];
+  compareBase: string | null;
+  compareTarget: string | null;
+  selectedCompareFile: string | null;
+  compareFileDiff: FileDiff | null;
 
   // Staging area & local diffs
   selectedFilePath: string | null;
@@ -153,6 +162,11 @@ interface RepoState {
   revertAbort: () => Promise<void>;
   resetToCommit: (oid: string, mode: 'soft' | 'mixed' | 'hard') => Promise<void>;
   cleanRepository: (dryRun: boolean, cleanDirs: boolean, includeIgnored: boolean) => Promise<string[]>;
+
+  // Phase 7 Actions
+  loadCommitTree: (oid: string) => Promise<void>;
+  startComparison: (base: string, target: string) => Promise<void>;
+  selectCompareFile: (filePath: string | null) => Promise<void>;
 }
 
 export const useRepoStore = create<RepoState>((set, get) => ({
@@ -179,6 +193,12 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   worktrees: [],
   submodules: [],
   settings: null,
+  commitTree: [],
+  compareDiff: [],
+  compareBase: null,
+  compareTarget: null,
+  selectedCompareFile: null,
+  compareFileDiff: null,
   selectedFilePath: null,
   selectedFileIsStaged: false,
   localDiff: null,
@@ -1220,6 +1240,69 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       throw err;
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  // ── Phase 7 Actions ──
+
+  loadCommitTree: async (oid: string) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+    set({ isLoading: true, commitTree: [] });
+    try {
+      const tree = await commands.getCommitTree(activeTabId, oid);
+      set({ commitTree: tree });
+    } catch (err) {
+      console.error('Failed to load commit tree:', err);
+      set({ error: String(err) });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  startComparison: async (base: string, target: string) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+    set({ 
+      isLoading: true, 
+      compareBase: base, 
+      compareTarget: target, 
+      compareDiff: [], 
+      selectedCompareFile: null,
+      compareFileDiff: null 
+    });
+    try {
+      const diffs = await commands.getCompareDiff(activeTabId, base, target);
+      set({ compareDiff: diffs });
+      
+      // Auto select first file if available
+      if (diffs.length > 0) {
+        const firstFile = diffs[0].newPath || diffs[0].oldPath;
+        if (firstFile) {
+          await get().selectCompareFile(firstFile);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load comparison diff:', err);
+      set({ error: String(err) });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  selectCompareFile: async (filePath: string | null) => {
+    set({ selectedCompareFile: filePath, compareFileDiff: null });
+    if (!filePath) return;
+    const { activeTabId, compareBase, compareTarget } = get();
+    if (!activeTabId || !compareBase || !compareTarget) return;
+
+    try {
+      const diff = get().compareDiff.find(d => d.newPath === filePath || d.oldPath === filePath);
+      if (diff) {
+        set({ compareFileDiff: diff });
+      }
+    } catch (err) {
+      console.error('Failed to select compare file:', err);
     }
   },
 }));

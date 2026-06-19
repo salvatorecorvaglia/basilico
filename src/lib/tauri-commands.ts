@@ -22,6 +22,7 @@ import type {
   WorktreeInfo,
   SubmoduleInfo,
   UserSettings,
+  TreeEntryInfo,
 } from './git-types';
 
 // ── Repository Commands ──
@@ -287,5 +288,17 @@ export const resetToCommit = (path: string, oid: string, mode: 'soft' | 'mixed' 
 
 export const cleanRepository = (path: string, dryRun: boolean, cleanDirs: boolean, includeIgnored: boolean) =>
   invoke<string[]>('clean_repository', { path, dryRun, cleanDirs, includeIgnored });
+
+// ── Phase 7: Compare & Commit Tree Viewers Commands ──
+
+export const getCommitTree = (path: string, oid: string) =>
+  invoke<TreeEntryInfo[]>('get_commit_tree', { path, oid });
+
+export const getCompareDiff = (path: string, base: string, target: string) =>
+  invoke<FileDiff[]>('get_compare_diff', { path, base, target });
+
+export const getFileContentPairRevisions = (path: string, filePath: string, base: string, target: string) =>
+  invoke<FileContentPair>('get_file_content_pair_revisions', { path, filePath, base, target });
+
 
 

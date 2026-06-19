@@ -25,6 +25,7 @@ import {
   FolderOpen,
   Scissors,
   Download,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { useRepoStore } from '../../store/repo-store';
 import { useUIStore } from '../../store/ui-store';
@@ -87,6 +88,7 @@ export function Sidebar() {
     updateSubmodules,
     syncSubmodules,
     openRepository,
+    startComparison,
   } = useRepoStore();
 
   const { addNotification, setActiveView, openCleanModal } = useUIStore();
@@ -534,6 +536,18 @@ export function Sidebar() {
               >
                 <CircleDot size={12} />
                 <span>Checkout Branch</span>
+              </button>
+              <button 
+                className="context-menu-item" 
+                onClick={() => { 
+                  const activeBranch = branches.find(b => b.isHead)?.name || 'HEAD';
+                  startComparison(contextMenu.targetName, activeBranch);
+                  setActiveView('compare');
+                  setContextMenu(null);
+                }}
+              >
+                <ArrowLeftRight size={12} />
+                <span>Compare with Current Branch...</span>
               </button>
               {!contextMenu.isRemote && (
                 <>
