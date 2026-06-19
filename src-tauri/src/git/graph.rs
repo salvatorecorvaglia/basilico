@@ -82,10 +82,7 @@ pub fn build_graph(path: &str, max_commits: usize) -> Result<Vec<GraphCommit>, A
         let commit = repo.find_commit(oid)?;
 
         let parent_oids: Vec<String> = commit.parent_ids().map(|p| p.to_string()).collect();
-        let refs = ref_map
-            .get(&oid.to_string())
-            .cloned()
-            .unwrap_or_default();
+        let refs = ref_map.get(&oid.to_string()).cloned().unwrap_or_default();
 
         let author = commit.author();
         let committer = commit.committer();
@@ -125,12 +122,10 @@ fn build_ref_map(repo: &Repository) -> Result<HashMap<String, Vec<RefLabel>>, Ap
     // HEAD
     if let Ok(head) = repo.head() {
         if let Some(oid) = head.target() {
-            map.entry(oid.to_string())
-                .or_default()
-                .push(RefLabel {
-                    name: "HEAD".to_string(),
-                    kind: RefKind::Head,
-                });
+            map.entry(oid.to_string()).or_default().push(RefLabel {
+                name: "HEAD".to_string(),
+                kind: RefKind::Head,
+            });
         }
     }
 
@@ -161,12 +156,10 @@ fn build_ref_map(repo: &Repository) -> Result<HashMap<String, Vec<RefLabel>>, Ap
             Err(_) => oid.to_string(),
         };
 
-        map.entry(target_oid)
-            .or_default()
-            .push(RefLabel {
-                name,
-                kind: RefKind::Tag,
-            });
+        map.entry(target_oid).or_default().push(RefLabel {
+            name,
+            kind: RefKind::Tag,
+        });
 
         true
     })?;

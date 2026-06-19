@@ -1,11 +1,11 @@
 /* ═══════════════════════════════════════════════════════
-   Basilico — Bisect Commands
-   Command handlers for git bisect operations
-   ═══════════════════════════════════════════════════════ */
+Basilico — Bisect Commands
+Command handlers for git bisect operations
+═══════════════════════════════════════════════════════ */
 
+use git2::Repository;
 use serde::Serialize;
 use std::process::Command;
-use git2::Repository;
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -22,10 +22,10 @@ fn run_git_cmd(repo_path: &str, args: &[&str]) -> Result<String, String> {
         .args(args)
         .output()
         .map_err(|e| format!("Failed to execute git command: {}", e))?;
-        
+
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    
+
     if output.status.success() {
         Ok(if stdout.is_empty() { stderr } else { stdout })
     } else {
@@ -35,23 +35,26 @@ fn run_git_cmd(repo_path: &str, args: &[&str]) -> Result<String, String> {
 
 fn get_bisect_state(repo_path: &str, last_output: String) -> BisectState {
     let repo = Repository::open(repo_path).ok();
-    let is_bisecting = repo.map(|r| r.state() == git2::RepositoryState::Bisect).unwrap_or(false);
-    
+    let is_bisecting = repo
+        .map(|r| r.state() == git2::RepositoryState::Bisect)
+        .unwrap_or(false);
+
     let current_oid = if is_bisecting {
         run_git_cmd(repo_path, &["rev-parse", "HEAD"]).ok()
     } else {
         None
     };
-    
+
     let steps_remaining = if last_output.contains("roughly") {
-        last_output.split("roughly ")
+        last_output
+            .split("roughly ")
             .nth(1)
             .and_then(|s| s.split(" step").next())
             .and_then(|s| s.parse::<usize>().ok())
     } else {
         None
     };
-    
+
     BisectState {
         is_bisecting,
         message: last_output,
@@ -68,7 +71,7 @@ pub async fn bisect_start(
 ) -> Result<BisectState, String> {
     // First run reset to clear any stale bisect state
     let _ = run_git_cmd(&repo_path, &["bisect", "reset"]);
-    
+
     let output = run_git_cmd(&repo_path, &["bisect", "start", &bad, &good])?;
     Ok(get_bisect_state(&repo_path, output))
 }

@@ -38,9 +38,10 @@ pub async fn save_stash(
     let mut repo = Repository::open(&path).map_err(|e| e.to_string())?;
 
     // Find default signature
-    let sig = repo.signature().or_else(|_| {
-        git2::Signature::now("Basilico", "basilico@example.com")
-    }).map_err(|e| e.to_string())?;
+    let sig = repo
+        .signature()
+        .or_else(|_| git2::Signature::now("Basilico", "basilico@example.com"))
+        .map_err(|e| e.to_string())?;
 
     let mut flags = StashFlags::DEFAULT;
     if include_untracked {

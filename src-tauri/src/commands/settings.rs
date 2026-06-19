@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════
-   Basilico — Settings Commands
-   User preferences, SSH key management
-   ═══════════════════════════════════════════════════════ */
+Basilico — Settings Commands
+User preferences, SSH key management
+═══════════════════════════════════════════════════════ */
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -23,7 +23,10 @@ pub struct UserSettings {
 impl Default for UserSettings {
     fn default() -> Self {
         let mut shortcuts = HashMap::new();
-        shortcuts.insert("commandPalette".to_string(), "CmdOrCtrl+Shift+P".to_string());
+        shortcuts.insert(
+            "commandPalette".to_string(),
+            "CmdOrCtrl+Shift+P".to_string(),
+        );
         shortcuts.insert("openSettings".to_string(), "CmdOrCtrl+,".to_string());
         shortcuts.insert("search".to_string(), "CmdOrCtrl+F".to_string());
         shortcuts.insert("staging".to_string(), "CmdOrCtrl+Shift+S".to_string());
@@ -56,11 +59,10 @@ pub async fn get_settings(app: tauri::AppHandle) -> Result<UserSettings, String>
         return Ok(UserSettings::default());
     }
 
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read settings: {}", e))?;
+    let content =
+        fs::read_to_string(&path).map_err(|e| format!("Failed to read settings: {}", e))?;
 
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse settings: {}", e))
+    serde_json::from_str(&content).map_err(|e| format!("Failed to parse settings: {}", e))
 }
 
 #[tauri::command]
@@ -76,22 +78,19 @@ pub async fn save_settings(app: tauri::AppHandle, settings: UserSettings) -> Res
     let content = serde_json::to_string_pretty(&settings)
         .map_err(|e| format!("Failed to serialize settings: {}", e))?;
 
-    fs::write(&path, content)
-        .map_err(|e| format!("Failed to write settings: {}", e))?;
+    fs::write(&path, content).map_err(|e| format!("Failed to write settings: {}", e))?;
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn generate_ssh_key(comment: String) -> Result<String, String> {
-    let home = dirs::home_dir()
-        .ok_or_else(|| "Could not determine home directory".to_string())?;
+    let home = dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
     let ssh_dir = home.join(".ssh");
     let key_path = ssh_dir.join("id_basilico");
 
     // Create .ssh directory if it doesn't exist
-    fs::create_dir_all(&ssh_dir)
-        .map_err(|e| format!("Failed to create .ssh directory: {}", e))?;
+    fs::create_dir_all(&ssh_dir).map_err(|e| format!("Failed to create .ssh directory: {}", e))?;
 
     // Check if key already exists
     if key_path.exists() {
@@ -101,14 +100,20 @@ pub async fn generate_ssh_key(comment: String) -> Result<String, String> {
             .map_err(|e| format!("Key already exists but failed to read public key: {}", e));
     }
 
-    let key_path_str = key_path.to_str().ok_or_else(|| "Invalid UTF-8 in key path".to_string())?;
+    let key_path_str = key_path
+        .to_str()
+        .ok_or_else(|| "Invalid UTF-8 in key path".to_string())?;
 
     let output = crate::commands::new_command("ssh-keygen")
         .args([
-            "-t", "ed25519",
-            "-C", &comment,
-            "-f", key_path_str,
-            "-N", "",
+            "-t",
+            "ed25519",
+            "-C",
+            &comment,
+            "-f",
+            key_path_str,
+            "-N",
+            "",
         ])
         .output()
         .map_err(|e| format!("Failed to run ssh-keygen: {}", e))?;
@@ -125,21 +130,14 @@ pub async fn generate_ssh_key(comment: String) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn list_ssh_keys() -> Result<Vec<String>, String> {
-    let home = dirs::home_dir()
-        .ok_or_else(|| "Could not determine home directory".to_string())?;
+    let home = dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
     let ssh_dir = home.join(".ssh");
 
     if !ssh_dir.exists() {
         return Ok(Vec::new());
     }
 
-    let known_key_names = [
-        "id_rsa",
-        "id_ed25519",
-        "id_ecdsa",
-        "id_dsa",
-        "id_basilico",
-    ];
+    let known_key_names = ["id_rsa", "id_ed25519", "id_ecdsa", "id_dsa", "id_basilico"];
 
     let mut found_keys = Vec::new();
 

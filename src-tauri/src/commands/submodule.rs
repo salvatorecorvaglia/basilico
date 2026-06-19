@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════
-   Basilico — Submodule Commands
-   Command handlers for git submodule operations
-   ═══════════════════════════════════════════════════════ */
+Basilico — Submodule Commands
+Command handlers for git submodule operations
+═══════════════════════════════════════════════════════ */
 
 use git2::Repository;
 use serde::Serialize;

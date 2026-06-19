@@ -8,21 +8,18 @@ pub async fn open_repo(
     state: tauri::State<'_, AppState>,
 ) -> Result<repository::RepoInfo, String> {
     let info = repository::open_repo(&path).map_err(|e| e.message)?;
-    
+
     // Only register and start watcher if it's not already tracked
     if !state.has_repo(&info.path) {
         state.add_repo(info.path.clone());
         crate::watcher::start_watching(app, info.path.clone());
     }
-    
+
     Ok(info)
 }
 
 #[tauri::command]
-pub async fn close_repo(
-    path: String,
-    state: tauri::State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn close_repo(path: String, state: tauri::State<'_, AppState>) -> Result<(), String> {
     state.remove_repo(&path);
     Ok(())
 }
@@ -46,30 +43,30 @@ pub async fn clean_repository(
 ) -> Result<Vec<String>, String> {
     use std::process::Command;
     let mut args = vec!["clean"];
-    
+
     if dry_run {
         args.push("-n");
     } else {
         args.push("-f");
     }
-    
+
     if clean_dirs {
         args.push("-d");
     }
-    
+
     if include_ignored {
         args.push("-x");
     }
-    
+
     let output = crate::commands::new_command("git")
         .current_dir(&path)
         .args(&args)
         .output()
         .map_err(|e| format!("Failed to run git clean: {}", e))?;
-        
+
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut cleaned_paths = Vec::new();
-    
+
     for line in stdout.lines() {
         if let Some(stripped) = line.strip_prefix("Would remove ") {
             cleaned_paths.push(stripped.trim().to_string());
@@ -77,7 +74,7 @@ pub async fn clean_repository(
             cleaned_paths.push(stripped.trim().to_string());
         }
     }
-    
+
     if output.status.success() {
         Ok(cleaned_paths)
     } else {

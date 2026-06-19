@@ -336,13 +336,9 @@ pub fn list_tags(path: &str) -> Result<Vec<TagInfo>, AppError> {
         let (message, tagger, is_annotated) = match repo.find_tag(oid) {
             Ok(tag) => {
                 let msg = tag.message().map(String::from);
-                let tgr = tag.tagger().map(|s| {
-                    format!(
-                        "{} <{}>",
-                        s.name().unwrap_or(""),
-                        s.email().unwrap_or("")
-                    )
-                });
+                let tgr = tag
+                    .tagger()
+                    .map(|s| format!("{} <{}>", s.name().unwrap_or(""), s.email().unwrap_or("")));
                 (msg, tgr, true)
             }
             Err(_) => (None, None, false),

@@ -1,10 +1,10 @@
 /* ═══════════════════════════════════════════════════════
-   Basilico — Rebase Commands
-   Command handlers for git rebase operations
-   ═══════════════════════════════════════════════════════ */
+Basilico — Rebase Commands
+Command handlers for git rebase operations
+═══════════════════════════════════════════════════════ */
 
+use git2::{RebaseOptions, Repository, Signature};
 use serde::{Deserialize, Serialize};
-use git2::{Repository, RebaseOptions, Signature};
 use std::fs;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -24,27 +24,34 @@ pub struct RebaseStatus {
 }
 
 #[tauri::command]
-pub async fn rebase_init(repo_path: String, upstream: String) -> Result<Vec<RebaseTodoItem>, String> {
+pub async fn rebase_init(
+    repo_path: String,
+    upstream: String,
+) -> Result<Vec<RebaseTodoItem>, String> {
     let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
-    
+
     let mut rebase = if let Ok(r) = repo.open_rebase(None) {
         r
     } else {
         let upstream_obj = repo.revparse_single(&upstream).map_err(|e| e.to_string())?;
-        let upstream_commit = repo.find_annotated_commit(upstream_obj.id()).map_err(|e| e.to_string())?;
-        
+        let upstream_commit = repo
+            .find_annotated_commit(upstream_obj.id())
+            .map_err(|e| e.to_string())?;
+
         let mut opts = RebaseOptions::new();
-        repo.rebase(None, Some(&upstream_commit), None, Some(&mut opts)).map_err(|e| e.to_string())?
+        repo.rebase(None, Some(&upstream_commit), None, Some(&mut opts))
+            .map_err(|e| e.to_string())?
     };
-    
+
     let mut items = Vec::new();
     while let Some(op_result) = rebase.next() {
         if let Ok(op) = op_result {
             let oid = op.id();
-            let summary = repo.find_commit(oid)
+            let summary = repo
+                .find_commit(oid)
                 .map(|c| c.summary().unwrap_or("").to_string())
                 .unwrap_or_default();
-            
+
             let action = match op.kind().unwrap_or(git2::RebaseOperationType::Pick) {
                 git2::RebaseOperationType::Pick => "pick",
                 git2::RebaseOperationType::Reword => "reword",
@@ -52,8 +59,9 @@ pub async fn rebase_init(repo_path: String, upstream: String) -> Result<Vec<Reba
                 git2::RebaseOperationType::Squash => "squash",
                 git2::RebaseOperationType::Fixup => "fixup",
                 git2::RebaseOperationType::Exec => "exec",
-            }.to_string();
-            
+            }
+            .to_string();
+
             items.push(RebaseTodoItem {
                 action,
                 oid: oid.to_string(),
@@ -61,21 +69,28 @@ pub async fn rebase_init(repo_path: String, upstream: String) -> Result<Vec<Reba
             });
         }
     }
-    
+
     Ok(items)
 }
 
 #[tauri::command]
-pub async fn rebase_write_todo(repo_path: String, items: Vec<RebaseTodoItem>) -> Result<(), String> {
+pub async fn rebase_write_todo(
+    repo_path: String,
+    items: Vec<RebaseTodoItem>,
+) -> Result<(), String> {
     let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
     let todo_path = repo.path().join("rebase-merge/git-rebase-todo");
-    
+
     let mut content = String::new();
     for item in items {
-        let short_oid = if item.oid.len() >= 7 { &item.oid[0..7] } else { &item.oid };
+        let short_oid = if item.oid.len() >= 7 {
+            &item.oid[0..7]
+        } else {
+            &item.oid
+        };
         content.push_str(&format!("{} {} {}\n", item.action, short_oid, item.summary));
     }
-    
+
     fs::write(todo_path, content).map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -84,10 +99,10 @@ pub async fn rebase_write_todo(repo_path: String, items: Vec<RebaseTodoItem>) ->
 pub async fn rebase_step(repo_path: String, action: String) -> Result<RebaseStatus, String> {
     let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
     let mut rebase = repo.open_rebase(None).map_err(|e| e.to_string())?;
-    
-    let signature = repo.signature().unwrap_or_else(|_| {
-        Signature::now("Basilico User", "user@basilico.io").unwrap()
-    });
+
+    let signature = repo
+        .signature()
+        .unwrap_or_else(|_| Signature::now("Basilico User", "user@basilico.io").unwrap());
 
     if action == "abort" {
         rebase.abort().map_err(|e| e.to_string())?;
@@ -132,7 +147,7 @@ pub async fn rebase_step(repo_path: String, action: String) -> Result<RebaseStat
                         status: "stepping".to_string(),
                         current_oid: Some(oid.to_string()),
                         message: Some(format!("Applied commit {} ({})", oid, e)),
-                    }
+                    },
                 }
             }
         }

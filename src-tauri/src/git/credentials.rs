@@ -29,11 +29,7 @@ pub fn make_callbacks<'a>() -> RemoteCallbacks<'a> {
         if allowed_types.contains(CredentialType::USER_PASS_PLAINTEXT) {
             // For HTTPS — use credential helper or prompt
             if let Ok(config) = git2::Config::open_default() {
-                if let Ok(cred) = Cred::credential_helper(
-                    &config,
-                    _url,
-                    username_from_url,
-                ) {
+                if let Ok(cred) = Cred::credential_helper(&config, _url, username_from_url) {
                     return Ok(cred);
                 }
             }

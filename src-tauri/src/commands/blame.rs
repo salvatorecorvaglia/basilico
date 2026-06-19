@@ -28,10 +28,15 @@ pub async fn get_file_blame(
         let obj = repo.revparse_single(oid_str).map_err(|e| e.to_string())?;
         let commit = obj.as_commit().ok_or_else(|| "Not a commit".to_string())?;
         let tree = commit.tree().map_err(|e| e.to_string())?;
-        let entry = tree.get_path(Path::new(&file_path)).map_err(|e| e.to_string())?;
+        let entry = tree
+            .get_path(Path::new(&file_path))
+            .map_err(|e| e.to_string())?;
         let object = entry.to_object(&repo).map_err(|e| e.to_string())?;
         let blob = object.as_blob().ok_or_else(|| "Not a blob".to_string())?;
-        (String::from_utf8_lossy(blob.content()).to_string(), Some(commit.id()))
+        (
+            String::from_utf8_lossy(blob.content()).to_string(),
+            Some(commit.id()),
+        )
     } else {
         // Read from workdir
         let text = std::fs::read_to_string(Path::new(&path).join(&file_path))
@@ -46,7 +51,8 @@ pub async fn get_file_blame(
     }
 
     // 3. Compute blame
-    let blame = repo.blame_file(Path::new(&file_path), Some(&mut blame_opts))
+    let blame = repo
+        .blame_file(Path::new(&file_path), Some(&mut blame_opts))
         .map_err(|e| e.to_string())?;
 
     // 4. Align lines with hunks
@@ -66,21 +72,22 @@ pub async fn get_file_blame(
             };
 
             // Fetch commit details (caching to avoid disk requests)
-            let (author_name, author_email, summary) = if let Some(cached) = commit_cache.get(&final_oid) {
-                cached
-            } else {
-                let (name, email, summ) = if let Ok(commit) = repo.find_commit(final_oid) {
-                    let sig = commit.author();
-                    let name = sig.name().unwrap_or("Unknown").to_string();
-                    let email = sig.email().unwrap_or("").to_string();
-                    let summary = commit.summary().unwrap_or("").to_string();
-                    (name, email, summary)
+            let (author_name, author_email, summary) =
+                if let Some(cached) = commit_cache.get(&final_oid) {
+                    cached
                 } else {
-                    ("Unknown".to_string(), "".to_string(), "".to_string())
+                    let (name, email, summ) = if let Ok(commit) = repo.find_commit(final_oid) {
+                        let sig = commit.author();
+                        let name = sig.name().unwrap_or("Unknown").to_string();
+                        let email = sig.email().unwrap_or("").to_string();
+                        let summary = commit.summary().unwrap_or("").to_string();
+                        (name, email, summary)
+                    } else {
+                        ("Unknown".to_string(), "".to_string(), "".to_string())
+                    };
+                    commit_cache.insert(final_oid, (name.clone(), email.clone(), summ.clone()));
+                    commit_cache.get(&final_oid).unwrap()
                 };
-                commit_cache.insert(final_oid, (name.clone(), email.clone(), summ.clone()));
-                commit_cache.get(&final_oid).unwrap()
-            };
 
             blame_lines.push(BlameLine {
                 line_no,

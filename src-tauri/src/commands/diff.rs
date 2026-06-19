@@ -113,19 +113,27 @@ pub async fn get_file_content_at_revision(
     revision: String,
 ) -> Result<String, String> {
     let repo = git2::Repository::open(&path).map_err(|e| e.to_string())?;
-    
+
     // Resolve revision spec (like commit SHA or SHA^)
     let obj = repo.revparse_single(&revision).map_err(|e| e.to_string())?;
-    
+
     let blob = if let Some(commit) = obj.as_commit() {
         let tree = commit.tree().map_err(|e| e.to_string())?;
-        let entry = tree.get_path(std::path::Path::new(&file_path)).map_err(|e| e.to_string())?;
+        let entry = tree
+            .get_path(std::path::Path::new(&file_path))
+            .map_err(|e| e.to_string())?;
         let object = entry.to_object(&repo).map_err(|e| e.to_string())?;
-        object.into_blob().map_err(|_| "Object is not a blob".to_string())?
+        object
+            .into_blob()
+            .map_err(|_| "Object is not a blob".to_string())?
     } else if let Some(tree) = obj.as_tree() {
-        let entry = tree.get_path(std::path::Path::new(&file_path)).map_err(|e| e.to_string())?;
+        let entry = tree
+            .get_path(std::path::Path::new(&file_path))
+            .map_err(|e| e.to_string())?;
         let object = entry.to_object(&repo).map_err(|e| e.to_string())?;
-        object.into_blob().map_err(|_| "Object is not a blob".to_string())?
+        object
+            .into_blob()
+            .map_err(|_| "Object is not a blob".to_string())?
     } else if let Some(blob) = obj.as_blob() {
         blob.clone()
     } else {
@@ -152,10 +160,10 @@ pub async fn get_file_content_pair_revisions(
     target: String,
 ) -> Result<FileContentPair, String> {
     let repo = git2::Repository::open(&path).map_err(|e| e.to_string())?;
-    
+
     let mut original = String::new();
     let mut modified = String::new();
-    
+
     // Resolve base revision spec
     if let Ok(base_obj) = repo.revparse_single(&base) {
         if let Ok(tree) = base_obj.peel_to_tree() {
@@ -166,7 +174,7 @@ pub async fn get_file_content_pair_revisions(
             }
         }
     }
-    
+
     // Resolve target revision spec
     if let Ok(target_obj) = repo.revparse_single(&target) {
         if let Ok(tree) = target_obj.peel_to_tree() {
@@ -177,7 +185,6 @@ pub async fn get_file_content_pair_revisions(
             }
         }
     }
-    
+
     Ok(FileContentPair { original, modified })
 }
-

@@ -25,9 +25,10 @@ pub async fn create_tag(
     let target = repo.find_object(oid, None).map_err(|e| e.to_string())?;
 
     if let Some(msg) = message {
-        let sig = repo.signature().or_else(|_| {
-            git2::Signature::now("Basilico", "basilico@example.com")
-        }).map_err(|e| e.to_string())?;
+        let sig = repo
+            .signature()
+            .or_else(|_| git2::Signature::now("Basilico", "basilico@example.com"))
+            .map_err(|e| e.to_string())?;
         repo.tag(&name, &target, &sig, &msg, force)
             .map_err(|e| e.to_string())?;
     } else {
@@ -38,11 +39,7 @@ pub async fn create_tag(
 }
 
 #[tauri::command]
-pub async fn push_tag(
-    path: String,
-    remote: String,
-    tag_name: String,
-) -> Result<(), String> {
+pub async fn push_tag(path: String, remote: String, tag_name: String) -> Result<(), String> {
     let repo = git2::Repository::open(&path).map_err(|e| e.to_string())?;
     let mut remote_obj = repo.find_remote(&remote).map_err(|e| e.to_string())?;
 
@@ -57,5 +54,3 @@ pub async fn push_tag(
 
     Ok(())
 }
-
-

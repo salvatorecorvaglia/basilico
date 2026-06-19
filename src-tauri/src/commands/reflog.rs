@@ -19,7 +19,7 @@ pub async fn get_reflog(
     max_entries: Option<usize>,
 ) -> Result<Vec<ReflogEntry>, String> {
     let repo = Repository::open(&path).map_err(|e| e.to_string())?;
-    
+
     // Check if reflog exists. If not, return empty list.
     let reflog = match repo.reflog("HEAD") {
         Ok(rl) => rl,

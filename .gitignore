@@ -27,3 +27,14 @@ dist-ssr
 src-tauri/target/
 src-tauri/gen/
 src-tauri/bin/
+
+# Environment files
+.env
+.env.*
+.env.local
+
+# Tauri updater private keys
+*.key
+*.pub
+**/tauri-updater.key
+**/tauri-updater.pub

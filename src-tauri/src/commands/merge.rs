@@ -1,4 +1,4 @@
-use git2::{Repository, MergeOptions, build::CheckoutBuilder};
+use git2::{build::CheckoutBuilder, MergeOptions, Repository};
 use std::path::Path;
 
 #[tauri::command]
@@ -20,8 +20,12 @@ pub async fn merge_branch(path: String, branch_name: String) -> Result<String, S
     let mut checkout_opts = CheckoutBuilder::new();
     checkout_opts.safe();
 
-    repo.merge(&[&annotated], Some(&mut merge_opts), Some(&mut checkout_opts))
-        .map_err(|e| e.to_string())?;
+    repo.merge(
+        &[&annotated],
+        Some(&mut merge_opts),
+        Some(&mut checkout_opts),
+    )
+    .map_err(|e| e.to_string())?;
 
     if repo.index().map(|idx| idx.has_conflicts()).unwrap_or(false) {
         Ok("conflicts".to_string())

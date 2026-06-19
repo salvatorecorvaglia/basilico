@@ -1,6 +1,6 @@
 use git2::{Repository, Signature};
-use std::process::Command;
 use serde::Serialize;
+use std::process::Command;
 
 #[tauri::command]
 pub async fn create_commit(
@@ -19,9 +19,8 @@ pub async fn create_commit(
     let sig = if let (Some(name), Some(email)) = (author_name, author_email) {
         Signature::now(&name, &email).map_err(|e| e.to_string())?
     } else {
-        repo.signature().unwrap_or_else(|_| {
-            Signature::now("Basilico User", "user@basilico.app").unwrap()
-        })
+        repo.signature()
+            .unwrap_or_else(|_| Signature::now("Basilico User", "user@basilico.app").unwrap())
     };
 
     // Calculate parents
@@ -56,7 +55,7 @@ pub async fn create_commit(
 #[tauri::command]
 pub async fn cherry_pick_commit(path: String, oid: String) -> Result<String, String> {
     let repo = Repository::open(&path).map_err(|e| e.to_string())?;
-    
+
     let output = crate::commands::new_command("git")
         .current_dir(&path)
         .args(&["cherry-pick", &oid])
@@ -97,7 +96,7 @@ pub async fn cherry_pick_abort(path: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn revert_commit(path: String, oid: String) -> Result<String, String> {
     let repo = Repository::open(&path).map_err(|e| e.to_string())?;
-    
+
     let output = crate::commands::new_command("git")
         .current_dir(&path)
         .args(&["revert", "--no-edit", &oid])
@@ -136,23 +135,22 @@ pub async fn revert_abort(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn reset_to_commit(
-    path: String,
-    oid: String,
-    mode: String,
-) -> Result<(), String> {
+pub async fn reset_to_commit(path: String, oid: String, mode: String) -> Result<(), String> {
     let repo = Repository::open(&path).map_err(|e| e.to_string())?;
     let object = repo.revparse_single(&oid).map_err(|e| e.to_string())?;
-    let commit = object.as_commit().ok_or_else(|| "Object is not a commit".to_string())?;
-    
+    let commit = object
+        .as_commit()
+        .ok_or_else(|| "Object is not a commit".to_string())?;
+
     let reset_type = match mode.as_str() {
         "soft" => git2::ResetType::Soft,
         "mixed" => git2::ResetType::Mixed,
         "hard" => git2::ResetType::Hard,
         _ => return Err(format!("Invalid reset mode: {}", mode)),
     };
-    
-    repo.reset(commit.as_object(), reset_type, None).map_err(|e| e.to_string())?;
+
+    repo.reset(commit.as_object(), reset_type, None)
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -169,7 +167,9 @@ pub struct TreeEntryInfo {
 pub async fn get_commit_tree(path: String, oid: String) -> Result<Vec<TreeEntryInfo>, String> {
     let repo = Repository::open(&path).map_err(|e| e.to_string())?;
     let object = repo.revparse_single(&oid).map_err(|e| e.to_string())?;
-    let commit = object.as_commit().ok_or_else(|| "Object is not a commit".to_string())?;
+    let commit = object
+        .as_commit()
+        .ok_or_else(|| "Object is not a commit".to_string())?;
     let tree = commit.tree().map_err(|e| e.to_string())?;
 
     let mut entries = Vec::new();
@@ -200,9 +200,8 @@ pub async fn get_commit_tree(path: String, oid: String) -> Result<Vec<TreeEntryI
         });
 
         git2::TreeWalkResult::Ok
-    }).map_err(|e| e.to_string())?;
+    })
+    .map_err(|e| e.to_string())?;
 
     Ok(entries)
 }
-
-

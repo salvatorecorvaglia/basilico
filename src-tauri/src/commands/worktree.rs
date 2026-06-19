@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════
-   Basilico — Worktree Commands
-   Command handlers for git worktree operations
-   ═══════════════════════════════════════════════════════ */
+Basilico — Worktree Commands
+Command handlers for git worktree operations
+═══════════════════════════════════════════════════════ */
 
 use serde::Serialize;
 use std::process::Command;

@@ -23,9 +23,11 @@ pub async fn get_commit_signature(
         Ok((sig_buf, payload_buf)) => {
             let signature = String::from_utf8_lossy(&sig_buf).into_owned();
             let payload = String::from_utf8_lossy(&payload_buf).into_owned();
-            
+
             let key_id = parse_key_id(&signature).unwrap_or_else(|| "Unknown".to_string());
-            let signer = repo.find_commit(oid).ok()
+            let signer = repo
+                .find_commit(oid)
+                .ok()
                 .map(|c| c.author().name().unwrap_or("Unknown").to_string())
                 .unwrap_or_else(|| "Unknown".to_string());
 

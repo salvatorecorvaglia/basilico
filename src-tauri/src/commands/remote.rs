@@ -1,4 +1,4 @@
-use git2::{FetchOptions, PushOptions, MergeOptions, Repository, build::CheckoutBuilder};
+use git2::{build::CheckoutBuilder, FetchOptions, MergeOptions, PushOptions, Repository};
 
 #[tauri::command]
 pub async fn fetch(path: String, remote: String) -> Result<(), String> {
@@ -16,12 +16,7 @@ pub async fn fetch(path: String, remote: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn push(
-    path: String,
-    remote: String,
-    branch: String,
-    force: bool,
-) -> Result<(), String> {
+pub async fn push(path: String, remote: String, branch: String, force: bool) -> Result<(), String> {
     let repo = Repository::open(&path).map_err(|e| e.to_string())?;
     let mut remote_obj = repo.find_remote(&remote).map_err(|e| e.to_string())?;
 
@@ -56,7 +51,9 @@ pub async fn pull(path: String, remote: String, branch: String) -> Result<String
 
     // Step 2: Merge the remote tracking branch into current HEAD
     let remote_ref = format!("refs/remotes/{}/{}", remote, branch);
-    let reference = repo.find_reference(&remote_ref).map_err(|e| e.to_string())?;
+    let reference = repo
+        .find_reference(&remote_ref)
+        .map_err(|e| e.to_string())?;
     let annotated = repo
         .reference_to_annotated_commit(&reference)
         .map_err(|e| e.to_string())?;
@@ -65,8 +62,12 @@ pub async fn pull(path: String, remote: String, branch: String) -> Result<String
     let mut checkout_opts = CheckoutBuilder::new();
     checkout_opts.safe();
 
-    repo.merge(&[&annotated], Some(&mut merge_opts), Some(&mut checkout_opts))
-        .map_err(|e| e.to_string())?;
+    repo.merge(
+        &[&annotated],
+        Some(&mut merge_opts),
+        Some(&mut checkout_opts),
+    )
+    .map_err(|e| e.to_string())?;
 
     if repo.index().map(|idx| idx.has_conflicts()).unwrap_or(false) {
         Ok("conflicts".to_string())

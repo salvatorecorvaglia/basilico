@@ -1,3 +1,4 @@
+use crate::state::AppState;
 use notify::RecursiveMode;
 use notify_debouncer_mini::new_debouncer;
 use serde::Serialize;
@@ -5,7 +6,6 @@ use std::path::Path;
 use std::sync::mpsc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
-use crate::state::AppState;
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -45,7 +45,10 @@ pub fn start_watching(app: AppHandle, repo_path: String) {
                 Ok(Ok(events)) => {
                     let state = app.state::<AppState>();
                     if !state.has_repo(&repo_path) {
-                        log::info!("Repository no longer active. Stopping watcher for: {}", repo_path);
+                        log::info!(
+                            "Repository no longer active. Stopping watcher for: {}",
+                            repo_path
+                        );
                         break;
                     }
 

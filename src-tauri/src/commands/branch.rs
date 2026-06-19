@@ -59,7 +59,8 @@ pub async fn checkout_branch(path: String, name: String) -> Result<(), String> {
 
         let mut opts = git2::build::CheckoutBuilder::new();
         opts.safe();
-        repo.checkout_tree(&obj, Some(&mut opts)).map_err(|e| e.to_string())?;
+        repo.checkout_tree(&obj, Some(&mut opts))
+            .map_err(|e| e.to_string())?;
         repo.set_head_detached(oid).map_err(|e| e.to_string())?;
         return Ok(());
     }
@@ -72,8 +73,10 @@ pub async fn checkout_branch(path: String, name: String) -> Result<(), String> {
 
         let mut opts = git2::build::CheckoutBuilder::new();
         opts.safe();
-        repo.checkout_tree(&obj, Some(&mut opts)).map_err(|e| e.to_string())?;
-        repo.set_head_detached(commit.id()).map_err(|e| e.to_string())?;
+        repo.checkout_tree(&obj, Some(&mut opts))
+            .map_err(|e| e.to_string())?;
+        repo.set_head_detached(commit.id())
+            .map_err(|e| e.to_string())?;
         return Ok(());
     }
 
@@ -84,24 +87,20 @@ pub async fn checkout_branch(path: String, name: String) -> Result<(), String> {
         if parts.len() == 2 {
             let local_name = parts[1];
             if let Ok(local_branch) = repo.find_branch(local_name, git2::BranchType::Local) {
-                local_branch
-                    .get()
-                    .name()
-                    .unwrap_or("")
-                    .to_string()
+                local_branch.get().name().unwrap_or("").to_string()
             } else {
                 let remote_ref = format!("refs/remotes/{}", name);
-                let remote_reference = repo.find_reference(&remote_ref).map_err(|e| e.to_string())?;
-                let commit = remote_reference.peel_to_commit().map_err(|e| e.to_string())?;
+                let remote_reference = repo
+                    .find_reference(&remote_ref)
+                    .map_err(|e| e.to_string())?;
+                let commit = remote_reference
+                    .peel_to_commit()
+                    .map_err(|e| e.to_string())?;
                 let mut new_branch = repo
                     .branch(local_name, &commit, false)
                     .map_err(|e| e.to_string())?;
                 new_branch.set_upstream(Some(&name)).ok();
-                new_branch
-                    .get()
-                    .name()
-                    .unwrap_or("")
-                    .to_string()
+                new_branch.get().name().unwrap_or("").to_string()
             }
         } else {
             format!("refs/heads/{}", name)

@@ -1,25 +1,25 @@
+pub mod bisect;
+pub mod blame;
 pub mod branch;
 pub mod commit;
+pub mod conflict_resolver;
 pub mod diff;
+pub mod gpg;
+pub mod history;
 pub mod log;
 pub mod merge;
+pub mod rebase;
+pub mod reflog;
 pub mod remote;
 pub mod repo;
-pub mod staging;
-pub mod tag;
-pub mod blame;
-pub mod history;
-pub mod reflog;
-pub mod stash;
-pub mod rebase;
-pub mod bisect;
 pub mod search;
-pub mod worktree;
-pub mod submodule;
 pub mod settings;
-pub mod conflict_resolver;
-pub mod gpg;
+pub mod staging;
+pub mod stash;
 pub mod stash_inspector;
+pub mod submodule;
+pub mod tag;
+pub mod worktree;
 
 /// Helper function to create a Command configured with standard search paths.
 /// On macOS, this ensures Homebrew and standard system binary directories are included in PATH
