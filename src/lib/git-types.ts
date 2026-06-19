@@ -199,3 +199,28 @@ export interface GrepMatch {
   content: string;
 }
 
+// ── Phase 5: Worktree, Submodule, Settings Types ──
+
+export interface WorktreeInfo {
+  path: string;
+  name: string;
+  head: string;
+  branch: string | null;
+}
+
+export interface SubmoduleInfo {
+  name: string;
+  path: string;
+  url: string | null;
+  headOid: string | null;
+  status: 'initialized' | 'uninitialized' | 'dirty' | 'up-to-date';
+}
+
+export interface UserSettings {
+  theme: string;
+  sshKeyPath: string | null;
+  gitAuthorName: string | null;
+  gitAuthorEmail: string | null;
+  keyboardShortcuts: Record<string, string>;
+}
+

@@ -21,6 +21,9 @@ import type {
   RebaseStatus,
   BisectState,
   GrepMatch,
+  WorktreeInfo,
+  SubmoduleInfo,
+  UserSettings,
 } from '../lib/git-types';
 import * as commands from '../lib/tauri-commands';
 
@@ -46,6 +49,11 @@ interface RepoState {
   fileHistory: FileHistoryEntry[];
   reflogEntries: ReflogEntry[];
   stashes: StashInfo[];
+
+  // Phase 5 State
+  worktrees: WorktreeInfo[];
+  submodules: SubmoduleInfo[];
+  settings: UserSettings | null;
 
   // Staging area & local diffs
   selectedFilePath: string | null;
@@ -123,6 +131,20 @@ interface RepoState {
   resetBisect: () => Promise<void>;
   searchCommits: (query: string) => Promise<void>;
   grepCode: (query: string) => Promise<void>;
+
+  // Phase 5 Actions
+  loadWorktrees: () => Promise<void>;
+  addWorktree: (path: string, branch?: string | null, newBranch?: string | null) => Promise<void>;
+  removeWorktree: (worktreePath: string, force?: boolean) => Promise<void>;
+  pruneWorktrees: () => Promise<void>;
+  loadSubmodules: () => Promise<void>;
+  initSubmodules: (paths: string[]) => Promise<void>;
+  updateSubmodules: (paths: string[], recursive?: boolean) => Promise<void>;
+  syncSubmodules: (paths: string[]) => Promise<void>;
+  addSubmodule: (url: string, path: string) => Promise<void>;
+  loadSettings: () => Promise<void>;
+  saveSettings: (settings: UserSettings) => Promise<void>;
+  generateSshKey: (comment: string) => Promise<string>;
 }
 
 export const useRepoStore = create<RepoState>((set, get) => ({
@@ -146,6 +168,9 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   bisectState: null,
   commitSearchResults: [],
   grepSearchResults: [],
+  worktrees: [],
+  submodules: [],
+  settings: null,
   selectedFilePath: null,
   selectedFileIsStaged: false,
   localDiff: null,
@@ -268,6 +293,14 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       ]);
 
       set({ status, branches, tags, remotes, commits, stashes });
+
+      // Load worktrees and submodules in background (non-blocking)
+      commands.listWorktrees(activeTabId)
+        .then(worktrees => set({ worktrees }))
+        .catch(() => set({ worktrees: [] }));
+      commands.listSubmodules(activeTabId)
+        .then(submodules => set({ submodules }))
+        .catch(() => set({ submodules: [] }));
     } catch (err) {
       console.error('Failed to refresh:', err);
       set({ error: String(err) });
@@ -901,6 +934,181 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       throw err;
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  // ── Phase 5: Worktree Actions ──
+
+  loadWorktrees: async () => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      const worktrees = await commands.listWorktrees(activeTabId);
+      set({ worktrees });
+    } catch (err) {
+      console.error('Failed to load worktrees:', err);
+    }
+  },
+
+  addWorktree: async (path, branch = null, newBranch = null) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true });
+    try {
+      await commands.addWorktree(activeTabId, path, branch, newBranch);
+      await get().loadWorktrees();
+    } catch (err) {
+      console.error('Failed to add worktree:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  removeWorktree: async (worktreePath, force = false) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true });
+    try {
+      await commands.removeWorktree(activeTabId, worktreePath, force);
+      await get().loadWorktrees();
+    } catch (err) {
+      console.error('Failed to remove worktree:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  pruneWorktrees: async () => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      await commands.pruneWorktrees(activeTabId);
+      await get().loadWorktrees();
+    } catch (err) {
+      console.error('Failed to prune worktrees:', err);
+      set({ error: String(err) });
+      throw err;
+    }
+  },
+
+  // ── Phase 5: Submodule Actions ──
+
+  loadSubmodules: async () => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      const submodules = await commands.listSubmodules(activeTabId);
+      set({ submodules });
+    } catch (err) {
+      console.error('Failed to load submodules:', err);
+    }
+  },
+
+  initSubmodules: async (paths) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true });
+    try {
+      await commands.initSubmodules(activeTabId, paths);
+      await get().loadSubmodules();
+    } catch (err) {
+      console.error('Failed to init submodules:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  updateSubmodules: async (paths, recursive = true) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true });
+    try {
+      await commands.updateSubmodules(activeTabId, paths, recursive);
+      await get().loadSubmodules();
+    } catch (err) {
+      console.error('Failed to update submodules:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  syncSubmodules: async (paths) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    try {
+      await commands.syncSubmodules(activeTabId, paths);
+      await get().loadSubmodules();
+    } catch (err) {
+      console.error('Failed to sync submodules:', err);
+      set({ error: String(err) });
+      throw err;
+    }
+  },
+
+  addSubmodule: async (url, path) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isLoading: true });
+    try {
+      await commands.addSubmodule(activeTabId, url, path);
+      await get().loadSubmodules();
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to add submodule:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  // ── Phase 5: Settings Actions ──
+
+  loadSettings: async () => {
+    try {
+      const settings = await commands.getSettings();
+      set({ settings });
+    } catch (err) {
+      console.error('Failed to load settings:', err);
+    }
+  },
+
+  saveSettings: async (settings) => {
+    try {
+      await commands.saveSettings(settings);
+      set({ settings });
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+      set({ error: String(err) });
+      throw err;
+    }
+  },
+
+  generateSshKey: async (comment) => {
+    try {
+      const pubKey = await commands.generateSshKey(comment);
+      return pubKey;
+    } catch (err) {
+      console.error('Failed to generate SSH key:', err);
+      set({ error: String(err) });
+      throw err;
     }
   },
 }));

@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Search,
   Command,
+  Settings,
 } from 'lucide-react';
 import { useRepoStore } from '../../store/repo-store';
 import { useUIStore } from '../../store/ui-store';
@@ -19,6 +20,7 @@ export function Toolbar() {
   const { status, isRefreshing, refreshAll, fetch, pull, push } = useRepoStore();
   const { 
     toggleCommandPalette, 
+    toggleSettings,
     activeView, 
     setActiveView, 
     addNotification 
@@ -168,6 +170,13 @@ export function Toolbar() {
           title="Command Palette (Ctrl+Shift+P)"
         >
           <Command size={14} />
+        </button>
+        <button
+          className="toolbar-btn toolbar-icon-btn"
+          onClick={toggleSettings}
+          title="Settings (⌘,)"
+        >
+          <Settings size={14} />
         </button>
       </div>
     </div>

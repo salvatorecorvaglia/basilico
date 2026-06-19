@@ -18,10 +18,18 @@ import {
   Trash,
   Clock,
   Check,
-  RotateCcw
+  RotateCcw,
+  FolderTree,
+  Package,
+  RefreshCw,
+  FolderOpen,
+  Scissors,
+  Download,
 } from 'lucide-react';
 import { useRepoStore } from '../../store/repo-store';
 import { useUIStore } from '../../store/ui-store';
+import { WorktreeModal } from '../worktree/WorktreeModal';
+import { SubmoduleModal } from '../submodule/SubmoduleModal';
 import './Sidebar.css';
 
 interface TreeSectionProps {
@@ -58,6 +66,8 @@ export function Sidebar() {
     tags, 
     remotes, 
     stashes,
+    worktrees,
+    submodules,
     checkoutBranch, 
     createBranch, 
     deleteBranch, 
@@ -70,7 +80,13 @@ export function Sidebar() {
     dropStash,
     selectCommit,
     selectedCommitOid,
-    createTag
+    createTag,
+    removeWorktree,
+    pruneWorktrees,
+    initSubmodules,
+    updateSubmodules,
+    syncSubmodules,
+    openRepository,
   } = useRepoStore();
 
   const { addNotification, setActiveView } = useUIStore();
@@ -79,9 +95,12 @@ export function Sidebar() {
     x: number;
     y: number;
     targetName: string;
-    type: 'branch' | 'tag' | 'stash';
+    type: 'branch' | 'tag' | 'stash' | 'worktree' | 'submodule';
     isRemote?: boolean;
   } | null>(null);
+
+  const [worktreeModalOpen, setWorktreeModalOpen] = useState(false);
+  const [submoduleModalOpen, setSubmoduleModalOpen] = useState(false);
 
   const localBranches = branches.filter((b) => !b.isRemote);
   const remoteBranches = branches.filter((b) => b.isRemote);
@@ -400,6 +419,96 @@ export function Sidebar() {
             <span className="sidebar-item-name truncate" style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--text-primary)' }}>Reflog (HEAD)</span>
           </button>
         </div>
+
+        {/* Worktrees */}
+        <TreeSection
+          title="Worktrees"
+          icon={<FolderTree size={14} />}
+          count={worktrees.length}
+          defaultOpen={false}
+          action={
+            <button
+              className="sidebar-header-btn"
+              onClick={() => setWorktreeModalOpen(true)}
+              title="Add worktree"
+            >
+              <Plus size={13} />
+            </button>
+          }
+        >
+          {worktrees.length === 0 ? (
+            <div className="sidebar-empty">No worktrees</div>
+          ) : (
+            worktrees.map(wt => (
+              <button
+                key={wt.path}
+                className="sidebar-item"
+                title={wt.path}
+                onContextMenu={e => {
+                  e.preventDefault();
+                  setContextMenu({ x: e.clientX, y: e.clientY, targetName: wt.path, type: 'worktree' });
+                }}
+                onDoubleClick={() => openRepository(wt.path)}
+              >
+                <FolderOpen size={12} className="sidebar-item-dot" />
+                <span className="sidebar-item-name truncate">{wt.name}</span>
+                {wt.branch && <span className="sidebar-badge head">{wt.branch}</span>}
+              </button>
+            ))
+          )}
+        </TreeSection>
+
+        {/* Submodules */}
+        <TreeSection
+          title="Submodules"
+          icon={<Package size={14} />}
+          count={submodules.length}
+          defaultOpen={false}
+          action={
+            <button
+              className="sidebar-header-btn"
+              onClick={() => setSubmoduleModalOpen(true)}
+              title="Add submodule"
+            >
+              <Plus size={13} />
+            </button>
+          }
+        >
+          {submodules.length === 0 ? (
+            <div className="sidebar-empty">No submodules</div>
+          ) : (
+            submodules.map(sm => (
+              <button
+                key={sm.name}
+                className="sidebar-item"
+                title={sm.url || sm.path}
+                onContextMenu={e => {
+                  e.preventDefault();
+                  setContextMenu({ x: e.clientX, y: e.clientY, targetName: sm.path, type: 'submodule' });
+                }}
+                onDoubleClick={() => {
+                  // Open submodule as a new tab
+                  const repoPath = useRepoStore.getState().repoInfo?.path;
+                  if (repoPath) {
+                    openRepository(`${repoPath}/${sm.path}`);
+                  }
+                }}
+              >
+                <Package size={12} className="sidebar-item-dot" />
+                <span className="sidebar-item-name truncate">{sm.name}</span>
+                <span className={`sidebar-badge ${
+                  sm.status === 'dirty' ? 'annotated' :
+                  sm.status === 'up-to-date' ? 'head' :
+                  ''
+                }`}>
+                  {sm.status === 'dirty' ? '●' :
+                   sm.status === 'up-to-date' ? '✓' :
+                   sm.status === 'initialized' ? '○' : '?'}
+                </span>
+              </button>
+            ))
+          )}
+        </TreeSection>
       </div>
 
       {/* Floating Context Menu */}
@@ -468,6 +577,107 @@ export function Sidebar() {
                 <span>Delete Tag</span>
               </button>
             </>
+          ) : contextMenu.type === 'worktree' ? (
+            <>
+              <button
+                className="context-menu-item"
+                onClick={() => { openRepository(contextMenu.targetName); setContextMenu(null); }}
+              >
+                <FolderOpen size={12} />
+                <span>Open in New Tab</span>
+              </button>
+              <button
+                className="context-menu-item"
+                onClick={async () => {
+                  try {
+                    await pruneWorktrees();
+                    addNotification({ type: 'success', message: 'Stale worktrees pruned' });
+                  } catch (err) {
+                    addNotification({ type: 'error', message: `Prune failed: ${err}` });
+                  }
+                  setContextMenu(null);
+                }}
+              >
+                <Scissors size={12} />
+                <span>Prune Stale Worktrees</span>
+              </button>
+              <button
+                className="context-menu-item context-menu-danger"
+                onClick={async () => {
+                  if (confirm(`Remove worktree at "${contextMenu.targetName}"?`)) {
+                    try {
+                      await removeWorktree(contextMenu.targetName, false);
+                      addNotification({ type: 'success', message: 'Worktree removed' });
+                    } catch (err) {
+                      addNotification({ type: 'error', message: `Remove failed: ${err}` });
+                    }
+                  }
+                  setContextMenu(null);
+                }}
+              >
+                <Trash size={12} />
+                <span>Remove Worktree</span>
+              </button>
+            </>
+          ) : contextMenu.type === 'submodule' ? (
+            <>
+              <button
+                className="context-menu-item"
+                onClick={() => {
+                  const repoPath = useRepoStore.getState().repoInfo?.path;
+                  if (repoPath) openRepository(`${repoPath}/${contextMenu.targetName}`);
+                  setContextMenu(null);
+                }}
+              >
+                <FolderOpen size={12} />
+                <span>Open in New Tab</span>
+              </button>
+              <button
+                className="context-menu-item"
+                onClick={async () => {
+                  try {
+                    await initSubmodules([contextMenu.targetName]);
+                    addNotification({ type: 'success', message: `Submodule initialized` });
+                  } catch (err) {
+                    addNotification({ type: 'error', message: `Init failed: ${err}` });
+                  }
+                  setContextMenu(null);
+                }}
+              >
+                <Download size={12} />
+                <span>Init Submodule</span>
+              </button>
+              <button
+                className="context-menu-item"
+                onClick={async () => {
+                  try {
+                    await updateSubmodules([contextMenu.targetName], true);
+                    addNotification({ type: 'success', message: `Submodule updated` });
+                  } catch (err) {
+                    addNotification({ type: 'error', message: `Update failed: ${err}` });
+                  }
+                  setContextMenu(null);
+                }}
+              >
+                <RefreshCw size={12} />
+                <span>Update Submodule</span>
+              </button>
+              <button
+                className="context-menu-item"
+                onClick={async () => {
+                  try {
+                    await syncSubmodules([contextMenu.targetName]);
+                    addNotification({ type: 'success', message: `Submodule synced` });
+                  } catch (err) {
+                    addNotification({ type: 'error', message: `Sync failed: ${err}` });
+                  }
+                  setContextMenu(null);
+                }}
+              >
+                <RefreshCw size={12} />
+                <span>Sync Submodule</span>
+              </button>
+            </>
           ) : (
             <>
               <button 
@@ -494,6 +704,15 @@ export function Sidebar() {
             </>
           )}
         </div>
+      )}
+
+      {/* Worktree Modal */}
+      {worktreeModalOpen && (
+        <WorktreeModal isOpen={worktreeModalOpen} onClose={() => setWorktreeModalOpen(false)} />
+      )}
+      {/* Submodule Modal */}
+      {submoduleModalOpen && (
+        <SubmoduleModal isOpen={submoduleModalOpen} onClose={() => setSubmoduleModalOpen(false)} />
       )}
     </div>
   );

@@ -1,0 +1,152 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — Settings Commands
+   User preferences, SSH key management
+   ═══════════════════════════════════════════════════════ */
+
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use std::process::Command;
+use tauri::Manager;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UserSettings {
+    pub theme: String,
+    pub ssh_key_path: Option<String>,
+    pub git_author_name: Option<String>,
+    pub git_author_email: Option<String>,
+    pub keyboard_shortcuts: HashMap<String, String>,
+}
+
+impl Default for UserSettings {
+    fn default() -> Self {
+        let mut shortcuts = HashMap::new();
+        shortcuts.insert("commandPalette".to_string(), "CmdOrCtrl+Shift+P".to_string());
+        shortcuts.insert("openSettings".to_string(), "CmdOrCtrl+,".to_string());
+        shortcuts.insert("search".to_string(), "CmdOrCtrl+F".to_string());
+        shortcuts.insert("staging".to_string(), "CmdOrCtrl+Shift+S".to_string());
+        shortcuts.insert("commit".to_string(), "CmdOrCtrl+Enter".to_string());
+        shortcuts.insert("refresh".to_string(), "CmdOrCtrl+R".to_string());
+
+        Self {
+            theme: "sage-green".to_string(),
+            ssh_key_path: None,
+            git_author_name: None,
+            git_author_email: None,
+            keyboard_shortcuts: shortcuts,
+        }
+    }
+}
+
+fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("Failed to resolve app config dir: {}", e))?;
+    Ok(config_dir.join("settings.json"))
+}
+
+#[tauri::command]
+pub async fn get_settings(app: tauri::AppHandle) -> Result<UserSettings, String> {
+    let path = settings_path(&app)?;
+
+    if !path.exists() {
+        return Ok(UserSettings::default());
+    }
+
+    let content = fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read settings: {}", e))?;
+
+    serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse settings: {}", e))
+}
+
+#[tauri::command]
+pub async fn save_settings(app: tauri::AppHandle, settings: UserSettings) -> Result<(), String> {
+    let path = settings_path(&app)?;
+
+    // Create parent directory if it doesn't exist
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create settings directory: {}", e))?;
+    }
+
+    let content = serde_json::to_string_pretty(&settings)
+        .map_err(|e| format!("Failed to serialize settings: {}", e))?;
+
+    fs::write(&path, content)
+        .map_err(|e| format!("Failed to write settings: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn generate_ssh_key(comment: String) -> Result<String, String> {
+    let home = dirs::home_dir()
+        .ok_or_else(|| "Could not determine home directory".to_string())?;
+    let ssh_dir = home.join(".ssh");
+    let key_path = ssh_dir.join("id_basilico");
+
+    // Create .ssh directory if it doesn't exist
+    fs::create_dir_all(&ssh_dir)
+        .map_err(|e| format!("Failed to create .ssh directory: {}", e))?;
+
+    // Check if key already exists
+    if key_path.exists() {
+        // Read and return the existing public key
+        let pub_path = ssh_dir.join("id_basilico.pub");
+        return fs::read_to_string(&pub_path)
+            .map_err(|e| format!("Key already exists but failed to read public key: {}", e));
+    }
+
+    let output = Command::new("ssh-keygen")
+        .args([
+            "-t", "ed25519",
+            "-C", &comment,
+            "-f", key_path.to_str().unwrap(),
+            "-N", "",
+        ])
+        .output()
+        .map_err(|e| format!("Failed to run ssh-keygen: {}", e))?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+    }
+
+    // Read and return the public key
+    let pub_path = ssh_dir.join("id_basilico.pub");
+    fs::read_to_string(&pub_path)
+        .map_err(|e| format!("Generated key but failed to read public key: {}", e))
+}
+
+#[tauri::command]
+pub async fn list_ssh_keys() -> Result<Vec<String>, String> {
+    let home = dirs::home_dir()
+        .ok_or_else(|| "Could not determine home directory".to_string())?;
+    let ssh_dir = home.join(".ssh");
+
+    if !ssh_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let known_key_names = [
+        "id_rsa",
+        "id_ed25519",
+        "id_ecdsa",
+        "id_dsa",
+        "id_basilico",
+    ];
+
+    let mut found_keys = Vec::new();
+
+    for name in &known_key_names {
+        let key_path = ssh_dir.join(name);
+        if key_path.exists() {
+            found_keys.push(name.to_string());
+        }
+    }
+
+    Ok(found_keys)
+}

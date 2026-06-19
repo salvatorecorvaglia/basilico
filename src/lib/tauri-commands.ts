@@ -19,6 +19,9 @@ import type {
   RebaseStatus,
   BisectState,
   GrepMatch,
+  WorktreeInfo,
+  SubmoduleInfo,
+  UserSettings,
 } from './git-types';
 
 // ── Repository Commands ──
@@ -215,4 +218,53 @@ export const searchCommits = (repoPath: string, query: string) =>
 
 export const grepCode = (repoPath: string, query: string) =>
   invoke<GrepMatch[]>('grep_code', { repoPath, query });
+
+// ── Phase 5: Worktree Commands ──
+
+export const listWorktrees = (repoPath: string) =>
+  invoke<WorktreeInfo[]>('list_worktrees', { repoPath });
+
+export const addWorktree = (
+  repoPath: string,
+  path: string,
+  branch?: string | null,
+  newBranch?: string | null,
+) => invoke<void>('add_worktree', { repoPath, path, branch, newBranch });
+
+export const removeWorktree = (repoPath: string, worktreePath: string, force: boolean) =>
+  invoke<void>('remove_worktree', { repoPath, worktreePath, force });
+
+export const pruneWorktrees = (repoPath: string) =>
+  invoke<void>('prune_worktrees', { repoPath });
+
+// ── Phase 5: Submodule Commands ──
+
+export const listSubmodules = (repoPath: string) =>
+  invoke<SubmoduleInfo[]>('list_submodules', { repoPath });
+
+export const initSubmodules = (repoPath: string, paths: string[]) =>
+  invoke<void>('init_submodules', { repoPath, paths });
+
+export const updateSubmodules = (repoPath: string, paths: string[], recursive: boolean) =>
+  invoke<void>('update_submodules', { repoPath, paths, recursive });
+
+export const syncSubmodules = (repoPath: string, paths: string[]) =>
+  invoke<void>('sync_submodules', { repoPath, paths });
+
+export const addSubmodule = (repoPath: string, url: string, path: string) =>
+  invoke<void>('add_submodule', { repoPath, url, path });
+
+// ── Phase 5: Settings Commands ──
+
+export const getSettings = () =>
+  invoke<UserSettings>('get_settings');
+
+export const saveSettings = (settings: UserSettings) =>
+  invoke<void>('save_settings', { settings });
+
+export const generateSshKey = (comment: string) =>
+  invoke<string>('generate_ssh_key', { comment });
+
+export const listSshKeys = () =>
+  invoke<string[]>('list_ssh_keys');
 

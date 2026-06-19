@@ -83,6 +83,22 @@ pub fn run() {
             // Search commands
             commands::search::search_commits,
             commands::search::grep_code,
+            // Worktree commands
+            commands::worktree::list_worktrees,
+            commands::worktree::add_worktree,
+            commands::worktree::remove_worktree,
+            commands::worktree::prune_worktrees,
+            // Submodule commands
+            commands::submodule::list_submodules,
+            commands::submodule::init_submodules,
+            commands::submodule::update_submodules,
+            commands::submodule::sync_submodules,
+            commands::submodule::add_submodule,
+            // Settings commands
+            commands::settings::get_settings,
+            commands::settings::save_settings,
+            commands::settings::generate_ssh_key,
+            commands::settings::list_ssh_keys,
         ])
         .setup(|app| {
             log::info!("Basilico starting...");

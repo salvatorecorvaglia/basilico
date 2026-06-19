@@ -14,3 +14,6 @@ pub mod stash;
 pub mod rebase;
 pub mod bisect;
 pub mod search;
+pub mod worktree;
+pub mod submodule;
+pub mod settings;

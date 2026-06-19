@@ -3,6 +3,7 @@
    Layout assembly with tab management
    ═══════════════════════════════════════════════════════ */
 
+import { useEffect } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { TabBar } from './components/layout/TabBar';
 import { Toolbar } from './components/layout/Toolbar';
@@ -20,13 +21,35 @@ import { RepoSearch } from './components/search/RepoSearch';
 import { CommandPalette } from './components/command-palette/CommandPalette';
 import { RebaseEditor } from './components/rebase/RebaseEditor';
 import { BisectWizard } from './components/bisect/BisectWizard';
+import { SettingsModal } from './components/settings/SettingsModal';
 import { useRepoStore } from './store/repo-store';
 import { useUIStore } from './store/ui-store';
 import './App.css';
 
 function App() {
-  const { tabs, activeTabId } = useRepoStore();
-  const { sidebarVisible, activeView } = useUIStore();
+  const { tabs, activeTabId, loadSettings } = useRepoStore();
+  const { sidebarVisible, activeView, toggleSettings, toggleCommandPalette } = useUIStore();
+
+  // Load settings on mount
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && e.key === ',') {
+        e.preventDefault();
+        toggleSettings();
+      } else if (meta && e.shiftKey && e.key === 'P') {
+        e.preventDefault();
+        toggleCommandPalette();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [toggleSettings, toggleCommandPalette]);
 
   const hasOpenRepo = tabs.length > 0 && activeTabId;
 
@@ -37,6 +60,9 @@ function App() {
 
       {/* Command Palette Overlay */}
       <CommandPalette />
+
+      {/* Settings Modal */}
+      <SettingsModal />
 
       {hasOpenRepo ? (
         <>

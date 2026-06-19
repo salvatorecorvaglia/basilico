@@ -26,6 +26,9 @@ interface UIState {
   // Command palette
   commandPaletteOpen: boolean;
 
+  // Settings modal
+  settingsOpen: boolean;
+
   // Notifications
   notifications: Notification[];
 
@@ -36,6 +39,7 @@ interface UIState {
   setDetailPanelHeight: (height: number) => void;
   setActiveView: (view: ActiveView) => void;
   toggleCommandPalette: () => void;
+  toggleSettings: () => void;
   addNotification: (notification: Omit<Notification, 'id'>) => void;
   removeNotification: (id: string) => void;
 }
@@ -47,6 +51,7 @@ export const useUIStore = create<UIState>((set) => ({
   detailPanelHeight: 300,
   activeView: 'graph',
   commandPaletteOpen: false,
+  settingsOpen: false,
   notifications: [],
 
   toggleSidebar: () =>
@@ -66,6 +71,9 @@ export const useUIStore = create<UIState>((set) => ({
 
   toggleCommandPalette: () =>
     set((state) => ({ commandPaletteOpen: !state.commandPaletteOpen })),
+
+  toggleSettings: () =>
+    set((state) => ({ settingsOpen: !state.settingsOpen })),
 
   addNotification: (notification) => {
     const id = Math.random().toString(36).slice(2);
