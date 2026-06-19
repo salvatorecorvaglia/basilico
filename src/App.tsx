@@ -22,6 +22,8 @@ import { CommandPalette } from './components/command-palette/CommandPalette';
 import { RebaseEditor } from './components/rebase/RebaseEditor';
 import { BisectWizard } from './components/bisect/BisectWizard';
 import { SettingsModal } from './components/settings/SettingsModal';
+import { ResetModal } from './components/graph/ResetModal';
+import { CleanModal } from './components/clean/CleanModal';
 import { useRepoStore } from './store/repo-store';
 import { useUIStore } from './store/ui-store';
 import './App.css';
@@ -63,6 +65,12 @@ function App() {
 
       {/* Settings Modal */}
       <SettingsModal />
+
+      {/* Reset Modal */}
+      <ResetModal />
+
+      {/* Clean Modal */}
+      <CleanModal />
 
       {hasOpenRepo ? (
         <>

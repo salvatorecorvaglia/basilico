@@ -1,0 +1,162 @@
+import { useState } from 'react';
+import { AlertTriangle, X } from 'lucide-react';
+import { useRepoStore } from '../../store/repo-store';
+import { useUIStore } from '../../store/ui-store';
+import './ResetModal.css';
+
+type ResetMode = 'soft' | 'mixed' | 'hard';
+
+export function ResetModal() {
+  const { resetModalOpen, resetCommitOid, closeResetModal, addNotification } = useUIStore();
+  const { resetToCommit } = useRepoStore();
+  
+  const [mode, setMode] = useState<ResetMode>('mixed');
+  const [confirmHard, setConfirmHard] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  if (!resetModalOpen || !resetCommitOid) return null;
+
+  const handleReset = async () => {
+    if (mode === 'hard' && !confirmHard) {
+      addNotification({ type: 'warning', message: 'Please confirm hard reset' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await resetToCommit(resetCommitOid, mode);
+      addNotification({ 
+        type: 'success', 
+        message: `Successfully reset current branch (${mode}) to ${resetCommitOid.slice(0, 7)}` 
+      });
+      closeResetModal();
+      // Reset confirmations
+      setConfirmHard(false);
+    } catch (err) {
+      addNotification({ 
+        type: 'error', 
+        message: `Reset failed: ${err}` 
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="reset-modal-overlay animate-fade-in" onClick={closeResetModal}>
+      <div className="reset-modal-content" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="reset-modal-header">
+          <div className="reset-modal-title-group">
+            <AlertTriangle className="reset-warn-icon" size={18} />
+            <h2>Reset Current Branch</h2>
+          </div>
+          <button className="reset-modal-close-btn" onClick={closeResetModal} disabled={isSubmitting}>
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="reset-modal-body">
+          <p className="reset-intro">
+            Reset the current branch HEAD to commit <span className="text-mono text-primary">{resetCommitOid.slice(0, 8)}</span>.
+          </p>
+
+          {/* Mode Selector */}
+          <div className="reset-modes-list">
+            {/* Mixed Option */}
+            <label className={`reset-mode-option ${mode === 'mixed' ? 'active' : ''}`}>
+              <input
+                type="radio"
+                name="resetMode"
+                value="mixed"
+                checked={mode === 'mixed'}
+                onChange={() => setMode('mixed')}
+              />
+              <div className="reset-mode-details">
+                <span className="reset-mode-name">Mixed (--mixed)</span>
+                <span className="reset-mode-desc">
+                  Keeps working directory changes, resets the staging index. Staged changes are unstaged. (Recommended/Safe)
+                </span>
+              </div>
+            </label>
+
+            {/* Soft Option */}
+            <label className={`reset-mode-option ${mode === 'soft' ? 'active' : ''}`}>
+              <input
+                type="radio"
+                name="resetMode"
+                value="soft"
+                checked={mode === 'soft'}
+                onChange={() => setMode('soft')}
+              />
+              <div className="reset-mode-details">
+                <span className="reset-mode-name">Soft (--soft)</span>
+                <span className="reset-mode-desc">
+                  Keeps all staged and unstaged modifications intact. Only moves HEAD. (Safe)
+                </span>
+              </div>
+            </label>
+
+            {/* Hard Option */}
+            <label className={`reset-mode-option option-danger ${mode === 'hard' ? 'active-danger' : ''}`}>
+              <input
+                type="radio"
+                name="resetMode"
+                value="hard"
+                checked={mode === 'hard'}
+                onChange={() => setMode('hard')}
+              />
+              <div className="reset-mode-details">
+                <span className="reset-mode-name text-danger">Hard (--hard)</span>
+                <span className="reset-mode-desc text-danger">
+                  Discards ALL changes (both staged and unstaged). Files in working tree match target commit exactly. (Destructive)
+                </span>
+              </div>
+            </label>
+          </div>
+
+          {/* Hard Reset Danger Confirmation */}
+          {mode === 'hard' && (
+            <div className="reset-danger-warning animate-slide-down">
+              <div className="warning-banner">
+                <AlertTriangle size={16} />
+                <span>WARNING: This will permanently delete all uncommitted changes on disk.</span>
+              </div>
+              <label className="confirm-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={confirmHard}
+                  onChange={(e) => setConfirmHard(e.target.checked)}
+                />
+                <span>I understand that this action is irreversible and I want to discard my local changes.</span>
+              </label>
+            </div>
+          )}
+        </div>
+
+        {/* Footer Actions */}
+        <div className="reset-modal-footer">
+          <button 
+            className="reset-btn reset-btn-cancel" 
+            onClick={closeResetModal}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </button>
+          <button 
+            className={`reset-btn ${mode === 'hard' ? 'reset-btn-danger' : 'reset-btn-primary'}`}
+            onClick={handleReset}
+            disabled={isSubmitting || (mode === 'hard' && !confirmHard)}
+          >
+            {isSubmitting ? (
+              <span className="spinner-small" />
+            ) : (
+              `Reset Current Branch (${mode.toUpperCase()})`
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

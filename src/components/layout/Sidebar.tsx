@@ -89,7 +89,7 @@ export function Sidebar() {
     openRepository,
   } = useRepoStore();
 
-  const { addNotification, setActiveView } = useUIStore();
+  const { addNotification, setActiveView, openCleanModal } = useUIStore();
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -417,6 +417,14 @@ export function Sidebar() {
           <button className="sidebar-item" onClick={() => setActiveView('reflog')}>
             <Clock size={12} className="sidebar-item-dot" />
             <span className="sidebar-item-name truncate" style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--text-primary)' }}>Reflog (HEAD)</span>
+          </button>
+        </div>
+
+        {/* Clean Repository Link */}
+        <div className="sidebar-clean-item" style={{ marginTop: 'var(--space-1)' }}>
+          <button className="sidebar-item" onClick={openCleanModal}>
+            <Trash size={12} className="sidebar-item-dot" style={{ color: 'var(--color-danger)' }} />
+            <span className="sidebar-item-name truncate" style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--text-primary)' }}>Clean Repository...</span>
           </button>
         </div>
 

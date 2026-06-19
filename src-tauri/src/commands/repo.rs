@@ -36,3 +36,52 @@ pub async fn get_status(path: String) -> Result<repository::RepoStatus, String> 
 pub async fn list_remotes(path: String) -> Result<Vec<repository::RemoteInfo>, String> {
     repository::list_remotes(&path).map_err(|e| e.message)
 }
+
+#[tauri::command]
+pub async fn clean_repository(
+    path: String,
+    dry_run: bool,
+    clean_dirs: bool,
+    include_ignored: bool,
+) -> Result<Vec<String>, String> {
+    use std::process::Command;
+    let mut args = vec!["clean"];
+    
+    if dry_run {
+        args.push("-n");
+    } else {
+        args.push("-f");
+    }
+    
+    if clean_dirs {
+        args.push("-d");
+    }
+    
+    if include_ignored {
+        args.push("-x");
+    }
+    
+    let output = Command::new("git")
+        .current_dir(&path)
+        .args(&args)
+        .output()
+        .map_err(|e| format!("Failed to run git clean: {}", e))?;
+        
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut cleaned_paths = Vec::new();
+    
+    for line in stdout.lines() {
+        if let Some(stripped) = line.strip_prefix("Would remove ") {
+            cleaned_paths.push(stripped.trim().to_string());
+        } else if let Some(stripped) = line.strip_prefix("Removing ") {
+            cleaned_paths.push(stripped.trim().to_string());
+        }
+    }
+    
+    if output.status.success() {
+        Ok(cleaned_paths)
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("Git clean failed: {}", stderr))
+    }
+}

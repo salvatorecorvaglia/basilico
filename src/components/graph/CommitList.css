@@ -167,3 +167,15 @@
   color: var(--text-tertiary);
   padding-right: var(--space-3);
 }
+
+/* ── Context Menu overrides ── */
+.commit-context-menu {
+  min-width: 260px;
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: var(--border-default, #30363d);
+  margin: var(--space-1) 0;
+}
+

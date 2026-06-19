@@ -268,3 +268,24 @@ export const generateSshKey = (comment: string) =>
 export const listSshKeys = () =>
   invoke<string[]>('list_ssh_keys');
 
+// ── Phase 6: Commit & Repo Operations Commands ──
+
+export const cherryPickCommit = (path: string, oid: string) =>
+  invoke<string>('cherry_pick_commit', { path, oid });
+
+export const cherryPickAbort = (path: string) =>
+  invoke<void>('cherry_pick_abort', { path });
+
+export const revertCommit = (path: string, oid: string) =>
+  invoke<string>('revert_commit', { path, oid });
+
+export const revertAbort = (path: string) =>
+  invoke<void>('revert_abort', { path });
+
+export const resetToCommit = (path: string, oid: string, mode: 'soft' | 'mixed' | 'hard') =>
+  invoke<void>('reset_to_commit', { path, oid, mode });
+
+export const cleanRepository = (path: string, dryRun: boolean, cleanDirs: boolean, includeIgnored: boolean) =>
+  invoke<string[]>('clean_repository', { path, dryRun, cleanDirs, includeIgnored });
+
+

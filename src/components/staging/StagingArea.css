@@ -216,3 +216,46 @@
 .staging-lists::-webkit-scrollbar-thumb:hover {
   background: var(--text-tertiary);
 }
+
+/* ── Conflict/State Banners ── */
+.staging-state-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(240, 136, 62, 0.1);
+  border: 1px solid rgba(240, 136, 62, 0.2);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.staging-state-banner-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f0883e;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.staging-state-banner-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.staging-banner-btn {
+  background: rgba(240, 136, 62, 0.15);
+  border: 1px solid rgba(240, 136, 62, 0.3);
+  color: #f0883e;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.staging-banner-btn:hover {
+  background: rgba(240, 136, 62, 0.25);
+  border-color: rgba(240, 136, 62, 0.4);
+}
+

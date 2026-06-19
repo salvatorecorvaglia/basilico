@@ -1,4 +1,5 @@
 use git2::{Repository, Signature};
+use std::process::Command;
 
 #[tauri::command]
 pub async fn create_commit(
@@ -50,3 +51,107 @@ pub async fn create_commit(
 
     Ok(commit_id.to_string())
 }
+
+#[tauri::command]
+pub async fn cherry_pick_commit(path: String, oid: String) -> Result<String, String> {
+    let repo = Repository::open(&path).map_err(|e| e.to_string())?;
+    
+    let output = Command::new("git")
+        .current_dir(&path)
+        .args(&["cherry-pick", &oid])
+        .output()
+        .map_err(|e| format!("Failed to execute cherry-pick process: {}", e))?;
+
+    match repo.state() {
+        git2::RepositoryState::CherryPick | git2::RepositoryState::CherryPickSequence => {
+            Ok("conflicts".to_string())
+        }
+        _ => {
+            if output.status.success() {
+                Ok("success".to_string())
+            } else {
+                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                Err(format!("Cherry-pick failed: {}", stderr))
+            }
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn cherry_pick_abort(path: String) -> Result<(), String> {
+    let output = Command::new("git")
+        .current_dir(&path)
+        .args(&["cherry-pick", "--abort"])
+        .output()
+        .map_err(|e| format!("Failed to abort cherry-pick process: {}", e))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(format!("Cherry-pick abort failed: {}", stderr))
+    }
+}
+
+#[tauri::command]
+pub async fn revert_commit(path: String, oid: String) -> Result<String, String> {
+    let repo = Repository::open(&path).map_err(|e| e.to_string())?;
+    
+    let output = Command::new("git")
+        .current_dir(&path)
+        .args(&["revert", "--no-edit", &oid])
+        .output()
+        .map_err(|e| format!("Failed to execute revert process: {}", e))?;
+
+    match repo.state() {
+        git2::RepositoryState::Revert | git2::RepositoryState::RevertSequence => {
+            Ok("conflicts".to_string())
+        }
+        _ => {
+            if output.status.success() {
+                Ok("success".to_string())
+            } else {
+                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                Err(format!("Revert failed: {}", stderr))
+            }
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn revert_abort(path: String) -> Result<(), String> {
+    let output = Command::new("git")
+        .current_dir(&path)
+        .args(&["revert", "--abort"])
+        .output()
+        .map_err(|e| format!("Failed to abort revert process: {}", e))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(format!("Revert abort failed: {}", stderr))
+    }
+}
+
+#[tauri::command]
+pub async fn reset_to_commit(
+    path: String,
+    oid: String,
+    mode: String,
+) -> Result<(), String> {
+    let repo = Repository::open(&path).map_err(|e| e.to_string())?;
+    let object = repo.revparse_single(&oid).map_err(|e| e.to_string())?;
+    let commit = object.as_commit().ok_or_else(|| "Object is not a commit".to_string())?;
+    
+    let reset_type = match mode.as_str() {
+        "soft" => git2::ResetType::Soft,
+        "mixed" => git2::ResetType::Mixed,
+        "hard" => git2::ResetType::Hard,
+        _ => return Err(format!("Invalid reset mode: {}", mode)),
+    };
+    
+    repo.reset(commit.as_object(), reset_type, None).map_err(|e| e.to_string())?;
+    Ok(())
+}
+

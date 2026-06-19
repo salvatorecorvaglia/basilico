@@ -26,7 +26,9 @@ export function StagingArea() {
     stageFiles, 
     unstageFiles, 
     discardChanges,
-    saveStash
+    saveStash,
+    cherryPickAbort,
+    revertAbort
   } = useRepoStore();
 
   const { setActiveView, addNotification } = useUIStore();
@@ -102,9 +104,60 @@ export function StagingArea() {
     }
   };
 
+  const isCherryPicking = status.state === 'CherryPick' || status.state === 'CherryPickSequence';
+  const isReverting = status.state === 'Revert' || status.state === 'RevertSequence';
+
+  const handleCherryPickAbort = async () => {
+    try {
+      await cherryPickAbort();
+      addNotification({ type: 'success', message: 'Cherry-pick aborted successfully' });
+    } catch (err) {
+      addNotification({ type: 'error', message: `Abort failed: ${err}` });
+    }
+  };
+
+  const handleRevertAbort = async () => {
+    try {
+      await revertAbort();
+      addNotification({ type: 'success', message: 'Revert aborted successfully' });
+    } catch (err) {
+      addNotification({ type: 'error', message: `Abort failed: ${err}` });
+    }
+  };
+
   return (
     <div className="staging-area" onClick={() => setContextMenu(null)}>
       <div className="staging-lists">
+        {/* Cherry-Pick Active Banner */}
+        {isCherryPicking && (
+          <div className="staging-state-banner">
+            <div className="staging-state-banner-info">
+              <AlertTriangle size={14} />
+              <span>Cherry-pick conflict in progress</span>
+            </div>
+            <div className="staging-state-banner-actions">
+              <button className="staging-banner-btn" onClick={handleCherryPickAbort}>
+                Abort Cherry-Pick
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Revert Active Banner */}
+        {isReverting && (
+          <div className="staging-state-banner">
+            <div className="staging-state-banner-info">
+              <AlertTriangle size={14} />
+              <span>Revert conflict in progress</span>
+            </div>
+            <div className="staging-state-banner-actions">
+              <button className="staging-banner-btn" onClick={handleRevertAbort}>
+                Abort Revert
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Conflicted Files */}
         {conflicted.length > 0 && (
           <div className="staging-section conflicted">

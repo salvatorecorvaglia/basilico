@@ -24,6 +24,7 @@ pub fn run() {
             commands::repo::close_repo,
             commands::repo::get_status,
             commands::repo::list_remotes,
+            commands::repo::clean_repository,
             // Log commands
             commands::log::get_log,
             // Diff commands
@@ -63,6 +64,11 @@ pub fn run() {
             commands::staging::discard_changes,
             // Commit commands
             commands::commit::create_commit,
+            commands::commit::cherry_pick_commit,
+            commands::commit::cherry_pick_abort,
+            commands::commit::revert_commit,
+            commands::commit::revert_abort,
+            commands::commit::reset_to_commit,
             // Merge commands
             commands::merge::merge_branch,
             commands::merge::abort_merge,

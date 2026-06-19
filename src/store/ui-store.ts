@@ -29,6 +29,13 @@ interface UIState {
   // Settings modal
   settingsOpen: boolean;
 
+  // Reset modal (Phase 6)
+  resetModalOpen: boolean;
+  resetCommitOid: string | null;
+
+  // Clean modal (Phase 6)
+  cleanModalOpen: boolean;
+
   // Notifications
   notifications: Notification[];
 
@@ -40,6 +47,10 @@ interface UIState {
   setActiveView: (view: ActiveView) => void;
   toggleCommandPalette: () => void;
   toggleSettings: () => void;
+  openResetModal: (oid: string) => void;
+  closeResetModal: () => void;
+  openCleanModal: () => void;
+  closeCleanModal: () => void;
   addNotification: (notification: Omit<Notification, 'id'>) => void;
   removeNotification: (id: string) => void;
 }
@@ -52,6 +63,9 @@ export const useUIStore = create<UIState>((set) => ({
   activeView: 'graph',
   commandPaletteOpen: false,
   settingsOpen: false,
+  resetModalOpen: false,
+  resetCommitOid: null,
+  cleanModalOpen: false,
   notifications: [],
 
   toggleSidebar: () =>
@@ -74,6 +88,19 @@ export const useUIStore = create<UIState>((set) => ({
 
   toggleSettings: () =>
     set((state) => ({ settingsOpen: !state.settingsOpen })),
+
+  openResetModal: (oid: string) =>
+    set({ resetModalOpen: true, resetCommitOid: oid }),
+
+  closeResetModal: () =>
+    set({ resetModalOpen: false, resetCommitOid: null }),
+
+  openCleanModal: () =>
+    set({ cleanModalOpen: true }),
+
+  closeCleanModal: () =>
+    set({ cleanModalOpen: false }),
+
 
   addNotification: (notification) => {
     const id = Math.random().toString(36).slice(2);

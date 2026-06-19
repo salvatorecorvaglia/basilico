@@ -145,6 +145,14 @@ interface RepoState {
   loadSettings: () => Promise<void>;
   saveSettings: (settings: UserSettings) => Promise<void>;
   generateSshKey: (comment: string) => Promise<string>;
+
+  // Phase 6 Actions
+  cherryPickCommit: (oid: string) => Promise<'success' | 'conflicts'>;
+  cherryPickAbort: () => Promise<void>;
+  revertCommit: (oid: string) => Promise<'success' | 'conflicts'>;
+  revertAbort: () => Promise<void>;
+  resetToCommit: (oid: string, mode: 'soft' | 'mixed' | 'hard') => Promise<void>;
+  cleanRepository: (dryRun: boolean, cleanDirs: boolean, includeIgnored: boolean) => Promise<string[]>;
 }
 
 export const useRepoStore = create<RepoState>((set, get) => ({
@@ -1109,6 +1117,109 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       console.error('Failed to generate SSH key:', err);
       set({ error: String(err) });
       throw err;
+    }
+  },
+
+  // ── Phase 6 Actions ──
+
+  cherryPickCommit: async (oid) => {
+    const { activeTabId } = get();
+    if (!activeTabId) throw new Error('No active repository');
+    set({ isLoading: true });
+    try {
+      const res = await commands.cherryPickCommit(activeTabId, oid);
+      await get().refreshAll();
+      return res as 'success' | 'conflicts';
+    } catch (err) {
+      console.error('Failed to cherry-pick:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  cherryPickAbort: async () => {
+    const { activeTabId } = get();
+    if (!activeTabId) throw new Error('No active repository');
+    set({ isLoading: true });
+    try {
+      await commands.cherryPickAbort(activeTabId);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to abort cherry-pick:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  revertCommit: async (oid) => {
+    const { activeTabId } = get();
+    if (!activeTabId) throw new Error('No active repository');
+    set({ isLoading: true });
+    try {
+      const res = await commands.revertCommit(activeTabId, oid);
+      await get().refreshAll();
+      return res as 'success' | 'conflicts';
+    } catch (err) {
+      console.error('Failed to revert commit:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  revertAbort: async () => {
+    const { activeTabId } = get();
+    if (!activeTabId) throw new Error('No active repository');
+    set({ isLoading: true });
+    try {
+      await commands.revertAbort(activeTabId);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to abort revert:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  resetToCommit: async (oid, mode) => {
+    const { activeTabId } = get();
+    if (!activeTabId) throw new Error('No active repository');
+    set({ isLoading: true });
+    try {
+      await commands.resetToCommit(activeTabId, oid, mode);
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to reset to commit:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  cleanRepository: async (dryRun, cleanDirs, includeIgnored) => {
+    const { activeTabId } = get();
+    if (!activeTabId) throw new Error('No active repository');
+    set({ isLoading: true });
+    try {
+      const res = await commands.cleanRepository(activeTabId, dryRun, cleanDirs, includeIgnored);
+      if (!dryRun) {
+        await get().refreshAll();
+      }
+      return res;
+    } catch (err) {
+      console.error('Failed to clean repository:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
     }
   },
 }));

@@ -1,11 +1,15 @@
-/* ═══════════════════════════════════════════════════════
-   Basilico — CommitList Component
-   Virtualized commit list with inline graph
-   ═══════════════════════════════════════════════════════ */
-
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { 
+  Check, 
+  GitBranch, 
+  Tag, 
+  RotateCcw, 
+  Scissors, 
+  FolderSync 
+} from 'lucide-react';
 import { useRepoStore } from '../../store/repo-store';
+import { useUIStore } from '../../store/ui-store';
 import { CommitGraph } from './CommitGraph';
 import { formatRelativeTime, getInitials, stringToColor } from '../../lib/utils';
 import type { RefLabel } from '../../lib/git-types';
@@ -35,8 +39,34 @@ function RefBadge({ ref: refLabel }: { ref: RefLabel }) {
 }
 
 export function CommitList() {
-  const { commits, selectedCommitOid, selectCommit, loadMoreCommits } = useRepoStore();
+  const { 
+    commits, 
+    selectedCommitOid, 
+    selectCommit, 
+    loadMoreCommits,
+    checkoutBranch,
+    createBranch,
+    createTag,
+    cherryPickCommit,
+    revertCommit
+  } = useRepoStore();
+
+  const { openResetModal, addNotification } = useUIStore();
+
   const parentRef = useRef<HTMLDivElement>(null);
+
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    oid: string;
+  } | null>(null);
+
+  // Close context menu on any click outside
+  useEffect(() => {
+    const handleCloseMenu = () => setContextMenu(null);
+    window.addEventListener('click', handleCloseMenu);
+    return () => window.removeEventListener('click', handleCloseMenu);
+  }, []);
 
   const virtualizer = useVirtualizer({
     count: commits.length,
@@ -54,6 +84,97 @@ export function CommitList() {
       loadMoreCommits(500);
     }
   }, [loadMoreCommits]);
+
+  const handleRowContextMenu = (e: React.MouseEvent, oid: string) => {
+    e.preventDefault();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      oid,
+    });
+  };
+
+  const handleCheckoutCommit = async (oid: string) => {
+    try {
+      await checkoutBranch(oid);
+      addNotification({ 
+        type: 'success', 
+        message: `Checked out commit ${oid.slice(0, 7)} (detached HEAD)` 
+      });
+    } catch (err) {
+      addNotification({ type: 'error', message: `Checkout failed: ${err}` });
+    }
+  };
+
+  const handleCherryPick = async (oid: string) => {
+    try {
+      const res = await cherryPickCommit(oid);
+      if (res === 'conflicts') {
+        addNotification({ 
+          type: 'warning', 
+          message: `Cherry-pick conflict at commit ${oid.slice(0, 7)}. Please resolve conflicts in staging.` 
+        });
+      } else {
+        addNotification({ 
+          type: 'success', 
+          message: `Successfully cherry-picked commit ${oid.slice(0, 7)}` 
+        });
+      }
+    } catch (err) {
+      addNotification({ type: 'error', message: `Cherry-pick failed: ${err}` });
+    }
+  };
+
+  const handleRevert = async (oid: string) => {
+    try {
+      const res = await revertCommit(oid);
+      if (res === 'conflicts') {
+        addNotification({ 
+          type: 'warning', 
+          message: `Revert conflict at commit ${oid.slice(0, 7)}. Please resolve conflicts in staging.` 
+        });
+      } else {
+        addNotification({ 
+          type: 'success', 
+          message: `Successfully reverted commit ${oid.slice(0, 7)}` 
+        });
+      }
+    } catch (err) {
+      addNotification({ type: 'error', message: `Revert failed: ${err}` });
+    }
+  };
+
+  const handleCreateBranchPrompt = async (oid: string) => {
+    const name = prompt('Enter new branch name:');
+    if (name && name.trim()) {
+      try {
+        await createBranch(name.trim(), oid);
+        addNotification({ 
+          type: 'success', 
+          message: `Created branch "${name}" at ${oid.slice(0, 7)}` 
+        });
+      } catch (err) {
+        addNotification({ type: 'error', message: `Failed to create branch: ${err}` });
+      }
+    }
+  };
+
+  const handleCreateTagPrompt = async (oid: string) => {
+    const name = prompt('Enter new tag name:');
+    if (!name || !name.trim()) return;
+
+    const message = prompt('Enter tag message (optional, leave empty for lightweight tag):');
+
+    try {
+      await createTag(name.trim(), oid, message?.trim() || null);
+      addNotification({ 
+        type: 'success', 
+        message: `Created tag "${name}" at ${oid.slice(0, 7)}` 
+      });
+    } catch (err) {
+      addNotification({ type: 'error', message: `Failed to create tag: ${err}` });
+    }
+  };
 
   if (commits.length === 0) {
     return (
@@ -119,6 +240,7 @@ export function CommitList() {
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
                 onClick={() => selectCommit(commit.oid)}
+                onContextMenu={(e) => handleRowContextMenu(e, commit.oid)}
               >
                 {/* Graph column spacer */}
                 <div className="commit-col-graph" style={{ width: GRAPH_WIDTH }} />
@@ -156,6 +278,66 @@ export function CommitList() {
           })}
         </div>
       </div>
+
+      {/* Commit Context Menu */}
+      {contextMenu && (
+        <div 
+          className="sidebar-context-menu commit-context-menu" 
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button 
+            className="context-menu-item" 
+            onClick={() => handleCheckoutCommit(contextMenu.oid)}
+          >
+            <Check size={12} />
+            <span>Checkout Commit (Detached HEAD)</span>
+          </button>
+          
+          <button 
+            className="context-menu-item" 
+            onClick={() => handleCherryPick(contextMenu.oid)}
+          >
+            <Scissors size={12} />
+            <span>Cherry-Pick Commit</span>
+          </button>
+
+          <button 
+            className="context-menu-item" 
+            onClick={() => handleRevert(contextMenu.oid)}
+          >
+            <RotateCcw size={12} />
+            <span>Revert Commit</span>
+          </button>
+
+          <button 
+            className="context-menu-item" 
+            onClick={() => openResetModal(contextMenu.oid)}
+          >
+            <FolderSync size={12} />
+            <span>Reset current branch to this commit...</span>
+          </button>
+
+          <div className="context-menu-divider" />
+
+          <button 
+            className="context-menu-item" 
+            onClick={() => handleCreateBranchPrompt(contextMenu.oid)}
+          >
+            <GitBranch size={12} />
+            <span>Create Branch here...</span>
+          </button>
+
+          <button 
+            className="context-menu-item" 
+            onClick={() => handleCreateTagPrompt(contextMenu.oid)}
+          >
+            <Tag size={12} />
+            <span>Create Tag here...</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
+
