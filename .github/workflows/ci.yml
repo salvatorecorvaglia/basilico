@@ -10,10 +10,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-jobs:
-  check:
-    runs-on: ubuntu-latest
+permissions:
+  contents: read
 
+jobs:
+  frontend-check:
+    name: Frontend Check
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -24,10 +27,38 @@ jobs:
           node-version: lts/*
           cache: npm
 
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck & Build
+        run: npm run build
+
+  rust-fmt:
+    name: Rust Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy, rustfmt
+          components: rustfmt
+
+      - name: Format check
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+  rust-clippy-test:
+    name: Rust Clippy & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - name: Cache Rust dependencies
         uses: swatinem/rust-cache@v2
@@ -39,17 +70,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Install frontend dependencies
-        run: npm ci
-
-      - name: Check frontend typecheck & build
-        run: npm run build
-
-      - name: Rust format check
-        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
-
-      - name: Rust clippy linting
+      - name: Clippy linting
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets
 
-      - name: Run Rust tests
+      - name: Run tests
         run: cargo test --manifest-path src-tauri/Cargo.toml

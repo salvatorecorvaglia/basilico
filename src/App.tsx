@@ -156,9 +156,9 @@ function App() {
                 <>
                   <Panel
                     id="sidebar"
-                    defaultSize={18}
-                    minSize={12}
-                    maxSize={30}
+                    defaultSize="18%"
+                    minSize="12%"
+                    maxSize="30%"
                   >
                     <Sidebar />
                   </Panel>
@@ -167,32 +167,32 @@ function App() {
               )}
 
               {/* Center Panel (depends on activeView) */}
-              <Panel id="center" minSize={40}>
+              <Panel id="center" minSize="40%">
                 {activeView === 'graph' ? (
                   <Group orientation="vertical">
                     {/* Commit List + Graph */}
-                    <Panel id="graph" defaultSize={60} minSize={30}>
+                    <Panel id="graph" defaultSize="60%" minSize="30%">
                       <CommitList />
                     </Panel>
 
                     <Separator className="resize-handle resize-handle-vertical" />
 
                     {/* Commit Detail */}
-                    <Panel id="detail" defaultSize={40} minSize={15}>
+                    <Panel id="detail" defaultSize="40%" minSize="15%">
                       <CommitDetail />
                     </Panel>
                   </Group>
                 ) : activeView === 'staging' ? (
                   <Group orientation="horizontal">
                     {/* Staging area */}
-                    <Panel id="staging-panel" defaultSize={30} minSize={20}>
+                    <Panel id="staging-panel" defaultSize="30%" minSize="20%">
                       <StagingArea />
                     </Panel>
 
                     <Separator className="resize-handle resize-handle-horizontal" />
 
                     {/* Diff viewer */}
-                    <Panel id="diff-panel" defaultSize={70} minSize={45}>
+                    <Panel id="diff-panel" defaultSize="70%" minSize="45%">
                       <DiffView />
                     </Panel>
                   </Group>

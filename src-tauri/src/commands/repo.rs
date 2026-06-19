@@ -41,7 +41,6 @@ pub async fn clean_repository(
     clean_dirs: bool,
     include_ignored: bool,
 ) -> Result<Vec<String>, String> {
-    use std::process::Command;
     let mut args = vec!["clean"];
 
     if dry_run {

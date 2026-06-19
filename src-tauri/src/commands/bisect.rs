@@ -5,7 +5,6 @@ Command handlers for git bisect operations
 
 use git2::Repository;
 use serde::Serialize;
-use std::process::Command;
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]

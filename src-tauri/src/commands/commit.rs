@@ -1,6 +1,5 @@
 use git2::{Repository, Signature};
 use serde::Serialize;
-use std::process::Command;
 
 #[tauri::command]
 pub async fn create_commit(

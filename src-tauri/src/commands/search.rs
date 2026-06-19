@@ -6,7 +6,6 @@ Command handlers for git history and code search
 use crate::git::graph::GraphCommit;
 use git2::{Repository, Sort};
 use serde::Serialize;
-use std::process::Command;
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]

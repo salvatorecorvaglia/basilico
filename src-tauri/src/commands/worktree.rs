@@ -4,7 +4,6 @@ Command handlers for git worktree operations
 ═══════════════════════════════════════════════════════ */
 
 use serde::Serialize;
-use std::process::Command;
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
