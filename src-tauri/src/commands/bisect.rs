@@ -29,7 +29,11 @@ fn run_git_cmd(repo_path: &str, args: &[&str]) -> Result<String, AppError> {
     if output.status.success() {
         Ok(if stdout.is_empty() { stderr } else { stdout })
     } else {
-        Err(AppError::git(if stderr.is_empty() { stdout } else { stderr }))
+        Err(AppError::git(if stderr.is_empty() {
+            stdout
+        } else {
+            stderr
+        }))
     }
 }
 

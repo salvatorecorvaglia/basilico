@@ -85,8 +85,9 @@ pub async fn save_settings(app: tauri::AppHandle, settings: UserSettings) -> Res
 
     // Create parent directory if it doesn't exist
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| AppError::settings(format!("Failed to create settings directory: {}", e)))?;
+        fs::create_dir_all(parent).map_err(|e| {
+            AppError::settings(format!("Failed to create settings directory: {}", e))
+        })?;
     }
 
     let content = serde_json::to_string_pretty(&settings)
@@ -100,7 +101,8 @@ pub async fn save_settings(app: tauri::AppHandle, settings: UserSettings) -> Res
 
 #[tauri::command]
 pub async fn generate_ssh_key(comment: String) -> Result<String, AppError> {
-    let home = dirs::home_dir().ok_or_else(|| AppError::settings("Could not determine home directory"))?;
+    let home =
+        dirs::home_dir().ok_or_else(|| AppError::settings("Could not determine home directory"))?;
     let ssh_dir = home.join(".ssh");
     let key_path = ssh_dir.join("id_basilico");
 
@@ -112,8 +114,12 @@ pub async fn generate_ssh_key(comment: String) -> Result<String, AppError> {
     if key_path.exists() {
         // Read and return the existing public key
         let pub_path = ssh_dir.join("id_basilico.pub");
-        return fs::read_to_string(&pub_path)
-            .map_err(|e| AppError::settings(format!("Key already exists but failed to read public key: {}", e)));
+        return fs::read_to_string(&pub_path).map_err(|e| {
+            AppError::settings(format!(
+                "Key already exists but failed to read public key: {}",
+                e
+            ))
+        });
     }
 
     let key_path_str = key_path
@@ -140,13 +146,18 @@ pub async fn generate_ssh_key(comment: String) -> Result<String, AppError> {
 
     // Read and return the public key
     let pub_path = ssh_dir.join("id_basilico.pub");
-    fs::read_to_string(&pub_path)
-        .map_err(|e| AppError::settings(format!("Generated key but failed to read public key: {}", e)))
+    fs::read_to_string(&pub_path).map_err(|e| {
+        AppError::settings(format!(
+            "Generated key but failed to read public key: {}",
+            e
+        ))
+    })
 }
 
 #[tauri::command]
 pub async fn list_ssh_keys() -> Result<Vec<String>, AppError> {
-    let home = dirs::home_dir().ok_or_else(|| AppError::settings("Could not determine home directory"))?;
+    let home =
+        dirs::home_dir().ok_or_else(|| AppError::settings("Could not determine home directory"))?;
     let ssh_dir = home.join(".ssh");
 
     if !ssh_dir.exists() {

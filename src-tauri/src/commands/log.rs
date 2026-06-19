@@ -1,5 +1,5 @@
-use crate::git::graph;
 use crate::error::AppError;
+use crate::git::graph;
 
 #[tauri::command]
 pub async fn get_log(
@@ -9,4 +9,3 @@ pub async fn get_log(
     let max = max_commits.unwrap_or(1000);
     graph::build_graph(&path, max)
 }
-

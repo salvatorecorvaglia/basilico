@@ -27,11 +27,15 @@ pub async fn get_file_blame(
     // 1. Get file content at the specified revision or HEAD/workdir
     let (content, resolved_oid) = if let Some(ref oid_str) = commit_oid {
         let obj = repo.revparse_single(oid_str)?;
-        let commit = obj.as_commit().ok_or_else(|| AppError::invalid_state("Not a commit"))?;
+        let commit = obj
+            .as_commit()
+            .ok_or_else(|| AppError::invalid_state("Not a commit"))?;
         let tree = commit.tree()?;
         let entry = tree.get_path(Path::new(&file_path))?;
         let object = entry.to_object(&repo)?;
-        let blob = object.as_blob().ok_or_else(|| AppError::invalid_state("Not a blob"))?;
+        let blob = object
+            .as_blob()
+            .ok_or_else(|| AppError::invalid_state("Not a blob"))?;
         (
             String::from_utf8_lossy(blob.content()).to_string(),
             Some(commit.id()),

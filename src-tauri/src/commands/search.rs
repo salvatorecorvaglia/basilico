@@ -3,8 +3,8 @@ Basilico — Search Commands
 Command handlers for git history and code search
 ═══════════════════════════════════════════════════════ */
 
-use crate::git::graph::GraphCommit;
 use crate::error::AppError;
+use crate::git::graph::GraphCommit;
 use git2::{Repository, Sort};
 use serde::Serialize;
 
@@ -17,7 +17,10 @@ pub struct GrepMatch {
 }
 
 #[tauri::command]
-pub async fn search_commits(repo_path: String, query: String) -> Result<Vec<GraphCommit>, AppError> {
+pub async fn search_commits(
+    repo_path: String,
+    query: String,
+) -> Result<Vec<GraphCommit>, AppError> {
     let repo = Repository::open(&repo_path)?;
     let mut revwalk = repo.revwalk()?;
     revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;

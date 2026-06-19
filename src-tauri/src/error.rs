@@ -116,4 +116,3 @@ impl From<AppError> for String {
         err.message
     }
 }
-

@@ -118,7 +118,9 @@ pub async fn rebase_step(
     if action == "continue" {
         let index = repo.index()?;
         if index.has_conflicts() {
-            return Err(AppError::conflict("Cannot continue rebase while there are merge conflicts."));
+            return Err(AppError::conflict(
+                "Cannot continue rebase while there are merge conflicts.",
+            ));
         }
         let _ = rebase.commit(None, &signature, commit_message.as_deref());
     }

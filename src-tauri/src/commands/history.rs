@@ -60,7 +60,8 @@ pub async fn get_file_history(
                 let parent_tree = parent.tree()?;
 
                 // Generate diff with rename detection
-                let mut diff = repo.diff_tree_to_tree(Some(&parent_tree), Some(&commit_tree), None)?;
+                let mut diff =
+                    repo.diff_tree_to_tree(Some(&parent_tree), Some(&commit_tree), None)?;
 
                 let mut find_opts = git2::DiffFindOptions::new();
                 find_opts.renames(true);

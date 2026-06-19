@@ -1,5 +1,5 @@
-use crate::git::diff_parser;
 use crate::error::AppError;
+use crate::git::diff_parser;
 
 #[tauri::command]
 pub async fn get_workdir_diff(path: String) -> Result<Vec<diff_parser::FileDiff>, AppError> {
@@ -134,7 +134,9 @@ pub async fn get_file_content_at_revision(
     } else if let Some(blob) = obj.as_blob() {
         blob.clone()
     } else {
-        return Err(AppError::invalid_state("Unable to resolve object to a blob"));
+        return Err(AppError::invalid_state(
+            "Unable to resolve object to a blob",
+        ));
     };
 
     Ok(String::from_utf8_lossy(blob.content()).to_string())

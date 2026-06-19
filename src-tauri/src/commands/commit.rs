@@ -87,7 +87,10 @@ pub async fn cherry_pick_abort(path: String) -> Result<(), AppError> {
         Ok(())
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        Err(AppError::git(format!("Cherry-pick abort failed: {}", stderr)))
+        Err(AppError::git(format!(
+            "Cherry-pick abort failed: {}",
+            stderr
+        )))
     }
 }
 
@@ -144,7 +147,12 @@ pub async fn reset_to_commit(path: String, oid: String, mode: String) -> Result<
         "soft" => git2::ResetType::Soft,
         "mixed" => git2::ResetType::Mixed,
         "hard" => git2::ResetType::Hard,
-        _ => return Err(AppError::invalid_state(format!("Invalid reset mode: {}", mode))),
+        _ => {
+            return Err(AppError::invalid_state(format!(
+                "Invalid reset mode: {}",
+                mode
+            )))
+        }
     };
 
     repo.reset(commit.as_object(), reset_type, None)?;

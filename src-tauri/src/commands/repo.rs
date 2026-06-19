@@ -1,6 +1,6 @@
+use crate::error::AppError;
 use crate::git::repository;
 use crate::state::AppState;
-use crate::error::AppError;
 
 #[tauri::command]
 pub async fn open_repo(
