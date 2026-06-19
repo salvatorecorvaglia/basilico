@@ -108,6 +108,9 @@ pub fn run() {
             commands::settings::save_settings,
             commands::settings::generate_ssh_key,
             commands::settings::list_ssh_keys,
+            // Conflict resolver commands
+            commands::conflict_resolver::get_conflict_stages,
+            commands::conflict_resolver::save_merged_resolution,
         ])
         .setup(|app| {
             log::info!("Basilico starting...");

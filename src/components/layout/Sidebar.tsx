@@ -26,6 +26,7 @@ import {
   Scissors,
   Download,
   ArrowLeftRight,
+  GitPullRequest,
 } from 'lucide-react';
 import { useRepoStore } from '../../store/repo-store';
 import { useUIStore } from '../../store/ui-store';
@@ -91,7 +92,7 @@ export function Sidebar() {
     startComparison,
   } = useRepoStore();
 
-  const { addNotification, setActiveView, openCleanModal } = useUIStore();
+  const { addNotification, setActiveView, openCleanModal, activeView } = useUIStore();
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -419,6 +420,14 @@ export function Sidebar() {
           <button className="sidebar-item" onClick={() => setActiveView('reflog')}>
             <Clock size={12} className="sidebar-item-dot" />
             <span className="sidebar-item-name truncate" style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--text-primary)' }}>Reflog (HEAD)</span>
+          </button>
+        </div>
+
+        {/* Pull Requests Link */}
+        <div className="sidebar-pr-item" style={{ marginTop: 'var(--space-1)' }}>
+          <button className={`sidebar-item ${activeView === 'pull-requests' ? 'active' : ''}`} onClick={() => setActiveView('pull-requests')}>
+            <GitPullRequest size={12} className="sidebar-item-dot" style={{ color: 'var(--accent-teal)' }} />
+            <span className="sidebar-item-name truncate" style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--text-primary)' }}>Pull Requests</span>
           </button>
         </div>
 

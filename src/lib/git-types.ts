@@ -131,7 +131,7 @@ export interface RepoTab {
   isActive: boolean;
 }
 
-export type ActiveView = 'graph' | 'staging' | 'diff' | 'blame' | 'history' | 'reflog' | 'search' | 'rebase' | 'bisect' | 'compare';
+export type ActiveView = 'graph' | 'staging' | 'diff' | 'blame' | 'history' | 'reflog' | 'search' | 'rebase' | 'bisect' | 'compare' | 'conflict-resolver' | 'pull-requests';
 
 // ── Phase 3: Blame, History, Reflog, Stash Types ──
 
@@ -229,6 +229,12 @@ export interface TreeEntryInfo {
   name: string;
   isDir: boolean;
   size: number | null;
+}
+
+export interface ConflictStages {
+  base: string | null;
+  ours: string | null;
+  theirs: string | null;
 }
 
 

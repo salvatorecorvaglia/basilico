@@ -25,6 +25,7 @@ import type {
   SubmoduleInfo,
   UserSettings,
   TreeEntryInfo,
+  ConflictStages,
 } from '../lib/git-types';
 import * as commands from '../lib/tauri-commands';
 
@@ -63,6 +64,10 @@ interface RepoState {
   compareTarget: string | null;
   selectedCompareFile: string | null;
   compareFileDiff: FileDiff | null;
+
+  // Phase 9 State
+  conflictStages: ConflictStages | null;
+  activeConflictedPath: string | null;
 
   // Staging area & local diffs
   selectedFilePath: string | null;
@@ -167,6 +172,10 @@ interface RepoState {
   loadCommitTree: (oid: string) => Promise<void>;
   startComparison: (base: string, target: string) => Promise<void>;
   selectCompareFile: (filePath: string | null) => Promise<void>;
+
+  // Phase 9 Actions
+  loadConflictStages: (filePath: string) => Promise<void>;
+  resolveConflictStages: (filePath: string, mergedContent: string) => Promise<void>;
 }
 
 export const useRepoStore = create<RepoState>((set, get) => ({
@@ -199,6 +208,8 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   compareTarget: null,
   selectedCompareFile: null,
   compareFileDiff: null,
+  conflictStages: null,
+  activeConflictedPath: null,
   selectedFilePath: null,
   selectedFileIsStaged: false,
   localDiff: null,
@@ -1333,6 +1344,40 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       }
     } catch (err) {
       console.error('Failed to select compare file:', err);
+    }
+  },
+
+  // ── Phase 9 Actions ──
+
+  loadConflictStages: async (filePath: string) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+    set({ isLoading: true, conflictStages: null, activeConflictedPath: filePath });
+    try {
+      const stages = await commands.getConflictStages(activeTabId, filePath);
+      set({ conflictStages: stages });
+    } catch (err) {
+      console.error('Failed to load conflict stages:', err);
+      set({ error: String(err) });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  resolveConflictStages: async (filePath: string, mergedContent: string) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+    set({ isLoading: true });
+    try {
+      await commands.saveMergedResolution(activeTabId, filePath, mergedContent);
+      set({ conflictStages: null, activeConflictedPath: null });
+      await get().refreshAll();
+    } catch (err) {
+      console.error('Failed to resolve conflict:', err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
     }
   },
 }));

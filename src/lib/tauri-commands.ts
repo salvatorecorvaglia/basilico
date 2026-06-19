@@ -23,6 +23,7 @@ import type {
   SubmoduleInfo,
   UserSettings,
   TreeEntryInfo,
+  ConflictStages,
 } from './git-types';
 
 // ── Repository Commands ──
@@ -299,6 +300,14 @@ export const getCompareDiff = (path: string, base: string, target: string) =>
 
 export const getFileContentPairRevisions = (path: string, filePath: string, base: string, target: string) =>
   invoke<FileContentPair>('get_file_content_pair_revisions', { path, filePath, base, target });
+
+// ── Phase 9: Conflict Resolver Commands ──
+
+export const getConflictStages = (repoPath: string, filePath: string) =>
+  invoke<ConflictStages>('get_conflict_stages', { repoPath, filePath });
+
+export const saveMergedResolution = (repoPath: string, filePath: string, mergedContent: string) =>
+  invoke<void>('save_merged_resolution', { repoPath, filePath, mergedContent });
 
 
 

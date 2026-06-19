@@ -17,3 +17,4 @@ pub mod search;
 pub mod worktree;
 pub mod submodule;
 pub mod settings;
+pub mod conflict_resolver;

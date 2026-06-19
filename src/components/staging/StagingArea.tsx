@@ -92,8 +92,12 @@ export function StagingArea() {
     }
   };
 
-  const handleFileClick = (path: string, isStaged: boolean) => {
+  const handleFileClick = (path: string, isStaged: boolean, isConflicted = false) => {
     selectLocalFile(path, isStaged);
+    if (isConflicted) {
+      useRepoStore.getState().loadConflictStages(path);
+      setActiveView('conflict-resolver');
+    }
   };
 
   const handleCheckboxChange = (path: string, currentlyStaged: boolean) => {
@@ -173,7 +177,7 @@ export function StagingArea() {
                 <div 
                   key={file} 
                   className={`staging-file-row ${selectedFilePath === file ? 'selected' : ''}`}
-                  onClick={() => handleFileClick(file, false)}
+                  onClick={() => handleFileClick(file, false, true)}
                   onContextMenu={(e) => handleFileContextMenu(e, file)}
                 >
                   <span className="staging-file-icon text-warning">⚠</span>

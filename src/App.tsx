@@ -26,6 +26,8 @@ import { ResetModal } from './components/graph/ResetModal';
 import { CleanModal } from './components/clean/CleanModal';
 import { CompareView } from './components/compare/CompareView';
 import { FileViewerModal } from './components/graph/FileViewerModal';
+import { MergeEditor } from './components/staging/MergeEditor';
+import { PullRequestReview } from './components/layout/PullRequestReview';
 import { useRepoStore } from './store/repo-store';
 import { useUIStore } from './store/ui-store';
 import './App.css';
@@ -144,6 +146,10 @@ function App() {
                   <BisectWizard />
                 ) : activeView === 'compare' ? (
                   <CompareView />
+                ) : activeView === 'conflict-resolver' ? (
+                  <MergeEditor />
+                ) : activeView === 'pull-requests' ? (
+                  <PullRequestReview />
                 ) : (
                   <div className="view-fallback">
                     <h3>{activeView.toUpperCase()} View</h3>
