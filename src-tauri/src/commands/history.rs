@@ -165,19 +165,23 @@ mod tests {
 
         fn commit(&self, msg: &str) {
             let mut index = self.repo.index().unwrap();
-            index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None).unwrap();
+            index
+                .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+                .unwrap();
             index.write().unwrap();
             let tree_id = index.write_tree().unwrap();
             let tree = self.repo.find_tree(tree_id).unwrap();
             let sig = self.repo.signature().unwrap();
-            
+
             let mut parents = Vec::new();
             if let Ok(head) = self.repo.head() {
                 parents.push(head.peel_to_commit().unwrap());
             }
-            
+
             let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
-            self.repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &parent_refs).unwrap();
+            self.repo
+                .commit(Some("HEAD"), &sig, &sig, msg, &tree, &parent_refs)
+                .unwrap();
         }
 
         fn path_str(&self) -> &str {
@@ -194,25 +198,27 @@ mod tests {
     #[tokio::test]
     async fn test_file_history_deletions() {
         let repo = TempRepo::new();
-        
+
         // 1. Create file and commit
         repo.write_file("test.txt", "hello");
         repo.commit("initial");
-        
+
         // 2. Modify and commit
         repo.write_file("test.txt", "hello world");
         repo.commit("modify");
-        
+
         // 3. Delete and commit
         repo.remove_file("test.txt");
         repo.commit("delete file");
-        
+
         // 4. Recreate and commit
         repo.write_file("test.txt", "reborn file");
         repo.commit("recreate");
 
-        let history = get_file_history(repo.path_str().to_string(), "test.txt".to_string(), None).await.unwrap();
-        
+        let history = get_file_history(repo.path_str().to_string(), "test.txt".to_string(), None)
+            .await
+            .unwrap();
+
         // Should contain all 4 stages: recreate, delete file, modify, initial
         assert_eq!(history.len(), 4);
         assert_eq!(history[0].commit_summary, "recreate");

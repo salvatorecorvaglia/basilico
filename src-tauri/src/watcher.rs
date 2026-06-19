@@ -36,7 +36,11 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
             return;
         }
 
-        log::info!("Watching repository: {} (session: {})", repo_path, watcher_id);
+        log::info!(
+            "Watching repository: {} (session: {})",
+            repo_path,
+            watcher_id
+        );
 
         loop {
             // Wakes up periodically to check if the repository is still open in AppState.

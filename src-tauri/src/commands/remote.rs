@@ -60,7 +60,9 @@ pub async fn pull(
     // Step 1: Fetch
     let mut remote_obj = repo.find_remote(&remote).map_err(|e| e.to_string())?;
     let mut fetch_opts = FetchOptions::new();
-    fetch_opts.remote_callbacks(crate::git::credentials::make_callbacks(ssh_key_path.clone()));
+    fetch_opts.remote_callbacks(crate::git::credentials::make_callbacks(
+        ssh_key_path.clone(),
+    ));
 
     remote_obj
         .fetch(&[branch.as_str()], Some(&mut fetch_opts), None)
