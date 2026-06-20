@@ -47,5 +47,5 @@
 
 /* Add a subtle glow on active drag */
 .resize-handle[data-resize-handle-active] {
-  box-shadow: 0 0 6px rgba(46, 160, 67, 0.3);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent-primary) 30%, transparent);
 }

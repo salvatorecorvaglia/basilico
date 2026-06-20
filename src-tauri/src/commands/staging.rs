@@ -5,9 +5,16 @@ use std::path::Path;
 #[tauri::command]
 pub async fn stage_files(path: String, files: Vec<String>) -> Result<(), AppError> {
     let repo = Repository::open(&path)?;
+    let repo_dir = Path::new(&path);
     let mut index = repo.index()?;
     for file in files {
-        index.add_path(Path::new(&file))?;
+        let full_path = repo_dir.join(&file);
+        if full_path.exists() {
+            index.add_path(Path::new(&file))?;
+        } else {
+            // File was deleted — stage the deletion
+            let _ = index.remove_path(Path::new(&file));
+        }
     }
     index.write()?;
     Ok(())

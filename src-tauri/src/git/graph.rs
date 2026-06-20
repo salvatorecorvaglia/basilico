@@ -174,13 +174,6 @@ fn compute_lanes(commits: &mut Vec<GraphCommit>) {
         return;
     }
 
-    // Map oid -> index for quick lookup
-    let _oid_to_idx: HashMap<String, usize> = commits
-        .iter()
-        .enumerate()
-        .map(|(i, c)| (c.oid.clone(), i))
-        .collect();
-
     // Active lanes: each lane tracks which oid it's expecting next
     let mut active_lanes: Vec<Option<String>> = Vec::new();
 

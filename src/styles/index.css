@@ -57,7 +57,7 @@ body {
 
 /* ── Selection ── */
 ::selection {
-  background: rgba(46, 160, 67, 0.3);
+  background: color-mix(in srgb, var(--accent-primary) 30%, transparent);
   color: var(--text-primary);
 }
 
@@ -103,7 +103,7 @@ input, textarea, select {
 
 input:focus, textarea:focus, select:focus {
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px rgba(46, 160, 67, 0.15);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 15%, transparent);
 }
 
 /* ── Utility Classes ── */

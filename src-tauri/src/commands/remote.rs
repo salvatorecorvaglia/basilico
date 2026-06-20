@@ -68,6 +68,32 @@ pub async fn pull(
     let reference = repo.find_reference(&remote_ref)?;
     let annotated = repo.reference_to_annotated_commit(&reference)?;
 
+    let (merge_analysis, _) = repo.merge_analysis(&[&annotated])?;
+
+    if merge_analysis.is_up_to_date() {
+        return Ok("success".to_string());
+    }
+
+    if merge_analysis.is_fast_forward() {
+        // Fast-forward: just move HEAD to the remote commit
+        let target_oid = annotated.id();
+        let target_object = repo.find_object(target_oid, None)?;
+        repo.checkout_tree(&target_object, Some(CheckoutBuilder::new().safe()))?;
+
+        let refname = format!("refs/heads/{}", branch);
+        match repo.find_reference(&refname) {
+            Ok(mut r) => {
+                r.set_target(target_oid, &format!("pull: fast-forward to {}", target_oid))?;
+            }
+            Err(_) => {
+                repo.reference(&refname, target_oid, true, "pull: fast-forward")?;
+            }
+        }
+        repo.set_head(&refname)?;
+        return Ok("success".to_string());
+    }
+
+    // Normal merge
     let mut merge_opts = MergeOptions::new();
     let mut checkout_opts = CheckoutBuilder::new();
     checkout_opts.safe();
@@ -81,6 +107,26 @@ pub async fn pull(
     if repo.index().map(|idx| idx.has_conflicts()).unwrap_or(false) {
         Ok("conflicts".to_string())
     } else {
+        // Create merge commit to finalize the merge
+        let head = repo.head()?.peel_to_commit()?;
+        let remote_commit = repo.find_commit(annotated.id())?;
+        let sig = repo.signature().unwrap_or_else(|_| {
+            git2::Signature::now("Basilico User", "user@basilico.app").unwrap()
+        });
+        let mut index = repo.index()?;
+        let tree_oid = index.write_tree()?;
+        let tree = repo.find_tree(tree_oid)?;
+        let msg = format!("Merge branch '{}' of {}", branch, remote);
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            &msg,
+            &tree,
+            &[&head, &remote_commit],
+        )?;
+        repo.cleanup_state()?;
         Ok("success".to_string())
     }
 }
+

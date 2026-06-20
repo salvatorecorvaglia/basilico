@@ -3,28 +3,8 @@
    Layout assembly with tab management
    ═══════════════════════════════════════════════════════ */
 
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { listen } from '@tauri-apps/api/event';
-
-function matchesShortcut(e: KeyboardEvent, shortcutStr: string): boolean {
-  const parts = shortcutStr.split('+');
-  let meta = false;
-  let shift = false;
-  let key = '';
-  for (const part of parts) {
-    if (part === 'CmdOrCtrl') {
-      meta = e.metaKey || e.ctrlKey;
-    } else if (part === 'Shift') {
-      shift = e.shiftKey;
-    } else {
-      key = part.toLowerCase();
-    }
-  }
-  
-  if (key === 'enter') return meta && shift === e.shiftKey && e.key === 'Enter';
-  if (key === ',') return meta && shift === e.shiftKey && e.key === ',';
-  return meta && shift === e.shiftKey && e.key.toLowerCase() === key;
-}
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { TabBar } from './components/layout/TabBar';
 import { Toolbar } from './components/layout/Toolbar';
@@ -58,6 +38,26 @@ import { useRepoStore } from './store/repo-store';
 import { useUIStore } from './store/ui-store';
 import './App.css';
 
+function matchesShortcut(e: KeyboardEvent, shortcutStr: string): boolean {
+  const parts = shortcutStr.split('+');
+  let meta = false;
+  let shift = false;
+  let key = '';
+  for (const part of parts) {
+    if (part === 'CmdOrCtrl') {
+      meta = e.metaKey || e.ctrlKey;
+    } else if (part === 'Shift') {
+      shift = e.shiftKey;
+    } else {
+      key = part.toLowerCase();
+    }
+  }
+  
+  if (key === 'enter') return meta && shift === e.shiftKey && e.key === 'Enter';
+  if (key === ',') return meta && shift === e.shiftKey && e.key === ',';
+  return meta && shift === e.shiftKey && e.key.toLowerCase() === key;
+}
+
 function App() {
   const { tabs, activeTabId, loadSettings, settings, refreshAll, openRepository } = useRepoStore();
   const { sidebarVisible, activeView, toggleSettings, toggleCommandPalette, setActiveView, addNotification } = useUIStore();
@@ -87,6 +87,18 @@ function App() {
     };
   }, [refreshAll]);
 
+  // Open repository via file dialog (shared by both shortcut paths)
+  const handleOpenRepo = useCallback(async () => {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: 'Open Git Repository',
+    });
+    if (selected) {
+      await openRepository(selected as string);
+    }
+  }, [openRepository]);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -99,65 +111,43 @@ function App() {
       );
 
       const shortcuts = settings?.keyboardShortcuts;
-      if (!shortcuts) {
-        // Fallback to hardcoded defaults if settings haven't loaded yet
-        const meta = e.metaKey || e.ctrlKey;
-        if (meta && e.key === ',') {
-          e.preventDefault();
-          toggleSettings();
-        } else if (meta && e.shiftKey && e.key === 'P') {
-          e.preventDefault();
-          toggleCommandPalette();
-        } else if (meta && e.key.toLowerCase() === 'o') {
-          e.preventDefault();
-          const handleOpen = async () => {
-            const selected = await open({
-              directory: true,
-              multiple: false,
-              title: 'Open Git Repository',
-            });
-            if (selected) {
-              await openRepository(selected as string);
-            }
-          };
-          handleOpen();
-        }
+
+      // Command palette — always global (works even in input fields)
+      const cmdPaletteShortcut = shortcuts?.commandPalette || 'CmdOrCtrl+Shift+P';
+      if (matchesShortcut(e, cmdPaletteShortcut)) {
+        e.preventDefault();
+        toggleCommandPalette();
         return;
       }
 
-      if (matchesShortcut(e, shortcuts.openSettings || 'CmdOrCtrl+,')) {
+      // Open repo — always global
+      if (matchesShortcut(e, 'CmdOrCtrl+o')) {
+        e.preventDefault();
+        handleOpenRepo();
+        return;
+      }
+
+      // All remaining shortcuts respect input focus
+      if (isInputFocused) return;
+
+      const openSettingsShortcut = shortcuts?.openSettings || 'CmdOrCtrl+,';
+      if (matchesShortcut(e, openSettingsShortcut)) {
         e.preventDefault();
         toggleSettings();
-      } else if (matchesShortcut(e, shortcuts.commandPalette || 'CmdOrCtrl+Shift+P')) {
-        e.preventDefault();
-        toggleCommandPalette();
-      } else if (matchesShortcut(e, 'CmdOrCtrl+o')) {
-        e.preventDefault();
-        const handleOpen = async () => {
-          const selected = await open({
-            directory: true,
-            multiple: false,
-            title: 'Open Git Repository',
-          });
-          if (selected) {
-            await openRepository(selected as string);
-          }
-        };
-        handleOpen();
-      } else if (!isInputFocused && matchesShortcut(e, shortcuts.search || 'CmdOrCtrl+F')) {
+      } else if (matchesShortcut(e, shortcuts?.search || 'CmdOrCtrl+F')) {
         e.preventDefault();
         setActiveView('search');
-      } else if (!isInputFocused && matchesShortcut(e, shortcuts.staging || 'CmdOrCtrl+Shift+S')) {
+      } else if (matchesShortcut(e, shortcuts?.staging || 'CmdOrCtrl+Shift+S')) {
         e.preventDefault();
         setActiveView('staging');
-      } else if (!isInputFocused && matchesShortcut(e, shortcuts.refresh || 'CmdOrCtrl+R')) {
+      } else if (matchesShortcut(e, shortcuts?.refresh || 'CmdOrCtrl+R')) {
         e.preventDefault();
         refreshAll().then(() => addNotification({ type: 'success', message: 'Repository refreshed successfully' }));
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [settings, toggleSettings, toggleCommandPalette, setActiveView, refreshAll, addNotification, openRepository]);
+  }, [settings, toggleSettings, toggleCommandPalette, setActiveView, refreshAll, addNotification, handleOpenRepo]);
 
   const hasOpenRepo = tabs.length > 0 && activeTabId;
 

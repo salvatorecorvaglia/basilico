@@ -101,6 +101,14 @@ pub async fn save_settings(app: tauri::AppHandle, settings: UserSettings) -> Res
 
 #[tauri::command]
 pub async fn generate_ssh_key(comment: String) -> Result<String, AppError> {
+    // Sanitize comment to prevent argument injection
+    let sanitized_comment: String = comment
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '@' || *c == '.' || *c == '-' || *c == '_')
+        .collect();
+    if sanitized_comment.is_empty() {
+        return Err(AppError::settings("SSH key comment must contain at least one valid character"));
+    }
     let home =
         dirs::home_dir().ok_or_else(|| AppError::settings("Could not determine home directory"))?;
     let ssh_dir = home.join(".ssh");
@@ -131,7 +139,7 @@ pub async fn generate_ssh_key(comment: String) -> Result<String, AppError> {
             "-t",
             "ed25519",
             "-C",
-            &comment,
+            &sanitized_comment,
             "-f",
             key_path_str,
             "-N",

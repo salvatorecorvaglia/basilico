@@ -28,6 +28,7 @@ import type {
   ConflictStages,
 } from '../lib/git-types';
 import * as commands from '../lib/tauri-commands';
+import { applyThemeToDOM } from '../lib/theme-presets';
 
 interface RepoState {
   // Tabs
@@ -282,6 +283,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       set({
         tabs: filtered,
         activeTabId: newActive,
+        // Reset all per-tab state to prevent stale data
         repoInfo: null,
         status: null,
         branches: [],
@@ -290,6 +292,28 @@ export const useRepoStore = create<RepoState>((set, get) => ({
         commits: [],
         selectedCommitOid: null,
         commitDiff: [],
+        blameLines: [],
+        fileHistory: [],
+        reflogEntries: [],
+        stashes: [],
+        worktrees: [],
+        submodules: [],
+        commitTree: [],
+        compareDiff: [],
+        compareBase: null,
+        compareTarget: null,
+        selectedCompareFile: null,
+        compareFileDiff: null,
+        conflictStages: null,
+        activeConflictedPath: null,
+        selectedStashIndex: null,
+        stashDiff: [],
+        selectedStashFile: null,
+        selectedStashFileDiff: null,
+        selectedFilePath: null,
+        selectedFileIsStaged: false,
+        localDiff: null,
+        error: null,
       });
 
       // If there's a new active tab, reload its data
@@ -308,8 +332,29 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     set((state) => ({
       tabs: state.tabs.map((t) => ({ ...t, isActive: t.id === tabId })),
       activeTabId: tabId,
+      // Reset per-tab state to prevent stale data from previous tab
       selectedCommitOid: null,
       commitDiff: [],
+      blameLines: [],
+      fileHistory: [],
+      reflogEntries: [],
+      stashes: [],
+      commitTree: [],
+      compareDiff: [],
+      compareBase: null,
+      compareTarget: null,
+      selectedCompareFile: null,
+      compareFileDiff: null,
+      conflictStages: null,
+      activeConflictedPath: null,
+      selectedStashIndex: null,
+      stashDiff: [],
+      selectedStashFile: null,
+      selectedStashFileDiff: null,
+      selectedFilePath: null,
+      selectedFileIsStaged: false,
+      localDiff: null,
+      error: null,
     }));
 
     // Reload data for the new active tab
@@ -798,6 +843,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     const { activeTabId } = get();
     if (!activeTabId) return;
 
+    set({ isLoading: true });
     try {
       await commands.dropStash(activeTabId, index, { errorPrefix: 'Failed to drop stash' });
       await get().refreshAll();
@@ -805,6 +851,8 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       console.error('Failed to drop stash:', err);
       set({ error: String(err) });
       throw err;
+    } finally {
+      set({ isLoading: false });
     }
   },
 
@@ -1140,21 +1188,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       const settings = await commands.getSettings({ silent: true });
       set({ settings });
       localStorage.setItem('basilico-theme', settings.theme);
-
-      // Apply theme preset color to CSS custom variables
-      const THEME_PRESETS = [
-        { id: 'sage-green',      color: '#2ea043' },
-        { id: 'royal-blue',      color: '#1f6feb' },
-        { id: 'amethyst-purple',  color: '#8b5cf6' },
-        { id: 'amber-gold',      color: '#d29922' },
-        { id: 'crimson-red',     color: '#f85149' },
-        { id: 'ocean-teal',      color: '#2dd4bf' },
-      ];
-      const preset = THEME_PRESETS.find(p => p.id === settings.theme);
-      if (preset) {
-        document.documentElement.style.setProperty('--accent-primary', preset.color);
-        document.documentElement.style.setProperty('--accent-primary-hover', preset.color + 'cc');
-      }
+      applyThemeToDOM(settings.theme);
     } catch (err) {
       console.error('Failed to load settings:', err);
     }
@@ -1165,21 +1199,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       await commands.saveSettings(settings, { errorPrefix: 'Failed to save settings' });
       set({ settings });
       localStorage.setItem('basilico-theme', settings.theme);
-
-      // Apply theme preset color to CSS custom variables
-      const THEME_PRESETS = [
-        { id: 'sage-green',      color: '#2ea043' },
-        { id: 'royal-blue',      color: '#1f6feb' },
-        { id: 'amethyst-purple',  color: '#8b5cf6' },
-        { id: 'amber-gold',      color: '#d29922' },
-        { id: 'crimson-red',     color: '#f85149' },
-        { id: 'ocean-teal',      color: '#2dd4bf' },
-      ];
-      const preset = THEME_PRESETS.find(p => p.id === settings.theme);
-      if (preset) {
-        document.documentElement.style.setProperty('--accent-primary', preset.color);
-        document.documentElement.style.setProperty('--accent-primary-hover', preset.color + 'cc');
-      }
+      applyThemeToDOM(settings.theme);
     } catch (err) {
       console.error('Failed to save settings:', err);
       set({ error: String(err) });
