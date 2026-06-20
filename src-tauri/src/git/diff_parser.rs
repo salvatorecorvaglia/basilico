@@ -183,7 +183,9 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
             .map(|p| p.to_string_lossy().to_string());
 
         // Find matching file
-        let file_idx = file_path.as_ref().and_then(|path| file_map.get(path).copied());
+        let file_idx = file_path
+            .as_ref()
+            .and_then(|path| file_map.get(path).copied());
 
         if let Some(idx) = file_idx {
             if let Some(hunk_info) = hunk {

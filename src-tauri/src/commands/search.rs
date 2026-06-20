@@ -43,7 +43,10 @@ fn run_git_log(repo_path: &str, args: &[&str]) -> Result<Vec<GraphCommit>, AppEr
             let parent_oids: Vec<String> = if parents_str.is_empty() {
                 Vec::new()
             } else {
-                parents_str.split_whitespace().map(|s| s.to_string()).collect()
+                parents_str
+                    .split_whitespace()
+                    .map(|s| s.to_string())
+                    .collect()
             };
 
             commits.push(GraphCommit {
@@ -73,36 +76,45 @@ pub async fn search_commits(
 ) -> Result<Vec<GraphCommit>, AppError> {
     let query_trimmed = query.trim();
     if query_trimmed.is_empty() {
-        return run_git_log(&repo_path, &[
-            "log",
-            "--all",
-            "-n",
-            "200",
-            "--format=%H%x00%h%x00%s%x00%an%x00%ae%x00%at%x00%cn%x00%ct%x00%P"
-        ]);
+        return run_git_log(
+            &repo_path,
+            &[
+                "log",
+                "--all",
+                "-n",
+                "200",
+                "--format=%H%x00%h%x00%s%x00%an%x00%ae%x00%at%x00%cn%x00%ct%x00%P",
+            ],
+        );
     }
 
-    let mut msg_commits = run_git_log(&repo_path, &[
-        "log",
-        "--all",
-        "--grep",
-        query_trimmed,
-        "-i",
-        "-n",
-        "200",
-        "--format=%H%x00%h%x00%s%x00%an%x00%ae%x00%at%x00%cn%x00%ct%x00%P"
-    ])?;
+    let mut msg_commits = run_git_log(
+        &repo_path,
+        &[
+            "log",
+            "--all",
+            "--grep",
+            query_trimmed,
+            "-i",
+            "-n",
+            "200",
+            "--format=%H%x00%h%x00%s%x00%an%x00%ae%x00%at%x00%cn%x00%ct%x00%P",
+        ],
+    )?;
 
-    let author_commits = run_git_log(&repo_path, &[
-        "log",
-        "--all",
-        "--author",
-        query_trimmed,
-        "-i",
-        "-n",
-        "200",
-        "--format=%H%x00%h%x00%s%x00%an%x00%ae%x00%at%x00%cn%x00%ct%x00%P"
-    ])?;
+    let author_commits = run_git_log(
+        &repo_path,
+        &[
+            "log",
+            "--all",
+            "--author",
+            query_trimmed,
+            "-i",
+            "-n",
+            "200",
+            "--format=%H%x00%h%x00%s%x00%an%x00%ae%x00%at%x00%cn%x00%ct%x00%P",
+        ],
+    )?;
 
     msg_commits.extend(author_commits);
 
@@ -114,7 +126,7 @@ pub async fn search_commits(
         }
     }
 
-    unique_commits.sort_by(|a, b| b.author_date.cmp(&a.author_date));
+    unique_commits.sort_by_key(|b| std::cmp::Reverse(b.author_date));
     unique_commits.truncate(200);
 
     Ok(unique_commits)
@@ -128,7 +140,7 @@ pub async fn grep_code(repo_path: String, query: String) -> Result<Vec<GrepMatch
 
     let output = crate::commands::new_command("git")
         .current_dir(&repo_path)
-        .args(&[
+        .args([
             "grep",
             "-n",
             "-I",

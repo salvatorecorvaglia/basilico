@@ -55,7 +55,7 @@ pub async fn cherry_pick_commit(path: String, oid: String) -> Result<String, App
 
     let output = crate::commands::new_command("git")
         .current_dir(&path)
-        .args(&["cherry-pick", &oid])
+        .args(["cherry-pick", &oid])
         .output()
         .map_err(|e| AppError::command(format!("Failed to execute cherry-pick process: {}", e)))?;
 
@@ -78,7 +78,7 @@ pub async fn cherry_pick_commit(path: String, oid: String) -> Result<String, App
 pub async fn cherry_pick_abort(path: String) -> Result<(), AppError> {
     let output = crate::commands::new_command("git")
         .current_dir(&path)
-        .args(&["cherry-pick", "--abort"])
+        .args(["cherry-pick", "--abort"])
         .output()
         .map_err(|e| AppError::command(format!("Failed to abort cherry-pick process: {}", e)))?;
 
@@ -99,7 +99,7 @@ pub async fn revert_commit(path: String, oid: String) -> Result<String, AppError
 
     let output = crate::commands::new_command("git")
         .current_dir(&path)
-        .args(&["revert", "--no-edit", &oid])
+        .args(["revert", "--no-edit", &oid])
         .output()
         .map_err(|e| AppError::command(format!("Failed to execute revert process: {}", e)))?;
 
@@ -122,7 +122,7 @@ pub async fn revert_commit(path: String, oid: String) -> Result<String, AppError
 pub async fn revert_abort(path: String) -> Result<(), AppError> {
     let output = crate::commands::new_command("git")
         .current_dir(&path)
-        .args(&["revert", "--abort"])
+        .args(["revert", "--abort"])
         .output()
         .map_err(|e| AppError::command(format!("Failed to abort revert process: {}", e)))?;
 
@@ -218,10 +218,12 @@ mod tests {
     async fn test_create_commit_and_amend() {
         let repo = TempRepo::new();
         repo.write_file("test.txt", "hello");
-        
+
         // Stage files (since create_commit commits the index)
         let mut index = repo.repo.index().unwrap();
-        index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None).unwrap();
+        index
+            .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+            .unwrap();
         index.write().unwrap();
 
         // Create initial commit
@@ -236,14 +238,19 @@ mod tests {
         .unwrap();
 
         // Verify the commit was created
-        let commit = repo.repo.find_commit(git2::Oid::from_str(&commit_oid).unwrap()).unwrap();
+        let commit = repo
+            .repo
+            .find_commit(git2::Oid::from_str(&commit_oid).unwrap())
+            .unwrap();
         assert_eq!(commit.message().unwrap(), "Initial Commit");
         assert_eq!(commit.author().name().unwrap(), "Test Author");
 
         // Amend the commit
         repo.write_file("test.txt", "hello amended");
         let mut index = repo.repo.index().unwrap();
-        index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None).unwrap();
+        index
+            .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+            .unwrap();
         index.write().unwrap();
 
         let amended_oid = create_commit(
@@ -257,7 +264,10 @@ mod tests {
         .unwrap();
 
         // Verify that HEAD is now the amended commit and has the same parent count (which is 0 since it is initial)
-        let amended_commit = repo.repo.find_commit(git2::Oid::from_str(&amended_oid).unwrap()).unwrap();
+        let amended_commit = repo
+            .repo
+            .find_commit(git2::Oid::from_str(&amended_oid).unwrap())
+            .unwrap();
         assert_eq!(amended_commit.message().unwrap(), "Amended Commit");
         assert_eq!(amended_commit.parent_count(), 0);
     }
@@ -267,7 +277,7 @@ mod tests {
         let repo = TempRepo::new();
         repo.write_file("test.txt", "hello");
         repo.commit("initial commit");
-        
+
         let initial_oid = repo.repo.head().unwrap().target().unwrap();
 
         repo.write_file("test2.txt", "hello 2");
@@ -276,7 +286,13 @@ mod tests {
         let _commit_2_oid = repo.repo.head().unwrap().target().unwrap();
 
         // Reset to initial commit
-        reset_to_commit(repo.path_str().to_string(), initial_oid.to_string(), "hard".to_string()).await.unwrap();
+        reset_to_commit(
+            repo.path_str().to_string(),
+            initial_oid.to_string(),
+            "hard".to_string(),
+        )
+        .await
+        .unwrap();
 
         // Verify that HEAD points to initial commit
         let head_oid = repo.repo.head().unwrap().target().unwrap();
@@ -291,10 +307,14 @@ mod tests {
 
         let head_oid = repo.repo.head().unwrap().target().unwrap();
 
-        let entries = get_commit_tree(repo.path_str().to_string(), head_oid.to_string()).await.unwrap();
-        
+        let entries = get_commit_tree(repo.path_str().to_string(), head_oid.to_string())
+            .await
+            .unwrap();
+
         // Should have "dir" and "dir/test.txt"
         assert!(entries.iter().any(|e| e.name == "dir" && e.is_dir));
-        assert!(entries.iter().any(|e| e.name == "test.txt" && !e.is_dir && e.path == "dir/test.txt"));
+        assert!(entries
+            .iter()
+            .any(|e| e.name == "test.txt" && !e.is_dir && e.path == "dir/test.txt"));
     }
 }

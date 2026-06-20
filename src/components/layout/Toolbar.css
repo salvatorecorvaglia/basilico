@@ -85,7 +85,8 @@
   color: var(--color-warning);
 }
 
-.toolbar-btn.spinning svg {
+.toolbar-btn.spinning svg,
+.toolbar-icon-btn.spinning svg {
   animation: spin 1s linear infinite;
 }
 

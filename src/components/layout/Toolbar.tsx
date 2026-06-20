@@ -3,6 +3,7 @@
    Top action bar with branch selector and actions
    ═══════════════════════════════════════════════════════ */
 
+import { useState } from 'react';
 import {
   GitBranch,
   ArrowDownToLine,
@@ -26,17 +27,25 @@ export function Toolbar() {
     addNotification 
   } = useUIStore();
 
+  const [isFetching, setIsFetching] = useState(false);
+  const [isPulling, setIsPulling] = useState(false);
+  const [isPushing, setIsPushing] = useState(false);
+
   const handleFetch = async () => {
+    setIsFetching(true);
     try {
       await fetch('origin');
       addNotification({ type: 'success', message: 'Fetch completed successfully' });
     } catch (err) {
       addNotification({ type: 'error', message: `Fetch failed: ${err}` });
+    } finally {
+      setIsFetching(false);
     }
   };
 
   const handlePull = async () => {
     if (!status?.branch) return;
+    setIsPulling(true);
     try {
       const res = await pull('origin', status.branch);
       if (res === 'conflicts') {
@@ -49,22 +58,29 @@ export function Toolbar() {
       }
     } catch (err) {
       addNotification({ type: 'error', message: `Pull failed: ${err}` });
+    } finally {
+      setIsPulling(false);
     }
   };
 
   const handlePush = async (force = false) => {
     if (!status?.branch) return;
+    setIsPushing(true);
     try {
       await push('origin', status.branch, force);
       addNotification({ type: 'success', message: 'Push completed successfully' });
     } catch (err) {
       addNotification({ type: 'error', message: `Push failed: ${err}` });
+    } finally {
+      setIsPushing(false);
     }
   };
 
   const totalModifications = status
     ? status.staged.length + status.unstaged.length + status.untracked.length
     : 0;
+
+  const isAnySyncing = isFetching || isPulling || isPushing;
 
   return (
     <div className="toolbar">
@@ -93,28 +109,29 @@ export function Toolbar() {
         {/* Sync Controls */}
         <div className="toolbar-sync-actions">
           <button 
-            className="toolbar-icon-btn" 
+            className={`toolbar-icon-btn ${isFetching ? 'spinning' : ''}`} 
             onClick={handleFetch} 
             title="Fetch from remote (origin)"
             aria-label="Fetch from remote (origin)"
+            disabled={isAnySyncing}
           >
             <RefreshCw size={13} />
           </button>
           <button 
-            className="toolbar-icon-btn" 
+            className={`toolbar-icon-btn ${isPulling ? 'spinning' : ''}`} 
             onClick={handlePull} 
             title="Pull from remote (origin)"
             aria-label="Pull from remote (origin)"
-            disabled={!status?.branch}
+            disabled={!status?.branch || isAnySyncing}
           >
             <ArrowDownToLine size={13} />
           </button>
           <button 
-            className="toolbar-icon-btn" 
+            className={`toolbar-icon-btn ${isPushing ? 'spinning' : ''}`} 
             onClick={() => handlePush(false)} 
             title="Push to remote (origin)"
             aria-label="Push to remote (origin)"
-            disabled={!status?.branch}
+            disabled={!status?.branch || isAnySyncing}
           >
             <ArrowUpFromLine size={13} />
           </button>

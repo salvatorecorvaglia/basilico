@@ -30,7 +30,10 @@ pub async fn merge_branch(path: String, branch_name: String) -> Result<String, A
         let head_ref = repo.find_reference("HEAD")?;
         if let Some(refname) = head_ref.symbolic_target() {
             let mut real_ref = repo.find_reference(refname)?;
-            real_ref.set_target(target_oid, &format!("merge: fast-forward to {}", target_oid))?;
+            real_ref.set_target(
+                target_oid,
+                &format!("merge: fast-forward to {}", target_oid),
+            )?;
         } else {
             repo.set_head_detached(target_oid)?;
         }
@@ -132,8 +135,8 @@ pub async fn resolve_conflict(path: String, file_path: String) -> Result<(), App
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::TempRepo;
     use crate::commands::branch::create_branch;
+    use crate::test_utils::TempRepo;
 
     #[tokio::test]
     async fn test_merge_branch_fast_forward() {
@@ -145,18 +148,32 @@ mod tests {
         let main_branch_name = repo.repo.head().unwrap().shorthand().unwrap().to_string();
 
         // Create branch and commit on it
-        create_branch(repo.path_str().to_string(), "branch1".to_string(), None).await.unwrap();
-        
+        create_branch(repo.path_str().to_string(), "branch1".to_string(), None)
+            .await
+            .unwrap();
+
         // Checkout branch1
-        crate::commands::branch::checkout_branch(repo.path_str().to_string(), "branch1".to_string()).await.unwrap();
+        crate::commands::branch::checkout_branch(
+            repo.path_str().to_string(),
+            "branch1".to_string(),
+        )
+        .await
+        .unwrap();
         repo.write_file("test2.txt", "hello2");
         repo.commit("commit 2");
 
         // Go back to main
-        crate::commands::branch::checkout_branch(repo.path_str().to_string(), main_branch_name.clone()).await.unwrap();
+        crate::commands::branch::checkout_branch(
+            repo.path_str().to_string(),
+            main_branch_name.clone(),
+        )
+        .await
+        .unwrap();
 
         // Merge branch1 (which should be a fast-forward)
-        let result = merge_branch(repo.path_str().to_string(), "branch1".to_string()).await.unwrap();
+        let result = merge_branch(repo.path_str().to_string(), "branch1".to_string())
+            .await
+            .unwrap();
         assert_eq!(result, "success");
 
         // Verify that main's HEAD has moved to commit 2's target
@@ -174,18 +191,32 @@ mod tests {
         let main_branch_name = repo.repo.head().unwrap().shorthand().unwrap().to_string();
 
         // Create branch1 and commit on it
-        create_branch(repo.path_str().to_string(), "branch1".to_string(), None).await.unwrap();
-        crate::commands::branch::checkout_branch(repo.path_str().to_string(), "branch1".to_string()).await.unwrap();
+        create_branch(repo.path_str().to_string(), "branch1".to_string(), None)
+            .await
+            .unwrap();
+        crate::commands::branch::checkout_branch(
+            repo.path_str().to_string(),
+            "branch1".to_string(),
+        )
+        .await
+        .unwrap();
         repo.write_file("test1.txt", "hello branch 1");
         repo.commit("commit branch 1");
 
         // Go back to main and commit on it
-        crate::commands::branch::checkout_branch(repo.path_str().to_string(), main_branch_name.clone()).await.unwrap();
+        crate::commands::branch::checkout_branch(
+            repo.path_str().to_string(),
+            main_branch_name.clone(),
+        )
+        .await
+        .unwrap();
         repo.write_file("test2.txt", "hello branch 2");
         repo.commit("commit branch 2");
 
         // Merge branch1 into main (should be a normal merge, not fast-forward)
-        let result = merge_branch(repo.path_str().to_string(), "branch1".to_string()).await.unwrap();
+        let result = merge_branch(repo.path_str().to_string(), "branch1".to_string())
+            .await
+            .unwrap();
         assert_eq!(result, "success");
 
         // Verify a merge commit was created
