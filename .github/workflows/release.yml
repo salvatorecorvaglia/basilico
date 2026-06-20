@@ -4,11 +4,114 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  # ──────────────────────────────────────────────
+  # Validate Tag Ref
+  # ──────────────────────────────────────────────
+  validate:
+    name: Validate Tag Ref
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Validate tag format and version match
+        run: |
+          if [[ "$GITHUB_REF" != refs/tags/v* ]]; then
+            echo "::error::Release workflow must be run on a version tag ref starting with 'v' (e.g. refs/tags/v1.0.0)"
+            exit 1
+          fi
+          
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          
+          # Read package.json version
+          PKG_VERSION=$(jq -r .version package.json)
+          
+          # Read tauri.conf.json version
+          TAURI_VERSION=$(jq -r .version src-tauri/tauri.conf.json)
+          
+          echo "Tag version: $TAG_VERSION"
+          echo "package.json version: $PKG_VERSION"
+          echo "tauri.conf.json version: $TAURI_VERSION"
+          
+          if [[ "$TAG_VERSION" != "$PKG_VERSION" ]]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+          
+          if [[ "$TAG_VERSION" != "$TAURI_VERSION" ]]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match tauri.conf.json version ($TAURI_VERSION)"
+            exit 1
+          fi
+
+  # ──────────────────────────────────────────────
+  # Quality Gate – run before building any artifact
+  # ──────────────────────────────────────────────
+  quality:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: validate
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Typecheck & Build
+        run: npm run build
+
+      - name: Format check
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+      - name: Clippy linting
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets
+
+      - name: Run tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  # ──────────────────────────────────────────────
+  # Build & Publish – Tauri Platforms Matrix
+  # ──────────────────────────────────────────────
   publish-tauri:
+    name: Release (${{ matrix.platform }})
     permissions:
       contents: write
+    needs: quality
     strategy:
       fail-fast: false
       matrix:
@@ -27,6 +130,7 @@ jobs:
             args: ''
 
     runs-on: ${{ matrix.platform }}
+    timeout-minutes: 40
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -34,7 +138,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: lts/*
+          node-version: 22
           cache: npm
 
       - name: Setup Rust toolchain
@@ -67,3 +171,41 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+  # ──────────────────────────────────────────────
+  # Finalize – update release description and publish
+  # ──────────────────────────────────────────────
+  finalize:
+    name: Finalize Release
+    runs-on: ubuntu-latest
+    needs: publish-tauri
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract Release Notes
+        id: extract_notes
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          NOTES=$(sed -e "1,/## \[$VERSION\]/d" -e '/## \[/,$d' CHANGELOG.md)
+          {
+            echo 'notes<<EOF'
+            echo "$NOTES"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+      - name: Update Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_NOTES: ${{ steps.extract_notes.outputs.notes }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          gh release edit "$TAG" \
+            --draft=false \
+            --title "Basilico v$VERSION" \
+            --notes "$RELEASE_NOTES" \
+            --repo "$GITHUB_REPOSITORY"

@@ -3,12 +3,24 @@
    Bottom status bar with repo info
    ═══════════════════════════════════════════════════════ */
 
+import { useEffect, useState } from 'react';
 import { GitBranch, AlertCircle, Clock } from 'lucide-react';
+import { getVersion } from '@tauri-apps/api/app';
 import { useRepoStore } from '../../store/repo-store';
 import './StatusBar.css';
 
 export function StatusBar() {
   const { status, repoInfo, isRefreshing } = useRepoStore();
+  const [version, setVersion] = useState('');
+
+  useEffect(() => {
+    getVersion()
+      .then(setVersion)
+      .catch((err) => {
+        console.error('Failed to get app version:', err);
+        setVersion('0.1.0'); // Fallback
+      });
+  }, []);
 
   const totalChanges =
     (status?.staged.length || 0) +
@@ -57,7 +69,7 @@ export function StatusBar() {
         )}
 
         <span className="statusbar-item statusbar-version">
-          Basilico v0.1.0
+          Basilico v{version || '0.1.0'}
         </span>
       </div>
     </div>

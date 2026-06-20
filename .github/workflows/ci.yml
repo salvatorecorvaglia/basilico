@@ -2,29 +2,49 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, develop]
+    paths-ignore:
+      - 'docs/**'
   pull_request:
-    branches: [ main ]
+    branches: [main, develop]
+    paths-ignore:
+      - 'docs/**'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
+  # ──────────────────────────────────────────────
+  # Frontend Lint & Build Check
+  # ──────────────────────────────────────────────
   frontend-check:
     name: Frontend Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Validate version consistency
+        run: |
+          PKG_VERSION=$(jq -r .version package.json)
+          TAURI_VERSION=$(jq -r .version src-tauri/tauri.conf.json)
+          if [ "$PKG_VERSION" != "$TAURI_VERSION" ]; then
+            echo "::error::Version mismatch: package.json is $PKG_VERSION, src-tauri/tauri.conf.json is $TAURI_VERSION"
+            exit 1
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: lts/*
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -33,9 +53,13 @@ jobs:
       - name: Typecheck & Build
         run: npm run build
 
+  # ──────────────────────────────────────────────
+  # Rust Format Check
+  # ──────────────────────────────────────────────
   rust-fmt:
     name: Rust Format
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -48,9 +72,13 @@ jobs:
       - name: Format check
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 
+  # ──────────────────────────────────────────────
+  # Rust Clippy & Unit Tests
+  # ──────────────────────────────────────────────
   rust-clippy-test:
     name: Rust Clippy & Test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -75,3 +103,45 @@ jobs:
 
       - name: Run tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  # ──────────────────────────────────────────────
+  # Auto Tagging (only on main after success)
+  # ──────────────────────────────────────────────
+  tag:
+    name: Create Version Tag
+    needs: [frontend-check, rust-fmt, rust-clippy-test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_PACKAGES_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Get version from package.json
+        id: pkg_version
+        run: echo "version=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
+
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          VERSION="v${{ steps.pkg_version.outputs.version }}"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Tag $VERSION already exists. Skipping."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Tag $VERSION does not exist. Proceeding to create."
+          fi
+
+      - name: Create and push tag
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          VERSION="v${{ steps.pkg_version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION"
