@@ -11,14 +11,6 @@
     "dialog:allow-save",
     "dialog:allow-message",
     "dialog:allow-ask",
-    "dialog:allow-confirm",
-    "shell:default",
-    "shell:allow-execute",
-    "shell:allow-spawn",
-    "fs:default",
-    "fs:allow-read-dir",
-    "fs:allow-read-file",
-    "fs:allow-exists",
-    "store:default"
+    "dialog:allow-confirm"
   ]
 }
