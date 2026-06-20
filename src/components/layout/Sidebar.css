@@ -85,7 +85,7 @@
 
 .sidebar-item.active {
   color: var(--text-primary);
-  background: rgba(46, 160, 67, 0.08);
+  background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
 }
 
 .sidebar-item-nested {
@@ -120,7 +120,7 @@
 }
 
 .sidebar-badge.head {
-  background: rgba(46, 160, 67, 0.2);
+  background: color-mix(in srgb, var(--accent-primary) 20%, transparent);
   color: var(--accent-primary);
 }
 

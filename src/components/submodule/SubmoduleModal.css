@@ -73,7 +73,7 @@
 .submodule-input:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px rgba(46, 160, 67, 0.15);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 15%, transparent);
 }
 
 .submodule-input::placeholder {

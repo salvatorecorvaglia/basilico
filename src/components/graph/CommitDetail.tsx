@@ -351,7 +351,17 @@ export function CommitDetail() {
         {activeTab === 'changes' ? (
           <div className="commit-detail-files">
             <div className="commit-detail-files-list">
-              {commitDiff.length === 0 ? (
+              {isLoading && commitDiff.length === 0 ? (
+                <div style={{ padding: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', height: '28px', gap: 'var(--space-2)' }}>
+                      <div className="skeleton-shimmer skeleton-line" style={{ width: '16px', height: '12px', marginBottom: 0 }} />
+                      <div className="skeleton-shimmer skeleton-line" style={{ width: `${40 + (i % 3) * 15}%`, height: '12px', marginBottom: 0 }} />
+                      <div className="skeleton-shimmer skeleton-line" style={{ width: '50px', height: '12px', marginBottom: 0, marginLeft: 'auto' }} />
+                    </div>
+                  ))}
+                </div>
+              ) : commitDiff.length === 0 ? (
                 <div className="commit-detail-no-changes">No files modified in this commit</div>
               ) : (
                 commitDiff.map((file, i) => {

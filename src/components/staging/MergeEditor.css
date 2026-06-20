@@ -64,9 +64,9 @@
 }
 
 .conflict-badge.success {
-  background: rgba(46, 160, 67, 0.15);
+  background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
   color: var(--color-success);
-  border: 1px solid rgba(46, 160, 67, 0.3);
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 30%, transparent);
 }
 
 .merge-btn {
@@ -220,13 +220,13 @@
 }
 
 .resolve-btn.resolve-theirs {
-  background: rgba(46, 160, 67, 0.15);
+  background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
   color: var(--color-success);
-  border: 1px solid rgba(46, 160, 67, 0.3);
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 30%, transparent);
 }
 
 .resolve-btn.resolve-theirs:hover {
-  background: rgba(46, 160, 67, 0.3);
+  background: color-mix(in srgb, var(--accent-primary) 30%, transparent);
 }
 
 .resolve-btn.resolve-both {

@@ -50,7 +50,8 @@ export function CommitList() {
     createTag,
     cherryPickCommit,
     revertCommit,
-    startComparison
+    startComparison,
+    isLoading
   } = useRepoStore();
 
   const { openResetModal, addNotification, setActiveView, openPrompt } = useUIStore();
@@ -63,6 +64,60 @@ export function CommitList() {
     y: number;
     oid: string;
   } | null>(null);
+
+  // Render loading skeleton
+  if (isLoading && commits.length === 0) {
+    return (
+      <div className="commit-list-container">
+        <div className="commit-list-header">
+          <div className="commit-list-header-graph" style={{ width: GRAPH_WIDTH }} />
+          <div className="commit-list-header-message">Message</div>
+          <div className="commit-list-header-author">Author</div>
+          <div className="commit-list-header-date">Date</div>
+          <div className="commit-list-header-sha">SHA</div>
+        </div>
+        <div className="commit-list-scroll" style={{ padding: 'var(--space-1) 0', overflow: 'hidden' }}>
+          {Array.from({ length: 15 }).map((_, index) => (
+            <div
+              key={index}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                height: `${ROW_HEIGHT}px`,
+                borderBottom: '1px solid var(--border-subtle)',
+                gap: 'var(--space-4)',
+                padding: '0 var(--space-3)',
+              }}
+            >
+              {/* Graph space */}
+              <div style={{ width: GRAPH_WIDTH }} />
+              
+              {/* Message */}
+              <div style={{ flex: 1, display: 'flex', gap: 'var(--space-2)' }}>
+                <div className="skeleton-shimmer skeleton-line" style={{ width: `${50 + (index % 3) * 15}%`, height: '12px', marginBottom: 0 }} />
+              </div>
+              
+              {/* Author */}
+              <div style={{ width: '160px', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                <div className="skeleton-shimmer skeleton-avatar" style={{ width: '20px', height: '20px' }} />
+                <div className="skeleton-shimmer skeleton-line" style={{ width: '80px', height: '12px', marginBottom: 0 }} />
+              </div>
+              
+              {/* Date */}
+              <div style={{ width: '80px' }}>
+                <div className="skeleton-shimmer skeleton-line" style={{ width: '60px', height: '12px', marginBottom: 0, marginLeft: 'auto' }} />
+              </div>
+              
+              {/* SHA */}
+              <div style={{ width: '70px', paddingRight: 'var(--space-3)' }}>
+                <div className="skeleton-shimmer skeleton-line" style={{ width: '50px', height: '12px', marginBottom: 0, marginLeft: 'auto' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     const el = parentRef.current;

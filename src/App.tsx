@@ -5,6 +5,7 @@
 
 import { useEffect, useCallback, lazy, Suspense } from 'react';
 import { listen } from '@tauri-apps/api/event';
+import { Wrench, ArrowLeft } from 'lucide-react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { TabBar } from './components/layout/TabBar';
 import { Toolbar } from './components/layout/Toolbar';
@@ -117,8 +118,24 @@ function renderViewContent(activeView: string) {
     default:
       return (
         <div className="view-fallback">
-          <h3>{activeView.toUpperCase()} View</h3>
-          <p>Coming soon in later phases</p>
+          <div className="view-fallback-card animate-scale-in">
+            <div className="view-fallback-icon">
+              <Wrench size={24} />
+            </div>
+            <h3 className="view-fallback-title">
+              {activeView ? activeView.charAt(0).toUpperCase() + activeView.slice(1) : 'Unknown'} View
+            </h3>
+            <p className="view-fallback-desc">
+              This view is currently under construction or coming in a later phase of Basilico.
+            </p>
+            <button 
+              className="view-fallback-btn" 
+              onClick={() => useUIStore.getState().setActiveView('graph')}
+            >
+              <ArrowLeft size={14} />
+              <span>Back to Commit History</span>
+            </button>
+          </div>
         </div>
       );
   }

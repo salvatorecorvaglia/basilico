@@ -90,9 +90,31 @@ export function Sidebar() {
     openRepository,
     startComparison,
     loadStashDetail,
+    isLoading
   } = useRepoStore();
 
   const { addNotification, setActiveView, openCleanModal, activeView, openPrompt, openConfirm } = useUIStore();
+
+  // Render loading skeleton
+  if (isLoading && branches.length === 0) {
+    return (
+      <div className="sidebar">
+        <div className="sidebar-content" style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+          {[1, 2, 3, 4].map(sectionIndex => (
+            <div key={sectionIndex} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+              <div className="skeleton-shimmer skeleton-line" style={{ width: '60%', height: '14px', marginBottom: 'var(--space-2)' }} />
+              {[1, 2, 3].map(itemIndex => (
+                <div key={itemIndex} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', paddingLeft: 'var(--space-2)' }}>
+                  <div className="skeleton-shimmer skeleton-avatar" style={{ width: '12px', height: '12px', borderRadius: '50%' }} />
+                  <div className="skeleton-shimmer skeleton-line" style={{ width: `${40 + (itemIndex % 3) * 15}%`, height: '12px', marginBottom: 0 }} />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;

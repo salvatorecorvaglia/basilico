@@ -22,6 +22,5 @@ export function applyThemeToDOM(themeId: string): void {
   const preset = THEME_PRESETS.find(p => p.id === themeId);
   if (preset) {
     document.documentElement.style.setProperty('--accent-primary', preset.color);
-    document.documentElement.style.setProperty('--accent-primary-hover', preset.color + 'cc');
   }
 }

@@ -192,14 +192,18 @@ export const useUIStore = create<UIState>((set, get) => ({
       }
     }
 
-    const newNotification = { ...notification, id };
+    const timeout = notification.timeout ?? (
+      notification.type === 'success' ? 3000 :
+      notification.type === 'warning' ? 6000 :
+      notification.type === 'error' ? 10000 : 4000
+    );
+    const newNotification = { ...notification, id, timeout };
 
     set((state) => ({
       notifications: [...state.notifications, newNotification],
     }));
 
     // Auto-remove after timeout
-    const timeout = notification.timeout ?? 4000;
     setTimeout(() => {
       set((state) => ({
         notifications: state.notifications.filter((n) => n.id !== id),

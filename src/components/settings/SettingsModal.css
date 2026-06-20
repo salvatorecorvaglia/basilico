@@ -151,7 +151,7 @@
 .theme-preset-btn.active {
   border-color: var(--accent-primary);
   color: var(--text-primary);
-  background: rgba(46, 160, 67, 0.06);
+  background: color-mix(in srgb, var(--accent-primary) 6%, transparent);
 }
 
 .theme-swatch {
@@ -190,7 +190,7 @@
 .settings-input:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px rgba(46, 160, 67, 0.15);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 15%, transparent);
 }
 
 .settings-input::placeholder {

@@ -96,6 +96,7 @@ export function Toolbar() {
             className="toolbar-icon-btn" 
             onClick={handleFetch} 
             title="Fetch from remote (origin)"
+            aria-label="Fetch from remote (origin)"
           >
             <RefreshCw size={13} />
           </button>
@@ -103,6 +104,7 @@ export function Toolbar() {
             className="toolbar-icon-btn" 
             onClick={handlePull} 
             title="Pull from remote (origin)"
+            aria-label="Pull from remote (origin)"
             disabled={!status?.branch}
           >
             <ArrowDownToLine size={13} />
@@ -111,6 +113,7 @@ export function Toolbar() {
             className="toolbar-icon-btn" 
             onClick={() => handlePush(false)} 
             title="Push to remote (origin)"
+            aria-label="Push to remote (origin)"
             disabled={!status?.branch}
           >
             <ArrowUpFromLine size={13} />
@@ -154,6 +157,7 @@ export function Toolbar() {
           className={`toolbar-btn toolbar-icon-btn ${isRefreshing ? 'spinning' : ''}`}
           onClick={refreshAll}
           title="Refresh repository"
+          aria-label="Refresh repository"
         >
           <RefreshCw size={14} />
         </button>
@@ -161,6 +165,7 @@ export function Toolbar() {
           className="toolbar-btn toolbar-icon-btn" 
           onClick={() => setActiveView('search')}
           title="Search (Ctrl+F)"
+          aria-label="Search repository"
         >
           <Search size={14} />
         </button>
@@ -168,6 +173,7 @@ export function Toolbar() {
           className="toolbar-btn toolbar-icon-btn"
           onClick={toggleCommandPalette}
           title="Command Palette (Ctrl+Shift+P)"
+          aria-label="Open Command Palette"
         >
           <Command size={14} />
         </button>
@@ -175,6 +181,7 @@ export function Toolbar() {
           className="toolbar-btn toolbar-icon-btn"
           onClick={toggleSettings}
           title="Settings (⌘,)"
+          aria-label="Open Settings"
         >
           <Settings size={14} />
         </button>

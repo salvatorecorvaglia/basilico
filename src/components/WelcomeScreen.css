@@ -25,7 +25,7 @@
 
 .welcome-logo-icon {
   font-size: 64px;
-  filter: drop-shadow(0 0 30px rgba(46, 160, 67, 0.3));
+  filter: drop-shadow(0 0 30px color-mix(in srgb, var(--accent-primary) 30%, transparent));
   animation: float 3s ease-in-out infinite;
 }
 
@@ -140,8 +140,8 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse at 20% 50%, rgba(46, 160, 67, 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 50%, rgba(45, 212, 191, 0.03) 0%, transparent 50%);
+    radial-gradient(ellipse at 20% 50%, color-mix(in srgb, var(--accent-primary) 4%, transparent) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 50%, color-mix(in srgb, var(--accent-teal) 3%, transparent) 0%, transparent 50%);
   pointer-events: none;
 }
 

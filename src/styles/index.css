@@ -61,11 +61,77 @@ body {
   color: var(--text-primary);
 }
 
+/* ── Text Selection Overrides ── */
+.selectable,
+.commit-detail-header,
+.commit-detail-panel-content,
+.diff-view,
+.blame-view,
+.file-history,
+.reflog-view,
+.repo-search,
+.toast-message,
+.file-viewer-modal,
+.welcome-title,
+.welcome-subtitle {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+button,
+a,
+kbd,
+.tab,
+.menu-item,
+.toolbar-btn,
+.sidebar-item,
+.tree-node-row,
+.commit-detail-tab-btn,
+.commit-detail-file {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 /* ── Focus Styles ── */
 :focus-visible {
   outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
+}
+
+.sidebar-item:focus-visible,
+.context-menu-item:focus-visible,
+.commit-row:focus-visible,
+.toolbar-btn:focus-visible,
+.toolbar-icon-btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+}
+
+/* ── Skeleton Shimmer Effect ── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, var(--bg-surface) 25%, var(--bg-overlay) 37%, var(--bg-surface) 63%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-2);
+}
+
+.skeleton-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
 }
 
 /* ── Links ── */

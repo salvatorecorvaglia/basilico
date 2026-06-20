@@ -57,8 +57,8 @@
 }
 
 .commit-row.selected {
-  background: rgba(46, 160, 67, 0.08);
-  border-bottom-color: rgba(46, 160, 67, 0.15);
+  background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--accent-primary) 15%, transparent);
 }
 
 .commit-col-graph {
@@ -99,9 +99,9 @@
 }
 
 .ref-head {
-  background: rgba(46, 160, 67, 0.2);
+  background: color-mix(in srgb, var(--accent-primary) 20%, transparent);
   color: var(--accent-primary);
-  border: 1px solid rgba(46, 160, 67, 0.3);
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 30%, transparent);
 }
 
 .ref-branch {

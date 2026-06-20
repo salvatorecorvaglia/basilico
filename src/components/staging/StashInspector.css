@@ -227,7 +227,7 @@
 }
 
 .stash-file-item .file-stats .add {
-  color: #2ea043;
+  color: var(--accent-primary);
 }
 
 .stash-file-item .file-stats .del {

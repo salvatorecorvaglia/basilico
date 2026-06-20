@@ -247,9 +247,9 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: rgba(46, 160, 67, 0.15);
-  border: 1px solid rgba(46, 160, 67, 0.4);
-  color: #56d364;
+  background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 40%, transparent);
+  color: var(--accent-primary);
   padding: 1px 6px;
   border-radius: 12px;
   font-size: 10px;
@@ -260,6 +260,6 @@
 }
 
 .commit-gpg-badge:hover {
-  background: rgba(46, 160, 67, 0.25);
-  border-color: #56d364;
+  background: color-mix(in srgb, var(--accent-primary) 25%, transparent);
+  border-color: var(--accent-primary-hover);
 }

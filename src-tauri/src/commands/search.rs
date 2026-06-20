@@ -97,7 +97,15 @@ pub async fn grep_code(repo_path: String, query: String) -> Result<Vec<GrepMatch
 
     let output = crate::commands::new_command("git")
         .current_dir(&repo_path)
-        .args(&["grep", "-n", "-I", "--no-color", "--fixed-strings", "-e", &query])
+        .args(&[
+            "grep",
+            "-n",
+            "-I",
+            "--no-color",
+            "--fixed-strings",
+            "-e",
+            &query,
+        ])
         .output()
         .map_err(|e| AppError::command(format!("Failed to run git grep: {}", e)))?;
 

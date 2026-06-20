@@ -2,10 +2,6 @@
 
 Basilico is a fast, modern, and beautiful Git GUI client built using **Tauri 2**, **Rust**, **React**, and **TypeScript**. It is designed from the ground up for visual elegance and extreme performance, even on massive repositories.
 
-<p align="center">
-  <img src="src-tauri/icons/128x128.png" width="100" alt="Basilico Logo" />
-</p>
-
 ---
 
 ## Key Features
