@@ -169,4 +169,4 @@ Before submitting a Pull Request, please run these local checks to ensure they p
 
 ---
 
-Happy coding! 🌙
+Happy coding! 🌿
