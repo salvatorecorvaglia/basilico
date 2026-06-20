@@ -131,6 +131,8 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 40
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -161,7 +163,7 @@ jobs:
         run: npm ci
 
       - name: Disable updater if signing key is missing
-        if: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY == '' }}
+        if: ${{ env.TAURI_SIGNING_PRIVATE_KEY == '' }}
         shell: bash
         run: |
           echo "TAURI_SIGNING_PRIVATE_KEY is not set. Disabling updater artifacts."
@@ -171,7 +173,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
         with:
           tagName: v__VERSION__
           releaseName: 'Basilico v__VERSION__'
