@@ -65,6 +65,44 @@ export function CommitList() {
     oid: string;
   } | null>(null);
 
+  useEffect(() => {
+    const el = parentRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerHeight(entry.contentRect.height);
+      }
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Close context menu on any click outside
+  useEffect(() => {
+    const handleCloseMenu = () => setContextMenu(null);
+    window.addEventListener('click', handleCloseMenu);
+    return () => window.removeEventListener('click', handleCloseMenu);
+  }, []);
+
+  const virtualizer = useVirtualizer({
+    count: commits.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 20,
+  });
+
+  const handleScroll = useCallback(() => {
+    const el = parentRef.current;
+    if (!el) return;
+
+    // Load more when near bottom
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 500) {
+      loadMoreCommits(500);
+    }
+  }, [loadMoreCommits]);
+
   // Render loading skeleton
   if (isLoading && commits.length === 0) {
     return (
@@ -118,44 +156,6 @@ export function CommitList() {
       </div>
     );
   }
-
-  useEffect(() => {
-    const el = parentRef.current;
-    if (!el) return;
-
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setContainerHeight(entry.contentRect.height);
-      }
-    });
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  // Close context menu on any click outside
-  useEffect(() => {
-    const handleCloseMenu = () => setContextMenu(null);
-    window.addEventListener('click', handleCloseMenu);
-    return () => window.removeEventListener('click', handleCloseMenu);
-  }, []);
-
-  const virtualizer = useVirtualizer({
-    count: commits.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 20,
-  });
-
-  const handleScroll = useCallback(() => {
-    const el = parentRef.current;
-    if (!el) return;
-
-    // Load more when near bottom
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 500) {
-      loadMoreCommits(500);
-    }
-  }, [loadMoreCommits]);
 
   const handleRowContextMenu = (e: React.MouseEvent, oid: string) => {
     e.preventDefault();

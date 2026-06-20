@@ -95,6 +95,17 @@ export function Sidebar() {
 
   const { addNotification, setActiveView, openCleanModal, activeView, openPrompt, openConfirm } = useUIStore();
 
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    targetName: string;
+    type: 'branch' | 'tag' | 'stash' | 'worktree' | 'submodule';
+    isRemote?: boolean;
+  } | null>(null);
+
+  const [worktreeModalOpen, setWorktreeModalOpen] = useState(false);
+  const [submoduleModalOpen, setSubmoduleModalOpen] = useState(false);
+
   // Render loading skeleton
   if (isLoading && branches.length === 0) {
     return (
@@ -115,17 +126,6 @@ export function Sidebar() {
       </div>
     );
   }
-
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    targetName: string;
-    type: 'branch' | 'tag' | 'stash' | 'worktree' | 'submodule';
-    isRemote?: boolean;
-  } | null>(null);
-
-  const [worktreeModalOpen, setWorktreeModalOpen] = useState(false);
-  const [submoduleModalOpen, setSubmoduleModalOpen] = useState(false);
 
   const localBranches = branches.filter((b) => !b.isRemote);
   const remoteBranches = branches.filter((b) => b.isRemote);
