@@ -89,8 +89,8 @@ pub async fn discard_changes(path: String, files: Vec<String>) -> Result<(), App
     // 2. Delete untracked files from disk
     for file in untracked_files {
         let full_path = repo_dir.join(file);
-        if full_path.exists() {
-            if full_path.is_dir() {
+        if std::fs::symlink_metadata(&full_path).is_ok() {
+            if full_path.is_dir() && !full_path.is_symlink() {
                 std::fs::remove_dir_all(&full_path)?;
             } else {
                 std::fs::remove_file(&full_path)?;

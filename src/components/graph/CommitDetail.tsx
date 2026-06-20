@@ -281,7 +281,7 @@ export function CommitDetail() {
             {sigInfo && (
               <span className="commit-gpg-badge" title={`GPG Key ID: ${sigInfo.keyId}\nSigner: ${sigInfo.signer}`}>
                 <ShieldCheck size={12} />
-                <span>Verified</span>
+                <span>{sigInfo.status}</span>
               </span>
             )}
           </div>

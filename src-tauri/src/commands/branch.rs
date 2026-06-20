@@ -76,7 +76,9 @@ pub async fn checkout_branch(path: String, name: String) -> Result<(), AppError>
     }
 
     // Handle normal branches and remote branches
-    let ref_name = if name.contains('/') && !name.starts_with("refs/") {
+    let ref_name = if repo.find_branch(&name, git2::BranchType::Local).is_ok() {
+        format!("refs/heads/{}", name)
+    } else if name.contains('/') && !name.starts_with("refs/") {
         // Handle remote branches: "origin/feature" -> checkout local tracking branch "feature"
         let parts: Vec<&str> = name.splitn(2, '/').collect();
         if parts.len() == 2 {
@@ -119,4 +121,38 @@ pub async fn rename_branch(
     let mut branch = repo.find_branch(&current_name, git2::BranchType::Local)?;
     branch.rename(&new_name, false)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::TempRepo;
+
+    #[tokio::test]
+    async fn test_checkout_branch_with_slash() {
+        let repo = TempRepo::new();
+        repo.write_file("test.txt", "hello");
+        repo.commit("initial commit");
+
+        // Create branch with slash
+        create_branch(
+            repo.path_str().to_string(),
+            "feature/test-slash".to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+
+        // Checkout branch
+        checkout_branch(
+            repo.path_str().to_string(),
+            "feature/test-slash".to_string(),
+        )
+        .await
+        .unwrap();
+
+        // Verify HEAD is pointed to the new branch
+        let head = repo.repo.head().unwrap();
+        assert_eq!(head.name().unwrap(), "refs/heads/feature/test-slash");
+    }
 }

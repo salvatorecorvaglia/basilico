@@ -42,8 +42,9 @@ pub async fn rebase_init(
     };
 
     let mut items = Vec::new();
-    while let Some(op_result) = rebase.next() {
-        if let Ok(op) = op_result {
+    let count = rebase.len();
+    for i in 0..count {
+        if let Some(op) = rebase.nth(i) {
             let oid = op.id();
             let summary = repo
                 .find_commit(oid)

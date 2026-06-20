@@ -25,7 +25,7 @@ pub async fn get_commit_signature(
             let signature = String::from_utf8_lossy(&sig_buf).into_owned();
             let payload = String::from_utf8_lossy(&payload_buf).into_owned();
 
-            let key_id = parse_key_id(&signature).unwrap_or_else(|| "Unknown".to_string());
+            let key_id = parse_key_id(&signature).unwrap_or_else(|| "GPG Key".to_string());
             let signer = repo
                 .find_commit(oid)
                 .ok()
@@ -35,7 +35,7 @@ pub async fn get_commit_signature(
             Ok(Some(SignatureInfo {
                 signature,
                 payload,
-                status: "verified".to_string(),
+                status: "Signed".to_string(),
                 key_id,
                 signer,
             }))
@@ -44,12 +44,6 @@ pub async fn get_commit_signature(
     }
 }
 
-fn parse_key_id(sig: &str) -> Option<String> {
-    // Basic parser for GPG key block headers
-    for line in sig.lines() {
-        if line.contains("Version:") || line.contains("Comment:") {
-            continue;
-        }
-    }
-    Some("GPG-SIGNKEY".to_string())
+fn parse_key_id(_sig: &str) -> Option<String> {
+    Some("GPG Key".to_string())
 }
