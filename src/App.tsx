@@ -58,6 +58,70 @@ function matchesShortcut(e: KeyboardEvent, shortcutStr: string): boolean {
   return meta && shift === e.shiftKey && e.key.toLowerCase() === key;
 }
 
+function renderViewContent(activeView: string) {
+  switch (activeView) {
+    case 'graph':
+      return (
+        <Group orientation="vertical">
+          {/* Commit List + Graph */}
+          <Panel id="graph" defaultSize="60%" minSize="30%">
+            <CommitList />
+          </Panel>
+
+          <Separator className="resize-handle resize-handle-vertical" />
+
+          {/* Commit Detail */}
+          <Panel id="detail" defaultSize="40%" minSize="15%">
+            <CommitDetail />
+          </Panel>
+        </Group>
+      );
+    case 'staging':
+      return (
+        <Group orientation="horizontal">
+          {/* Staging area */}
+          <Panel id="staging-panel" defaultSize="30%" minSize="20%">
+            <StagingArea />
+          </Panel>
+
+          <Separator className="resize-handle resize-handle-horizontal" />
+
+          {/* Diff viewer */}
+          <Panel id="diff-panel" defaultSize="70%" minSize="45%">
+            <DiffView />
+          </Panel>
+        </Group>
+      );
+    case 'blame':
+      return <BlameView />;
+    case 'history':
+      return <FileHistory />;
+    case 'reflog':
+      return <ReflogView />;
+    case 'search':
+      return <RepoSearch />;
+    case 'rebase':
+      return <RebaseEditor />;
+    case 'bisect':
+      return <BisectWizard />;
+    case 'compare':
+      return <CompareView />;
+    case 'conflict-resolver':
+      return <MergeEditor />;
+    case 'pull-requests':
+      return <PullRequestReview />;
+    case 'stash-inspector':
+      return <StashInspector />;
+    default:
+      return (
+        <div className="view-fallback">
+          <h3>{activeView.toUpperCase()} View</h3>
+          <p>Coming soon in later phases</p>
+        </div>
+      );
+  }
+}
+
 function App() {
   const { tabs, activeTabId, loadSettings, settings, refreshAll, openRepository } = useRepoStore();
   const { sidebarVisible, activeView, toggleSettings, toggleCommandPalette, setActiveView, addNotification } = useUIStore();
@@ -203,60 +267,7 @@ function App() {
 
               {/* Center Panel (depends on activeView) */}
               <Panel id="center" minSize="40%">
-                {activeView === 'graph' ? (
-                  <Group orientation="vertical">
-                    {/* Commit List + Graph */}
-                    <Panel id="graph" defaultSize="60%" minSize="30%">
-                      <CommitList />
-                    </Panel>
-
-                    <Separator className="resize-handle resize-handle-vertical" />
-
-                    {/* Commit Detail */}
-                    <Panel id="detail" defaultSize="40%" minSize="15%">
-                      <CommitDetail />
-                    </Panel>
-                  </Group>
-                ) : activeView === 'staging' ? (
-                  <Group orientation="horizontal">
-                    {/* Staging area */}
-                    <Panel id="staging-panel" defaultSize="30%" minSize="20%">
-                      <StagingArea />
-                    </Panel>
-
-                    <Separator className="resize-handle resize-handle-horizontal" />
-
-                    {/* Diff viewer */}
-                    <Panel id="diff-panel" defaultSize="70%" minSize="45%">
-                      <DiffView />
-                    </Panel>
-                  </Group>
-                ) : activeView === 'blame' ? (
-                  <BlameView />
-                ) : activeView === 'history' ? (
-                  <FileHistory />
-                ) : activeView === 'reflog' ? (
-                  <ReflogView />
-                ) : activeView === 'search' ? (
-                  <RepoSearch />
-                ) : activeView === 'rebase' ? (
-                  <RebaseEditor />
-                ) : activeView === 'bisect' ? (
-                  <BisectWizard />
-                ) : activeView === 'compare' ? (
-                  <CompareView />
-                ) : activeView === 'conflict-resolver' ? (
-                  <MergeEditor />
-                ) : activeView === 'pull-requests' ? (
-                  <PullRequestReview />
-                ) : activeView === 'stash-inspector' ? (
-                  <StashInspector />
-                ) : (
-                  <div className="view-fallback">
-                    <h3>{activeView.toUpperCase()} View</h3>
-                    <p>Coming soon in later phases</p>
-                  </div>
-                )}
+                {renderViewContent(activeView)}
               </Panel>
             </Group>
           </div>

@@ -1,0 +1,145 @@
+import type { StateCreator } from 'zustand';
+import type { RepoState } from '../types';
+import type { RepoTab } from '../../lib/git-types';
+import * as commands from '../../lib/tauri-commands';
+
+export interface TabsSlice {
+  tabs: RepoTab[];
+  activeTabId: string | null;
+  openRepository: (path: string) => Promise<void>;
+  closeTab: (tabId: string) => void;
+  switchTab: (tabId: string) => void;
+}
+
+export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (set, get) => ({
+  tabs: [],
+  activeTabId: null,
+
+  openRepository: async (path: string) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const info = await commands.openRepo(path, { errorPrefix: 'Failed to open repository' });
+      const tabId = info.path;
+      const existingTab = get().tabs.find((t) => t.id === tabId);
+
+      if (existingTab) {
+        // Switch to existing tab
+        set({ activeTabId: tabId });
+        await get().refreshAll();
+      } else {
+        // Create new tab
+        const newTab: RepoTab = {
+          id: tabId,
+          path: info.path,
+          name: info.name,
+          isActive: true,
+        };
+
+        set((state) => ({
+          tabs: [
+            ...state.tabs.map((t) => ({ ...t, isActive: false })),
+            newTab,
+          ],
+          activeTabId: tabId,
+          repoInfo: info,
+        }));
+
+        // Load all data
+        await get().refreshAll();
+      }
+    } catch (err) {
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  closeTab: (tabId: string) => {
+    const { tabs, activeTabId } = get();
+    const filtered = tabs.filter((t) => t.id !== tabId);
+
+    if (activeTabId === tabId) {
+      const newActive = filtered.length > 0 ? filtered[filtered.length - 1].id : null;
+      set({
+        tabs: filtered,
+        activeTabId: newActive,
+        // Reset all per-tab state to prevent stale data
+        repoInfo: null,
+        status: null,
+        branches: [],
+        tags: [],
+        remotes: [],
+        commits: [],
+        selectedCommitOid: null,
+        commitDiff: [],
+        blameLines: [],
+        fileHistory: [],
+        reflogEntries: [],
+        stashes: [],
+        worktrees: [],
+        submodules: [],
+        commitTree: [],
+        compareDiff: [],
+        compareBase: null,
+        compareTarget: null,
+        selectedCompareFile: null,
+        compareFileDiff: null,
+        conflictStages: null,
+        activeConflictedPath: null,
+        selectedStashIndex: null,
+        stashDiff: [],
+        selectedStashFile: null,
+        selectedStashFileDiff: null,
+        selectedFilePath: null,
+        selectedFileIsStaged: false,
+        localDiff: null,
+        error: null,
+      });
+
+      // If there's a new active tab, reload its data
+      if (newActive) {
+        get().refreshAll();
+      }
+    } else {
+      set({ tabs: filtered });
+    }
+
+    // Tell Rust to clean up
+    commands.closeRepo(tabId, { silent: true }).catch(() => {});
+  },
+
+  switchTab: (tabId: string) => {
+    set((state) => ({
+      tabs: state.tabs.map((t) => ({ ...t, isActive: t.id === tabId })),
+      activeTabId: tabId,
+      // Reset per-tab state to prevent stale data from previous tab
+      selectedCommitOid: null,
+      commitDiff: [],
+      blameLines: [],
+      fileHistory: [],
+      reflogEntries: [],
+      stashes: [],
+      commitTree: [],
+      compareDiff: [],
+      compareBase: null,
+      compareTarget: null,
+      selectedCompareFile: null,
+      compareFileDiff: null,
+      conflictStages: null,
+      activeConflictedPath: null,
+      selectedStashIndex: null,
+      stashDiff: [],
+      selectedStashFile: null,
+      selectedStashFileDiff: null,
+      selectedFilePath: null,
+      selectedFileIsStaged: false,
+      localDiff: null,
+      error: null,
+    }));
+
+    // Reload data for the new active tab
+    get().refreshAll();
+  },
+});
