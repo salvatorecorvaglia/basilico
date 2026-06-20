@@ -160,10 +160,18 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Disable updater if signing key is missing
+        if: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY == '' }}
+        shell: bash
+        run: |
+          echo "TAURI_SIGNING_PRIVATE_KEY is not set. Disabling updater artifacts."
+          jq '.bundle.createUpdaterArtifacts = false | del(.plugins.updater)' src-tauri/tauri.conf.json > temp.json && mv temp.json src-tauri/tauri.conf.json
+
       - name: Build and Publish Release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         with:
           tagName: v__VERSION__
           releaseName: 'Basilico v__VERSION__'
