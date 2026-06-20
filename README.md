@@ -1,81 +1,119 @@
-# 🌿 Basilico — Cross-Platform Desktop Git Client
+# Basilico 🌿
 
-Basilico is a fast, modern, and beautiful Git GUI client built using **Tauri 2**, **Rust**, **React**, and **TypeScript**. It is designed from the ground up for visual elegance and extreme performance, even on massive repositories.
+**A fast, modern, and beautiful Git GUI client.**
 
----
-
-## Key Features
-
-- **⚡ Blazing Fast**: Built with Rust backend (`git2`/`libgit2` bindings) and virtualized lists (TanStack Virtual) on the frontend.
-- **📈 Rich Commit Graph**: Canvas-based interactive DAG commit graph with custom lane allocation.
-- **🗂️ Tabbed Repository Management**: Open and switch between multiple repositories in clean, lightweight tabs.
-- **🌓 Custom Premium Aesthetics**: Tailored dark-mode-first styling with sleek borders, gradients, and micro-animations.
-- **🔍 File Diff & History**: Monaco Editor-based diff viewing for side-by-side or inline modifications.
-- **🛠️ Fully Configurable Layout**: 3-panel resizable workspace (Sidebar, Commit Graph/List, and Commit Detail).
+Basilico is designed to provide a premium, visually stunning desktop experience for managing Git repositories. By pairing a high-performance Rust backend powered by `libgit2` bindings with a modern, highly responsive React frontend, Basilico offers lightning-fast operations, rich repository visualizations, and robust safety guarantees.
 
 ---
 
-## Technology Stack
+## ✨ Features
 
-| Layer | Technology |
-|---|---|
-| **Desktop Shell** | Tauri 2 |
-| **Backend** | Rust + `git2` + `tokio` + `notify` |
-| **Frontend** | React 19 + TypeScript + Zustand |
-| **Bundler** | Vite |
-| **State** | Zustand stores (Repo & UI) |
-| **Virtualization** | TanStack Virtual |
-| **Layout** | `react-resizable-panels` |
-| **Icons** | Lucide React |
+- **📊 Visual Git Commit Graph**: An interactive, high-performance, canvas-based Directed Acyclic Graph (DAG) for visualizing repository history with $O(1)$ index caching and smooth animation-frame throttling.
+- **🛠 Core Git Operations**: 
+  - Effortless staging, committing, pushing, pulling, merging, and tagging.
+  - Interactive stashing capabilities, complete with a dedicated `StashInspector` UI.
+  - Soft, mixed, and hard modes for `git reset` via a custom `ResetModal` UI.
+- **🔍 Advanced Inspection & Comparison**:
+  - **Revision Compare**: Select and compare revisions, explore file trees, and view side-by-side or inline diffs.
+  - **Git Blame**: An integrated blame view with detailed modification history tracking for individual lines.
+  - **Conflict Resolver**: Interactive merge conflict resolution interface to handle conflicts quickly and safely.
+- **📂 Workspace & Collaboration**:
+  - Submodule and worktree management.
+  - Secure SSH key generation options with comment sanitization.
+  - A Pull Request review dashboard to streamline code reviews.
+- **🎨 Premium Aesthetics**:
+  - Standardized CSS color variables and theme accents using modern CSS `color-mix` functions.
+  - Seamless Light/Dark theme configuration.
+  - Fully accessible (a11y) interactive elements, input fields, and custom scroll containers.
+- **🚀 Underlying Architecture**:
+  - **Rust Backend**: Multithreaded command runner leveraging Rust `git2` bindings for maximum performance.
+  - **State Management**: Highly optimized Zustand `repo-store` split into modular slices (`collaboration`, `git-data`, `settings`, `staging`, `tabs`).
+  - **Watcher**: A live repository file system watcher using `notify` to automatically refresh application state on local edits.
 
 ---
 
-## Getting Started
+## 📁 Repository Structure
+
+Here is a high-level overview of the workspace layout:
+
+- **[`src-tauri/`](file:///Users/salvatorecorvaglia/github/basilico/src-tauri)**: The native Rust backend.
+  - **[`src/lib.rs`](file:///Users/salvatorecorvaglia/github/basilico/src-tauri/src/lib.rs)**: Defines native commands, setup configurations, and window layout initialization.
+  - **[`Cargo.toml`](file:///Users/salvatorecorvaglia/github/basilico/src-tauri/Cargo.toml)**: Cargo dependency manifest, leveraging `git2` and `tokio`.
+- **[`src/`](file:///Users/salvatorecorvaglia/github/basilico/src)**: The React and TypeScript frontend.
+  - **[`src/components/`](file:///Users/salvatorecorvaglia/github/basilico/src/components)**: Core visual components (diff view, commit graph, modals, settings, staging, etc.).
+  - **[`src/store/`](file:///Users/salvatorecorvaglia/github/basilico/src/store)**: State slices managed via Zustand.
+  - **[`src/styles/`](file:///Users/salvatorecorvaglia/github/basilico/src/styles)**: Premium design-system variables (`theme.css` and `index.css`).
+- **[`package.json`](file:///Users/salvatorecorvaglia/github/basilico/package.json)**: Node.js scripts and frontend/devDependencies configurations.
+- **[`vite.config.ts`](file:///Users/salvatorecorvaglia/github/basilico/vite.config.ts)**: Configures the Vite dev server and bundler.
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
 
-Make sure you have the following installed on your system:
-- **Node.js** (v18 or higher)
-- **Rust toolchain** (via `rustup`)
-- **System dependencies** (as required by Tauri for your OS)
+Ensure you have the following installed:
+- **Node.js** (v22 or higher recommended; v18 minimum)
+- **Rust Toolchain** (via [rustup](https://rustup.rs/))
+- **System dependencies** required for Tauri development (see the [Tauri Prerequisites Guide](https://v2.tauri.app/start/prerequisites/))
 
-### Running in Development Mode
+### Installation & Setup
 
-To start the development server (Vite + Tauri):
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/salvatorecorvaglia/basilico.git
+   cd basilico
+   ```
+2. Install NPM dependencies:
+   ```bash
+   npm install
+   ```
 
+### Running the App
+
+To start the Vite dev server and launch the Tauri native application window simultaneously:
 ```bash
-# Install dependencies
-npm install
-
-# Run the app in development
 npm run tauri dev
 ```
 
-For split terminal setups, you can also run them separately:
-```bash
-# Terminal 1: Start the Vite frontend server
-npm run dev
-
-# Terminal 2: Run the Tauri native container
-cd src-tauri && cargo run
-```
-
-### Building for Production
-
-To build the production-ready installers (DMG for macOS, EXE for Windows, DEB/AppImage for Linux):
-
-```bash
-npm run tauri build
-```
+Alternatively, you can run the frontend and native wrapper in separate terminals:
+- **Terminal 1 (Vite Dev Server)**:
+  ```bash
+  npm run dev
+  ```
+- **Terminal 2 (Tauri Wrapper)**:
+  ```bash
+  cd src-tauri
+  cargo run
+  ```
 
 ---
 
-## Project Structure
+## 🧪 Testing and Verification
 
-- `src-tauri/` — Rust backend (Tauri host, git2 interface, file system watcher, commands)
-- `src/` — React frontend (Design system, resizable layout shell, Canvas commit graph, custom stores)
-- `src/components/graph/` — Commit list and canvas graph rendering logic
-- `src/store/` — State management via Zustand
+To ensure code quality and stability, run the local verification suite:
+
+### Frontend
+Verify that the React frontend builds and typechecks without errors:
+```bash
+npm run build
+```
+
+### Backend (Rust)
+Run the Rust unit and integration test suites:
+```bash
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+Format checking:
+```bash
+cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+```
+
+Linter checks:
+```bash
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets
+```
 
 ---
 

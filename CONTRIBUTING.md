@@ -1,153 +1,172 @@
 # Contributing to Basilico 🌿
 
-Thank you for your interest in contributing to **Basilico**! We are building a fast, modern, and beautiful Git client, and we welcome contributions of all kinds: bug fixes, feature implementations, documentation improvements, and bug reports.
+Thank you for your interest in contributing to **Basilico**! Basilico is a fast, modern, and beautiful Git GUI client built using **Tauri 2**, **Rust**, **React**, and **TypeScript**. 
 
-This document guides you through the process of setting up your development environment and submitting changes.
-
----
-
-## 🤝 Code of Conduct
-
-We want to foster a welcoming, collaborative, and inclusive environment. By participating in this project, you agree to:
-- Be respectful and considerate of other contributors.
-- Focus on what is best for the community.
-- Gracefully accept constructive criticism.
+By contributing, you help make Git GUI workflows faster, more elegant, and more accessible for developers worldwide.
 
 ---
 
-## 🛠️ Development Setup
+## Table of Contents
 
-Basilico is a hybrid desktop application built with **Tauri 2**, **Rust**, **React 19**, and **TypeScript**.
+1. [Code of Conduct](#code-of-conduct)
+2. [How Can I Contribute?](#how-can-i-contribute)
+3. [Branching Strategy](#branching-strategy)
+4. [Development Setup](#development-setup)
+5. [Project Architecture](#project-architecture)
+6. [Coding Guidelines](#coding-guidelines)
+7. [Submitting a Pull Request](#submitting-a-pull-request)
+8. [License](#license)
+
+---
+
+## Code of Conduct
+
+We are committed to providing a welcoming, safe, and friendly environment for all contributors. We expect all participants to behave professionally, treat others with respect, and collaborate constructively.
+
+---
+
+## How Can I Contribute?
+
+### 🐛 Reporting Bugs
+Before creating a bug report, check the open issues to see if the problem has already been reported. If not, open a new issue using the [🐛-bug-report.md](file:///Users/salvatorecorvaglia/github/basilico/.github/ISSUE_TEMPLATE/🐛-bug-report.md) template and include:
+* A clear and descriptive title.
+* Steps to reproduce the behavior.
+* Expected vs. actual behavior.
+* Screenshots or screen recordings, if applicable.
+* Your operating system and environment details.
+
+### ✨ Suggesting Features & Enhancements
+If you have ideas to improve Basilico, check the existing requests first. If it's a new idea, open a feature request using the [✨-feature-request.md](file:///Users/salvatorecorvaglia/github/basilico/.github/ISSUE_TEMPLATE/✨-feature-request.md) template describing:
+* The problem your feature solves.
+* How the proposed solution works.
+* Mockups, designs, or examples of similar features.
+
+### 🛠 Tasks & Improvements
+For general performance optimization, documentation edits, or refactoring, use the [🛠-task---improvement.md](file:///Users/salvatorecorvaglia/github/basilico/.github/ISSUE_TEMPLATE/🛠-task---improvement.md) template.
+
+---
+
+## Branching Strategy
+
+* **`develop`**: This is the main development branch. All feature branches and bug fixes should target `develop` in their Pull Requests.
+* **`main`**: This branch represents the stable production-ready releases. Merges into `main` are handled by maintainers during the release cycle and will trigger auto-tagging and packaging workflows.
+
+When creating a branch:
+```bash
+git checkout develop
+git pull origin develop
+git checkout -b feature/your-feature-name
+# or for bug fixes:
+git checkout -b fix/your-bugfix-name
+```
+
+---
+
+## Development Setup
 
 ### Prerequisites
 
-To build and run the project, ensure you have the following installed:
-1. **Node.js** (v18 or higher) & **npm** (included with Node.js)
-2. **Rust toolchain** (via [rustup](https://rustup.rs/))
-3. **Platform-specific Tauri dependencies**:
-   - **macOS**: Xcode Command Line Tools (`xcode-select --install`).
-   - **Windows**: Microsoft Visual Studio C++ Build Tools (see [Tauri Windows Setup Guide](https://tauri.app/v2/guides/prerequisites/)).
-   - **Linux**: System libraries such as `libwebkit2gtk`, `libappindicator`, and `librsvg` (see [Tauri Linux Setup Guide](https://tauri.app/v2/guides/prerequisites/)).
+Ensure you have the following installed on your local machine:
+* **Node.js** (v22 or higher recommended; v18 minimum)
+* **Rust Toolchain** (via [rustup](https://rustup.rs/))
+* **System dependencies** required for Tauri developments (see the [Tauri Prerequisites Guide](https://v2.tauri.app/start/prerequisites/)).
 
-### Running the App
+### Local Installation
 
-1. **Clone the repository:**
+1. Fork the repository and clone your fork:
    ```bash
-   git clone https://github.com/salvatorecorvaglia/basilico.git
+   git clone https://github.com/YOUR-USERNAME/basilico.git
    cd basilico
    ```
-
-2. **Install frontend dependencies:**
+2. Install dependencies:
    ```bash
    npm install
    ```
 
-3. **Start in Development Mode:**
-   To run the application in a single terminal (Vite frontend and Tauri native wrapper together):
-   ```bash
-   npm run tauri dev
-   ```
+### Running the App
 
-   Alternatively, you can run them separately in two terminal split sessions:
-   - **Terminal 1 (Frontend Dev Server):**
-     ```bash
-     npm run dev
-     ```
-   - **Terminal 2 (Tauri Rust App):**
-     ```bash
-     cd src-tauri && cargo run
-     ```
-
----
-
-## 📂 Project Structure
-
-A quick overview of where things live:
-- `src-tauri/` — Rust backend (Tauri commands, custom Git integration via `git2`, watchers, configurations).
-- `src/` — React frontend.
-  - `src/components/` — UI components (Commit graph, diff explorer, panels, modals).
-  - `src/store/` — Zustand state management (`repo-store.ts`, `ui-store.ts`).
-  - `src/index.css` — Global styling and tailormade visual themes.
-
----
-
-## 🌿 Contribution Workflow
-
-### 1. Find or Create an Issue
-Before writing code, please check existing issues or open a new one to discuss your proposed changes. We have templates for:
-- 🐛 **Bug Report**
-- ✨ **Feature Request**
-- 🛠️ **Task / Improvement**
-
-### 2. Create a Branch
-Use a descriptive branch name from the `main` branch:
-- `feat/feature-name` — for new features.
-- `fix/bug-name` — for bug fixes.
-- `docs/doc-name` — for documentation updates.
-- `refactor/refactor-name` — for code restructuring.
-- `chore/chore-name` — for minor tooling changes.
-
-### 3. Code Standards & Linting
-
-We run strict automated checks on every pull request. Ensure your changes pass local checks:
-
-#### Frontend (React / TypeScript)
-- Check compilation and run typescript checks:
-  ```bash
-  npm run build
-  ```
-- Make sure there are no lint or type-check errors in the IDE before committing.
-
-#### Backend (Rust)
-- Format your code:
-  ```bash
-  cargo fmt --manifest-path src-tauri/Cargo.toml --all
-  ```
-- Lint your code using Clippy:
-  ```bash
-  cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-  ```
-- Run tests:
-  ```bash
-  cargo test --manifest-path src-tauri/Cargo.toml
-  ```
-
----
-
-## 💬 Commit Messages
-
-We recommend following the **Conventional Commits** specification:
-```text
-<type>(<scope>): <description>
-
-[optional body]
+To launch the unified frontend and native container (Vite + Tauri dev server):
+```bash
+npm run tauri dev
 ```
 
-Common types:
-- `feat`: A new feature
-- `fix`: A bug fix
-- `docs`: Documentation-only changes
-- `style`: Changes that do not affect the meaning of the code (formatting, white-space, etc.)
-- `refactor`: A code change that neither fixes a bug nor adds a feature
-- `test`: Adding missing tests or correcting existing tests
-- `chore`: Changes to the build process, auxiliary tools, or libraries
-
-Example:
-`feat(graph): add O(1) index caching to optimize canvas rendering`
+For advanced frontend debugging or split setups:
+1. Start the Vite server (Terminal 1):
+   ```bash
+   npm run dev
+   ```
+2. Start the Tauri app wrapper (Terminal 2):
+   ```bash
+   cd src-tauri
+   cargo run
+   ```
 
 ---
 
-## 🚀 Submitting a Pull Request
+## Project Architecture
 
-1. **Push your branch** to your fork or the repository.
-2. **Open a Pull Request** against the `main` branch.
-3. **Fill out the Pull Request Template** in detail. Make sure to:
-   - Provide a clear summary of the changes.
-   - Link the relevant issue (e.g., `Fixes #123`).
-   - Describe how the changes were tested (manual/unit tests).
-4. **Ensure CI passes**. Once the PR is opened, GitHub Actions will automatically run:
-   - Frontend compilation and build checks.
-   - Rust formatting verification (`cargo fmt --check`).
-   - Rust clippy lint analysis and unit testing.
+Familiarize yourself with the layout before modifying code:
+* **`src-tauri/`**: Rust backend.
+  * [Cargo.toml](file:///Users/salvatorecorvaglia/github/basilico/src-tauri/Cargo.toml): Dependency manifest.
+  * [main.rs](file:///Users/salvatorecorvaglia/github/basilico/src-tauri/src/main.rs): Minimal application entrypoint.
+  * [lib.rs](file:///Users/salvatorecorvaglia/github/basilico/src-tauri/src/lib.rs): Native commands, setup configurations, and window layout initialization.
+  * Commands and logic are backed by `git2`/`libgit2` bindings for git operations, `tokio` for async runtime, and `notify` for filesystem changes.
+* **`src/`**: React frontend.
+  * [main.tsx](file:///Users/salvatorecorvaglia/github/basilico/src/main.tsx): React entrypoint.
+  * [components](file:///Users/salvatorecorvaglia/github/basilico/src/components): Shared visual components and views.
+  * [styles](file:///Users/salvatorecorvaglia/github/basilico/src/styles): Contains [theme.css](file:///Users/salvatorecorvaglia/github/basilico/src/styles/theme.css) and [index.css](file:///Users/salvatorecorvaglia/github/basilico/src/styles/index.css) defining design system variables and premium dark-mode styles.
+  * [store](file:///Users/salvatorecorvaglia/github/basilico/src/store): Zustand global state management stores.
 
-We will review your pull request as soon as possible. Thank you for contributing to Basilico!
+---
+
+## Coding Guidelines
+
+### 🎨 Frontend & UI Style
+* **Premium Aesthetics**: Basilico prioritizes visually stunning, premium dark-mode styling. Stick to the curated color palette and layout tokens defined in [theme.css](file:///Users/salvatorecorvaglia/github/basilico/src/styles/theme.css).
+* **Styling**: Use standard CSS/Vanilla CSS with layout/theme variables instead of writing ad-hoc inline styles. Do not use Tailwind unless explicitly discussed.
+* **TypeScript & React**: Maintain strict type safety. Avoid using `any`. Write modern React functional components with hooks.
+
+### 🦀 Rust Backend Style
+* Follow standard idiomatic Rust styling guidelines.
+* Avoid using `.unwrap()` on `Option` or `Result` types. Properly propagate errors using Tauri-compatible error structures (such as [error.rs](file:///Users/salvatorecorvaglia/github/basilico/src-tauri/src/error.rs)).
+* Use `parking_lot` primitives for synchronization instead of standard library mutexes when appropriate to avoid blocking async contexts.
+
+---
+
+## Submitting a Pull Request
+
+Before submitting a Pull Request, please run these local checks to ensure they pass CI:
+
+### Pre-submission Checklist
+
+1. **Version Consistency Check**:
+   Ensure that the `version` field in [package.json](file:///Users/salvatorecorvaglia/github/basilico/package.json) matches the `version` field in [tauri.conf.json](file:///Users/salvatorecorvaglia/github/basilico/src-tauri/tauri.conf.json).
+2. **Frontend Quality**:
+   Verify the frontend builds and typechecks without errors:
+   ```bash
+   npm run build
+   ```
+3. **Rust Code Quality & Formatting**:
+   Ensure Rust formatting is consistent:
+   ```bash
+   cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+   ```
+   Run clippy lints to catch potential errors:
+   ```bash
+   cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets
+   ```
+4. **Rust Tests**:
+   Ensure all unit tests pass:
+   ```bash
+   cargo test --manifest-path src-tauri/Cargo.toml
+   ```
+
+### Creating the PR
+
+* Keep your PR focused on a single concern/issue.
+* Write a clear description of the changes using the template in [PULL_REQUEST_TEMPLATE.md](file:///Users/salvatorecorvaglia/github/basilico/.github/PULL_REQUEST_TEMPLATE/PULL_REQUEST_TEMPLATE.md).
+* Link any relevant issues (e.g. `Fixes #123`).
+
+---
+
+Happy coding! 🌙
