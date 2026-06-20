@@ -31,20 +31,20 @@ pub async fn list_submodules(repo_path: String) -> Result<Vec<SubmoduleInfo>, Ap
         let head_oid = sm.head_id().map(|id| id.to_string());
 
         // Determine status based on submodule state
-        let status = match sm.open() {
-            Ok(sub_repo) => {
-                // Check if the workdir has modifications
-                let statuses = sub_repo.statuses(None);
-                match statuses {
-                    Ok(s) if s.len() > 0 => "dirty".to_string(),
-                    Ok(_) => "up-to-date".to_string(),
-                    Err(_) => "initialized".to_string(),
+        let status = match repo.submodule_status(&path, git2::SubmoduleIgnore::None) {
+            Ok(s) => {
+                if s.contains(git2::SubmoduleStatus::WD_UNINITIALIZED) {
+                    "uninitialized".to_string()
+                } else if s.contains(git2::SubmoduleStatus::WD_MODIFIED)
+                    || s.contains(git2::SubmoduleStatus::WD_WD_MODIFIED)
+                    || s.contains(git2::SubmoduleStatus::WD_INDEX_MODIFIED)
+                {
+                    "dirty".to_string()
+                } else {
+                    "up-to-date".to_string()
                 }
             }
-            Err(_) => {
-                // Can't open the submodule repo — likely not initialized
-                "uninitialized".to_string()
-            }
+            Err(_) => "uninitialized".to_string(),
         };
 
         result.push(SubmoduleInfo {

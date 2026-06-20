@@ -5,7 +5,6 @@ Command handlers for git history and code search
 
 use crate::error::AppError;
 use crate::git::graph::GraphCommit;
-use git2::{Repository, Sort};
 use serde::Serialize;
 
 #[derive(Debug, Serialize, Clone)]
@@ -16,77 +15,109 @@ pub struct GrepMatch {
     pub content: String,
 }
 
-#[tauri::command]
-pub async fn search_commits(
-    repo_path: String,
-    query: String,
-) -> Result<Vec<GraphCommit>, AppError> {
-    let repo = Repository::open(&repo_path)?;
-    let mut revwalk = repo.revwalk()?;
-    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
+fn run_git_log(repo_path: &str, args: &[&str]) -> Result<Vec<GraphCommit>, AppError> {
+    let output = crate::commands::new_command("git")
+        .current_dir(repo_path)
+        .args(args)
+        .output()
+        .map_err(|e| AppError::command(format!("Failed to run git log: {}", e)))?;
 
-    // Push head to revwalk
-    if let Ok(_) = repo.head() {
-        let _ = revwalk.push_head();
-    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut commits = Vec::new();
 
-    // Also push refs
-    if let Ok(references) = repo.references() {
-        for reference in references {
-            if let Ok(r) = reference {
-                if let Some(oid) = r.target() {
-                    let _ = revwalk.push(oid);
-                }
-            }
+    for line in stdout.lines() {
+        if line.is_empty() {
+            continue;
         }
-    }
+        let parts: Vec<&str> = line.split('\0').collect();
+        if parts.len() >= 9 {
+            let oid = parts[0].to_string();
+            let short_oid = parts[1].to_string();
+            let message = parts[2].to_string();
+            let author_name = parts[3].to_string();
+            let author_email = parts[4].to_string();
+            let author_date = parts[5].parse::<i64>().unwrap_or(0);
+            let committer_name = parts[6].to_string();
+            let committer_date = parts[7].parse::<i64>().unwrap_or(0);
+            let parents_str = parts[8];
+            let parent_oids: Vec<String> = if parents_str.is_empty() {
+                Vec::new()
+            } else {
+                parents_str.split_whitespace().map(|s| s.to_string()).collect()
+            };
 
-    let mut matches = Vec::new();
-    let query_lower = query.to_lowercase();
-
-    for oid_result in revwalk {
-        let oid = match oid_result {
-            Ok(o) => o,
-            Err(_) => continue,
-        };
-
-        let commit = match repo.find_commit(oid) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
-
-        let message = commit.message().unwrap_or("");
-        let author = commit.author();
-        let author_name = author.name().unwrap_or("");
-
-        if message.to_lowercase().contains(&query_lower)
-            || author_name.to_lowercase().contains(&query_lower)
-        {
-            let parent_oids: Vec<String> = commit.parent_ids().map(|p| p.to_string()).collect();
-            let committer = commit.committer();
-
-            matches.push(GraphCommit {
-                oid: oid.to_string(),
-                short_oid: oid.to_string()[..7.min(oid.to_string().len())].to_string(),
-                message: message.lines().next().unwrap_or("").to_string(),
-                author_name: author_name.to_string(),
-                author_email: author.email().unwrap_or("").to_string(),
-                author_date: author.when().seconds(),
-                committer_name: committer.name().unwrap_or("").to_string(),
-                committer_date: committer.when().seconds(),
+            commits.push(GraphCommit {
+                oid,
+                short_oid,
+                message,
+                author_name,
+                author_email,
+                author_date,
+                committer_name,
+                committer_date,
                 parent_oids,
                 refs: Vec::new(),
                 lane: 0,
                 edges: Vec::new(),
             });
         }
+    }
 
-        if matches.len() >= 200 {
-            break;
+    Ok(commits)
+}
+
+#[tauri::command]
+pub async fn search_commits(
+    repo_path: String,
+    query: String,
+) -> Result<Vec<GraphCommit>, AppError> {
+    let query_trimmed = query.trim();
+    if query_trimmed.is_empty() {
+        return run_git_log(&repo_path, &[
+            "log",
+            "--all",
+            "-n",
+            "200",
+            "--format=%H%x00%h%x00%s%x00%an%x00%ae%x00%at%x00%cn%x00%ct%x00%P"
+        ]);
+    }
+
+    let mut msg_commits = run_git_log(&repo_path, &[
+        "log",
+        "--all",
+        "--grep",
+        query_trimmed,
+        "-i",
+        "-n",
+        "200",
+        "--format=%H%x00%h%x00%s%x00%an%x00%ae%x00%at%x00%cn%x00%ct%x00%P"
+    ])?;
+
+    let author_commits = run_git_log(&repo_path, &[
+        "log",
+        "--all",
+        "--author",
+        query_trimmed,
+        "-i",
+        "-n",
+        "200",
+        "--format=%H%x00%h%x00%s%x00%an%x00%ae%x00%at%x00%cn%x00%ct%x00%P"
+    ])?;
+
+    msg_commits.extend(author_commits);
+
+    let mut seen = std::collections::HashSet::new();
+    let mut unique_commits = Vec::new();
+    for c in msg_commits {
+        if seen.insert(c.oid.clone()) {
+            unique_commits.push(c);
         }
     }
 
-    Ok(matches)
+    unique_commits.sort_by(|a, b| b.author_date.cmp(&a.author_date));
+    unique_commits.truncate(200);
+
+    Ok(unique_commits)
 }
 
 #[tauri::command]

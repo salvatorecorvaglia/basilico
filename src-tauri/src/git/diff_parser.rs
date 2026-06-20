@@ -163,6 +163,17 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
         });
     }
 
+    // Build a hashmap mapping path -> files index for fast lookup
+    let mut file_map = std::collections::HashMap::new();
+    for (i, f) in files.iter().enumerate() {
+        if let Some(ref path) = f.new_path {
+            file_map.insert(path.clone(), i);
+        }
+        if let Some(ref path) = f.old_path {
+            file_map.insert(path.clone(), i);
+        }
+    }
+
     // Now walk the diff to populate hunks and lines
     diff.print(DiffFormat::Patch, |delta, hunk, line| {
         let file_path = delta
@@ -172,9 +183,7 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
             .map(|p| p.to_string_lossy().to_string());
 
         // Find matching file
-        let file_idx = files
-            .iter()
-            .position(|f| f.new_path == file_path || f.old_path == file_path);
+        let file_idx = file_path.as_ref().and_then(|path| file_map.get(path).copied());
 
         if let Some(idx) = file_idx {
             if let Some(hunk_info) = hunk {
