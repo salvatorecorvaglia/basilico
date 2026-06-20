@@ -48,13 +48,15 @@ export function WelcomeScreen() {
             <ArrowRight size={16} className="welcome-btn-arrow" />
           </button>
 
-          <button
-            className="welcome-btn-dev"
-            onClick={() => openRepository('/Users/salvatorecorvaglia/github/basilico')}
-            disabled={isLoading}
-          >
-            <span className="welcome-btn-dev-text">🌿 Open Basilico Repository (Dev)</span>
-          </button>
+          {import.meta.env.DEV && (
+            <button
+              className="welcome-btn-dev"
+              onClick={() => openRepository('/Users/salvatorecorvaglia/github/basilico')}
+              disabled={isLoading}
+            >
+              <span className="welcome-btn-dev-text">🌿 Open Basilico Repository (Dev)</span>
+            </button>
+          )}
         </div>
 
         {/* Keyboard shortcut hint */}
