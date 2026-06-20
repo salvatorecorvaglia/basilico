@@ -13,7 +13,7 @@ pub async fn stage_files(path: String, files: Vec<String>) -> Result<(), AppErro
             index.add_path(Path::new(&file))?;
         } else {
             // File was deleted — stage the deletion
-            let _ = index.remove_path(Path::new(&file));
+            index.remove(Path::new(&file), 0)?;
         }
     }
     index.write()?;
@@ -100,3 +100,81 @@ pub async fn discard_changes(path: String, files: Vec<String>) -> Result<(), App
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::TempRepo;
+
+    #[tokio::test]
+    async fn test_stage_files_new_and_modified() {
+        let repo = TempRepo::new();
+        repo.write_file("file.txt", "initial contents");
+
+        // Staging a new file
+        stage_files(repo.path_str().to_string(), vec!["file.txt".to_string()])
+            .await
+            .unwrap();
+
+        let index = repo.repo.index().unwrap();
+        assert!(index.get_path(Path::new("file.txt"), 0).is_some());
+    }
+
+    #[tokio::test]
+    async fn test_stage_files_deleted() {
+        let repo = TempRepo::new();
+        repo.write_file("file.txt", "contents");
+        repo.commit("initial");
+
+        // Delete from worktree
+        repo.remove_file("file.txt");
+
+        // Stage the deletion
+        stage_files(repo.path_str().to_string(), vec!["file.txt".to_string()])
+            .await
+            .unwrap();
+
+        let mut index = repo.repo.index().unwrap();
+        index.read(true).unwrap();
+        // File should not be present in the index after staging deletion
+        assert!(index.get_path(Path::new("file.txt"), 0).is_none());
+    }
+
+    #[tokio::test]
+    async fn test_unstage_files() {
+        let repo = TempRepo::new();
+        repo.write_file("file.txt", "contents");
+
+        // Stage file
+        stage_files(repo.path_str().to_string(), vec!["file.txt".to_string()])
+            .await
+            .unwrap();
+
+        // Unstage file
+        unstage_files(repo.path_str().to_string(), vec!["file.txt".to_string()])
+            .await
+            .unwrap();
+
+        let index = repo.repo.index().unwrap();
+        assert!(index.get_path(Path::new("file.txt"), 0).is_none());
+    }
+
+    #[tokio::test]
+    async fn test_discard_changes() {
+        let repo = TempRepo::new();
+        repo.write_file("file.txt", "original");
+        repo.commit("commit 1");
+
+        // Modify file
+        repo.write_file("file.txt", "modified");
+
+        // Discard changes
+        discard_changes(repo.path_str().to_string(), vec!["file.txt".to_string()])
+            .await
+            .unwrap();
+
+        let content = std::fs::read_to_string(repo.path.join("file.txt")).unwrap();
+        assert_eq!(content, "original");
+    }
+}
+

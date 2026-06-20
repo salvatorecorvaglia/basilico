@@ -4,6 +4,9 @@ mod git;
 mod state;
 mod watcher;
 
+#[cfg(test)]
+pub mod test_utils;
+
 use state::AppState;
 use tauri::Manager;
 
