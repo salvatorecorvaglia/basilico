@@ -84,6 +84,7 @@ export interface RepoState {
   switchTab: (tabId: string) => void;
   refreshStatus: () => Promise<void>;
   refreshAll: () => Promise<void>;
+  refreshOnFileSystemChange: () => Promise<void>;
   selectCommit: (oid: string | null) => Promise<void>;
   loadMoreCommits: (count: number) => Promise<void>;
   

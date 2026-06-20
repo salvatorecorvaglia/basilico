@@ -32,6 +32,7 @@ export interface GitDataSlice {
 
   refreshStatus: () => Promise<void>;
   refreshAll: () => Promise<void>;
+  refreshOnFileSystemChange: () => Promise<void>;
   selectCommit: (oid: string | null) => Promise<void>;
   loadMoreCommits: (count: number) => Promise<void>;
   loadFileBlame: (filePath: string, commitOid?: string | null) => Promise<void>;
@@ -101,6 +102,25 @@ export const createGitDataSlice: StateCreator<RepoState, [], [], GitDataSlice> =
       console.error('Failed to refresh:', err);
       set({ error: String(err) });
       throw err;
+    } finally {
+      set({ isRefreshing: false });
+    }
+  },
+
+  refreshOnFileSystemChange: async () => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    set({ isRefreshing: true, error: null });
+    try {
+      const [status, commits] = await Promise.all([
+        commands.getStatus(activeTabId, { silent: true }),
+        commands.getLog(activeTabId, 500, { silent: true }),
+      ]);
+      set({ status, commits });
+    } catch (err) {
+      console.error('Failed to refresh on file change:', err);
+      set({ error: String(err) });
     } finally {
       set({ isRefreshing: false });
     }

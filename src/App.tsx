@@ -3,7 +3,7 @@
    Layout assembly with tab management
    ═══════════════════════════════════════════════════════ */
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, lazy, Suspense } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { TabBar } from './components/layout/TabBar';
@@ -14,9 +14,6 @@ import { CommitList } from './components/graph/CommitList';
 import { CommitDetail } from './components/graph/CommitDetail';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { StagingArea } from './components/staging/StagingArea';
-import { DiffView } from './components/diff/DiffView';
-import { BlameView } from './components/blame/BlameView';
-import { FileHistory } from './components/history/FileHistory';
 import { ReflogView } from './components/reflog/ReflogView';
 import { RepoSearch } from './components/search/RepoSearch';
 import { CommandPalette } from './components/command-palette/CommandPalette';
@@ -25,11 +22,16 @@ import { BisectWizard } from './components/bisect/BisectWizard';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { ResetModal } from './components/graph/ResetModal';
 import { CleanModal } from './components/clean/CleanModal';
-import { CompareView } from './components/compare/CompareView';
-import { FileViewerModal } from './components/graph/FileViewerModal';
-import { MergeEditor } from './components/staging/MergeEditor';
 import { PullRequestReview } from './components/layout/PullRequestReview';
-import { StashInspector } from './components/staging/StashInspector';
+
+// Lazy load Monaco Editor components to reduce initial bundle footprint
+const DiffView = lazy(() => import('./components/diff/DiffView').then(m => ({ default: m.DiffView })));
+const BlameView = lazy(() => import('./components/blame/BlameView').then(m => ({ default: m.BlameView })));
+const FileHistory = lazy(() => import('./components/history/FileHistory').then(m => ({ default: m.FileHistory })));
+const CompareView = lazy(() => import('./components/compare/CompareView').then(m => ({ default: m.CompareView })));
+const FileViewerModal = lazy(() => import('./components/graph/FileViewerModal').then(m => ({ default: m.FileViewerModal })));
+const MergeEditor = lazy(() => import('./components/staging/MergeEditor').then(m => ({ default: m.MergeEditor })));
+const StashInspector = lazy(() => import('./components/staging/StashInspector').then(m => ({ default: m.StashInspector })));
 import { NotificationToast } from './components/layout/NotificationToast';
 import { PromptModal } from './components/layout/PromptModal';
 import { ConfirmModal } from './components/layout/ConfirmModal';
@@ -134,12 +136,19 @@ function App() {
   // Listen to file system changes from Rust watcher
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
+    let timeoutId: any = null;
 
     const setupListener = async () => {
       unsubscribe = await listen<{ repoPath: string }>('repo:changed', (event) => {
         const currentActive = useRepoStore.getState().activeTabId;
         if (currentActive === event.payload.repoPath) {
-          refreshAll();
+          // Debounce watcher refreshes on the frontend
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
+          timeoutId = setTimeout(() => {
+            useRepoStore.getState().refreshOnFileSystemChange();
+          }, 300);
         }
       });
     };
@@ -148,8 +157,9 @@ function App() {
 
     return () => {
       if (unsubscribe) unsubscribe();
+      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [refreshAll]);
+  }, []);
 
   // Open repository via file dialog (shared by both shortcut paths)
   const handleOpenRepo = useCallback(async () => {
@@ -240,7 +250,9 @@ function App() {
       <CleanModal />
 
       {/* File Viewer Modal */}
-      <FileViewerModal />
+      <Suspense fallback={null}>
+        <FileViewerModal />
+      </Suspense>
 
       {hasOpenRepo ? (
         <>
@@ -267,7 +279,9 @@ function App() {
 
               {/* Center Panel (depends on activeView) */}
               <Panel id="center" minSize="40%">
-                {renderViewContent(activeView)}
+                <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)', fontSize: '14px' }}>Loading view...</div>}>
+                  {renderViewContent(activeView)}
+                </Suspense>
               </Panel>
             </Group>
           </div>
