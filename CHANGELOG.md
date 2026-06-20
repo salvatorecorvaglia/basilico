@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-06-20
+
+### Added
+
+- **Core Git Client Operations**:
+  - Git merging backend operations and interface actions.
+- **Modals & Management Panels**:
+  - Secure SSH key generation options with comment sanitization.
+- **Infrastructure & Styling**:
+  - Standardized CSS color variables and theme accents using modern CSS `color-mix` functions.
+  - Dynamic app version display in the status bar.
+  - Dedicated `TempRepo` test utility for Tauri backend testing.
+  - Automated release workflows for building macOS, Windows, and Linux Tauri targets.
+
+### Changed
+
+- **State Management**: Modularized the unified Zustand `repo-store` into smaller slices (`collaboration`, `git-data`, `settings`, `staging`, `tabs`).
+- **Performance & Polish**:
+  - Implemented debounced file system watcher refreshes to optimize rendering performance.
+  - Enabled lazy loading of primary application views in the React frontend.
+- **Security & Capabilities**:
+  - Disabled Tauri auto-updater configuration and restricted default Tauri capabilities to the minimum required permissions.
+  - Enabled the `vendored-openssl` feature for the `git2` cargo dependency to simplify compilation on Unix targets.
+- **Accessibility & UI**:
+  - Improved accessibility (a11y) attributes across interactive list elements, input fields, and custom scroll containers.
+  - Updated fallback UI and visual component layouts.
+  - Refactored `App.tsx` by extracting inline view-rendering functions.
+- **Testing & Safety**: Improved deletion logic for staged/unstaged files and expanded staging deletion test coverage.
+
 ## [0.1.0] - 2026-06-20
 
 ### Added
