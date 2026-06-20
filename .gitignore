@@ -38,3 +38,19 @@ src-tauri/bin/
 *.pub
 **/tauri-updater.key
 **/tauri-updater.pub
+
+# AI Tools
+.openai/
+.chatgpt/
+gpt-config.json
+openai.config.json
+.anthropic/
+.claude/
+claude.config.json
+claude-settings.json
+.prompts/
+.prompt-cache/
+.ai/
+.gemini/
+.antigravitycli/
+CLAUDE.md
