@@ -23,29 +23,28 @@ pub async fn create_commit(
             .unwrap_or_else(|_| Signature::now("Basilico User", "user@basilico.app").unwrap())
     };
 
-    // Calculate parents
-    let mut parents = Vec::new();
-    let head = repo.head();
-
-    if amend {
-        if let Ok(head_ref) = head {
-            let parent_commit = head_ref.peel_to_commit()?;
-            for i in 0..parent_commit.parent_count() {
-                parents.push(parent_commit.parent(i)?);
-            }
-        }
+    // Create commit and point HEAD to it
+    let commit_id = if amend {
+        let head_ref = repo.head()?;
+        let commit_to_amend = head_ref.peel_to_commit()?;
+        commit_to_amend.amend(
+            Some("HEAD"),
+            Some(&sig),
+            Some(&sig),
+            None,
+            Some(&message),
+            Some(&tree),
+        )?
     } else {
-        if let Ok(head_ref) = head {
+        let mut parents = Vec::new();
+        if let Ok(head_ref) = repo.head() {
             if let Ok(parent_commit) = head_ref.peel_to_commit() {
                 parents.push(parent_commit);
             }
         }
-    }
-
-    let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
-
-    // Create commit and point HEAD to it
-    let commit_id = repo.commit(Some("HEAD"), &sig, &sig, &message, &tree, &parent_refs)?;
+        let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
+        repo.commit(Some("HEAD"), &sig, &sig, &message, &tree, &parent_refs)?
+    };
 
     Ok(commit_id.to_string())
 }
@@ -208,4 +207,94 @@ pub async fn get_commit_tree(path: String, oid: String) -> Result<Vec<TreeEntryI
     })?;
 
     Ok(entries)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::TempRepo;
+
+    #[tokio::test]
+    async fn test_create_commit_and_amend() {
+        let repo = TempRepo::new();
+        repo.write_file("test.txt", "hello");
+        
+        // Stage files (since create_commit commits the index)
+        let mut index = repo.repo.index().unwrap();
+        index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None).unwrap();
+        index.write().unwrap();
+
+        // Create initial commit
+        let commit_oid = create_commit(
+            repo.path_str().to_string(),
+            "Initial Commit".to_string(),
+            Some("Test Author".to_string()),
+            Some("author@example.com".to_string()),
+            false,
+        )
+        .await
+        .unwrap();
+
+        // Verify the commit was created
+        let commit = repo.repo.find_commit(git2::Oid::from_str(&commit_oid).unwrap()).unwrap();
+        assert_eq!(commit.message().unwrap(), "Initial Commit");
+        assert_eq!(commit.author().name().unwrap(), "Test Author");
+
+        // Amend the commit
+        repo.write_file("test.txt", "hello amended");
+        let mut index = repo.repo.index().unwrap();
+        index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None).unwrap();
+        index.write().unwrap();
+
+        let amended_oid = create_commit(
+            repo.path_str().to_string(),
+            "Amended Commit".to_string(),
+            Some("Test Author".to_string()),
+            Some("author@example.com".to_string()),
+            true,
+        )
+        .await
+        .unwrap();
+
+        // Verify that HEAD is now the amended commit and has the same parent count (which is 0 since it is initial)
+        let amended_commit = repo.repo.find_commit(git2::Oid::from_str(&amended_oid).unwrap()).unwrap();
+        assert_eq!(amended_commit.message().unwrap(), "Amended Commit");
+        assert_eq!(amended_commit.parent_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_reset_to_commit() {
+        let repo = TempRepo::new();
+        repo.write_file("test.txt", "hello");
+        repo.commit("initial commit");
+        
+        let initial_oid = repo.repo.head().unwrap().target().unwrap();
+
+        repo.write_file("test2.txt", "hello 2");
+        repo.commit("commit 2");
+
+        let _commit_2_oid = repo.repo.head().unwrap().target().unwrap();
+
+        // Reset to initial commit
+        reset_to_commit(repo.path_str().to_string(), initial_oid.to_string(), "hard".to_string()).await.unwrap();
+
+        // Verify that HEAD points to initial commit
+        let head_oid = repo.repo.head().unwrap().target().unwrap();
+        assert_eq!(head_oid, initial_oid);
+    }
+
+    #[tokio::test]
+    async fn test_get_commit_tree() {
+        let repo = TempRepo::new();
+        repo.write_file("dir/test.txt", "hello inside");
+        repo.commit("initial commit");
+
+        let head_oid = repo.repo.head().unwrap().target().unwrap();
+
+        let entries = get_commit_tree(repo.path_str().to_string(), head_oid.to_string()).await.unwrap();
+        
+        // Should have "dir" and "dir/test.txt"
+        assert!(entries.iter().any(|e| e.name == "dir" && e.is_dir));
+        assert!(entries.iter().any(|e| e.name == "test.txt" && !e.is_dir && e.path == "dir/test.txt"));
+    }
 }

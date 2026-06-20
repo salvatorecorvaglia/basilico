@@ -185,3 +185,47 @@ pub async fn rebase_step(
 
     Ok(status)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::TempRepo;
+
+    #[tokio::test]
+    async fn test_rebase_init_and_write_todo() {
+        let repo = TempRepo::new();
+        repo.write_file("test.txt", "hello");
+        repo.commit("initial commit");
+
+        // Save main branch ref or base oid
+        let base_oid = repo.repo.head().unwrap().target().unwrap();
+
+        // Create new branch and commit on it
+        crate::commands::branch::create_branch(repo.path_str().to_string(), "branch1".to_string(), None).await.unwrap();
+        crate::commands::branch::checkout_branch(repo.path_str().to_string(), "branch1".to_string()).await.unwrap();
+
+        repo.write_file("test2.txt", "hello 2");
+        repo.commit("commit 2");
+        
+        repo.write_file("test3.txt", "hello 3");
+        repo.commit("commit 3");
+
+        // Initialize rebase of branch1 onto initial commit
+        let todos = rebase_init(repo.path_str().to_string(), base_oid.to_string()).await.unwrap();
+        
+        // We should have 2 commits to rebase (commit 2 and commit 3)
+        assert_eq!(todos.len(), 2);
+        assert_eq!(todos[0].action, "pick");
+        assert_eq!(todos[1].action, "pick");
+
+        // Write modified todo list (e.g. changing the first action to "edit")
+        let mut modified_todos = todos.clone();
+        modified_todos[0].action = "edit".to_string();
+        
+        rebase_write_todo(repo.path_str().to_string(), modified_todos).await.unwrap();
+        
+        // Read it back by opening rebase to verify
+        let rebase = repo.repo.open_rebase(None).unwrap();
+        assert_eq!(rebase.len(), 2);
+    }
+}
