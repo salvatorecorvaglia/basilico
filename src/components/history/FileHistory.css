@@ -130,7 +130,7 @@
 
 /* Vertical line connecting the timeline dots */
 .history-commit-item::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 24px;
   left: 20px;

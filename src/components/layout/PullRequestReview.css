@@ -127,7 +127,9 @@
   flex-direction: column;
 }
 
-.pr-loader, .pr-empty-state, .pr-fallback-container {
+.pr-loader,
+.pr-empty-state,
+.pr-fallback-container {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -142,13 +144,15 @@
   padding: var(--space-8);
 }
 
-.pr-fallback-container h3, .pr-empty-state h4 {
+.pr-fallback-container h3,
+.pr-empty-state h4 {
   color: var(--text-primary);
   margin: var(--space-2) 0 0 0;
   font-size: var(--text-md);
 }
 
-.pr-fallback-container p, .pr-empty-state p {
+.pr-fallback-container p,
+.pr-empty-state p {
   font-size: var(--text-xs);
   max-width: 320px;
   line-height: var(--leading-normal);
@@ -170,7 +174,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .pr-card:hover {

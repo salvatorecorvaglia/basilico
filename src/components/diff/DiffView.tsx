@@ -3,78 +3,83 @@
    Monaco Diff Editor + Granular Hunk/Line Staging
    ═══════════════════════════════════════════════════════ */
 
-import { useState, useEffect } from 'react';
-import { DiffEditor } from '@monaco-editor/react';
-import { Eye, FileCode, Check, ArrowLeftRight, Trash2 } from 'lucide-react';
-import { useRepoStore } from '../../store/repo-store';
-import { useUIStore } from '../../store/ui-store';
-import { getFileContentPair, FileContentPair } from '../../lib/tauri-commands';
-import type { DiffHunkInfo } from '../../lib/git-types';
-import './DiffView.css';
+import { DiffEditor } from "@monaco-editor/react";
+import { ArrowLeftRight, Check, Eye, FileCode, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import type { DiffHunkInfo } from "../../lib/git-types";
+import {
+  type FileContentPair,
+  getFileContentPair,
+} from "../../lib/tauri-commands";
+import { useRepoStore } from "../../store/repo-store";
+import { useUIStore } from "../../store/ui-store";
+import "./DiffView.css";
 
 function getLanguageFromPath(filePath: string): string {
-  const ext = filePath.split('.').pop()?.toLowerCase();
+  const ext = filePath.split(".").pop()?.toLowerCase();
   switch (ext) {
-    case 'js':
-    case 'jsx':
-      return 'javascript';
-    case 'ts':
-    case 'tsx':
-      return 'typescript';
-    case 'rs':
-      return 'rust';
-    case 'py':
-      return 'python';
-    case 'go':
-      return 'go';
-    case 'java':
-      return 'java';
-    case 'cpp':
-    case 'cc':
-    case 'h':
-      return 'cpp';
-    case 'cs':
-      return 'csharp';
-    case 'css':
-      return 'css';
-    case 'html':
-      return 'html';
-    case 'json':
-      return 'json';
-    case 'md':
-      return 'markdown';
-    case 'sh':
-    case 'bash':
-      return 'shell';
-    case 'yml':
-    case 'yaml':
-      return 'yaml';
+    case "js":
+    case "jsx":
+      return "javascript";
+    case "ts":
+    case "tsx":
+      return "typescript";
+    case "rs":
+      return "rust";
+    case "py":
+      return "python";
+    case "go":
+      return "go";
+    case "java":
+      return "java";
+    case "cpp":
+    case "cc":
+    case "h":
+      return "cpp";
+    case "cs":
+      return "csharp";
+    case "css":
+      return "css";
+    case "html":
+      return "html";
+    case "json":
+      return "json";
+    case "md":
+      return "markdown";
+    case "sh":
+    case "bash":
+      return "shell";
+    case "yml":
+    case "yaml":
+      return "yaml";
     default:
-      return 'plaintext';
+      return "plaintext";
   }
 }
 
 export function DiffView() {
-  const { 
-    activeTabId, 
-    selectedFilePath, 
-    selectedFileIsStaged, 
+  const {
+    activeTabId,
+    selectedFilePath,
+    selectedFileIsStaged,
     localDiff,
     stageFiles,
     unstageFiles,
     discardChanges,
-    applyPatch
+    applyPatch,
   } = useRepoStore();
- 
+
   const { openConfirm, addNotification } = useUIStore();
 
-  const [viewMode, setViewMode] = useState<'visual' | 'hunk'>('visual');
+  const [viewMode, setViewMode] = useState<"visual" | "hunk">("visual");
   const [splitView, setSplitView] = useState(true);
   const [contents, setContents] = useState<FileContentPair | null>(null);
   const [loadingContents, setLoadingContents] = useState(false);
 
   // Track checked line indices per hunk: key is hunkIndex, value is Set of lineIndices
-  const [selectedLines, setSelectedLines] = useState<Record<number, Set<number>>>({});
+  const [selectedLines, setSelectedLines] = useState<
+    Record<number, Set<number>>
+  >({});
 
   // Fetch full contents for Monaco editor when selected file changes
   useEffect(() => {
@@ -90,7 +95,7 @@ export function DiffView() {
         setContents(data);
       })
       .catch((err) => {
-        console.error('Failed to load file contents:', err);
+        console.error("Failed to load file contents:", err);
         setContents(null);
       })
       .finally(() => {
@@ -118,52 +123,69 @@ export function DiffView() {
 
   const handleDiscardFile = () => {
     openConfirm({
-      title: 'Discard Changes',
+      title: "Discard Changes",
       message: `Are you sure you want to discard all changes in ${selectedFilePath}? This action cannot be undone.`,
-      confirmLabel: 'Discard Changes',
+      confirmLabel: "Discard Changes",
       isDanger: true,
       onConfirm: () => {
         discardChanges([selectedFilePath]);
-      }
+      },
     });
   };
- 
+
   // Staging specific Hunk
   const handleStageHunk = async (hunk: DiffHunkInfo) => {
-    const patch = constructHunkPatch(selectedFilePath, hunk, undefined, selectedFileIsStaged);
+    const patch = constructHunkPatch(
+      selectedFilePath,
+      hunk,
+      undefined,
+      selectedFileIsStaged,
+    );
     try {
-      await applyPatch(patch, 'index');
+      await applyPatch(patch, "index");
     } catch (err) {
       addNotification({
-        type: 'error',
-        message: `Failed to ${selectedFileIsStaged ? 'unstage' : 'stage'} hunk: ${err}`
-      });
-    }
-  };
- 
-  // Staging selected lines
-  const handleStageSelectedLines = async (hunkIndex: number, hunk: DiffHunkInfo) => {
-    const lineIndices = selectedLines[hunkIndex];
-    if (!lineIndices || lineIndices.size === 0) return;
- 
-    const patch = constructHunkPatch(selectedFilePath, hunk, lineIndices, selectedFileIsStaged);
-    try {
-      await applyPatch(patch, 'index');
-      // Clear selection
-      setSelectedLines(prev => ({
-        ...prev,
-        [hunkIndex]: new Set()
-      }));
-    } catch (err) {
-      addNotification({
-        type: 'error',
-        message: `Failed to ${selectedFileIsStaged ? 'unstage' : 'stage'} selected lines: ${err}`
+        type: "error",
+        message: `Failed to ${selectedFileIsStaged ? "unstage" : "stage"} hunk: ${err}`,
       });
     }
   };
 
-  const handleLineCheck = (hunkIndex: number, lineIndex: number, checked: boolean) => {
-    setSelectedLines(prev => {
+  // Staging selected lines
+  const handleStageSelectedLines = async (
+    hunkIndex: number,
+    hunk: DiffHunkInfo,
+  ) => {
+    const lineIndices = selectedLines[hunkIndex];
+    if (!lineIndices || lineIndices.size === 0) return;
+
+    const patch = constructHunkPatch(
+      selectedFilePath,
+      hunk,
+      lineIndices,
+      selectedFileIsStaged,
+    );
+    try {
+      await applyPatch(patch, "index");
+      // Clear selection
+      setSelectedLines((prev) => ({
+        ...prev,
+        [hunkIndex]: new Set(),
+      }));
+    } catch (err) {
+      addNotification({
+        type: "error",
+        message: `Failed to ${selectedFileIsStaged ? "unstage" : "stage"} selected lines: ${err}`,
+      });
+    }
+  };
+
+  const handleLineCheck = (
+    hunkIndex: number,
+    lineIndex: number,
+    checked: boolean,
+  ) => {
+    setSelectedLines((prev) => {
       const current = new Set(prev[hunkIndex] || []);
       if (checked) {
         current.add(lineIndex);
@@ -172,7 +194,7 @@ export function DiffView() {
       }
       return {
         ...prev,
-        [hunkIndex]: current
+        [hunkIndex]: current,
       };
     });
   };
@@ -182,13 +204,13 @@ export function DiffView() {
     filePath: string,
     hunk: DiffHunkInfo,
     selectedLineIndices?: Set<number>,
-    reverse = false
+    reverse = false,
   ): string => {
     let patch = `diff --git a/${filePath} b/${filePath}\n`;
     patch += `--- a/${filePath}\n`;
     patch += `+++ b/${filePath}\n`;
 
-    let oldLines = hunk.oldLines;
+    const oldLines = hunk.oldLines;
     let newLines = hunk.newLines;
 
     // Adjust lines count in header if we do selective staging
@@ -196,9 +218,9 @@ export function DiffView() {
       let newLineDelta = 0;
       hunk.lines.forEach((line, idx) => {
         const isSelected = selectedLineIndices.has(idx);
-        if (line.origin === '+') {
+        if (line.origin === "+") {
           if (!isSelected) newLineDelta--;
-        } else if (line.origin === '-') {
+        } else if (line.origin === "-") {
           if (!isSelected) newLineDelta++;
         }
       });
@@ -212,15 +234,19 @@ export function DiffView() {
     }
 
     hunk.lines.forEach((line, idx) => {
-      if (line.origin === ' ') {
+      if (line.origin === " ") {
         patch += ` ${line.content}`;
-      } else if (line.origin === '+') {
-        const isSelected = selectedLineIndices ? selectedLineIndices.has(idx) : true;
+      } else if (line.origin === "+") {
+        const isSelected = selectedLineIndices
+          ? selectedLineIndices.has(idx)
+          : true;
         if (isSelected) {
           patch += reverse ? `-${line.content}` : `+${line.content}`;
         }
-      } else if (line.origin === '-') {
-        const isSelected = selectedLineIndices ? selectedLineIndices.has(idx) : true;
+      } else if (line.origin === "-") {
+        const isSelected = selectedLineIndices
+          ? selectedLineIndices.has(idx)
+          : true;
         if (isSelected) {
           patch += reverse ? `+${line.content}` : `-${line.content}`;
         } else {
@@ -238,7 +264,9 @@ export function DiffView() {
       {/* Top Bar */}
       <div className="diff-view-header">
         <div className="diff-view-file-info truncate">
-          <span className="diff-view-file-name truncate">{selectedFilePath}</span>
+          <span className="diff-view-file-name truncate">
+            {selectedFilePath}
+          </span>
           {localDiff && (
             <span className="diff-view-file-stats text-mono">
               <span className="stat-add">+{localDiff.stats.additions}</span>
@@ -250,17 +278,17 @@ export function DiffView() {
         <div className="diff-view-actions">
           {/* View mode toggle */}
           <div className="diff-segmented-control">
-            <button 
-              className={`diff-control-btn ${viewMode === 'visual' ? 'active' : ''}`}
-              onClick={() => setViewMode('visual')}
+            <button
+              className={`diff-control-btn ${viewMode === "visual" ? "active" : ""}`}
+              onClick={() => setViewMode("visual")}
               title="Visual Split Diff"
             >
               <Eye size={13} />
               <span>Full View</span>
             </button>
-            <button 
-              className={`diff-control-btn ${viewMode === 'hunk' ? 'active' : ''}`}
-              onClick={() => setViewMode('hunk')}
+            <button
+              className={`diff-control-btn ${viewMode === "hunk" ? "active" : ""}`}
+              onClick={() => setViewMode("hunk")}
               title="Granular Hunk Staging"
             >
               <FileCode size={13} />
@@ -269,9 +297,9 @@ export function DiffView() {
           </div>
 
           {/* Monaco options */}
-          {viewMode === 'visual' && (
-            <button 
-              className={`diff-action-btn ${splitView ? 'active' : ''}`}
+          {viewMode === "visual" && (
+            <button
+              className={`diff-action-btn ${splitView ? "active" : ""}`}
               onClick={() => setSplitView(!splitView)}
               title="Toggle Split/Inline Diff"
             >
@@ -280,15 +308,15 @@ export function DiffView() {
           )}
 
           {/* Stage / Unstage / Discard File */}
-          <button 
-            className={`diff-btn ${selectedFileIsStaged ? 'diff-btn-secondary' : 'diff-btn-primary'}`}
+          <button
+            className={`diff-btn ${selectedFileIsStaged ? "diff-btn-secondary" : "diff-btn-primary"}`}
             onClick={handleStageFile}
           >
-            {selectedFileIsStaged ? 'Unstage File' : 'Stage File'}
+            {selectedFileIsStaged ? "Unstage File" : "Stage File"}
           </button>
 
           {!selectedFileIsStaged && (
-            <button 
+            <button
               className="diff-btn diff-btn-danger"
               onClick={handleDiscardFile}
               title="Discard all changes in this file"
@@ -308,7 +336,7 @@ export function DiffView() {
             <h3>Binary File</h3>
             <p>Diff visualization is not supported for binary assets</p>
           </div>
-        ) : viewMode === 'visual' ? (
+        ) : viewMode === "visual" ? (
           loadingContents ? (
             <div className="diff-loader">
               <span className="spinner-large" />
@@ -326,13 +354,14 @@ export function DiffView() {
                 readOnly: true,
                 minimap: { enabled: false },
                 scrollbar: {
-                  vertical: 'visible',
-                  horizontal: 'visible',
+                  vertical: "visible",
+                  horizontal: "visible",
                 },
                 fontSize: 12,
-                fontFamily: 'JetBrains Mono, Fira Code, Menlo, Monaco, Consolas, monospace',
+                fontFamily:
+                  "JetBrains Mono, Fira Code, Menlo, Monaco, Consolas, monospace",
                 scrollBeyondLastLine: false,
-                diffWordWrap: 'off',
+                diffWordWrap: "off",
               }}
             />
           ) : (
@@ -356,16 +385,22 @@ export function DiffView() {
                   <div key={hunkIdx} className="diff-hunk-card">
                     {/* Hunk Header */}
                     <div className="diff-hunk-header">
-                      <span className="hunk-range text-mono">{hunk.header}</span>
+                      <span className="hunk-range text-mono">
+                        {hunk.header}
+                      </span>
                       <div className="hunk-actions">
                         {hasSelectedLines && (
                           <button
                             type="button"
                             className="hunk-btn hunk-btn-primary"
-                            onClick={() => handleStageSelectedLines(hunkIdx, hunk)}
+                            onClick={() =>
+                              handleStageSelectedLines(hunkIdx, hunk)
+                            }
                           >
                             <Check size={11} />
-                            <span>Stage Selected Lines ({linesChecked.size})</span>
+                            <span>
+                              Stage Selected Lines ({linesChecked.size})
+                            </span>
                           </button>
                         )}
                         <button
@@ -373,7 +408,7 @@ export function DiffView() {
                           className="hunk-btn hunk-btn-secondary"
                           onClick={() => handleStageHunk(hunk)}
                         >
-                          {selectedFileIsStaged ? 'Unstage Hunk' : 'Stage Hunk'}
+                          {selectedFileIsStaged ? "Unstage Hunk" : "Stage Hunk"}
                         </button>
                       </div>
                     </div>
@@ -381,13 +416,13 @@ export function DiffView() {
                     {/* Hunk Lines */}
                     <div className="diff-hunk-body text-mono">
                       {hunk.lines.map((line, lineIdx) => {
-                        const isAdded = line.origin === '+';
-                        const isRemoved = line.origin === '-';
+                        const isAdded = line.origin === "+";
+                        const isRemoved = line.origin === "-";
                         const isChanged = isAdded || isRemoved;
-                        
-                        let lineClass = 'hunk-line';
-                        if (isAdded) lineClass += ' hunk-line-added';
-                        if (isRemoved) lineClass += ' hunk-line-removed';
+
+                        let lineClass = "hunk-line";
+                        if (isAdded) lineClass += " hunk-line-added";
+                        if (isRemoved) lineClass += " hunk-line-removed";
 
                         return (
                           <div key={lineIdx} className={lineClass}>
@@ -397,7 +432,13 @@ export function DiffView() {
                                 type="checkbox"
                                 className="hunk-line-checkbox"
                                 checked={linesChecked.has(lineIdx)}
-                                onChange={(e) => handleLineCheck(hunkIdx, lineIdx, e.target.checked)}
+                                onChange={(e) =>
+                                  handleLineCheck(
+                                    hunkIdx,
+                                    lineIdx,
+                                    e.target.checked,
+                                  )
+                                }
                               />
                             ) : (
                               <div className="hunk-line-spacer" />

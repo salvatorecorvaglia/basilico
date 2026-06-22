@@ -73,7 +73,8 @@
 .worktree-input:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 15%, transparent);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--accent-primary) 15%, transparent);
 }
 
 .worktree-input::placeholder {

@@ -3,67 +3,94 @@
    Layout assembly with tab management
    ═══════════════════════════════════════════════════════ */
 
-import { useEffect, useCallback, lazy, Suspense } from 'react';
-import { listen } from '@tauri-apps/api/event';
-import { Wrench, ArrowLeft } from 'lucide-react';
-import { Group, Panel, Separator } from 'react-resizable-panels';
-import { TabBar } from './components/layout/TabBar';
-import { Toolbar } from './components/layout/Toolbar';
-import { StatusBar } from './components/layout/StatusBar';
-import { Sidebar } from './components/layout/Sidebar';
-import { CommitList } from './components/graph/CommitList';
-import { CommitDetail } from './components/graph/CommitDetail';
-import { WelcomeScreen } from './components/WelcomeScreen';
-import { StagingArea } from './components/staging/StagingArea';
-import { ReflogView } from './components/reflog/ReflogView';
-import { RepoSearch } from './components/search/RepoSearch';
-import { CommandPalette } from './components/command-palette/CommandPalette';
-import { RebaseEditor } from './components/rebase/RebaseEditor';
-import { BisectWizard } from './components/bisect/BisectWizard';
-import { SettingsModal } from './components/settings/SettingsModal';
-import { ResetModal } from './components/graph/ResetModal';
-import { CleanModal } from './components/clean/CleanModal';
-import { PullRequestReview } from './components/layout/PullRequestReview';
+import { listen } from "@tauri-apps/api/event";
+import { ArrowLeft, Wrench } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect } from "react";
+import { Group, Panel, Separator } from "react-resizable-panels";
+import { BisectWizard } from "./components/bisect/BisectWizard";
+import { CleanModal } from "./components/clean/CleanModal";
+import { CommandPalette } from "./components/command-palette/CommandPalette";
+import { CommitDetail } from "./components/graph/CommitDetail";
+import { CommitList } from "./components/graph/CommitList";
+import { ResetModal } from "./components/graph/ResetModal";
+import { PullRequestReview } from "./components/layout/PullRequestReview";
+import { Sidebar } from "./components/layout/Sidebar";
+import { StatusBar } from "./components/layout/StatusBar";
+import { TabBar } from "./components/layout/TabBar";
+import { Toolbar } from "./components/layout/Toolbar";
+import { RebaseEditor } from "./components/rebase/RebaseEditor";
+import { ReflogView } from "./components/reflog/ReflogView";
+import { RepoSearch } from "./components/search/RepoSearch";
+import { SettingsModal } from "./components/settings/SettingsModal";
+import { StagingArea } from "./components/staging/StagingArea";
+import { WelcomeScreen } from "./components/WelcomeScreen";
 
 // Lazy load Monaco Editor components to reduce initial bundle footprint
-const DiffView = lazy(() => import('./components/diff/DiffView').then(m => ({ default: m.DiffView })));
-const BlameView = lazy(() => import('./components/blame/BlameView').then(m => ({ default: m.BlameView })));
-const FileHistory = lazy(() => import('./components/history/FileHistory').then(m => ({ default: m.FileHistory })));
-const CompareView = lazy(() => import('./components/compare/CompareView').then(m => ({ default: m.CompareView })));
-const FileViewerModal = lazy(() => import('./components/graph/FileViewerModal').then(m => ({ default: m.FileViewerModal })));
-const MergeEditor = lazy(() => import('./components/staging/MergeEditor').then(m => ({ default: m.MergeEditor })));
-const StashInspector = lazy(() => import('./components/staging/StashInspector').then(m => ({ default: m.StashInspector })));
-import { NotificationToast } from './components/layout/NotificationToast';
-import { PromptModal } from './components/layout/PromptModal';
-import { ConfirmModal } from './components/layout/ConfirmModal';
-import { open } from '@tauri-apps/plugin-dialog';
-import { useRepoStore } from './store/repo-store';
-import { useUIStore } from './store/ui-store';
-import './App.css';
+const DiffView = lazy(() =>
+  import("./components/diff/DiffView").then((m) => ({ default: m.DiffView })),
+);
+const BlameView = lazy(() =>
+  import("./components/blame/BlameView").then((m) => ({
+    default: m.BlameView,
+  })),
+);
+const FileHistory = lazy(() =>
+  import("./components/history/FileHistory").then((m) => ({
+    default: m.FileHistory,
+  })),
+);
+const CompareView = lazy(() =>
+  import("./components/compare/CompareView").then((m) => ({
+    default: m.CompareView,
+  })),
+);
+const FileViewerModal = lazy(() =>
+  import("./components/graph/FileViewerModal").then((m) => ({
+    default: m.FileViewerModal,
+  })),
+);
+const MergeEditor = lazy(() =>
+  import("./components/staging/MergeEditor").then((m) => ({
+    default: m.MergeEditor,
+  })),
+);
+const StashInspector = lazy(() =>
+  import("./components/staging/StashInspector").then((m) => ({
+    default: m.StashInspector,
+  })),
+);
+
+import { open } from "@tauri-apps/plugin-dialog";
+import { ConfirmModal } from "./components/layout/ConfirmModal";
+import { NotificationToast } from "./components/layout/NotificationToast";
+import { PromptModal } from "./components/layout/PromptModal";
+import { useRepoStore } from "./store/repo-store";
+import { useUIStore } from "./store/ui-store";
+import "./App.css";
 
 function matchesShortcut(e: KeyboardEvent, shortcutStr: string): boolean {
-  const parts = shortcutStr.split('+');
+  const parts = shortcutStr.split("+");
   let meta = false;
   let shift = false;
-  let key = '';
+  let key = "";
   for (const part of parts) {
-    if (part === 'CmdOrCtrl') {
+    if (part === "CmdOrCtrl") {
       meta = e.metaKey || e.ctrlKey;
-    } else if (part === 'Shift') {
+    } else if (part === "Shift") {
       shift = e.shiftKey;
     } else {
       key = part.toLowerCase();
     }
   }
-  
-  if (key === 'enter') return meta && shift === e.shiftKey && e.key === 'Enter';
-  if (key === ',') return meta && shift === e.shiftKey && e.key === ',';
+
+  if (key === "enter") return meta && shift === e.shiftKey && e.key === "Enter";
+  if (key === ",") return meta && shift === e.shiftKey && e.key === ",";
   return meta && shift === e.shiftKey && e.key.toLowerCase() === key;
 }
 
 function renderViewContent(activeView: string) {
   switch (activeView) {
-    case 'graph':
+    case "graph":
       return (
         <Group orientation="vertical">
           {/* Commit List + Graph */}
@@ -79,7 +106,7 @@ function renderViewContent(activeView: string) {
           </Panel>
         </Group>
       );
-    case 'staging':
+    case "staging":
       return (
         <Group orientation="horizontal">
           {/* Staging area */}
@@ -95,25 +122,25 @@ function renderViewContent(activeView: string) {
           </Panel>
         </Group>
       );
-    case 'blame':
+    case "blame":
       return <BlameView />;
-    case 'history':
+    case "history":
       return <FileHistory />;
-    case 'reflog':
+    case "reflog":
       return <ReflogView />;
-    case 'search':
+    case "search":
       return <RepoSearch />;
-    case 'rebase':
+    case "rebase":
       return <RebaseEditor />;
-    case 'bisect':
+    case "bisect":
       return <BisectWizard />;
-    case 'compare':
+    case "compare":
       return <CompareView />;
-    case 'conflict-resolver':
+    case "conflict-resolver":
       return <MergeEditor />;
-    case 'pull-requests':
+    case "pull-requests":
       return <PullRequestReview />;
-    case 'stash-inspector':
+    case "stash-inspector":
       return <StashInspector />;
     default:
       return (
@@ -123,14 +150,18 @@ function renderViewContent(activeView: string) {
               <Wrench size={24} />
             </div>
             <h3 className="view-fallback-title">
-              {activeView ? activeView.charAt(0).toUpperCase() + activeView.slice(1) : 'Unknown'} View
+              {activeView
+                ? activeView.charAt(0).toUpperCase() + activeView.slice(1)
+                : "Unknown"}{" "}
+              View
             </h3>
             <p className="view-fallback-desc">
-              This view is currently under construction or coming in a later phase of Basilico.
+              This view is currently under construction or coming in a later
+              phase of Basilico.
             </p>
-            <button 
-              className="view-fallback-btn" 
-              onClick={() => useUIStore.getState().setActiveView('graph')}
+            <button
+              className="view-fallback-btn"
+              onClick={() => useUIStore.getState().setActiveView("graph")}
             >
               <ArrowLeft size={14} />
               <span>Back to Commit History</span>
@@ -142,8 +173,22 @@ function renderViewContent(activeView: string) {
 }
 
 function App() {
-  const { tabs, activeTabId, loadSettings, settings, refreshAll, openRepository } = useRepoStore();
-  const { sidebarVisible, activeView, toggleSettings, toggleCommandPalette, setActiveView, addNotification } = useUIStore();
+  const {
+    tabs,
+    activeTabId,
+    loadSettings,
+    settings,
+    refreshAll,
+    openRepository,
+  } = useRepoStore();
+  const {
+    sidebarVisible,
+    activeView,
+    toggleSettings,
+    toggleCommandPalette,
+    setActiveView,
+    addNotification,
+  } = useUIStore();
 
   // Load settings on mount
   useEffect(() => {
@@ -156,18 +201,21 @@ function App() {
     let timeoutId: any = null;
 
     const setupListener = async () => {
-      unsubscribe = await listen<{ repoPath: string }>('repo:changed', (event) => {
-        const currentActive = useRepoStore.getState().activeTabId;
-        if (currentActive === event.payload.repoPath) {
-          // Debounce watcher refreshes on the frontend
-          if (timeoutId) {
-            clearTimeout(timeoutId);
+      unsubscribe = await listen<{ repoPath: string }>(
+        "repo:changed",
+        (event) => {
+          const currentActive = useRepoStore.getState().activeTabId;
+          if (currentActive === event.payload.repoPath) {
+            // Debounce watcher refreshes on the frontend
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+            }
+            timeoutId = setTimeout(() => {
+              useRepoStore.getState().refreshOnFileSystemChange();
+            }, 300);
           }
-          timeoutId = setTimeout(() => {
-            useRepoStore.getState().refreshOnFileSystemChange();
-          }, 300);
-        }
-      });
+        },
+      );
     };
 
     setupListener();
@@ -183,7 +231,7 @@ function App() {
     const selected = await open({
       directory: true,
       multiple: false,
-      title: 'Open Git Repository',
+      title: "Open Git Repository",
     });
     if (selected) {
       await openRepository(selected as string);
@@ -194,17 +242,18 @@ function App() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      const isInputFocused = target && (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable ||
-        target.closest('.monaco-editor')
-      );
+      const isInputFocused =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable ||
+          target.closest(".monaco-editor"));
 
       const shortcuts = settings?.keyboardShortcuts;
 
       // Command palette — always global (works even in input fields)
-      const cmdPaletteShortcut = shortcuts?.commandPalette || 'CmdOrCtrl+Shift+P';
+      const cmdPaletteShortcut =
+        shortcuts?.commandPalette || "CmdOrCtrl+Shift+P";
       if (matchesShortcut(e, cmdPaletteShortcut)) {
         e.preventDefault();
         toggleCommandPalette();
@@ -212,7 +261,7 @@ function App() {
       }
 
       // Open repo — always global
-      if (matchesShortcut(e, 'CmdOrCtrl+o')) {
+      if (matchesShortcut(e, "CmdOrCtrl+o")) {
         e.preventDefault();
         handleOpenRepo();
         return;
@@ -221,24 +270,39 @@ function App() {
       // All remaining shortcuts respect input focus
       if (isInputFocused) return;
 
-      const openSettingsShortcut = shortcuts?.openSettings || 'CmdOrCtrl+,';
+      const openSettingsShortcut = shortcuts?.openSettings || "CmdOrCtrl+,";
       if (matchesShortcut(e, openSettingsShortcut)) {
         e.preventDefault();
         toggleSettings();
-      } else if (matchesShortcut(e, shortcuts?.search || 'CmdOrCtrl+F')) {
+      } else if (matchesShortcut(e, shortcuts?.search || "CmdOrCtrl+F")) {
         e.preventDefault();
-        setActiveView('search');
-      } else if (matchesShortcut(e, shortcuts?.staging || 'CmdOrCtrl+Shift+S')) {
+        setActiveView("search");
+      } else if (
+        matchesShortcut(e, shortcuts?.staging || "CmdOrCtrl+Shift+S")
+      ) {
         e.preventDefault();
-        setActiveView('staging');
-      } else if (matchesShortcut(e, shortcuts?.refresh || 'CmdOrCtrl+R')) {
+        setActiveView("staging");
+      } else if (matchesShortcut(e, shortcuts?.refresh || "CmdOrCtrl+R")) {
         e.preventDefault();
-        refreshAll().then(() => addNotification({ type: 'success', message: 'Repository refreshed successfully' }));
+        refreshAll().then(() =>
+          addNotification({
+            type: "success",
+            message: "Repository refreshed successfully",
+          }),
+        );
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [settings, toggleSettings, toggleCommandPalette, setActiveView, refreshAll, addNotification, handleOpenRepo]);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [
+    settings,
+    toggleSettings,
+    toggleCommandPalette,
+    setActiveView,
+    refreshAll,
+    addNotification,
+    handleOpenRepo,
+  ]);
 
   const hasOpenRepo = tabs.length > 0 && activeTabId;
 
@@ -296,7 +360,22 @@ function App() {
 
               {/* Center Panel (depends on activeView) */}
               <Panel id="center" minSize="40%">
-                <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)', fontSize: '14px' }}>Loading view...</div>}>
+                <Suspense
+                  fallback={
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        height: "100%",
+                        color: "var(--text-secondary)",
+                        fontSize: "14px",
+                      }}
+                    >
+                      Loading view...
+                    </div>
+                  }
+                >
                   {renderViewContent(activeView)}
                 </Suspense>
               </Panel>

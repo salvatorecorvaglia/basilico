@@ -20,11 +20,29 @@
   flex-shrink: 0;
 }
 
-.commit-list-header-graph { flex-shrink: 0; }
-.commit-list-header-message { flex: 1; min-width: 0; padding-left: var(--space-2); }
-.commit-list-header-author { width: 160px; flex-shrink: 0; }
-.commit-list-header-date { width: 80px; flex-shrink: 0; text-align: right; }
-.commit-list-header-sha { width: 70px; flex-shrink: 0; text-align: right; padding-right: var(--space-3); }
+.commit-list-header-graph {
+  flex-shrink: 0;
+}
+.commit-list-header-message {
+  flex: 1;
+  min-width: 0;
+  padding-left: var(--space-2);
+}
+.commit-list-header-author {
+  width: 160px;
+  flex-shrink: 0;
+}
+.commit-list-header-date {
+  width: 80px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.commit-list-header-sha {
+  width: 70px;
+  flex-shrink: 0;
+  text-align: right;
+  padding-right: var(--space-3);
+}
 
 .commit-list-scroll {
   flex: 1;
@@ -58,7 +76,11 @@
 
 .commit-row.selected {
   background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
-  border-bottom-color: color-mix(in srgb, var(--accent-primary) 15%, transparent);
+  border-bottom-color: color-mix(
+    in srgb,
+    var(--accent-primary) 15%,
+    transparent
+  );
 }
 
 .commit-col-graph {
@@ -178,4 +200,3 @@
   background: var(--border-default, #30363d);
   margin: var(--space-1) 0;
 }
-

@@ -3,8 +3,8 @@
    Draws DAG lanes, nodes, and edges on a canvas
    ═══════════════════════════════════════════════════════ */
 
-import { useRef, useEffect, useMemo } from 'react';
-import type { GraphCommit } from '../../lib/git-types';
+import { useEffect, useMemo, useRef } from "react";
+import type { GraphCommit } from "../../lib/git-types";
 
 const NODE_RADIUS = 4;
 const LANE_WIDTH = 16;
@@ -42,17 +42,27 @@ export function CommitGraph({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     // Fetch theme colors dynamically from CSS variables
     const docStyle = getComputedStyle(document.documentElement);
     const fallbackColors = [
-      '#58a6ff', '#3fb950', '#f0883e', '#bc8cff', '#f85149',
-      '#2dd4bf', '#d2a8ff', '#ffa657', '#ff7b72', '#79c0ff',
+      "#58a6ff",
+      "#3fb950",
+      "#f0883e",
+      "#bc8cff",
+      "#f85149",
+      "#2dd4bf",
+      "#d2a8ff",
+      "#ffa657",
+      "#ff7b72",
+      "#79c0ff",
     ];
     const laneColors = Array.from({ length: 10 }, (_, i) => {
-      return docStyle.getPropertyValue(`--lane-${i}`).trim() || fallbackColors[i];
+      return (
+        docStyle.getPropertyValue(`--lane-${i}`).trim() || fallbackColors[i]
+      );
     });
 
     let animationFrameId: number;
@@ -70,7 +80,7 @@ export function CommitGraph({
       const startIdx = Math.max(0, Math.floor(scrollOffset / rowHeight) - 5);
       const endIdx = Math.min(
         commits.length,
-        Math.ceil((scrollOffset + containerHeight) / rowHeight) + 5
+        Math.ceil((scrollOffset + containerHeight) / rowHeight) + 5,
       );
 
       // Draw edges first (behind nodes)
@@ -148,7 +158,7 @@ export function CommitGraph({
         if (isMerge) {
           ctx.strokeStyle = color;
           ctx.lineWidth = 2;
-          ctx.fillStyle = '#0d1117';
+          ctx.fillStyle = "#0d1117";
           ctx.fill();
           ctx.stroke();
         } else {
@@ -165,9 +175,17 @@ export function CommitGraph({
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [commits, commitIndices, rowHeight, graphWidth, scrollOffset, containerHeight, maxLane]);
+  }, [
+    commits,
+    commitIndices,
+    rowHeight,
+    graphWidth,
+    scrollOffset,
+    containerHeight,
+    maxLane,
+  ]);
 
-  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+  const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
 
   return (
     <canvas
@@ -176,10 +194,10 @@ export function CommitGraph({
       width={graphWidth * dpr}
       height={containerHeight * dpr}
       style={{
-        position: 'absolute',
+        position: "absolute",
         top: 0,
         left: 12,
-        pointerEvents: 'none',
+        pointerEvents: "none",
         zIndex: 1,
         width: `${graphWidth}px`,
         height: `${containerHeight}px`,

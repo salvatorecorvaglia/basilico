@@ -92,7 +92,8 @@
   color: var(--color-danger);
 }
 
-.prompt-input, .prompt-textarea {
+.prompt-input,
+.prompt-textarea {
   width: 100%;
   background: var(--bg-inset);
   border: 1px solid var(--border-default);
@@ -112,10 +113,12 @@
   min-height: 80px;
 }
 
-.prompt-input:focus, .prompt-textarea:focus {
+.prompt-input:focus,
+.prompt-textarea:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 15%, transparent);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--accent-primary) 15%, transparent);
 }
 
 /* ── Footer ── */

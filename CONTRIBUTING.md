@@ -122,6 +122,7 @@ Familiarize yourself with the layout before modifying code:
 ## Coding Guidelines
 
 ### 🎨 Frontend & UI Style
+* **Formatting & Linting**: We use **Biome** for code formatting, linting, and import sorting. Before committing, run `npm run lint:fix` or set up the Biome VS Code extension to automatically format your files on save.
 * **Premium Aesthetics**: Basilico prioritizes visually stunning, premium dark-mode styling. Stick to the curated color palette and layout tokens defined in [theme.css](file:///Users/salvatorecorvaglia/github/basilico/src/styles/theme.css).
 * **Styling**: Use standard CSS/Vanilla CSS with layout/theme variables instead of writing ad-hoc inline styles. Do not use Tailwind unless explicitly discussed.
 * **TypeScript & React**: Maintain strict type safety. Avoid using `any`. Write modern React functional components with hooks.
@@ -141,7 +142,15 @@ Before submitting a Pull Request, please run these local checks to ensure they p
 
 1. **Version Consistency Check**:
    Ensure that the `version` field in [package.json](file:///Users/salvatorecorvaglia/github/basilico/package.json) matches the `version` field in [tauri.conf.json](file:///Users/salvatorecorvaglia/github/basilico/src-tauri/tauri.conf.json).
-2. **Frontend Quality**:
+2. **Frontend Quality & Formatting**:
+   Ensure all files are formatted and linted properly using Biome:
+   ```bash
+   npm run lint
+   ```
+   To automatically format and apply safe fixes:
+   ```bash
+   npm run lint:fix
+   ```
    Verify the frontend builds and typechecks without errors:
    ```bash
    npm run build

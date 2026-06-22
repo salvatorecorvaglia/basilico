@@ -27,7 +27,13 @@ export interface RepoStatus {
 
 export interface FileStatus {
   path: string;
-  status: 'added' | 'modified' | 'deleted' | 'renamed' | 'copied' | 'typechange';
+  status:
+    | "added"
+    | "modified"
+    | "deleted"
+    | "renamed"
+    | "copied"
+    | "typechange";
   isStaged: boolean;
 }
 
@@ -80,7 +86,7 @@ export interface GraphCommit {
 
 export interface RefLabel {
   name: string;
-  kind: 'LocalBranch' | 'RemoteBranch' | 'Tag' | 'Head';
+  kind: "LocalBranch" | "RemoteBranch" | "Tag" | "Head";
 }
 
 export interface GraphEdge {
@@ -111,7 +117,7 @@ export interface DiffHunkInfo {
 }
 
 export interface DiffLineInfo {
-  origin: '+' | '-' | ' ' | string;
+  origin: "+" | "-" | " " | string;
   content: string;
   oldLineno: number | null;
   newLineno: number | null;
@@ -131,7 +137,20 @@ export interface RepoTab {
   isActive: boolean;
 }
 
-export type ActiveView = 'graph' | 'staging' | 'diff' | 'blame' | 'history' | 'reflog' | 'search' | 'rebase' | 'bisect' | 'compare' | 'conflict-resolver' | 'pull-requests' | 'stash-inspector';
+export type ActiveView =
+  | "graph"
+  | "staging"
+  | "diff"
+  | "blame"
+  | "history"
+  | "reflog"
+  | "search"
+  | "rebase"
+  | "bisect"
+  | "compare"
+  | "conflict-resolver"
+  | "pull-requests"
+  | "stash-inspector";
 
 // ── Phase 3: Blame, History, Reflog, Stash Types ──
 
@@ -175,13 +194,20 @@ export interface StashInfo {
 // ── Phase 4: Rebase, Bisect, Search Types ──
 
 export interface RebaseTodoItem {
-  action: 'pick' | 'reword' | 'edit' | 'squash' | 'fixup' | 'drop';
+  action: "pick" | "reword" | "edit" | "squash" | "fixup" | "drop";
   oid: string;
   summary: string;
 }
 
 export interface RebaseStatus {
-  status: 'none' | 'success' | 'conflict' | 'stepping' | 'finished' | 'edit' | 'reword';
+  status:
+    | "none"
+    | "success"
+    | "conflict"
+    | "stepping"
+    | "finished"
+    | "edit"
+    | "reword";
   currentOid: string | null;
   message: string | null;
 }
@@ -213,7 +239,7 @@ export interface SubmoduleInfo {
   path: string;
   url: string | null;
   headOid: string | null;
-  status: 'initialized' | 'uninitialized' | 'dirty' | 'up-to-date';
+  status: "initialized" | "uninitialized" | "dirty" | "up-to-date";
 }
 
 export interface UserSettings {
@@ -248,22 +274,19 @@ export interface SignatureInfo {
 // ── Central Error Types ──
 
 export type ErrorKind =
-  | 'GitError'
-  | 'IoError'
-  | 'NotFound'
-  | 'InvalidState'
-  | 'WatcherError'
-  | 'GpgError'
-  | 'SettingsError'
-  | 'SubmoduleError'
-  | 'ConflictError'
-  | 'CommandError'
-  | 'Unknown';
+  | "GitError"
+  | "IoError"
+  | "NotFound"
+  | "InvalidState"
+  | "WatcherError"
+  | "GpgError"
+  | "SettingsError"
+  | "SubmoduleError"
+  | "ConflictError"
+  | "CommandError"
+  | "Unknown";
 
 export interface AppError {
   message: string;
   kind: ErrorKind;
 }
-
-
-

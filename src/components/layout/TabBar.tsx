@@ -3,19 +3,20 @@
    Repository tabs with close buttons
    ═══════════════════════════════════════════════════════ */
 
-import { GitBranch, Plus, X } from 'lucide-react';
-import { useRepoStore } from '../../store/repo-store';
-import { open } from '@tauri-apps/plugin-dialog';
-import './TabBar.css';
+import { open } from "@tauri-apps/plugin-dialog";
+import { FolderOpen, Plus, X } from "lucide-react";
+import { useRepoStore } from "../../store/repo-store";
+import "./TabBar.css";
 
 export function TabBar() {
-  const { tabs, activeTabId, switchTab, closeTab, openRepository } = useRepoStore();
+  const { tabs, activeTabId, switchTab, closeTab, openRepository } =
+    useRepoStore();
 
   const handleOpenRepo = async () => {
     const selected = await open({
       directory: true,
       multiple: false,
-      title: 'Open Repository',
+      title: "Open Repository",
     });
 
     if (selected) {
@@ -29,11 +30,11 @@ export function TabBar() {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            className={`tabbar-tab ${tab.id === activeTabId ? 'active' : ''}`}
+            className={`tabbar-tab ${tab.id === activeTabId ? "active" : ""}`}
             onClick={() => switchTab(tab.id)}
             title={tab.path}
           >
-            <GitBranch size={14} className="tabbar-tab-icon" />
+            <FolderOpen size={14} className="tabbar-tab-icon" />
             <span className="tabbar-tab-name truncate">{tab.name}</span>
             <span
               className="tabbar-tab-close"
@@ -50,7 +51,11 @@ export function TabBar() {
         ))}
       </div>
 
-      <button className="tabbar-add" onClick={handleOpenRepo} title="Open Repository">
+      <button
+        className="tabbar-add"
+        onClick={handleOpenRepo}
+        title="Open Repository"
+      >
         <Plus size={16} />
       </button>
     </div>

@@ -3,46 +3,48 @@
    Visual interactive rebase tool with drag-and-drop
    ═══════════════════════════════════════════════════════ */
 
-import { useState } from 'react';
-import { 
-  Play, 
-  Trash2, 
-  AlertTriangle, 
-  ArrowUp, 
-  ArrowDown, 
-  Menu, 
-  XCircle, 
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   HelpCircle,
-  Info
-} from 'lucide-react';
-import { useRepoStore } from '../../store/repo-store';
-import { useUIStore } from '../../store/ui-store';
-import './RebaseEditor.css';
-import { RebaseTodoItem } from '../../lib/git-types';
+  Info,
+  Menu,
+  Play,
+  Trash2,
+  XCircle,
+} from "lucide-react";
+import { useState } from "react";
+import { useRepoStore } from "../../store/repo-store";
+import { useUIStore } from "../../store/ui-store";
+import "./RebaseEditor.css";
+import type { RebaseTodoItem } from "../../lib/git-types";
 
 export function RebaseEditor() {
-  const { 
-    rebaseTodoItems, 
-    rebaseStatus, 
-    writeRebaseTodo, 
-    stepRebase 
-  } = useRepoStore();
+  const { rebaseTodoItems, rebaseStatus, writeRebaseTodo, stepRebase } =
+    useRepoStore();
 
   const { addNotification, openPrompt } = useUIStore();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // If no rebase active
-  if (!rebaseStatus || rebaseStatus.status === 'none') {
+  if (!rebaseStatus || rebaseStatus.status === "none") {
     return (
       <div className="rebase-empty animate-fade-in">
         <HelpCircle size={48} strokeWidth={1} className="text-secondary" />
         <h3>No active rebase session</h3>
-        <p>You can start an interactive rebase from the Command Palette (Ctrl+Shift+P) or by right-clicking a commit in the graph.</p>
+        <p>
+          You can start an interactive rebase from the Command Palette
+          (Ctrl+Shift+P) or by right-clicking a commit in the graph.
+        </p>
       </div>
     );
   }
 
-  const handleActionChange = (index: number, action: RebaseTodoItem['action']) => {
+  const handleActionChange = (
+    index: number,
+    action: RebaseTodoItem["action"],
+  ) => {
     const updated = [...rebaseTodoItems];
     updated[index] = { ...updated[index], action };
     writeRebaseTodo(updated);
@@ -86,44 +88,57 @@ export function RebaseEditor() {
   };
 
   const handleRebaseResult = (res: any) => {
-    if (res.status === 'finished') {
-      addNotification({ type: 'success', message: 'Interactive rebase completed!' });
-    } else if (res.status === 'conflict') {
-      addNotification({ 
-        type: 'warning', 
-        message: 'Conflicts detected! Resolve them in the staging area and click Continue.' 
+    if (res.status === "finished") {
+      addNotification({
+        type: "success",
+        message: "Interactive rebase completed!",
+      });
+    } else if (res.status === "conflict") {
+      addNotification({
+        type: "warning",
+        message:
+          "Conflicts detected! Resolve them in the staging area and click Continue.",
       });
     }
   };
 
   // Step controls
-  const handleStep = async (action: 'continue' | 'skip' | 'abort') => {
-    if (action === 'continue' && rebaseStatus?.status === 'reword' && rebaseStatus.currentOid) {
-      const currentTodoItem = rebaseTodoItems.find(item => item.oid === rebaseStatus.currentOid);
-      const originalMessage = currentTodoItem?.summary || '';
-      
+  const handleStep = async (action: "continue" | "skip" | "abort") => {
+    if (
+      action === "continue" &&
+      rebaseStatus?.status === "reword" &&
+      rebaseStatus.currentOid
+    ) {
+      const currentTodoItem = rebaseTodoItems.find(
+        (item) => item.oid === rebaseStatus.currentOid,
+      );
+      const originalMessage = currentTodoItem?.summary || "";
+
       openPrompt({
-        title: 'Reword Commit Message',
-        description: 'Edit commit message for reword:',
+        title: "Reword Commit Message",
+        description: "Edit commit message for reword:",
         fields: [
           {
-            name: 'message',
-            label: 'Commit Message',
-            type: 'textarea',
+            name: "message",
+            label: "Commit Message",
+            type: "textarea",
             defaultValue: originalMessage,
-            required: true
-          }
+            required: true,
+          },
         ],
-        submitLabel: 'Continue',
+        submitLabel: "Continue",
         onSubmit: async (values) => {
-          const userMessage = (values.message || '').trim();
+          const userMessage = (values.message || "").trim();
           try {
-            const res = await stepRebase('continue', userMessage);
+            const res = await stepRebase("continue", userMessage);
             handleRebaseResult(res);
           } catch (err) {
-            addNotification({ type: 'error', message: `Rebase step failed: ${err}` });
+            addNotification({
+              type: "error",
+              message: `Rebase step failed: ${err}`,
+            });
           }
-        }
+        },
       });
       return;
     }
@@ -132,7 +147,7 @@ export function RebaseEditor() {
       const res = await stepRebase(action);
       handleRebaseResult(res);
     } catch (err) {
-      addNotification({ type: 'error', message: `Rebase step failed: ${err}` });
+      addNotification({ type: "error", message: `Rebase step failed: ${err}` });
     }
   };
 
@@ -141,49 +156,47 @@ export function RebaseEditor() {
       <div className="rebase-header">
         <div className="rebase-header-left">
           <h2>Interactive Rebase</h2>
-          <span className="badge-rebase-state">
-            {rebaseStatus.status}
-          </span>
+          <span className="badge-rebase-state">{rebaseStatus.status}</span>
         </div>
 
         <div className="rebase-controls">
-          {rebaseStatus.status === 'conflict' && (
+          {rebaseStatus.status === "conflict" && (
             <div className="rebase-conflict-warning">
               <AlertTriangle size={14} />
               <span>Resolve conflicts in Staging before continuing</span>
             </div>
           )}
-          {rebaseStatus.status === 'edit' && (
+          {rebaseStatus.status === "edit" && (
             <div className="rebase-info-banner">
               <Info size={14} />
               <span>Edit files, stage, then click Continue</span>
             </div>
           )}
-          {rebaseStatus.status === 'reword' && (
+          {rebaseStatus.status === "reword" && (
             <div className="rebase-info-banner">
               <Info size={14} />
               <span>Click Continue to reword commit</span>
             </div>
           )}
-          <button 
-            className="rebase-btn btn-continue" 
-            onClick={() => handleStep('continue')}
+          <button
+            className="rebase-btn btn-continue"
+            onClick={() => handleStep("continue")}
             title="Apply next commit or continue after conflict resolution"
           >
             <Play size={12} />
             <span>Continue</span>
           </button>
-          <button 
-            className="rebase-btn btn-skip" 
-            onClick={() => handleStep('skip')}
+          <button
+            className="rebase-btn btn-skip"
+            onClick={() => handleStep("skip")}
             title="Skip current commit and continue"
           >
             <XCircle size={12} />
             <span>Skip</span>
           </button>
-          <button 
-            className="rebase-btn btn-abort" 
-            onClick={() => handleStep('abort')}
+          <button
+            className="rebase-btn btn-abort"
+            onClick={() => handleStep("abort")}
             title="Abort rebase and return to original HEAD"
           >
             <Trash2 size={12} />
@@ -205,22 +218,27 @@ export function RebaseEditor() {
           {rebaseTodoItems.map((item, index) => {
             const isCurrent = rebaseStatus.currentOid === item.oid;
             return (
-              <div 
+              <div
                 key={item.oid}
                 draggable
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={handleDragOver}
                 onDrop={() => handleDrop(index)}
-                className={`rebase-row ${isCurrent ? 'current' : ''} ${draggedIndex === index ? 'dragging' : ''}`}
+                className={`rebase-row ${isCurrent ? "current" : ""} ${draggedIndex === index ? "dragging" : ""}`}
               >
                 <div className="col-drag drag-handle" title="Drag to reorder">
                   <Menu size={14} />
                 </div>
 
                 <div className="col-action">
-                  <select 
-                    value={item.action} 
-                    onChange={(e) => handleActionChange(index, e.target.value as RebaseTodoItem['action'])}
+                  <select
+                    value={item.action}
+                    onChange={(e) =>
+                      handleActionChange(
+                        index,
+                        e.target.value as RebaseTodoItem["action"],
+                      )
+                    }
                   >
                     <option value="pick">pick (use commit)</option>
                     <option value="reword">reword (edit message)</option>
@@ -236,23 +254,31 @@ export function RebaseEditor() {
                 </div>
 
                 <div className="col-summary truncate">
-                  {isCurrent && <span className="current-marker">Applying ▸</span>}
-                  <span className={item.action === 'drop' ? 'text-strike text-tertiary' : 'text-primary'}>
+                  {isCurrent && (
+                    <span className="current-marker">Applying ▸</span>
+                  )}
+                  <span
+                    className={
+                      item.action === "drop"
+                        ? "text-strike text-tertiary"
+                        : "text-primary"
+                    }
+                  >
                     {item.summary}
                   </span>
                 </div>
 
                 <div className="col-reorder">
-                  <button 
-                    disabled={index === 0} 
-                    onClick={() => moveUp(index)} 
+                  <button
+                    disabled={index === 0}
+                    onClick={() => moveUp(index)}
                     title="Move Up"
                   >
                     <ArrowUp size={12} />
                   </button>
-                  <button 
-                    disabled={index === rebaseTodoItems.length - 1} 
-                    onClick={() => moveDown(index)} 
+                  <button
+                    disabled={index === rebaseTodoItems.length - 1}
+                    onClick={() => moveDown(index)}
                     title="Move Down"
                   >
                     <ArrowDown size={12} />

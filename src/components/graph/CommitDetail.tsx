@@ -3,27 +3,33 @@
    Shows details of the selected commit (changes & file tree)
    ═══════════════════════════════════════════════════════ */
 
-import { useState, useEffect } from 'react';
-import { 
-  FileText, 
-  Copy, 
-  Check, 
-  Clock, 
-  Calendar, 
-  Tag, 
-  ChevronRight, 
-  ChevronDown, 
-  Folder, 
-  File, 
+import {
+  Calendar,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Copy,
+  File,
+  FileText,
+  Folder,
   Layers,
-  ShieldCheck
-} from 'lucide-react';
-import { useRepoStore } from '../../store/repo-store';
-import { useUIStore } from '../../store/ui-store';
-import { getCommitSignature } from '../../lib/tauri-commands';
-import { formatDateTime, getStatusIcon, getStatusColor, getFileName, getDirectory } from '../../lib/utils';
-import type { TreeEntryInfo, SignatureInfo } from '../../lib/git-types';
-import './CommitDetail.css';
+  ShieldCheck,
+  Tag,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import type { SignatureInfo, TreeEntryInfo } from "../../lib/git-types";
+import { getCommitSignature } from "../../lib/tauri-commands";
+import {
+  formatDateTime,
+  getDirectory,
+  getFileName,
+  getStatusColor,
+  getStatusIcon,
+} from "../../lib/utils";
+import { useRepoStore } from "../../store/repo-store";
+import { useUIStore } from "../../store/ui-store";
+import "./CommitDetail.css";
 
 interface TreeNode {
   name: string;
@@ -35,33 +41,33 @@ interface TreeNode {
 
 function buildFileTree(entries: TreeEntryInfo[]): TreeNode {
   const root: TreeNode = {
-    name: 'root',
-    path: '',
+    name: "root",
+    path: "",
     isDir: true,
     size: null,
-    children: []
+    children: [],
   };
 
   for (const entry of entries) {
-    const parts = entry.path.split('/');
+    const parts = entry.path.split("/");
     let current = root;
-    let currentPath = '';
+    let currentPath = "";
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
       if (!part) continue;
       currentPath = currentPath ? `${currentPath}/${part}` : part;
-      
+
       const isLast = i === parts.length - 1;
-      
-      let child = current.children.find(c => c.name === part);
+
+      let child = current.children.find((c) => c.name === part);
       if (!child) {
         child = {
           name: part,
           path: currentPath,
           isDir: !isLast || entry.isDir,
           size: isLast ? entry.size : null,
-          children: []
+          children: [],
         };
         current.children.push(child);
       }
@@ -83,11 +89,11 @@ function buildFileTree(entries: TreeEntryInfo[]): TreeNode {
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) return "0 B";
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const sizes = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  return `${parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`;
 }
 
 interface TreeViewNodeProps {
@@ -111,10 +117,13 @@ function TreeViewNode({ node, level, onFileClick }: TreeViewNodeProps) {
   const hasChildren = node.children.length > 0;
 
   return (
-    <div className="tree-node" style={{ paddingLeft: level > 0 ? '12px' : '0' }}>
+    <div
+      className="tree-node"
+      style={{ paddingLeft: level > 0 ? "12px" : "0" }}
+    >
       {level > 0 && (
-        <div 
-          className={`tree-node-row ${node.isDir ? 'dir' : 'file'}`} 
+        <div
+          className={`tree-node-row ${node.isDir ? "dir" : "file"}`}
           onClick={handleClick}
         >
           {node.isDir ? (
@@ -124,7 +133,7 @@ function TreeViewNode({ node, level, onFileClick }: TreeViewNodeProps) {
           ) : (
             <span className="tree-node-spacer" />
           )}
-          
+
           <span className="tree-node-icon">
             {node.isDir ? (
               <Folder size={12} className="icon-folder" />
@@ -132,9 +141,9 @@ function TreeViewNode({ node, level, onFileClick }: TreeViewNodeProps) {
               <File size={12} className="icon-file" />
             )}
           </span>
-          
+
           <span className="tree-node-name truncate">{node.name}</span>
-          
+
           {!node.isDir && node.size !== null && (
             <span className="tree-node-size text-mono">
               {formatBytes(node.size)}
@@ -146,11 +155,11 @@ function TreeViewNode({ node, level, onFileClick }: TreeViewNodeProps) {
       {node.isDir && (isOpen || level === 0) && hasChildren && (
         <div className="tree-node-children">
           {node.children.map((child, idx) => (
-            <TreeViewNode 
-              key={idx} 
-              node={child} 
-              level={level + 1} 
-              onFileClick={onFileClick} 
+            <TreeViewNode
+              key={idx}
+              node={child}
+              level={level + 1}
+              onFileClick={onFileClick}
             />
           ))}
         </div>
@@ -160,21 +169,22 @@ function TreeViewNode({ node, level, onFileClick }: TreeViewNodeProps) {
 }
 
 export function CommitDetail() {
-  const { 
+  const {
     activeTabId,
-    commits, 
-    selectedCommitOid, 
-    commitDiff, 
-    selectLocalFile, 
+    commits,
+    selectedCommitOid,
+    commitDiff,
+    selectLocalFile,
     createTag,
     commitTree,
     loadCommitTree,
-    isLoading
+    isLoading,
   } = useRepoStore();
 
-  const { setActiveView, addNotification, openFileViewer, openPrompt } = useUIStore();
+  const { setActiveView, addNotification, openFileViewer, openPrompt } =
+    useUIStore();
   const [copiedOid, setCopiedOid] = useState(false);
-  const [activeTab, setActiveTab] = useState<'changes' | 'tree'>('changes');
+  const [activeTab, setActiveTab] = useState<"changes" | "tree">("changes");
   const [sigInfo, setSigInfo] = useState<SignatureInfo | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -186,7 +196,7 @@ export function CommitDetail() {
 
   // Lazy-load tree when tab changes
   useEffect(() => {
-    if (activeTab === 'tree' && selectedCommitOid) {
+    if (activeTab === "tree" && selectedCommitOid) {
       loadCommitTree(selectedCommitOid);
     }
   }, [activeTab, selectedCommitOid, loadCommitTree]);
@@ -201,14 +211,14 @@ export function CommitDetail() {
         setSigInfo(info);
       })
       .catch((err) => {
-        console.error('Failed to load commit signature:', err);
+        console.error("Failed to load commit signature:", err);
       });
   }, [activeTabId, selectedCommitOid]);
 
   // Reset tab on commit change
   useEffect(() => {
-    setActiveTab('changes');
-  }, [selectedCommitOid]);
+    setActiveTab("changes");
+  }, []);
 
   if (!commit) {
     return (
@@ -228,33 +238,39 @@ export function CommitDetail() {
   const handleCreateTagPrompt = () => {
     if (!commit) return;
     openPrompt({
-      title: 'Create Tag',
+      title: "Create Tag",
       description: `Create a new tag at commit ${commit.oid.slice(0, 7)}.`,
       fields: [
         {
-          name: 'name',
-          label: 'Tag Name',
-          placeholder: 'e.g. v1.2.0',
+          name: "name",
+          label: "Tag Name",
+          placeholder: "e.g. v1.2.0",
           required: true,
         },
         {
-          name: 'message',
-          label: 'Tag Message (optional)',
-          placeholder: 'e.g. Release version',
-          type: 'textarea',
-        }
+          name: "message",
+          label: "Tag Message (optional)",
+          placeholder: "e.g. Release version",
+          type: "textarea",
+        },
       ],
-      submitLabel: 'Create Tag',
+      submitLabel: "Create Tag",
       onSubmit: async (values) => {
         const name = values.name.trim();
         const message = values.message.trim();
         try {
           await createTag(name, commit.oid, message || null);
-          addNotification({ type: 'success', message: `Created tag "${name}" at ${commit.oid.slice(0, 7)}` });
+          addNotification({
+            type: "success",
+            message: `Created tag "${name}" at ${commit.oid.slice(0, 7)}`,
+          });
         } catch (err) {
-          addNotification({ type: 'error', message: `Failed to create tag: ${err}` });
+          addNotification({
+            type: "error",
+            message: `Failed to create tag: ${err}`,
+          });
         }
-      }
+      },
     });
   };
 
@@ -275,11 +291,25 @@ export function CommitDetail() {
       <div className="commit-detail-header">
         <div className="commit-detail-message">{commit.message}</div>
         <div className="commit-detail-meta">
-          <div className="commit-detail-author" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+          <div
+            className="commit-detail-author"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "4px",
+            }}
+          >
             <strong>{commit.authorName}</strong>
-            <span className="text-secondary"> &lt;{commit.authorEmail}&gt;</span>
+            <span className="text-secondary">
+              {" "}
+              &lt;{commit.authorEmail}&gt;
+            </span>
             {sigInfo && (
-              <span className="commit-gpg-badge" title={`GPG Key ID: ${sigInfo.keyId}\nSigner: ${sigInfo.signer}`}>
+              <span
+                className="commit-gpg-badge"
+                title={`GPG Key ID: ${sigInfo.keyId}\nSigner: ${sigInfo.signer}`}
+              >
                 <ShieldCheck size={12} />
                 <span>{sigInfo.status}</span>
               </span>
@@ -292,23 +322,27 @@ export function CommitDetail() {
 
         <div className="commit-detail-oid">
           <span className="text-mono text-secondary">{commit.oid}</span>
-          <button className="commit-detail-copy" onClick={handleCopyOid} title="Copy SHA">
+          <button
+            className="commit-detail-copy"
+            onClick={handleCopyOid}
+            title="Copy SHA"
+          >
             {copiedOid ? <Check size={12} /> : <Copy size={12} />}
           </button>
-          <button 
-            className="commit-detail-action-btn" 
-            onClick={handleCreateTagPrompt} 
+          <button
+            className="commit-detail-action-btn"
+            onClick={handleCreateTagPrompt}
             title="Create Tag at this commit"
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              color: 'var(--accent-color)', 
-              cursor: 'pointer', 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '4px',
-              fontSize: '11px',
-              marginLeft: '8px'
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--accent-color)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              fontSize: "11px",
+              marginLeft: "8px",
             }}
           >
             <Tag size={12} />
@@ -330,16 +364,16 @@ export function CommitDetail() {
 
       {/* Tabs Selector */}
       <div className="commit-detail-tabs-bar">
-        <button 
-          className={`commit-detail-tab-btn ${activeTab === 'changes' ? 'active' : ''}`}
-          onClick={() => setActiveTab('changes')}
+        <button
+          className={`commit-detail-tab-btn ${activeTab === "changes" ? "active" : ""}`}
+          onClick={() => setActiveTab("changes")}
         >
           <Layers size={12} />
           <span>Changes ({commitDiff.length})</span>
         </button>
-        <button 
-          className={`commit-detail-tab-btn ${activeTab === 'tree' ? 'active' : ''}`}
-          onClick={() => setActiveTab('tree')}
+        <button
+          className={`commit-detail-tab-btn ${activeTab === "tree" ? "active" : ""}`}
+          onClick={() => setActiveTab("tree")}
         >
           <Folder size={12} />
           <span>File Tree</span>
@@ -348,34 +382,73 @@ export function CommitDetail() {
 
       {/* Tab Panels */}
       <div className="commit-detail-panel-content">
-        {activeTab === 'changes' ? (
+        {activeTab === "changes" ? (
           <div className="commit-detail-files">
             <div className="commit-detail-files-list">
               {isLoading && commitDiff.length === 0 ? (
-                <div style={{ padding: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                <div
+                  style={{
+                    padding: "var(--space-3)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "var(--space-2)",
+                  }}
+                >
                   {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', height: '28px', gap: 'var(--space-2)' }}>
-                      <div className="skeleton-shimmer skeleton-line" style={{ width: '16px', height: '12px', marginBottom: 0 }} />
-                      <div className="skeleton-shimmer skeleton-line" style={{ width: `${40 + (i % 3) * 15}%`, height: '12px', marginBottom: 0 }} />
-                      <div className="skeleton-shimmer skeleton-line" style={{ width: '50px', height: '12px', marginBottom: 0, marginLeft: 'auto' }} />
+                    <div
+                      key={i}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        height: "28px",
+                        gap: "var(--space-2)",
+                      }}
+                    >
+                      <div
+                        className="skeleton-shimmer skeleton-line"
+                        style={{
+                          width: "16px",
+                          height: "12px",
+                          marginBottom: 0,
+                        }}
+                      />
+                      <div
+                        className="skeleton-shimmer skeleton-line"
+                        style={{
+                          width: `${40 + (i % 3) * 15}%`,
+                          height: "12px",
+                          marginBottom: 0,
+                        }}
+                      />
+                      <div
+                        className="skeleton-shimmer skeleton-line"
+                        style={{
+                          width: "50px",
+                          height: "12px",
+                          marginBottom: 0,
+                          marginLeft: "auto",
+                        }}
+                      />
                     </div>
                   ))}
                 </div>
               ) : commitDiff.length === 0 ? (
-                <div className="commit-detail-no-changes">No files modified in this commit</div>
+                <div className="commit-detail-no-changes">
+                  No files modified in this commit
+                </div>
               ) : (
                 commitDiff.map((file, i) => {
-                  const filePath = file.newPath || file.oldPath || '';
+                  const filePath = file.newPath || file.oldPath || "";
                   return (
-                    <div 
-                      key={i} 
+                    <div
+                      key={i}
                       className="commit-detail-file"
                       onClick={() => {
                         selectLocalFile(filePath, false);
-                        setActiveView('staging');
+                        setActiveView("staging");
                       }}
                       onContextMenu={(e) => handleFileContextMenu(e, filePath)}
-                      style={{ cursor: 'pointer' }}
+                      style={{ cursor: "pointer" }}
                     >
                       <span
                         className="commit-detail-file-status"
@@ -385,14 +458,18 @@ export function CommitDetail() {
                       </span>
                       <span className="commit-detail-file-dir text-tertiary truncate">
                         {getDirectory(filePath)}
-                        {getDirectory(filePath) && '/'}
+                        {getDirectory(filePath) && "/"}
                       </span>
                       <span className="commit-detail-file-name truncate">
                         {getFileName(filePath)}
                       </span>
                       <span className="commit-detail-file-stats text-mono">
-                        <span className="stat-add">+{file.stats.additions}</span>
-                        <span className="stat-del">-{file.stats.deletions}</span>
+                        <span className="stat-add">
+                          +{file.stats.additions}
+                        </span>
+                        <span className="stat-del">
+                          -{file.stats.deletions}
+                        </span>
                       </span>
                     </div>
                   );
@@ -411,10 +488,10 @@ export function CommitDetail() {
               <div className="tree-empty">Unable to read tree structure</div>
             ) : (
               <div className="tree-viewport">
-                <TreeViewNode 
-                  node={nestedTree} 
-                  level={0} 
-                  onFileClick={(path) => openFileViewer(path, commit.oid)} 
+                <TreeViewNode
+                  node={nestedTree}
+                  level={0}
+                  onFileClick={(path) => openFileViewer(path, commit.oid)}
                 />
               </div>
             )}
@@ -424,27 +501,27 @@ export function CommitDetail() {
 
       {/* File Context Menu */}
       {contextMenu && (
-        <div 
+        <div
           className="sidebar-context-menu animate-fade-in"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button 
-            className="context-menu-item" 
+          <button
+            className="context-menu-item"
             onClick={() => {
               selectLocalFile(contextMenu.filePath, false);
-              setActiveView('blame');
+              setActiveView("blame");
               setContextMenu(null);
             }}
           >
             <Clock size={12} />
             <span>View Blame</span>
           </button>
-          <button 
-            className="context-menu-item" 
+          <button
+            className="context-menu-item"
             onClick={() => {
               selectLocalFile(contextMenu.filePath, false);
-              setActiveView('history');
+              setActiveView("history");
               setContextMenu(null);
             }}
           >

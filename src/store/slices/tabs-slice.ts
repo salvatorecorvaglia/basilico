@@ -1,7 +1,7 @@
-import type { StateCreator } from 'zustand';
-import type { RepoState } from '../types';
-import type { RepoTab } from '../../lib/git-types';
-import * as commands from '../../lib/tauri-commands';
+import type { StateCreator } from "zustand";
+import type { RepoTab } from "../../lib/git-types";
+import * as commands from "../../lib/tauri-commands";
+import type { RepoState } from "../types";
 
 export interface TabsSlice {
   tabs: RepoTab[];
@@ -11,7 +11,10 @@ export interface TabsSlice {
   switchTab: (tabId: string) => void;
 }
 
-export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (set, get) => ({
+export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
+  set,
+  get,
+) => ({
   tabs: [],
   activeTabId: null,
 
@@ -19,7 +22,9 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (set,
     set({ isLoading: true, error: null });
 
     try {
-      const info = await commands.openRepo(path, { errorPrefix: 'Failed to open repository' });
+      const info = await commands.openRepo(path, {
+        errorPrefix: "Failed to open repository",
+      });
       const tabId = info.path;
       const existingTab = get().tabs.find((t) => t.id === tabId);
 
@@ -37,10 +42,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (set,
         };
 
         set((state) => ({
-          tabs: [
-            ...state.tabs.map((t) => ({ ...t, isActive: false })),
-            newTab,
-          ],
+          tabs: [...state.tabs.map((t) => ({ ...t, isActive: false })), newTab],
           activeTabId: tabId,
           repoInfo: info,
         }));
@@ -61,7 +63,8 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (set,
     const filtered = tabs.filter((t) => t.id !== tabId);
 
     if (activeTabId === tabId) {
-      const newActive = filtered.length > 0 ? filtered[filtered.length - 1].id : null;
+      const newActive =
+        filtered.length > 0 ? filtered[filtered.length - 1].id : null;
       set({
         tabs: filtered,
         activeTabId: newActive,

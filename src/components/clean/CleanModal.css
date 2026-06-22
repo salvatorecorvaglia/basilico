@@ -190,7 +190,8 @@
   font-size: var(--text-sm);
 }
 
-.preview-paths-list, .result-paths-list {
+.preview-paths-list,
+.result-paths-list {
   background: var(--bg-secondary);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
@@ -202,7 +203,8 @@
   gap: 2px;
 }
 
-.preview-path-item, .result-path-item {
+.preview-path-item,
+.result-path-item {
   display: flex;
   align-items: center;
   gap: var(--space-2);

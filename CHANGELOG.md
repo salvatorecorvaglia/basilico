@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.3.0] - 2026-06-22
+
+### Added
+
+- **Code Quality & Tooling**:
+  - Integrated Biome as the project's default formatter, linter, and import organizer.
+  - Added new npm scripts: `npm run lint`, `npm run lint:fix`, and `npm run format`.
+  - Added default VS Code workspace settings to enable Biome auto-formatting and auto-fixing on save.
+  - Added a Biome check step to the CI pipeline (`ci.yml` and `release.yml`).
+- **Core Git Client Operations**:
+  - Fast-forward and merge commit logic.
+  - Rebase backend commands and operations.
+  - Retrieval and tracking of repository metadata (`repoInfo`) during directory loading and state refreshing.
+- **Testing & QA**:
+  - Integrated Vitest testing library for frontend component and command testing.
+  - Added frontend test configuration setup and Welcome Screen unit tests.
+  - Expanded Rust backend unit tests covering branch merging (both fast-forward and merge commits), commit creation, commit amend, reset actions, and rebase setup operations.
+
+### Changed
+
+- **Performance & Optimization**:
+  - Optimized diff parser using a path-to-index lookup map to achieve $O(1)$ lookup complexity per hunk/line.
+  - Migrated commit search command to run using direct git CLI execution instead of repository revision walking.
+- **Core Git Client Operations**:
+  - Refactored commit and amend logic for improved robustness.
+  - Updated SSH credentials check to prioritize `id_basilico` and `id_ed25519` key files.
+  - Refactored submodule status retrieval using direct repository state checks instead of opening submodule repo directories.
+  - Updated staging file discard behavior to safely manage directories and symlinks.
+- **Frontend UI & UX**:
+  - Added visual loading states to synchronize toolbar actions.
+  - Restricted the dev-only open repository button on the welcome screen to development builds.
+  - Improved GPG badge on commit details to display key verification status.
+- **Documentation**:
+  - Overhauled the contributing guide and project documentation files.
+
+### Removed
+
+- **Unused Dependencies**:
+  - Removed unused Tauri plugins (`shell`, `fs`, and `store`) from the project dependencies and configuration files.
+
 ## [0.2.0] - 2026-06-20
 
 ### Added

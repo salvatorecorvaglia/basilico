@@ -1,6 +1,6 @@
 {
   "name": "basilico",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A fast, modern, and beautiful Git GUI client",
   "author": "Salvatore Corvaglia",
   "license": "MIT",
@@ -9,7 +9,10 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "lint": "biome check src",
+    "lint:fix": "biome check --write src",
+    "format": "biome format --write src"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
@@ -25,6 +28,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.0",
     "@tauri-apps/cli": "^2",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",

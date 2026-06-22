@@ -1,19 +1,19 @@
-import { useState, useEffect } from 'react';
-import { 
-  GitPullRequest, 
-  ExternalLink, 
-  Key, 
-  User, 
-  Clock, 
-  MessageSquare, 
-  AlertCircle, 
+import {
+  AlertCircle,
   ArrowLeftRight,
+  Clock,
+  ExternalLink,
+  GitBranch,
+  GitPullRequest,
+  Key,
+  MessageSquare,
   RefreshCw,
-  GitBranch
-} from 'lucide-react';
-import { useRepoStore } from '../../store/repo-store';
-import { useUIStore } from '../../store/ui-store';
-import './PullRequestReview.css';
+  User,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRepoStore } from "../../store/repo-store";
+import { useUIStore } from "../../store/ui-store";
+import "./PullRequestReview.css";
 
 interface PullRequest {
   id: number;
@@ -45,17 +45,21 @@ export function PullRequestReview() {
   const { remotes, startComparison } = useRepoStore();
   const { setActiveView, addNotification } = useUIStore();
 
-  const [token, setToken] = useState<string>(() => localStorage.getItem('basilico_github_token') || '');
-  const [isSaved, setIsSaved] = useState<boolean>(!!localStorage.getItem('basilico_github_token'));
+  const [token, setToken] = useState<string>(
+    () => localStorage.getItem("basilico_github_token") || "",
+  );
+  const [isSaved, setIsSaved] = useState<boolean>(
+    !!localStorage.getItem("basilico_github_token"),
+  );
   const [prs, setPrs] = useState<PullRequest[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   // Parse owner and repo from remote URL
   const githubRepo = useMemo(() => {
-    const origin = remotes.find(r => r.name === 'origin') || remotes[0];
-    if (!origin || !origin.url) return null;
-    
+    const origin = remotes.find((r) => r.name === "origin") || remotes[0];
+    if (!origin?.url) return null;
+
     // Support HTTPS: https://github.com/owner/repo.git
     // Support SSH: git@github.com:owner/repo.git
     const match = origin.url.match(/github\.com[:/]([^/]+)\/([^.]+)/);
@@ -66,29 +70,29 @@ export function PullRequestReview() {
   }, [remotes]);
 
   // Fetch PRs
-  const fetchPullRequests = async () => {
+  const fetchPullRequests = useCallback(async () => {
     if (!githubRepo) return;
     setLoading(true);
     setError(null);
     try {
       const headers: Record<string, string> = {
-        'Accept': 'application/vnd.github.v3+json',
+        Accept: "application/vnd.github.v3+json",
       };
       if (token) {
-        headers['Authorization'] = `token ${token}`;
+        headers.Authorization = `token ${token}`;
       }
 
       const res = await fetch(
         `https://api.github.com/repos/${githubRepo.owner}/${githubRepo.repo}/pulls?state=open`,
-        { headers }
+        { headers },
       );
 
       if (!res.ok) {
         if (res.status === 401) {
-          throw new Error('Unauthorized: Please check your GitHub token.');
+          throw new Error("Unauthorized: Please check your GitHub token.");
         }
         if (res.status === 404) {
-          throw new Error('Repository not found or token lacks permissions.');
+          throw new Error("Repository not found or token lacks permissions.");
         }
         throw new Error(`Failed to fetch: ${res.statusText}`);
       }
@@ -100,21 +104,24 @@ export function PullRequestReview() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [githubRepo, token]);
 
   useEffect(() => {
     if (githubRepo) {
       fetchPullRequests();
     }
-  }, [githubRepo, isSaved]);
+  }, [githubRepo, fetchPullRequests]);
 
   const handleSaveToken = () => {
     if (token.trim()) {
-      localStorage.setItem('basilico_github_token', token.trim());
+      localStorage.setItem("basilico_github_token", token.trim());
       setIsSaved(true);
-      addNotification({ type: 'success', message: 'GitHub token saved successfully' });
+      addNotification({
+        type: "success",
+        message: "GitHub token saved successfully",
+      });
     } else {
-      localStorage.removeItem('basilico_github_token');
+      localStorage.removeItem("basilico_github_token");
       setIsSaved(false);
     }
   };
@@ -122,10 +129,10 @@ export function PullRequestReview() {
   const handleComparePR = (pr: PullRequest) => {
     // Start tree comparison in CompareView
     startComparison(pr.base.sha, pr.head.sha);
-    setActiveView('compare');
-    addNotification({ 
-      type: 'info', 
-      message: `Comparing PR #${pr.number}: ${pr.base.ref} ➔ ${pr.head.ref}` 
+    setActiveView("compare");
+    addNotification({
+      type: "info",
+      message: `Comparing PR #${pr.number}: ${pr.base.ref} ➔ ${pr.head.ref}`,
     });
   };
 
@@ -134,7 +141,10 @@ export function PullRequestReview() {
       <div className="pr-fallback-container">
         <AlertCircle size={32} className="text-tertiary" />
         <h3>No GitHub Remote Configured</h3>
-        <p>This repository does not have a configured GitHub remote URL on 'origin'.</p>
+        <p>
+          This repository does not have a configured GitHub remote URL on
+          'origin'.
+        </p>
       </div>
     );
   }
@@ -146,12 +156,18 @@ export function PullRequestReview() {
         <div className="pr-header-title">
           <GitPullRequest size={20} className="text-link" />
           <h2>GitHub Pull Requests</h2>
-          <span className="repo-badge">{githubRepo.owner}/{githubRepo.repo}</span>
+          <span className="repo-badge">
+            {githubRepo.owner}/{githubRepo.repo}
+          </span>
         </div>
 
         <div className="pr-header-actions">
-          <button className="pr-btn pr-btn-outline" onClick={fetchPullRequests} disabled={loading}>
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          <button
+            className="pr-btn pr-btn-outline"
+            onClick={fetchPullRequests}
+            disabled={loading}
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
             <span>Refresh</span>
           </button>
         </div>
@@ -166,7 +182,8 @@ export function PullRequestReview() {
             <h3>GitHub Integration</h3>
           </div>
           <p className="config-desc">
-            Provide a Personal Access Token (PAT) to fetch PRs from private repositories and avoid GitHub API rate limits.
+            Provide a Personal Access Token (PAT) to fetch PRs from private
+            repositories and avoid GitHub API rate limits.
           </p>
 
           <div className="config-input-group">
@@ -178,16 +195,19 @@ export function PullRequestReview() {
               className="config-token-input"
             />
             <button className="pr-btn" onClick={handleSaveToken}>
-              {isSaved ? 'Update Token' : 'Save Token'}
+              {isSaved ? "Update Token" : "Save Token"}
             </button>
             {isSaved && (
-              <button 
-                className="pr-btn pr-btn-outline" 
+              <button
+                className="pr-btn pr-btn-outline"
                 onClick={() => {
-                  setToken('');
-                  localStorage.removeItem('basilico_github_token');
+                  setToken("");
+                  localStorage.removeItem("basilico_github_token");
                   setIsSaved(false);
-                  addNotification({ type: 'info', message: 'GitHub token removed' });
+                  addNotification({
+                    type: "info",
+                    message: "GitHub token removed",
+                  });
                 }}
               >
                 Clear
@@ -209,7 +229,11 @@ export function PullRequestReview() {
               <div>
                 <h4>Error Loading Pull Requests</h4>
                 <p>{error}</p>
-                <button className="pr-btn pr-btn-outline" onClick={fetchPullRequests} style={{ marginTop: 'var(--space-2)' }}>
+                <button
+                  className="pr-btn pr-btn-outline"
+                  onClick={fetchPullRequests}
+                  style={{ marginTop: "var(--space-2)" }}
+                >
                   Retry
                 </button>
               </div>
@@ -225,10 +249,10 @@ export function PullRequestReview() {
               {prs.map((pr) => (
                 <div key={pr.id} className="pr-card">
                   <div className="pr-card-header">
-                    <img 
-                      src={pr.user.avatar_url} 
-                      alt={pr.user.login} 
-                      className="pr-author-avatar" 
+                    <img
+                      src={pr.user.avatar_url}
+                      alt={pr.user.login}
+                      className="pr-author-avatar"
                       title={pr.user.login}
                     />
                     <div className="pr-title-group">
@@ -241,7 +265,8 @@ export function PullRequestReview() {
                           <User size={12} /> {pr.user.login}
                         </span>
                         <span className="pr-meta-item">
-                          <Clock size={12} /> {new Date(pr.created_at).toLocaleDateString()}
+                          <Clock size={12} />{" "}
+                          {new Date(pr.created_at).toLocaleDateString()}
                         </span>
                         {pr.comments > 0 && (
                           <span className="pr-meta-item">
@@ -253,20 +278,18 @@ export function PullRequestReview() {
                   </div>
 
                   {pr.body && (
-                    <p className="pr-card-body truncate-2">
-                      {pr.body}
-                    </p>
+                    <p className="pr-card-body truncate-2">{pr.body}</p>
                   )}
 
                   <div className="pr-labels-row">
-                    {pr.labels.map(lbl => (
-                      <span 
-                        key={lbl.name} 
-                        className="pr-label-badge" 
-                        style={{ 
+                    {pr.labels.map((lbl) => (
+                      <span
+                        key={lbl.name}
+                        className="pr-label-badge"
+                        style={{
                           backgroundColor: `#${lbl.color}22`,
                           borderColor: `#${lbl.color}`,
-                          color: `#${lbl.color}`
+                          color: `#${lbl.color}`,
                         }}
                       >
                         {lbl.name}
@@ -287,14 +310,17 @@ export function PullRequestReview() {
                   </div>
 
                   <div className="pr-card-actions">
-                    <button className="pr-btn" onClick={() => handleComparePR(pr)}>
+                    <button
+                      className="pr-btn"
+                      onClick={() => handleComparePR(pr)}
+                    >
                       <ArrowLeftRight size={13} />
                       <span>Compare & Review Diff</span>
                     </button>
-                    <a 
-                      href={pr.html_url} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
+                    <a
+                      href={pr.html_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="pr-btn pr-btn-outline"
                     >
                       <ExternalLink size={13} />
@@ -310,6 +336,3 @@ export function PullRequestReview() {
     </div>
   );
 }
-
-// Utility import helper
-import { useMemo } from 'react';

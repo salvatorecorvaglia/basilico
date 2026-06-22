@@ -114,7 +114,8 @@
   transition: all 0.15s ease;
 }
 
-.diff-action-btn:hover, .diff-action-btn.active {
+.diff-action-btn:hover,
+.diff-action-btn.active {
   background: var(--bg-hover);
   color: var(--text-primary);
   border-color: var(--text-tertiary);

@@ -1,6 +1,6 @@
 [package]
 name = "basilico"
-version = "0.2.0"
+version = "0.3.0"
 description = "A fast, modern, and beautiful Git GUI client"
 authors = ["Salvatore Corvaglia"]
 edition = "2021"

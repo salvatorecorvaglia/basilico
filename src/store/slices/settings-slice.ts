@@ -1,8 +1,8 @@
-import type { StateCreator } from 'zustand';
-import type { RepoState } from '../types';
-import type { UserSettings } from '../../lib/git-types';
-import * as commands from '../../lib/tauri-commands';
-import { applyThemeToDOM } from '../../lib/theme-presets';
+import type { StateCreator } from "zustand";
+import type { UserSettings } from "../../lib/git-types";
+import * as commands from "../../lib/tauri-commands";
+import { applyThemeToDOM } from "../../lib/theme-presets";
+import type { RepoState } from "../types";
 
 export interface SettingsSlice {
   settings: UserSettings | null;
@@ -11,17 +11,22 @@ export interface SettingsSlice {
   generateSshKey: (comment: string) => Promise<string>;
 }
 
-export const createSettingsSlice: StateCreator<RepoState, [], [], SettingsSlice> = (set) => ({
+export const createSettingsSlice: StateCreator<
+  RepoState,
+  [],
+  [],
+  SettingsSlice
+> = (set) => ({
   settings: null,
 
   loadSettings: async () => {
     try {
       const settings = await commands.getSettings({ silent: true });
       set({ settings });
-      localStorage.setItem('basilico-theme', settings.theme);
+      localStorage.setItem("basilico-theme", settings.theme);
       applyThemeToDOM(settings.theme);
     } catch (err) {
-      console.error('Failed to load settings:', err);
+      console.error("Failed to load settings:", err);
       set({ error: String(err) });
       throw err;
     }
@@ -29,12 +34,14 @@ export const createSettingsSlice: StateCreator<RepoState, [], [], SettingsSlice>
 
   saveSettings: async (settings) => {
     try {
-      await commands.saveSettings(settings, { errorPrefix: 'Failed to save settings' });
+      await commands.saveSettings(settings, {
+        errorPrefix: "Failed to save settings",
+      });
       set({ settings });
-      localStorage.setItem('basilico-theme', settings.theme);
+      localStorage.setItem("basilico-theme", settings.theme);
       applyThemeToDOM(settings.theme);
     } catch (err) {
-      console.error('Failed to save settings:', err);
+      console.error("Failed to save settings:", err);
       set({ error: String(err) });
       throw err;
     }
@@ -42,10 +49,12 @@ export const createSettingsSlice: StateCreator<RepoState, [], [], SettingsSlice>
 
   generateSshKey: async (comment) => {
     try {
-      const pubKey = await commands.generateSshKey(comment, { errorPrefix: 'Failed to generate SSH key' });
+      const pubKey = await commands.generateSshKey(comment, {
+        errorPrefix: "Failed to generate SSH key",
+      });
       return pubKey;
     } catch (err) {
-      console.error('Failed to generate SSH key:', err);
+      console.error("Failed to generate SSH key:", err);
       set({ error: String(err) });
       throw err;
     }

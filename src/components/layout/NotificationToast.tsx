@@ -1,6 +1,6 @@
-import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react';
-import { useUIStore } from '../../store/ui-store';
-import './NotificationToast.css';
+import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react";
+import { useUIStore } from "../../store/ui-store";
+import "./NotificationToast.css";
 
 export function NotificationToast() {
   const { notifications, removeNotification } = useUIStore();
@@ -11,21 +11,24 @@ export function NotificationToast() {
     <div className="notification-container">
       {notifications.map((notif) => {
         let Icon = Info;
-        let iconClass = 'info';
+        let iconClass = "info";
 
-        if (notif.type === 'success') {
+        if (notif.type === "success") {
           Icon = CheckCircle2;
-          iconClass = 'success';
-        } else if (notif.type === 'error') {
+          iconClass = "success";
+        } else if (notif.type === "error") {
           Icon = XCircle;
-          iconClass = 'error';
-        } else if (notif.type === 'warning') {
+          iconClass = "error";
+        } else if (notif.type === "warning") {
           Icon = AlertTriangle;
-          iconClass = 'warning';
+          iconClass = "warning";
         }
 
         return (
-          <div key={notif.id} className={`notification-toast toast-${iconClass}`}>
+          <div
+            key={notif.id}
+            className={`notification-toast toast-${iconClass}`}
+          >
             <div className={`toast-icon icon-${iconClass}`}>
               <Icon size={16} />
             </div>
@@ -38,7 +41,7 @@ export function NotificationToast() {
             >
               <X size={12} />
             </button>
-            <div 
+            <div
               className="toast-progress-bar"
               style={{ animationDuration: `${notif.timeout ?? 4000}ms` }}
             />

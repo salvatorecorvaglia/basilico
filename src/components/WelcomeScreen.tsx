@@ -3,10 +3,10 @@
    Shown when no repository is open
    ═══════════════════════════════════════════════════════ */
 
-import { FolderOpen, ArrowRight } from 'lucide-react';
-import { open } from '@tauri-apps/plugin-dialog';
-import { useRepoStore } from '../store/repo-store';
-import './WelcomeScreen.css';
+import { open } from "@tauri-apps/plugin-dialog";
+import { ArrowRight, FolderOpen } from "lucide-react";
+import { useRepoStore } from "../store/repo-store";
+import "./WelcomeScreen.css";
 
 export function WelcomeScreen() {
   const { openRepository, isLoading } = useRepoStore();
@@ -15,7 +15,7 @@ export function WelcomeScreen() {
     const selected = await open({
       directory: true,
       multiple: false,
-      title: 'Open Git Repository',
+      title: "Open Git Repository",
     });
 
     if (selected) {
@@ -43,7 +43,9 @@ export function WelcomeScreen() {
             <FolderOpen size={20} />
             <div className="welcome-btn-text">
               <span className="welcome-btn-label">Open Repository</span>
-              <span className="welcome-btn-hint">Browse to a local Git repository</span>
+              <span className="welcome-btn-hint">
+                Browse to a local Git repository
+              </span>
             </div>
             <ArrowRight size={16} className="welcome-btn-arrow" />
           </button>
@@ -51,10 +53,14 @@ export function WelcomeScreen() {
           {import.meta.env.DEV && (
             <button
               className="welcome-btn-dev"
-              onClick={() => openRepository('/Users/salvatorecorvaglia/github/basilico')}
+              onClick={() =>
+                openRepository("/Users/salvatorecorvaglia/github/basilico")
+              }
               disabled={isLoading}
             >
-              <span className="welcome-btn-dev-text">🌿 Open Basilico Repository (Dev)</span>
+              <span className="welcome-btn-dev-text">
+                🌿 Open Basilico Repository (Dev)
+              </span>
             </button>
           )}
         </div>

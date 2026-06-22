@@ -1,49 +1,53 @@
-import { useRef, useCallback, useState, useEffect } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { 
-  Check, 
-  GitBranch, 
-  Tag, 
-  RotateCcw, 
-  Scissors, 
+import { useVirtualizer } from "@tanstack/react-virtual";
+import {
+  ArrowLeftRight,
+  Check,
   FolderSync,
-  ArrowLeftRight
-} from 'lucide-react';
-import { useRepoStore } from '../../store/repo-store';
-import { useUIStore } from '../../store/ui-store';
-import { CommitGraph } from './CommitGraph';
-import { formatRelativeTime, getInitials, stringToColor } from '../../lib/utils';
-import type { RefLabel } from '../../lib/git-types';
-import './CommitList.css';
+  GitBranch,
+  RotateCcw,
+  Scissors,
+  Tag,
+} from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { RefLabel } from "../../lib/git-types";
+import {
+  formatRelativeTime,
+  getInitials,
+  stringToColor,
+} from "../../lib/utils";
+import { useRepoStore } from "../../store/repo-store";
+import { useUIStore } from "../../store/ui-store";
+import { CommitGraph } from "./CommitGraph";
+import "./CommitList.css";
 
 const ROW_HEIGHT = 34;
 const GRAPH_WIDTH = 120;
 
 function RefBadge({ ref: refLabel }: { ref: RefLabel }) {
-  const classes = ['commit-ref'];
+  const classes = ["commit-ref"];
   switch (refLabel.kind) {
-    case 'Head':
-      classes.push('ref-head');
+    case "Head":
+      classes.push("ref-head");
       break;
-    case 'LocalBranch':
-      classes.push('ref-branch');
+    case "LocalBranch":
+      classes.push("ref-branch");
       break;
-    case 'RemoteBranch':
-      classes.push('ref-remote');
+    case "RemoteBranch":
+      classes.push("ref-remote");
       break;
-    case 'Tag':
-      classes.push('ref-tag');
+    case "Tag":
+      classes.push("ref-tag");
       break;
   }
 
-  return <span className={classes.join(' ')}>{refLabel.name}</span>;
+  return <span className={classes.join(" ")}>{refLabel.name}</span>;
 }
 
 export function CommitList() {
-  const { 
-    commits, 
-    selectedCommitOid, 
-    selectCommit, 
+  const {
+    commits,
+    selectedCommitOid,
+    selectCommit,
     loadMoreCommits,
     checkoutBranch,
     createBranch,
@@ -51,10 +55,11 @@ export function CommitList() {
     cherryPickCommit,
     revertCommit,
     startComparison,
-    isLoading
+    isLoading,
   } = useRepoStore();
 
-  const { openResetModal, addNotification, setActiveView, openPrompt } = useUIStore();
+  const { openResetModal, addNotification, setActiveView, openPrompt } =
+    useUIStore();
 
   const parentRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(600);
@@ -82,8 +87,8 @@ export function CommitList() {
   // Close context menu on any click outside
   useEffect(() => {
     const handleCloseMenu = () => setContextMenu(null);
-    window.addEventListener('click', handleCloseMenu);
-    return () => window.removeEventListener('click', handleCloseMenu);
+    window.addEventListener("click", handleCloseMenu);
+    return () => window.removeEventListener("click", handleCloseMenu);
   }, []);
 
   const virtualizer = useVirtualizer({
@@ -108,47 +113,89 @@ export function CommitList() {
     return (
       <div className="commit-list-container">
         <div className="commit-list-header">
-          <div className="commit-list-header-graph" style={{ width: GRAPH_WIDTH }} />
+          <div
+            className="commit-list-header-graph"
+            style={{ width: GRAPH_WIDTH }}
+          />
           <div className="commit-list-header-message">Message</div>
           <div className="commit-list-header-author">Author</div>
           <div className="commit-list-header-date">Date</div>
           <div className="commit-list-header-sha">SHA</div>
         </div>
-        <div className="commit-list-scroll" style={{ padding: 'var(--space-1) 0', overflow: 'hidden' }}>
+        <div
+          className="commit-list-scroll"
+          style={{ padding: "var(--space-1) 0", overflow: "hidden" }}
+        >
           {Array.from({ length: 15 }).map((_, index) => (
             <div
               key={index}
               style={{
-                display: 'flex',
-                alignItems: 'center',
+                display: "flex",
+                alignItems: "center",
                 height: `${ROW_HEIGHT}px`,
-                borderBottom: '1px solid var(--border-subtle)',
-                gap: 'var(--space-4)',
-                padding: '0 var(--space-3)',
+                borderBottom: "1px solid var(--border-subtle)",
+                gap: "var(--space-4)",
+                padding: "0 var(--space-3)",
               }}
             >
               {/* Graph space */}
               <div style={{ width: GRAPH_WIDTH }} />
-              
+
               {/* Message */}
-              <div style={{ flex: 1, display: 'flex', gap: 'var(--space-2)' }}>
-                <div className="skeleton-shimmer skeleton-line" style={{ width: `${50 + (index % 3) * 15}%`, height: '12px', marginBottom: 0 }} />
+              <div style={{ flex: 1, display: "flex", gap: "var(--space-2)" }}>
+                <div
+                  className="skeleton-shimmer skeleton-line"
+                  style={{
+                    width: `${50 + (index % 3) * 15}%`,
+                    height: "12px",
+                    marginBottom: 0,
+                  }}
+                />
               </div>
-              
+
               {/* Author */}
-              <div style={{ width: '160px', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                <div className="skeleton-shimmer skeleton-avatar" style={{ width: '20px', height: '20px' }} />
-                <div className="skeleton-shimmer skeleton-line" style={{ width: '80px', height: '12px', marginBottom: 0 }} />
+              <div
+                style={{
+                  width: "160px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "var(--space-2)",
+                }}
+              >
+                <div
+                  className="skeleton-shimmer skeleton-avatar"
+                  style={{ width: "20px", height: "20px" }}
+                />
+                <div
+                  className="skeleton-shimmer skeleton-line"
+                  style={{ width: "80px", height: "12px", marginBottom: 0 }}
+                />
               </div>
-              
+
               {/* Date */}
-              <div style={{ width: '80px' }}>
-                <div className="skeleton-shimmer skeleton-line" style={{ width: '60px', height: '12px', marginBottom: 0, marginLeft: 'auto' }} />
+              <div style={{ width: "80px" }}>
+                <div
+                  className="skeleton-shimmer skeleton-line"
+                  style={{
+                    width: "60px",
+                    height: "12px",
+                    marginBottom: 0,
+                    marginLeft: "auto",
+                  }}
+                />
               </div>
-              
+
               {/* SHA */}
-              <div style={{ width: '70px', paddingRight: 'var(--space-3)' }}>
-                <div className="skeleton-shimmer skeleton-line" style={{ width: '50px', height: '12px', marginBottom: 0, marginLeft: 'auto' }} />
+              <div style={{ width: "70px", paddingRight: "var(--space-3)" }}>
+                <div
+                  className="skeleton-shimmer skeleton-line"
+                  style={{
+                    width: "50px",
+                    height: "12px",
+                    marginBottom: 0,
+                    marginLeft: "auto",
+                  }}
+                />
               </div>
             </div>
           ))}
@@ -161,8 +208,14 @@ export function CommitList() {
     e.preventDefault();
     const menuWidth = 220;
     const menuHeight = 320;
-    const x = e.clientX + menuWidth > window.innerWidth ? e.clientX - menuWidth : e.clientX;
-    const y = e.clientY + menuHeight > window.innerHeight ? e.clientY - menuHeight : e.clientY;
+    const x =
+      e.clientX + menuWidth > window.innerWidth
+        ? e.clientX - menuWidth
+        : e.clientX;
+    const y =
+      e.clientY + menuHeight > window.innerHeight
+        ? e.clientY - menuHeight
+        : e.clientY;
     setContextMenu({
       x,
       y,
@@ -173,113 +226,119 @@ export function CommitList() {
   const handleCheckoutCommit = async (oid: string) => {
     try {
       await checkoutBranch(oid);
-      addNotification({ 
-        type: 'success', 
-        message: `Checked out commit ${oid.slice(0, 7)} (detached HEAD)` 
+      addNotification({
+        type: "success",
+        message: `Checked out commit ${oid.slice(0, 7)} (detached HEAD)`,
       });
     } catch (err) {
-      addNotification({ type: 'error', message: `Checkout failed: ${err}` });
+      addNotification({ type: "error", message: `Checkout failed: ${err}` });
     }
   };
 
   const handleCherryPick = async (oid: string) => {
     try {
       const res = await cherryPickCommit(oid);
-      if (res === 'conflicts') {
-        addNotification({ 
-          type: 'warning', 
-          message: `Cherry-pick conflict at commit ${oid.slice(0, 7)}. Please resolve conflicts in staging.` 
+      if (res === "conflicts") {
+        addNotification({
+          type: "warning",
+          message: `Cherry-pick conflict at commit ${oid.slice(0, 7)}. Please resolve conflicts in staging.`,
         });
       } else {
-        addNotification({ 
-          type: 'success', 
-          message: `Successfully cherry-picked commit ${oid.slice(0, 7)}` 
+        addNotification({
+          type: "success",
+          message: `Successfully cherry-picked commit ${oid.slice(0, 7)}`,
         });
       }
     } catch (err) {
-      addNotification({ type: 'error', message: `Cherry-pick failed: ${err}` });
+      addNotification({ type: "error", message: `Cherry-pick failed: ${err}` });
     }
   };
 
   const handleRevert = async (oid: string) => {
     try {
       const res = await revertCommit(oid);
-      if (res === 'conflicts') {
-        addNotification({ 
-          type: 'warning', 
-          message: `Revert conflict at commit ${oid.slice(0, 7)}. Please resolve conflicts in staging.` 
+      if (res === "conflicts") {
+        addNotification({
+          type: "warning",
+          message: `Revert conflict at commit ${oid.slice(0, 7)}. Please resolve conflicts in staging.`,
         });
       } else {
-        addNotification({ 
-          type: 'success', 
-          message: `Successfully reverted commit ${oid.slice(0, 7)}` 
+        addNotification({
+          type: "success",
+          message: `Successfully reverted commit ${oid.slice(0, 7)}`,
         });
       }
     } catch (err) {
-      addNotification({ type: 'error', message: `Revert failed: ${err}` });
+      addNotification({ type: "error", message: `Revert failed: ${err}` });
     }
   };
 
   const handleCreateBranchPrompt = (oid: string) => {
     openPrompt({
-      title: 'Create Branch',
+      title: "Create Branch",
       description: `Create a new branch at commit ${oid.slice(0, 7)}.`,
       fields: [
         {
-          name: 'name',
-          label: 'Branch Name',
-          placeholder: 'e.g. feature/checkout-fix',
+          name: "name",
+          label: "Branch Name",
+          placeholder: "e.g. feature/checkout-fix",
           required: true,
-        }
+        },
       ],
-      submitLabel: 'Create Branch',
+      submitLabel: "Create Branch",
       onSubmit: async (values) => {
         const name = values.name.trim();
         try {
           await createBranch(name, oid);
-          addNotification({ 
-            type: 'success', 
-            message: `Created branch "${name}" at ${oid.slice(0, 7)}` 
+          addNotification({
+            type: "success",
+            message: `Created branch "${name}" at ${oid.slice(0, 7)}`,
           });
         } catch (err) {
-          addNotification({ type: 'error', message: `Failed to create branch: ${err}` });
+          addNotification({
+            type: "error",
+            message: `Failed to create branch: ${err}`,
+          });
         }
-      }
+      },
     });
   };
 
   const handleCreateTagPrompt = (oid: string) => {
     openPrompt({
-      title: 'Create Tag',
+      title: "Create Tag",
       description: `Create a new tag at commit ${oid.slice(0, 7)}.`,
       fields: [
         {
-          name: 'name',
-          label: 'Tag Name',
-          placeholder: 'e.g. v1.1.2',
+          name: "name",
+          label: "Tag Name",
+          placeholder: "e.g. v1.1.2",
           required: true,
         },
         {
-          name: 'message',
-          label: 'Tag Message (optional)',
-          placeholder: 'e.g. Tag release at commit OID',
-          type: 'textarea',
-        }
+          name: "message",
+          label: "Tag Message (optional)",
+          placeholder: "e.g. Tag release at commit OID",
+          type: "textarea",
+        },
       ],
-      submitLabel: 'Create Tag',
+      submitLabel: "Create Tag",
       onSubmit: async (values) => {
         const name = values.name.trim();
         const message = values.message.trim();
         try {
           await createTag(name, oid, message || null);
-          addNotification({ 
-            type: 'success', 
-            message: `Created tag "${name}" at ${oid.slice(0, 7)}` 
+          addNotification({
+            type: "success",
+            message: `Created tag "${name}" at ${oid.slice(0, 7)}`,
           });
         } catch (err) {
-          addNotification({ type: 'error', message: `Failed to create tag: ${err}` });
+          addNotification({
+            type: "error",
+            message: `Failed to create tag: ${err}`,
+          });
         }
-      }
+      },
     });
   };
 
@@ -297,7 +356,10 @@ export function CommitList() {
     <div className="commit-list-container">
       {/* Header */}
       <div className="commit-list-header">
-        <div className="commit-list-header-graph" style={{ width: GRAPH_WIDTH }}>
+        <div
+          className="commit-list-header-graph"
+          style={{ width: GRAPH_WIDTH }}
+        >
           Graph
         </div>
         <div className="commit-list-header-message">Description</div>
@@ -315,8 +377,8 @@ export function CommitList() {
         <div
           style={{
             height: `${virtualizer.getTotalSize()}px`,
-            width: '100%',
-            position: 'relative',
+            width: "100%",
+            position: "relative",
           }}
         >
           {/* Graph canvas overlay */}
@@ -337,12 +399,12 @@ export function CommitList() {
             return (
               <div
                 key={commit.oid}
-                className={`commit-row ${isSelected ? 'selected' : ''}`}
+                className={`commit-row ${isSelected ? "selected" : ""}`}
                 style={{
-                  position: 'absolute',
+                  position: "absolute",
                   top: 0,
                   left: 0,
-                  width: '100%',
+                  width: "100%",
                   height: `${virtualRow.size}px`,
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
@@ -350,14 +412,19 @@ export function CommitList() {
                 onContextMenu={(e) => handleRowContextMenu(e, commit.oid)}
               >
                 {/* Graph column spacer */}
-                <div className="commit-col-graph" style={{ width: GRAPH_WIDTH }} />
+                <div
+                  className="commit-col-graph"
+                  style={{ width: GRAPH_WIDTH }}
+                />
 
                 {/* Message + refs */}
                 <div className="commit-col-message">
                   {commit.refs.map((ref, i) => (
                     <RefBadge key={i} ref={ref} />
                   ))}
-                  <span className="commit-message truncate">{commit.message}</span>
+                  <span className="commit-message truncate">
+                    {commit.message}
+                  </span>
                 </div>
 
                 {/* Author */}
@@ -368,7 +435,9 @@ export function CommitList() {
                   >
                     {getInitials(commit.authorName)}
                   </span>
-                  <span className="commit-author-name truncate">{commit.authorName}</span>
+                  <span className="commit-author-name truncate">
+                    {commit.authorName}
+                  </span>
                 </div>
 
                 {/* Date */}
@@ -388,37 +457,37 @@ export function CommitList() {
 
       {/* Commit Context Menu */}
       {contextMenu && (
-        <div 
-          className="sidebar-context-menu commit-context-menu" 
+        <div
+          className="sidebar-context-menu commit-context-menu"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button 
-            className="context-menu-item" 
+          <button
+            className="context-menu-item"
             onClick={() => handleCheckoutCommit(contextMenu.oid)}
           >
             <Check size={12} />
             <span>Checkout Commit (Detached HEAD)</span>
           </button>
-          
-          <button 
-            className="context-menu-item" 
+
+          <button
+            className="context-menu-item"
             onClick={() => handleCherryPick(contextMenu.oid)}
           >
             <Scissors size={12} />
             <span>Cherry-Pick Commit</span>
           </button>
 
-          <button 
-            className="context-menu-item" 
+          <button
+            className="context-menu-item"
             onClick={() => handleRevert(contextMenu.oid)}
           >
             <RotateCcw size={12} />
             <span>Revert Commit</span>
           </button>
 
-          <button 
-            className="context-menu-item" 
+          <button
+            className="context-menu-item"
             onClick={() => openResetModal(contextMenu.oid)}
           >
             <FolderSync size={12} />
@@ -427,10 +496,12 @@ export function CommitList() {
 
           <div className="context-menu-divider" />
 
-          <button 
-            className="context-menu-item" 
+          <button
+            className="context-menu-item"
             onClick={() => {
-              startComparison(contextMenu.oid, 'HEAD').then(() => setActiveView('compare'));
+              startComparison(contextMenu.oid, "HEAD").then(() =>
+                setActiveView("compare"),
+              );
               setContextMenu(null);
             }}
           >
@@ -439,10 +510,12 @@ export function CommitList() {
           </button>
 
           {selectedCommitOid && selectedCommitOid !== contextMenu.oid && (
-            <button 
-              className="context-menu-item" 
+            <button
+              className="context-menu-item"
               onClick={() => {
-                startComparison(selectedCommitOid, contextMenu.oid).then(() => setActiveView('compare'));
+                startComparison(selectedCommitOid, contextMenu.oid).then(() =>
+                  setActiveView("compare"),
+                );
                 setContextMenu(null);
               }}
             >
@@ -453,16 +526,16 @@ export function CommitList() {
 
           <div className="context-menu-divider" />
 
-          <button 
-            className="context-menu-item" 
+          <button
+            className="context-menu-item"
             onClick={() => handleCreateBranchPrompt(contextMenu.oid)}
           >
             <GitBranch size={12} />
             <span>Create Branch here...</span>
           </button>
 
-          <button 
-            className="context-menu-item" 
+          <button
+            className="context-menu-item"
             onClick={() => handleCreateTagPrompt(contextMenu.oid)}
           >
             <Tag size={12} />
@@ -473,4 +546,3 @@ export function CommitList() {
     </div>
   );
 }
-

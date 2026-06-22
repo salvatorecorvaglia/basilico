@@ -44,8 +44,12 @@
   margin: 0;
 }
 
-.confirm-icon-danger { color: var(--color-danger); }
-.confirm-icon-info { color: var(--text-link); }
+.confirm-icon-danger {
+  color: var(--color-danger);
+}
+.confirm-icon-info {
+  color: var(--text-link);
+}
 
 .confirm-close-btn {
   display: flex;

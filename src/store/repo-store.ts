@@ -3,13 +3,13 @@
    Assembled from modular domain slices
    ═══════════════════════════════════════════════════════ */
 
-import { create } from 'zustand';
-import type { RepoState } from './types';
-import { createTabsSlice } from './slices/tabs-slice';
-import { createGitDataSlice } from './slices/git-data-slice';
-import { createStagingSlice } from './slices/staging-slice';
-import { createCollaborationSlice } from './slices/collaboration-slice';
-import { createSettingsSlice } from './slices/settings-slice';
+import { create } from "zustand";
+import { createCollaborationSlice } from "./slices/collaboration-slice";
+import { createGitDataSlice } from "./slices/git-data-slice";
+import { createSettingsSlice } from "./slices/settings-slice";
+import { createStagingSlice } from "./slices/staging-slice";
+import { createTabsSlice } from "./slices/tabs-slice";
+import type { RepoState } from "./types";
 
 export const useRepoStore = create<RepoState>((set, get, store) => ({
   // Loading and Error States (shared across slices)

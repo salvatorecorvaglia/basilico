@@ -1,26 +1,26 @@
 import type {
-  RepoTab,
+  BisectState,
+  BlameLine,
+  BranchInfo,
+  ConflictStages,
+  FileDiff,
+  FileHistoryEntry,
+  GraphCommit,
+  GrepMatch,
+  RebaseStatus,
+  RebaseTodoItem,
+  ReflogEntry,
+  RemoteInfo,
   RepoInfo,
   RepoStatus,
-  BranchInfo,
-  TagInfo,
-  RemoteInfo,
-  GraphCommit,
-  FileDiff,
-  BlameLine,
-  FileHistoryEntry,
-  ReflogEntry,
+  RepoTab,
   StashInfo,
-  RebaseTodoItem,
-  RebaseStatus,
-  BisectState,
-  GrepMatch,
-  WorktreeInfo,
   SubmoduleInfo,
-  UserSettings,
+  TagInfo,
   TreeEntryInfo,
-  ConflictStages,
-} from '../lib/git-types';
+  UserSettings,
+  WorktreeInfo,
+} from "../lib/git-types";
 
 export interface RepoState {
   // Tabs
@@ -87,13 +87,16 @@ export interface RepoState {
   refreshOnFileSystemChange: () => Promise<void>;
   selectCommit: (oid: string | null) => Promise<void>;
   loadMoreCommits: (count: number) => Promise<void>;
-  
+
   // Staging & Local Diff Actions
   selectLocalFile: (path: string | null, isStaged: boolean) => Promise<void>;
   stageFiles: (files: string[]) => Promise<void>;
   unstageFiles: (files: string[]) => Promise<void>;
   discardChanges: (files: string[]) => Promise<void>;
-  applyPatch: (patch: string, location: 'index' | 'workdir' | 'both') => Promise<void>;
+  applyPatch: (
+    patch: string,
+    location: "index" | "workdir" | "both",
+  ) => Promise<void>;
 
   // Commit Actions
   commit: (message: string, amend?: boolean) => Promise<void>;
@@ -106,7 +109,12 @@ export interface RepoState {
 
   // Tag Actions
   deleteTag: (name: string) => Promise<void>;
-  createTag: (name: string, targetOid: string, message?: string | null, force?: boolean) => Promise<void>;
+  createTag: (
+    name: string,
+    targetOid: string,
+    message?: string | null,
+    force?: boolean,
+  ) => Promise<void>;
   pushTag: (remote: string, tagName: string) => Promise<void>;
 
   // Phase 3 Actions
@@ -120,13 +128,13 @@ export interface RepoState {
   dropStash: (index: number) => Promise<void>;
 
   // Merge Actions
-  mergeBranch: (branchName: string) => Promise<'success' | 'conflicts'>;
+  mergeBranch: (branchName: string) => Promise<"success" | "conflicts">;
   abortMerge: () => Promise<void>;
   resolveConflict: (filePath: string) => Promise<void>;
 
   // Remote Actions
   fetch: (remote: string) => Promise<void>;
-  pull: (remote: string, branch: string) => Promise<'success' | 'conflicts'>;
+  pull: (remote: string, branch: string) => Promise<"success" | "conflicts">;
   push: (remote: string, branch: string, force: boolean) => Promise<void>;
 
   // Phase 4 State
@@ -139,7 +147,10 @@ export interface RepoState {
   // Phase 4 Actions
   initRebase: (upstream: string) => Promise<void>;
   writeRebaseTodo: (items: RebaseTodoItem[]) => Promise<void>;
-  stepRebase: (action: string, commitMessage?: string | null) => Promise<RebaseStatus>;
+  stepRebase: (
+    action: string,
+    commitMessage?: string | null,
+  ) => Promise<RebaseStatus>;
   startBisect: (bad: string, good: string) => Promise<void>;
   markBisect: (status: string) => Promise<void>;
   resetBisect: () => Promise<void>;
@@ -148,7 +159,11 @@ export interface RepoState {
 
   // Phase 5 Actions
   loadWorktrees: () => Promise<void>;
-  addWorktree: (path: string, branch?: string | null, newBranch?: string | null) => Promise<void>;
+  addWorktree: (
+    path: string,
+    branch?: string | null,
+    newBranch?: string | null,
+  ) => Promise<void>;
   removeWorktree: (worktreePath: string, force?: boolean) => Promise<void>;
   pruneWorktrees: () => Promise<void>;
   loadSubmodules: () => Promise<void>;
@@ -161,12 +176,19 @@ export interface RepoState {
   generateSshKey: (comment: string) => Promise<string>;
 
   // Phase 6 Actions
-  cherryPickCommit: (oid: string) => Promise<'success' | 'conflicts'>;
+  cherryPickCommit: (oid: string) => Promise<"success" | "conflicts">;
   cherryPickAbort: () => Promise<void>;
-  revertCommit: (oid: string) => Promise<'success' | 'conflicts'>;
+  revertCommit: (oid: string) => Promise<"success" | "conflicts">;
   revertAbort: () => Promise<void>;
-  resetToCommit: (oid: string, mode: 'soft' | 'mixed' | 'hard') => Promise<void>;
-  cleanRepository: (dryRun: boolean, cleanDirs: boolean, includeIgnored: boolean) => Promise<string[]>;
+  resetToCommit: (
+    oid: string,
+    mode: "soft" | "mixed" | "hard",
+  ) => Promise<void>;
+  cleanRepository: (
+    dryRun: boolean,
+    cleanDirs: boolean,
+    includeIgnored: boolean,
+  ) => Promise<string[]>;
 
   // Phase 7 Actions
   loadCommitTree: (oid: string) => Promise<void>;
@@ -175,7 +197,10 @@ export interface RepoState {
 
   // Phase 9 Actions
   loadConflictStages: (filePath: string) => Promise<void>;
-  resolveConflictStages: (filePath: string, mergedContent: string) => Promise<void>;
+  resolveConflictStages: (
+    filePath: string,
+    mergedContent: string,
+  ) => Promise<void>;
 
   // Phase 10 Actions
   loadStashDetail: (index: number) => Promise<void>;

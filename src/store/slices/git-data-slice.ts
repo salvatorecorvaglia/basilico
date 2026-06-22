@@ -1,19 +1,19 @@
-import type { StateCreator } from 'zustand';
-import type { RepoState } from '../types';
+import type { StateCreator } from "zustand";
 import type {
+  BlameLine,
+  BranchInfo,
+  FileDiff,
+  FileHistoryEntry,
+  GraphCommit,
+  GrepMatch,
+  ReflogEntry,
+  RemoteInfo,
   RepoInfo,
   RepoStatus,
-  BranchInfo,
   TagInfo,
-  RemoteInfo,
-  GraphCommit,
-  FileDiff,
-  BlameLine,
-  FileHistoryEntry,
-  ReflogEntry,
-  GrepMatch,
-} from '../../lib/git-types';
-import * as commands from '../../lib/tauri-commands';
+} from "../../lib/git-types";
+import * as commands from "../../lib/tauri-commands";
+import type { RepoState } from "../types";
 
 export interface GitDataSlice {
   repoInfo: RepoInfo | null;
@@ -42,7 +42,12 @@ export interface GitDataSlice {
   grepCode: (query: string) => Promise<void>;
 }
 
-export const createGitDataSlice: StateCreator<RepoState, [], [], GitDataSlice> = (set, get) => ({
+export const createGitDataSlice: StateCreator<
+  RepoState,
+  [],
+  [],
+  GitDataSlice
+> = (set, get) => ({
   repoInfo: null,
   status: null,
   branches: [],
@@ -66,7 +71,7 @@ export const createGitDataSlice: StateCreator<RepoState, [], [], GitDataSlice> =
       const status = await commands.getStatus(activeTabId, { silent: true });
       set({ status });
     } catch (err) {
-      console.error('Failed to refresh status:', err);
+      console.error("Failed to refresh status:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -80,27 +85,30 @@ export const createGitDataSlice: StateCreator<RepoState, [], [], GitDataSlice> =
 
     set({ isRefreshing: true, error: null });
     try {
-      const [status, branches, tags, remotes, commits, stashes, repoInfo] = await Promise.all([
-        commands.getStatus(activeTabId, { silent: true }),
-        commands.listBranches(activeTabId, { silent: true }),
-        commands.listTags(activeTabId, { silent: true }),
-        commands.listRemotes(activeTabId, { silent: true }),
-        commands.getLog(activeTabId, 500, { silent: true }),
-        commands.listStashes(activeTabId, { silent: true }),
-        commands.openRepo(activeTabId, { silent: true }),
-      ]);
+      const [status, branches, tags, remotes, commits, stashes, repoInfo] =
+        await Promise.all([
+          commands.getStatus(activeTabId, { silent: true }),
+          commands.listBranches(activeTabId, { silent: true }),
+          commands.listTags(activeTabId, { silent: true }),
+          commands.listRemotes(activeTabId, { silent: true }),
+          commands.getLog(activeTabId, 500, { silent: true }),
+          commands.listStashes(activeTabId, { silent: true }),
+          commands.openRepo(activeTabId, { silent: true }),
+        ]);
 
       set({ status, branches, tags, remotes, commits, stashes, repoInfo });
 
       // Load worktrees and submodules in background (non-blocking)
-      commands.listWorktrees(activeTabId, { silent: true })
-        .then(worktrees => set({ worktrees }))
+      commands
+        .listWorktrees(activeTabId, { silent: true })
+        .then((worktrees) => set({ worktrees }))
         .catch(() => set({ worktrees: [] }));
-      commands.listSubmodules(activeTabId, { silent: true })
-        .then(submodules => set({ submodules }))
+      commands
+        .listSubmodules(activeTabId, { silent: true })
+        .then((submodules) => set({ submodules }))
         .catch(() => set({ submodules: [] }));
     } catch (err) {
-      console.error('Failed to refresh:', err);
+      console.error("Failed to refresh:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -120,7 +128,7 @@ export const createGitDataSlice: StateCreator<RepoState, [], [], GitDataSlice> =
       ]);
       set({ status, commits });
     } catch (err) {
-      console.error('Failed to refresh on file change:', err);
+      console.error("Failed to refresh on file change:", err);
       set({ error: String(err) });
     } finally {
       set({ isRefreshing: false });
@@ -137,10 +145,12 @@ export const createGitDataSlice: StateCreator<RepoState, [], [], GitDataSlice> =
 
     set({ isLoading: true });
     try {
-      const diff = await commands.getCommitDiff(activeTabId, oid, { silent: true });
+      const diff = await commands.getCommitDiff(activeTabId, oid, {
+        silent: true,
+      });
       set({ commitDiff: diff });
     } catch (err) {
-      console.error('Failed to load commit diff:', err);
+      console.error("Failed to load commit diff:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -154,10 +164,14 @@ export const createGitDataSlice: StateCreator<RepoState, [], [], GitDataSlice> =
 
     set({ isLoading: true, error: null });
     try {
-      const moreCommits = await commands.getLog(activeTabId, commits.length + count, { silent: true });
+      const moreCommits = await commands.getLog(
+        activeTabId,
+        commits.length + count,
+        { silent: true },
+      );
       set({ commits: moreCommits });
     } catch (err) {
-      console.error('Failed to load more commits:', err);
+      console.error("Failed to load more commits:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -171,10 +185,14 @@ export const createGitDataSlice: StateCreator<RepoState, [], [], GitDataSlice> =
 
     set({ isLoading: true, blameLines: [], error: null });
     try {
-      const lines = await commands.getFileBlame(activeTabId, filePath, commitOid);
+      const lines = await commands.getFileBlame(
+        activeTabId,
+        filePath,
+        commitOid,
+      );
       set({ blameLines: lines });
     } catch (err) {
-      console.error('Failed to load file blame:', err);
+      console.error("Failed to load file blame:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -191,7 +209,7 @@ export const createGitDataSlice: StateCreator<RepoState, [], [], GitDataSlice> =
       const history = await commands.getFileHistory(activeTabId, filePath);
       set({ fileHistory: history });
     } catch (err) {
-      console.error('Failed to load file history:', err);
+      console.error("Failed to load file history:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -208,7 +226,7 @@ export const createGitDataSlice: StateCreator<RepoState, [], [], GitDataSlice> =
       const entries = await commands.getReflog(activeTabId);
       set({ reflogEntries: entries });
     } catch (err) {
-      console.error('Failed to load reflog:', err);
+      console.error("Failed to load reflog:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -227,10 +245,12 @@ export const createGitDataSlice: StateCreator<RepoState, [], [], GitDataSlice> =
 
     set({ isLoading: true, error: null });
     try {
-      const results = await commands.searchCommits(activeTabId, query, { errorPrefix: 'Failed to search commits' });
+      const results = await commands.searchCommits(activeTabId, query, {
+        errorPrefix: "Failed to search commits",
+      });
       set({ commitSearchResults: results });
     } catch (err) {
-      console.error('Failed to search commits:', err);
+      console.error("Failed to search commits:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -249,10 +269,12 @@ export const createGitDataSlice: StateCreator<RepoState, [], [], GitDataSlice> =
 
     set({ isLoading: true, error: null });
     try {
-      const results = await commands.grepCode(activeTabId, query, { errorPrefix: 'Failed to search code' });
+      const results = await commands.grepCode(activeTabId, query, {
+        errorPrefix: "Failed to search code",
+      });
       set({ grepSearchResults: results });
     } catch (err) {
-      console.error('Failed to grep code:', err);
+      console.error("Failed to grep code:", err);
       set({ error: String(err) });
       throw err;
     } finally {

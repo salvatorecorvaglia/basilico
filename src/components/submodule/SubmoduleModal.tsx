@@ -3,11 +3,11 @@
    Dialog for adding new git submodules
    ═══════════════════════════════════════════════════════ */
 
-import { useState, useEffect } from 'react';
-import { X, Package, Plus } from 'lucide-react';
-import { useRepoStore } from '../../store/repo-store';
-import { useUIStore } from '../../store/ui-store';
-import './SubmoduleModal.css';
+import { Package, Plus, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useRepoStore } from "../../store/repo-store";
+import { useUIStore } from "../../store/ui-store";
+import "./SubmoduleModal.css";
 
 interface SubmoduleModalProps {
   isOpen: boolean;
@@ -18,15 +18,15 @@ export function SubmoduleModal({ isOpen, onClose }: SubmoduleModalProps) {
   const { addSubmodule } = useRepoStore();
   const { addNotification } = useUIStore();
 
-  const [url, setUrl] = useState('');
-  const [path, setPath] = useState('');
+  const [url, setUrl] = useState("");
+  const [path, setPath] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Reset on open
   useEffect(() => {
     if (isOpen) {
-      setUrl('');
-      setPath('');
+      setUrl("");
+      setPath("");
     }
   }, [isOpen]);
 
@@ -34,10 +34,10 @@ export function SubmoduleModal({ isOpen, onClose }: SubmoduleModalProps) {
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === "Escape") onClose();
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, [isOpen, onClose]);
 
   const handleSubmit = async () => {
@@ -45,10 +45,16 @@ export function SubmoduleModal({ isOpen, onClose }: SubmoduleModalProps) {
     setIsSubmitting(true);
     try {
       await addSubmodule(url.trim(), path.trim());
-      addNotification({ type: 'success', message: `Submodule added at "${path}"` });
+      addNotification({
+        type: "success",
+        message: `Submodule added at "${path}"`,
+      });
       onClose();
     } catch (err) {
-      addNotification({ type: 'error', message: `Failed to add submodule: ${err}` });
+      addNotification({
+        type: "error",
+        message: `Failed to add submodule: ${err}`,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -58,7 +64,7 @@ export function SubmoduleModal({ isOpen, onClose }: SubmoduleModalProps) {
 
   return (
     <div className="submodule-overlay" onClick={onClose}>
-      <div className="submodule-modal" onClick={e => e.stopPropagation()}>
+      <div className="submodule-modal" onClick={(e) => e.stopPropagation()}>
         <div className="submodule-header">
           <h3>
             <Package size={16} />
@@ -77,8 +83,7 @@ export function SubmoduleModal({ isOpen, onClose }: SubmoduleModalProps) {
               type="text"
               placeholder="https://github.com/user/repo.git"
               value={url}
-              onChange={e => setUrl(e.target.value)}
-              autoFocus
+              onChange={(e) => setUrl(e.target.value)}
             />
           </div>
 
@@ -89,13 +94,16 @@ export function SubmoduleModal({ isOpen, onClose }: SubmoduleModalProps) {
               type="text"
               placeholder="libs/my-submodule"
               value={path}
-              onChange={e => setPath(e.target.value)}
+              onChange={(e) => setPath(e.target.value)}
             />
           </div>
         </div>
 
         <div className="submodule-footer">
-          <button className="settings-btn settings-btn-outline" onClick={onClose}>
+          <button
+            className="settings-btn settings-btn-outline"
+            onClick={onClose}
+          >
             Cancel
           </button>
           <button
@@ -104,7 +112,7 @@ export function SubmoduleModal({ isOpen, onClose }: SubmoduleModalProps) {
             disabled={!url.trim() || !path.trim() || isSubmitting}
           >
             <Plus size={14} />
-            {isSubmitting ? 'Adding...' : 'Add Submodule'}
+            {isSubmitting ? "Adding..." : "Add Submodule"}
           </button>
         </div>
       </div>

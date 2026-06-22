@@ -94,6 +94,21 @@ Alternatively, you can run the frontend and native wrapper in separate terminals
 To ensure code quality and stability, run the local verification suite:
 
 ### Frontend
+Run the Biome linter check:
+```bash
+npm run lint
+```
+
+Auto-apply safe lint fixes and formatting:
+```bash
+npm run lint:fix
+```
+
+Auto-format all source files:
+```bash
+npm run format
+```
+
 Verify that the React frontend builds and typechecks without errors:
 ```bash
 npm run build

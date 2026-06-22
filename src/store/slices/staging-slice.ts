@@ -1,11 +1,7 @@
-import type { StateCreator } from 'zustand';
-import type { RepoState } from '../types';
-import type {
-  StashInfo,
-  FileDiff,
-  ConflictStages,
-} from '../../lib/git-types';
-import * as commands from '../../lib/tauri-commands';
+import type { StateCreator } from "zustand";
+import type { ConflictStages, FileDiff, StashInfo } from "../../lib/git-types";
+import * as commands from "../../lib/tauri-commands";
+import type { RepoState } from "../types";
 
 export interface StagingSlice {
   stashes: StashInfo[];
@@ -23,7 +19,10 @@ export interface StagingSlice {
   stageFiles: (files: string[]) => Promise<void>;
   unstageFiles: (files: string[]) => Promise<void>;
   discardChanges: (files: string[]) => Promise<void>;
-  applyPatch: (patch: string, location: 'index' | 'workdir' | 'both') => Promise<void>;
+  applyPatch: (
+    patch: string,
+    location: "index" | "workdir" | "both",
+  ) => Promise<void>;
   commit: (message: string, amend?: boolean) => Promise<void>;
   loadStashes: () => Promise<void>;
   saveStash: (message: string, includeUntracked: boolean) => Promise<void>;
@@ -34,10 +33,18 @@ export interface StagingSlice {
   selectStashFile: (filePath: string | null) => Promise<void>;
   createBranchFromStash: (index: number, branchName: string) => Promise<void>;
   loadConflictStages: (filePath: string) => Promise<void>;
-  resolveConflictStages: (filePath: string, mergedContent: string) => Promise<void>;
+  resolveConflictStages: (
+    filePath: string,
+    mergedContent: string,
+  ) => Promise<void>;
 }
 
-export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> = (set, get) => ({
+export const createStagingSlice: StateCreator<
+  RepoState,
+  [],
+  [],
+  StagingSlice
+> = (set, get) => ({
   stashes: [],
   selectedStashIndex: null,
   stashDiff: [],
@@ -50,7 +57,12 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
   activeConflictedPath: null,
 
   selectLocalFile: async (path, isStaged) => {
-    set({ selectedFilePath: path, selectedFileIsStaged: isStaged, localDiff: null, error: null });
+    set({
+      selectedFilePath: path,
+      selectedFileIsStaged: isStaged,
+      localDiff: null,
+      error: null,
+    });
     if (!path) return;
 
     const { activeTabId } = get();
@@ -58,10 +70,12 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
 
     set({ isLoading: true });
     try {
-      const diff = await commands.getFileDiff(activeTabId, path, isStaged, { silent: true });
+      const diff = await commands.getFileDiff(activeTabId, path, isStaged, {
+        silent: true,
+      });
       set({ localDiff: diff });
     } catch (err) {
-      console.error('Failed to load local file diff:', err);
+      console.error("Failed to load local file diff:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -75,16 +89,18 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
 
     set({ isLoading: true, error: null });
     try {
-      await commands.stageFiles(activeTabId, files, { errorPrefix: 'Failed to stage files' });
+      await commands.stageFiles(activeTabId, files, {
+        errorPrefix: "Failed to stage files",
+      });
       await get().refreshAll();
-      
+
       // Refresh current diff if it's selected
       const { selectedFilePath } = get();
       if (selectedFilePath && files.includes(selectedFilePath)) {
         await get().selectLocalFile(selectedFilePath, true);
       }
     } catch (err) {
-      console.error('Failed to stage files:', err);
+      console.error("Failed to stage files:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -98,7 +114,9 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
 
     set({ isLoading: true, error: null });
     try {
-      await commands.unstageFiles(activeTabId, files, { errorPrefix: 'Failed to unstage files' });
+      await commands.unstageFiles(activeTabId, files, {
+        errorPrefix: "Failed to unstage files",
+      });
       await get().refreshAll();
 
       // Refresh current diff if it's selected
@@ -107,7 +125,7 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
         await get().selectLocalFile(selectedFilePath, false);
       }
     } catch (err) {
-      console.error('Failed to unstage files:', err);
+      console.error("Failed to unstage files:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -121,8 +139,10 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
 
     set({ isLoading: true, error: null });
     try {
-      await commands.discardChanges(activeTabId, files, { errorPrefix: 'Failed to discard changes' });
-      
+      await commands.discardChanges(activeTabId, files, {
+        errorPrefix: "Failed to discard changes",
+      });
+
       // Reset selected file if discarded
       const { selectedFilePath } = get();
       if (selectedFilePath && files.includes(selectedFilePath)) {
@@ -131,7 +151,7 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
 
       await get().refreshAll();
     } catch (err) {
-      console.error('Failed to discard changes:', err);
+      console.error("Failed to discard changes:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -145,7 +165,9 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
 
     set({ isLoading: true, error: null });
     try {
-      await commands.applyPatch(activeTabId, patch, location, { errorPrefix: 'Failed to apply patch' });
+      await commands.applyPatch(activeTabId, patch, location, {
+        errorPrefix: "Failed to apply patch",
+      });
       await get().refreshAll();
 
       // Refresh current diff if one is selected
@@ -154,7 +176,7 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
         await get().selectLocalFile(selectedFilePath, selectedFileIsStaged);
       }
     } catch (err) {
-      console.error('Failed to apply patch:', err);
+      console.error("Failed to apply patch:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -168,11 +190,13 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
 
     set({ isLoading: true, error: null });
     try {
-      await commands.createCommit(activeTabId, message, null, null, amend, { errorPrefix: 'Failed to commit' });
+      await commands.createCommit(activeTabId, message, null, null, amend, {
+        errorPrefix: "Failed to commit",
+      });
       set({ selectedFilePath: null, localDiff: null });
       await get().refreshAll();
     } catch (err) {
-      console.error('Failed to commit:', err);
+      console.error("Failed to commit:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -188,7 +212,7 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
       const list = await commands.listStashes(activeTabId, { silent: true });
       set({ stashes: list });
     } catch (err) {
-      console.error('Failed to load stashes:', err);
+      console.error("Failed to load stashes:", err);
       set({ error: String(err) });
     }
   },
@@ -199,10 +223,12 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
 
     set({ isLoading: true, error: null });
     try {
-      await commands.saveStash(activeTabId, message, includeUntracked, { errorPrefix: 'Failed to save stash' });
+      await commands.saveStash(activeTabId, message, includeUntracked, {
+        errorPrefix: "Failed to save stash",
+      });
       await get().refreshAll();
     } catch (err) {
-      console.error('Failed to save stash:', err);
+      console.error("Failed to save stash:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -216,10 +242,12 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
 
     set({ isLoading: true, error: null });
     try {
-      await commands.applyStash(activeTabId, index, { errorPrefix: 'Failed to apply stash' });
+      await commands.applyStash(activeTabId, index, {
+        errorPrefix: "Failed to apply stash",
+      });
       await get().refreshAll();
     } catch (err) {
-      console.error('Failed to apply stash:', err);
+      console.error("Failed to apply stash:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -233,10 +261,12 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
 
     set({ isLoading: true, error: null });
     try {
-      await commands.popStash(activeTabId, index, { errorPrefix: 'Failed to pop stash' });
+      await commands.popStash(activeTabId, index, {
+        errorPrefix: "Failed to pop stash",
+      });
       await get().refreshAll();
     } catch (err) {
-      console.error('Failed to pop stash:', err);
+      console.error("Failed to pop stash:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -250,10 +280,12 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
 
     set({ isLoading: true, error: null });
     try {
-      await commands.dropStash(activeTabId, index, { errorPrefix: 'Failed to drop stash' });
+      await commands.dropStash(activeTabId, index, {
+        errorPrefix: "Failed to drop stash",
+      });
       await get().refreshAll();
     } catch (err) {
-      console.error('Failed to drop stash:', err);
+      console.error("Failed to drop stash:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -265,20 +297,22 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
     const { activeTabId, stashes } = get();
     if (!activeTabId) return;
 
-    set({ 
-      selectedStashIndex: index, 
-      stashDiff: [], 
-      selectedStashFile: null, 
-      selectedStashFileDiff: null, 
+    set({
+      selectedStashIndex: index,
+      stashDiff: [],
+      selectedStashFile: null,
+      selectedStashFileDiff: null,
       isLoading: true,
-      error: null
+      error: null,
     });
     try {
-      const stash = stashes.find(s => s.index === index);
+      const stash = stashes.find((s) => s.index === index);
       if (!stash) {
         throw new Error(`Stash at index ${index} not found`);
       }
-      const diff = await commands.getStashDiff(activeTabId, stash.oid, { silent: true });
+      const diff = await commands.getStashDiff(activeTabId, stash.oid, {
+        silent: true,
+      });
       set({ stashDiff: diff });
 
       // Automatically select first file
@@ -289,7 +323,7 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
         }
       }
     } catch (err) {
-      console.error('Failed to load stash diff:', err);
+      console.error("Failed to load stash diff:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -301,7 +335,9 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
     set({ selectedStashFile: filePath, selectedStashFileDiff: null });
     if (!filePath) return;
 
-    const diff = get().stashDiff.find(d => d.newPath === filePath || d.oldPath === filePath);
+    const diff = get().stashDiff.find(
+      (d) => d.newPath === filePath || d.oldPath === filePath,
+    );
     if (diff) {
       set({ selectedStashFileDiff: diff });
     }
@@ -313,23 +349,27 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
 
     set({ isLoading: true, error: null });
     try {
-      const stash = stashes.find(s => s.index === index);
+      const stash = stashes.find((s) => s.index === index);
       if (!stash) {
         throw new Error(`Stash at index ${index} not found`);
       }
-      
+
       // 1. Create a branch from stash parent (stash.oid + "^1")
-      await commands.createBranch(activeTabId, branchName, `${stash.oid}^1`, { errorPrefix: 'Failed to branch from stash' });
-      
+      await commands.createBranch(activeTabId, branchName, `${stash.oid}^1`, {
+        errorPrefix: "Failed to branch from stash",
+      });
+
       // 2. Checkout that new branch
       await get().checkoutBranch(branchName);
-      
+
       // 3. Pop the stash (applies to workspace and drops)
-      await commands.popStash(activeTabId, index, { errorPrefix: 'Failed to pop stash' });
-      
+      await commands.popStash(activeTabId, index, {
+        errorPrefix: "Failed to pop stash",
+      });
+
       await get().refreshAll();
     } catch (err) {
-      console.error('Failed to create branch from stash:', err);
+      console.error("Failed to create branch from stash:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -341,12 +381,19 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, conflictStages: null, activeConflictedPath: filePath, error: null });
+    set({
+      isLoading: true,
+      conflictStages: null,
+      activeConflictedPath: filePath,
+      error: null,
+    });
     try {
-      const stages = await commands.getConflictStages(activeTabId, filePath, { silent: true });
+      const stages = await commands.getConflictStages(activeTabId, filePath, {
+        silent: true,
+      });
       set({ conflictStages: stages });
     } catch (err) {
-      console.error('Failed to load conflict stages:', err);
+      console.error("Failed to load conflict stages:", err);
       set({ error: String(err) });
       throw err;
     } finally {
@@ -360,11 +407,16 @@ export const createStagingSlice: StateCreator<RepoState, [], [], StagingSlice> =
 
     set({ isLoading: true, error: null });
     try {
-      await commands.saveMergedResolution(activeTabId, filePath, mergedContent, { errorPrefix: 'Failed to resolve conflict' });
+      await commands.saveMergedResolution(
+        activeTabId,
+        filePath,
+        mergedContent,
+        { errorPrefix: "Failed to resolve conflict" },
+      );
       set({ conflictStages: null, activeConflictedPath: null });
       await get().refreshAll();
     } catch (err) {
-      console.error('Failed to resolve conflict:', err);
+      console.error("Failed to resolve conflict:", err);
       set({ error: String(err) });
       throw err;
     } finally {

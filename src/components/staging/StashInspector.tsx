@@ -3,63 +3,66 @@
    Visual workspace to explore and manage git stashes
    ═══════════════════════════════════════════════════════ */
 
-import { useState, useEffect } from 'react';
-import { DiffEditor } from '@monaco-editor/react';
-import { 
-  Archive, 
-  GitBranch, 
-  Trash2, 
-  CornerDownLeft, 
-  Play, 
-  FileCode, 
+import { DiffEditor } from "@monaco-editor/react";
+import {
+  Archive,
   ArrowLeftRight,
   ChevronRight,
-  Info
-} from 'lucide-react';
-import { useRepoStore } from '../../store/repo-store';
-import { useUIStore } from '../../store/ui-store';
-import { getFileContentPairRevisions, FileContentPair } from '../../lib/tauri-commands';
-import './StashInspector.css';
+  CornerDownLeft,
+  FileCode,
+  GitBranch,
+  Info,
+  Play,
+  Trash2,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  type FileContentPair,
+  getFileContentPairRevisions,
+} from "../../lib/tauri-commands";
+import { useRepoStore } from "../../store/repo-store";
+import { useUIStore } from "../../store/ui-store";
+import "./StashInspector.css";
 
 function getLanguageFromPath(filePath: string): string {
-  const ext = filePath.split('.').pop()?.toLowerCase();
+  const ext = filePath.split(".").pop()?.toLowerCase();
   switch (ext) {
-    case 'js':
-    case 'jsx':
-      return 'javascript';
-    case 'ts':
-    case 'tsx':
-      return 'typescript';
-    case 'rs':
-      return 'rust';
-    case 'py':
-      return 'python';
-    case 'go':
-      return 'go';
-    case 'java':
-      return 'java';
-    case 'cpp':
-    case 'cc':
-    case 'h':
-      return 'cpp';
-    case 'cs':
-      return 'csharp';
-    case 'css':
-      return 'css';
-    case 'html':
-      return 'html';
-    case 'json':
-      return 'json';
-    case 'md':
-      return 'markdown';
-    case 'sh':
-    case 'bash':
-      return 'shell';
-    case 'yml':
-    case 'yaml':
-      return 'yaml';
+    case "js":
+    case "jsx":
+      return "javascript";
+    case "ts":
+    case "tsx":
+      return "typescript";
+    case "rs":
+      return "rust";
+    case "py":
+      return "python";
+    case "go":
+      return "go";
+    case "java":
+      return "java";
+    case "cpp":
+    case "cc":
+    case "h":
+      return "cpp";
+    case "cs":
+      return "csharp";
+    case "css":
+      return "css";
+    case "html":
+      return "html";
+    case "json":
+      return "json";
+    case "md":
+      return "markdown";
+    case "sh":
+    case "bash":
+      return "shell";
+    case "yml":
+    case "yaml":
+      return "yaml";
     default:
-      return 'plaintext';
+      return "plaintext";
   }
 }
 
@@ -75,19 +78,25 @@ export function StashInspector() {
     createBranchFromStash,
     applyStash,
     popStash,
-    dropStash
+    dropStash,
   } = useRepoStore();
 
-  const { addNotification, setActiveView, openConfirm, openPrompt } = useUIStore();
+  const { addNotification, setActiveView, openConfirm, openPrompt } =
+    useUIStore();
   const [splitView, setSplitView] = useState(true);
   const [contents, setContents] = useState<FileContentPair | null>(null);
   const [loadingContents, setLoadingContents] = useState(false);
 
-  const selectedStash = stashes.find(s => s.index === selectedStashIndex);
+  const selectedStash = stashes.find((s) => s.index === selectedStashIndex);
 
   // Fetch file content pair for Monaco Diff Editor when selected stash or file changes
   useEffect(() => {
-    if (!activeTabId || selectedStashIndex === null || !selectedStashFile || !selectedStash) {
+    if (
+      !activeTabId ||
+      selectedStashIndex === null ||
+      !selectedStashFile ||
+      !selectedStash
+    ) {
       setContents(null);
       return;
     }
@@ -95,12 +104,17 @@ export function StashInspector() {
     setLoadingContents(true);
     // Base: stash parent commit (stash.oid + "^1")
     // Target: stash merge commit (stash.oid)
-    getFileContentPairRevisions(activeTabId, selectedStashFile, `${selectedStash.oid}^1`, selectedStash.oid)
+    getFileContentPairRevisions(
+      activeTabId,
+      selectedStashFile,
+      `${selectedStash.oid}^1`,
+      selectedStash.oid,
+    )
       .then((data) => {
         setContents(data);
       })
       .catch((err) => {
-        console.error('Failed to load stash file contents:', err);
+        console.error("Failed to load stash file contents:", err);
         setContents(null);
       })
       .finally(() => {
@@ -121,69 +135,90 @@ export function StashInspector() {
   const handlePop = async () => {
     try {
       await popStash(selectedStashIndex);
-      addNotification({ type: 'success', message: `Popped stash@{${selectedStashIndex}} successfully` });
-      setActiveView('graph');
+      addNotification({
+        type: "success",
+        message: `Popped stash@{${selectedStashIndex}} successfully`,
+      });
+      setActiveView("graph");
     } catch (err) {
-      addNotification({ type: 'error', message: `Failed to pop stash: ${err}` });
+      addNotification({
+        type: "error",
+        message: `Failed to pop stash: ${err}`,
+      });
     }
   };
 
   const handleApply = async () => {
     try {
       await applyStash(selectedStashIndex);
-      addNotification({ type: 'success', message: `Applied stash@{${selectedStashIndex}} successfully` });
-      setActiveView('graph');
+      addNotification({
+        type: "success",
+        message: `Applied stash@{${selectedStashIndex}} successfully`,
+      });
+      setActiveView("graph");
     } catch (err) {
-      addNotification({ type: 'error', message: `Failed to apply stash: ${err}` });
+      addNotification({
+        type: "error",
+        message: `Failed to apply stash: ${err}`,
+      });
     }
   };
 
   const handleDrop = () => {
     openConfirm({
-      title: 'Delete Stash',
+      title: "Delete Stash",
       message: `Are you sure you want to delete stash@{${selectedStashIndex}}? This action cannot be undone.`,
-      confirmLabel: 'Delete Stash',
+      confirmLabel: "Delete Stash",
       isDanger: true,
       onConfirm: async () => {
         try {
           await dropStash(selectedStashIndex);
-          addNotification({ type: 'success', message: `Dropped stash@{${selectedStashIndex}} successfully` });
-          setActiveView('graph');
+          addNotification({
+            type: "success",
+            message: `Dropped stash@{${selectedStashIndex}} successfully`,
+          });
+          setActiveView("graph");
         } catch (err) {
-          addNotification({ type: 'error', message: `Failed to drop stash: ${err}` });
+          addNotification({
+            type: "error",
+            message: `Failed to drop stash: ${err}`,
+          });
         }
-      }
+      },
     });
   };
 
   const handleBranch = () => {
     openPrompt({
-      title: 'Create Branch from Stash',
+      title: "Create Branch from Stash",
       description: `Create branch from stash@{${selectedStashIndex}}. Enter new branch name:`,
       fields: [
         {
-          name: 'branchName',
-          label: 'Branch Name',
-          placeholder: 'e.g. feature-stash',
-          required: true
-        }
+          name: "branchName",
+          label: "Branch Name",
+          placeholder: "e.g. feature-stash",
+          required: true,
+        },
       ],
-      submitLabel: 'Create & Pop',
+      submitLabel: "Create & Pop",
       onSubmit: async (values) => {
-        const branchName = values.branchName || '';
+        const branchName = values.branchName || "";
         if (branchName.trim()) {
           try {
             await createBranchFromStash(selectedStashIndex, branchName.trim());
-            addNotification({ 
-              type: 'success', 
-              message: `Created branch "${branchName.trim()}" and popped stash@{${selectedStashIndex}}` 
+            addNotification({
+              type: "success",
+              message: `Created branch "${branchName.trim()}" and popped stash@{${selectedStashIndex}}`,
             });
-            setActiveView('graph');
+            setActiveView("graph");
           } catch (err) {
-            addNotification({ type: 'error', message: `Failed to branch from stash: ${err}` });
+            addNotification({
+              type: "error",
+              message: `Failed to branch from stash: ${err}`,
+            });
           }
         }
-      }
+      },
     });
   };
 
@@ -194,8 +229,14 @@ export function StashInspector() {
         <div className="stash-meta">
           <div className="stash-title">
             <Archive size={16} className="stash-icon-accent" />
-            <span className="stash-index">stash@{'{'}{selectedStashIndex}{'}'}</span>
-            <span className="stash-oid text-tertiary text-mono">{selectedStash.oid.slice(0, 8)}</span>
+            <span className="stash-index">
+              stash@{"{"}
+              {selectedStashIndex}
+              {"}"}
+            </span>
+            <span className="stash-oid text-tertiary text-mono">
+              {selectedStash.oid.slice(0, 8)}
+            </span>
           </div>
           <p className="stash-msg truncate" title={selectedStash.message}>
             {selectedStash.message}
@@ -203,22 +244,38 @@ export function StashInspector() {
         </div>
 
         <div className="stash-actions">
-          <button className="stash-action-btn btn-secondary" onClick={handleApply} title="Apply stash changes and keep the stash in list">
+          <button
+            className="stash-action-btn btn-secondary"
+            onClick={handleApply}
+            title="Apply stash changes and keep the stash in list"
+          >
             <Play size={13} />
             <span>Apply</span>
           </button>
-          
-          <button className="stash-action-btn btn-secondary" onClick={handlePop} title="Apply stash changes and remove from stash list">
+
+          <button
+            className="stash-action-btn btn-secondary"
+            onClick={handlePop}
+            title="Apply stash changes and remove from stash list"
+          >
             <CornerDownLeft size={13} />
             <span>Pop</span>
           </button>
 
-          <button className="stash-action-btn btn-secondary" onClick={handleBranch} title="Create branch from the stash base commit and apply changes">
+          <button
+            className="stash-action-btn btn-secondary"
+            onClick={handleBranch}
+            title="Create branch from the stash base commit and apply changes"
+          >
             <GitBranch size={13} />
             <span>Branch</span>
           </button>
 
-          <button className="stash-action-btn btn-danger" onClick={handleDrop} title="Discard this stash entry permanently">
+          <button
+            className="stash-action-btn btn-danger"
+            onClick={handleDrop}
+            title="Discard this stash entry permanently"
+          >
             <Trash2 size={13} />
             <span>Drop</span>
           </button>
@@ -240,13 +297,13 @@ export function StashInspector() {
               </div>
             ) : (
               stashDiff.map((file) => {
-                const filePath = file.newPath || file.oldPath || '';
+                const filePath = file.newPath || file.oldPath || "";
                 const isSelected = selectedStashFile === filePath;
 
                 return (
                   <button
                     key={filePath}
-                    className={`stash-file-item ${isSelected ? 'active' : ''}`}
+                    className={`stash-file-item ${isSelected ? "active" : ""}`}
                     onClick={() => selectStashFile(filePath)}
                     title={filePath}
                   >
@@ -276,15 +333,15 @@ export function StashInspector() {
                 <span>No file selected</span>
               )}
             </div>
-            
+
             {selectedStashFile && (
               <button
-                className={`layout-toggle-btn ${splitView ? 'active' : ''}`}
+                className={`layout-toggle-btn ${splitView ? "active" : ""}`}
                 onClick={() => setSplitView(!splitView)}
                 title="Toggle Split / Inline diff"
               >
                 <ArrowLeftRight size={13} />
-                <span>{splitView ? 'Split' : 'Unified'}</span>
+                <span>{splitView ? "Split" : "Unified"}</span>
               </button>
             )}
           </div>
@@ -314,13 +371,14 @@ export function StashInspector() {
                     readOnly: true,
                     minimap: { enabled: false },
                     scrollbar: {
-                      vertical: 'visible',
-                      horizontal: 'visible',
+                      vertical: "visible",
+                      horizontal: "visible",
                     },
                     fontSize: 12,
-                    fontFamily: 'JetBrains Mono, Fira Code, Menlo, Monaco, Consolas, monospace',
+                    fontFamily:
+                      "JetBrains Mono, Fira Code, Menlo, Monaco, Consolas, monospace",
                     scrollBeyondLastLine: false,
-                    diffWordWrap: 'off',
+                    diffWordWrap: "off",
                   }}
                 />
               ) : (
@@ -332,7 +390,9 @@ export function StashInspector() {
               <div className="stash-diff-placeholder">
                 <FileCode size={48} strokeWidth={1} />
                 <h3>No File Selected</h3>
-                <p>Select a stashed file from the list to view its diff contents</p>
+                <p>
+                  Select a stashed file from the list to view its diff contents
+                </p>
               </div>
             )}
           </div>

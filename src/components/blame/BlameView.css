@@ -134,7 +134,9 @@
   padding: var(--space-1);
   border-radius: var(--radius-sm);
   opacity: 0;
-  transition: opacity var(--transition-fast), color var(--transition-fast);
+  transition:
+    opacity var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .blame-line-row:hover .blame-gutter-parent {
@@ -166,9 +168,21 @@
 }
 
 /* ── Block highlight groupings ── */
-.color-group-0 { border-left-color: #58a6ff; }
-.color-group-1 { border-left-color: #3fb950; }
-.color-group-2 { border-left-color: #f0883e; }
-.color-group-3 { border-left-color: #bc8cff; }
-.color-group-4 { border-left-color: #f85149; }
-.color-group-5 { border-left-color: #2dd4bf; }
+.color-group-0 {
+  border-left-color: #58a6ff;
+}
+.color-group-1 {
+  border-left-color: #3fb950;
+}
+.color-group-2 {
+  border-left-color: #f0883e;
+}
+.color-group-3 {
+  border-left-color: #bc8cff;
+}
+.color-group-4 {
+  border-left-color: #f85149;
+}
+.color-group-5 {
+  border-left-color: #2dd4bf;
+}

@@ -1,19 +1,58 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
-import { useUIStore } from '../../store/ui-store';
-import './PromptModal.css';
+import { X } from "lucide-react";
+import type React from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useUIStore } from "../../store/ui-store";
+import "./PromptModal.css";
 
 export function PromptModal() {
   const { promptOptions, closePrompt } = useUIStore();
   const [formValues, setFormValues] = useState<Record<string, string>>({});
-  const inputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
+  const inputRefs = useRef<
+    Record<string, HTMLInputElement | HTMLTextAreaElement | null>
+  >({});
+
+  const handleValueChange = useCallback((name: string, value: string) => {
+    setFormValues((prev) => ({ ...prev, [name]: value }));
+  }, []);
+
+  const handleCancel = useCallback(() => {
+    if (promptOptions?.onCancel) {
+      promptOptions.onCancel();
+    }
+    closePrompt();
+  }, [promptOptions, closePrompt]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promptOptions) return;
+
+    // Validate required fields
+    let valid = true;
+    promptOptions.fields.forEach((field) => {
+      if (field.required && !formValues[field.name]?.trim()) {
+        valid = false;
+      }
+    });
+
+    if (valid) {
+      promptOptions.onSubmit(formValues);
+      closePrompt();
+    }
+  };
+
+  // Check if form is valid to submit
+  const isFormValid =
+    promptOptions?.fields.every((field) => {
+      if (!field.required) return true;
+      return !!formValues[field.name]?.trim();
+    }) ?? false;
 
   useEffect(() => {
     if (promptOptions) {
       // Initialize form values from fields default values
       const initial: Record<string, string> = {};
       promptOptions.fields.forEach((field) => {
-        initial[field.name] = field.defaultValue ?? '';
+        initial[field.name] = field.defaultValue ?? "";
       });
       setFormValues(initial);
 
@@ -34,53 +73,22 @@ export function PromptModal() {
   useEffect(() => {
     if (!promptOptions) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         handleCancel();
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [promptOptions]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [promptOptions, handleCancel]);
 
   if (!promptOptions) return null;
 
-  const handleValueChange = (name: string, value: string) => {
-    setFormValues((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleCancel = () => {
-    if (promptOptions.onCancel) {
-      promptOptions.onCancel();
-    }
-    closePrompt();
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate required fields
-    let valid = true;
-    promptOptions.fields.forEach((field) => {
-      if (field.required && !formValues[field.name]?.trim()) {
-        valid = false;
-      }
-    });
-
-    if (valid) {
-      promptOptions.onSubmit(formValues);
-      closePrompt();
-    }
-  };
-
-  // Check if form is valid to submit
-  const isFormValid = promptOptions.fields.every((field) => {
-    if (!field.required) return true;
-    return !!formValues[field.name]?.trim();
-  });
-
   return (
     <div className="prompt-overlay animate-fade-in" onClick={handleCancel}>
-      <div className="prompt-modal animate-scale-in" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="prompt-modal animate-scale-in"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="prompt-header">
           <h3>{promptOptions.title}</h3>
@@ -101,17 +109,23 @@ export function PromptModal() {
                 <div key={field.name} className="prompt-field-group">
                   <label htmlFor={`prompt-field-${field.name}`}>
                     {field.label}
-                    {field.required && <span className="required-star"> *</span>}
+                    {field.required && (
+                      <span className="required-star"> *</span>
+                    )}
                   </label>
 
-                  {field.type === 'textarea' ? (
+                  {field.type === "textarea" ? (
                     <textarea
                       id={`prompt-field-${field.name}`}
-                      ref={(el) => { inputRefs.current[field.name] = el; }}
+                      ref={(el) => {
+                        inputRefs.current[field.name] = el;
+                      }}
                       className="prompt-textarea"
                       placeholder={field.placeholder}
-                      value={formValues[field.name] ?? ''}
-                      onChange={(e) => handleValueChange(field.name, e.target.value)}
+                      value={formValues[field.name] ?? ""}
+                      onChange={(e) =>
+                        handleValueChange(field.name, e.target.value)
+                      }
                       rows={4}
                       required={field.required}
                     />
@@ -119,11 +133,15 @@ export function PromptModal() {
                     <input
                       type="text"
                       id={`prompt-field-${field.name}`}
-                      ref={(el) => { inputRefs.current[field.name] = el; }}
+                      ref={(el) => {
+                        inputRefs.current[field.name] = el;
+                      }}
                       className="prompt-input"
                       placeholder={field.placeholder}
-                      value={formValues[field.name] ?? ''}
-                      onChange={(e) => handleValueChange(field.name, e.target.value)}
+                      value={formValues[field.name] ?? ""}
+                      onChange={(e) =>
+                        handleValueChange(field.name, e.target.value)
+                      }
                       required={field.required}
                       autoComplete="off"
                     />
@@ -147,7 +165,7 @@ export function PromptModal() {
               className="prompt-btn prompt-btn-primary"
               disabled={!isFormValid}
             >
-              {promptOptions.submitLabel ?? 'Submit'}
+              {promptOptions.submitLabel ?? "Submit"}
             </button>
           </div>
         </form>

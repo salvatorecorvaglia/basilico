@@ -3,11 +3,11 @@
    Dialog for adding new git worktrees
    ═══════════════════════════════════════════════════════ */
 
-import { useState, useEffect } from 'react';
-import { X, FolderTree, Plus } from 'lucide-react';
-import { useRepoStore } from '../../store/repo-store';
-import { useUIStore } from '../../store/ui-store';
-import './WorktreeModal.css';
+import { FolderTree, Plus, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useRepoStore } from "../../store/repo-store";
+import { useUIStore } from "../../store/ui-store";
+import "./WorktreeModal.css";
 
 interface WorktreeModalProps {
   isOpen: boolean;
@@ -18,17 +18,17 @@ export function WorktreeModal({ isOpen, onClose }: WorktreeModalProps) {
   const { addWorktree, branches } = useRepoStore();
   const { addNotification } = useUIStore();
 
-  const [path, setPath] = useState('');
-  const [newBranch, setNewBranch] = useState('');
-  const [existingBranch, setExistingBranch] = useState('');
+  const [path, setPath] = useState("");
+  const [newBranch, setNewBranch] = useState("");
+  const [existingBranch, setExistingBranch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Reset on open
   useEffect(() => {
     if (isOpen) {
-      setPath('');
-      setNewBranch('');
-      setExistingBranch('');
+      setPath("");
+      setNewBranch("");
+      setExistingBranch("");
     }
   }, [isOpen]);
 
@@ -36,37 +36,39 @@ export function WorktreeModal({ isOpen, onClose }: WorktreeModalProps) {
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === "Escape") onClose();
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, [isOpen, onClose]);
 
   const handleSubmit = async () => {
     if (!path.trim()) return;
     setIsSubmitting(true);
     try {
-      await addWorktree(
-        path.trim(),
-        existingBranch || null,
-        newBranch || null,
-      );
-      addNotification({ type: 'success', message: `Worktree added at "${path}"` });
+      await addWorktree(path.trim(), existingBranch || null, newBranch || null);
+      addNotification({
+        type: "success",
+        message: `Worktree added at "${path}"`,
+      });
       onClose();
     } catch (err) {
-      addNotification({ type: 'error', message: `Failed to add worktree: ${err}` });
+      addNotification({
+        type: "error",
+        message: `Failed to add worktree: ${err}`,
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const localBranches = branches.filter(b => !b.isRemote);
+  const localBranches = branches.filter((b) => !b.isRemote);
 
   if (!isOpen) return null;
 
   return (
     <div className="worktree-overlay" onClick={onClose}>
-      <div className="worktree-modal" onClick={e => e.stopPropagation()}>
+      <div className="worktree-modal" onClick={(e) => e.stopPropagation()}>
         <div className="worktree-header">
           <h3>
             <FolderTree size={16} />
@@ -85,8 +87,7 @@ export function WorktreeModal({ isOpen, onClose }: WorktreeModalProps) {
               type="text"
               placeholder="/path/to/worktree"
               value={path}
-              onChange={e => setPath(e.target.value)}
-              autoFocus
+              onChange={(e) => setPath(e.target.value)}
             />
           </div>
 
@@ -95,14 +96,16 @@ export function WorktreeModal({ isOpen, onClose }: WorktreeModalProps) {
             <select
               className="worktree-input"
               value={existingBranch}
-              onChange={e => {
+              onChange={(e) => {
                 setExistingBranch(e.target.value);
-                if (e.target.value) setNewBranch('');
+                if (e.target.value) setNewBranch("");
               }}
             >
               <option value="">— none —</option>
-              {localBranches.map(b => (
-                <option key={b.name} value={b.name}>{b.name}</option>
+              {localBranches.map((b) => (
+                <option key={b.name} value={b.name}>
+                  {b.name}
+                </option>
               ))}
             </select>
           </div>
@@ -114,9 +117,9 @@ export function WorktreeModal({ isOpen, onClose }: WorktreeModalProps) {
               type="text"
               placeholder="feature/my-branch"
               value={newBranch}
-              onChange={e => {
+              onChange={(e) => {
                 setNewBranch(e.target.value);
-                if (e.target.value) setExistingBranch('');
+                if (e.target.value) setExistingBranch("");
               }}
               disabled={!!existingBranch}
             />
@@ -124,7 +127,10 @@ export function WorktreeModal({ isOpen, onClose }: WorktreeModalProps) {
         </div>
 
         <div className="worktree-footer">
-          <button className="settings-btn settings-btn-outline" onClick={onClose}>
+          <button
+            className="settings-btn settings-btn-outline"
+            onClick={onClose}
+          >
             Cancel
           </button>
           <button
@@ -133,7 +139,7 @@ export function WorktreeModal({ isOpen, onClose }: WorktreeModalProps) {
             disabled={!path.trim() || isSubmitting}
           >
             <Plus size={14} />
-            {isSubmitting ? 'Adding...' : 'Add Worktree'}
+            {isSubmitting ? "Adding..." : "Add Worktree"}
           </button>
         </div>
       </div>

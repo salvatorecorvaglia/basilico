@@ -25,13 +25,20 @@
 
 .welcome-logo-icon {
   font-size: 64px;
-  filter: drop-shadow(0 0 30px color-mix(in srgb, var(--accent-primary) 30%, transparent));
+  filter: drop-shadow(
+    0 0 30px color-mix(in srgb, var(--accent-primary) 30%, transparent)
+  );
   animation: float 3s ease-in-out infinite;
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
 .welcome-title {
@@ -39,7 +46,11 @@
   font-weight: var(--weight-bold);
   color: var(--text-primary);
   letter-spacing: -0.02em;
-  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-teal) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--text-primary) 0%,
+    var(--accent-teal) 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -140,8 +151,16 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse at 20% 50%, color-mix(in srgb, var(--accent-primary) 4%, transparent) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 50%, color-mix(in srgb, var(--accent-teal) 3%, transparent) 0%, transparent 50%);
+    radial-gradient(
+      ellipse at 20% 50%,
+      color-mix(in srgb, var(--accent-primary) 4%, transparent) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at 80% 50%,
+      color-mix(in srgb, var(--accent-teal) 3%, transparent) 0%,
+      transparent 50%
+    );
   pointer-events: none;
 }
 
@@ -175,4 +194,3 @@
 .welcome-btn-dev:hover .welcome-btn-dev-text {
   color: var(--text-primary);
 }
-
