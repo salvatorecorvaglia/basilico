@@ -287,6 +287,7 @@ export function CommandPalette() {
   );
 
   // Adjust selected index on filter changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset index on query change
   useEffect(() => {
     setSelectedIndex(0);
   }, [query]);
@@ -330,6 +331,7 @@ export function CommandPalette() {
   };
 
   // Scroll selected item into view automatically
+  // biome-ignore lint/correctness/useExhaustiveDependencies: run scroll effect when selectedIndex changes
   useEffect(() => {
     const listEl = listRef.current;
     if (listEl) {

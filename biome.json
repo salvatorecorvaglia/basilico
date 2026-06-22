@@ -20,6 +20,9 @@
       "a11y": {
         "recommended": false
       },
+      "complexity": {
+        "noImportantStyles": "off"
+      },
       "suspicious": {
         "noArrayIndexKey": "off",
         "noExplicitAny": "off"
