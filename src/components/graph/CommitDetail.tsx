@@ -3,6 +3,7 @@
    Shows details of the selected commit (changes & file tree)
    ═══════════════════════════════════════════════════════ */
 
+import * as ContextMenu from "@radix-ui/react-context-menu";
 import {
   Calendar,
   Check,
@@ -186,11 +187,6 @@ export function CommitDetail() {
   const [copiedOid, setCopiedOid] = useState(false);
   const [activeTab, setActiveTab] = useState<"changes" | "tree">("changes");
   const [sigInfo, setSigInfo] = useState<SignatureInfo | null>(null);
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    filePath: string;
-  } | null>(null);
 
   const commit = commits.find((c) => c.oid === selectedCommitOid);
 
@@ -274,19 +270,10 @@ export function CommitDetail() {
     });
   };
 
-  const handleFileContextMenu = (e: React.MouseEvent, filePath: string) => {
-    e.preventDefault();
-    setContextMenu({
-      x: e.clientX,
-      y: e.clientY,
-      filePath,
-    });
-  };
-
   const nestedTree = buildFileTree(commitTree);
 
   return (
-    <div className="commit-detail" onClick={() => setContextMenu(null)}>
+    <div className="commit-detail">
       {/* Header */}
       <div className="commit-detail-header">
         <div className="commit-detail-message">{commit.message}</div>
@@ -440,38 +427,64 @@ export function CommitDetail() {
                 commitDiff.map((file, i) => {
                   const filePath = file.newPath || file.oldPath || "";
                   return (
-                    <div
-                      key={i}
-                      className="commit-detail-file"
-                      onClick={() => {
-                        selectLocalFile(filePath, false);
-                        setActiveView("staging");
-                      }}
-                      onContextMenu={(e) => handleFileContextMenu(e, filePath)}
-                      style={{ cursor: "pointer" }}
-                    >
-                      <span
-                        className="commit-detail-file-status"
-                        style={{ color: getStatusColor(file.status) }}
-                      >
-                        {getStatusIcon(file.status)}
-                      </span>
-                      <span className="commit-detail-file-dir text-tertiary truncate">
-                        {getDirectory(filePath)}
-                        {getDirectory(filePath) && "/"}
-                      </span>
-                      <span className="commit-detail-file-name truncate">
-                        {getFileName(filePath)}
-                      </span>
-                      <span className="commit-detail-file-stats text-mono">
-                        <span className="stat-add">
-                          +{file.stats.additions}
-                        </span>
-                        <span className="stat-del">
-                          -{file.stats.deletions}
-                        </span>
-                      </span>
-                    </div>
+                    <ContextMenu.Root key={i}>
+                      <ContextMenu.Trigger>
+                        <div
+                          className="commit-detail-file"
+                          onClick={() => {
+                            selectLocalFile(filePath, false);
+                            setActiveView("staging");
+                          }}
+                          style={{ cursor: "pointer" }}
+                        >
+                          <span
+                            className="commit-detail-file-status"
+                            style={{ color: getStatusColor(file.status) }}
+                          >
+                            {getStatusIcon(file.status)}
+                          </span>
+                          <span className="commit-detail-file-dir text-tertiary truncate">
+                            {getDirectory(filePath)}
+                            {getDirectory(filePath) && "/"}
+                          </span>
+                          <span className="commit-detail-file-name truncate">
+                            {getFileName(filePath)}
+                          </span>
+                          <span className="commit-detail-file-stats text-mono">
+                            <span className="stat-add">
+                              +{file.stats.additions}
+                            </span>
+                            <span className="stat-del">
+                              -{file.stats.deletions}
+                            </span>
+                          </span>
+                        </div>
+                      </ContextMenu.Trigger>
+                      <ContextMenu.Portal>
+                        <ContextMenu.Content className="radix-context-menu">
+                          <ContextMenu.Item
+                            className="context-menu-item"
+                            onSelect={() => {
+                              selectLocalFile(filePath, false);
+                              setActiveView("blame");
+                            }}
+                          >
+                            <Clock size={12} />
+                            <span>View Blame</span>
+                          </ContextMenu.Item>
+                          <ContextMenu.Item
+                            className="context-menu-item"
+                            onSelect={() => {
+                              selectLocalFile(filePath, false);
+                              setActiveView("history");
+                            }}
+                          >
+                            <Calendar size={12} />
+                            <span>View File History</span>
+                          </ContextMenu.Item>
+                        </ContextMenu.Content>
+                      </ContextMenu.Portal>
+                    </ContextMenu.Root>
                   );
                 })
               )}
@@ -498,38 +511,6 @@ export function CommitDetail() {
           </div>
         )}
       </div>
-
-      {/* File Context Menu */}
-      {contextMenu && (
-        <div
-          className="sidebar-context-menu animate-fade-in"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            className="context-menu-item"
-            onClick={() => {
-              selectLocalFile(contextMenu.filePath, false);
-              setActiveView("blame");
-              setContextMenu(null);
-            }}
-          >
-            <Clock size={12} />
-            <span>View Blame</span>
-          </button>
-          <button
-            className="context-menu-item"
-            onClick={() => {
-              selectLocalFile(contextMenu.filePath, false);
-              setActiveView("history");
-              setContextMenu(null);
-            }}
-          >
-            <Calendar size={12} />
-            <span>View File History</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }

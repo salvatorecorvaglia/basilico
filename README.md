@@ -8,7 +8,7 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
 
 ## ✨ Features
 
-- **📊 Visual Git Commit Graph**: An interactive, high-performance, canvas-based Directed Acyclic Graph (DAG) for visualizing repository history with $O(1)$ index caching and smooth animation-frame throttling.
+- **📊 Interactive Git Commit Graph**: A highly responsive, React Flow-based (`@xyflow/react`) Directed Acyclic Graph (DAG) for visualizing repository history with curved edges, nodes synchronized with the active commit list, and native support for zooming and panning.
 - **🛠 Core Git Operations**: 
   - Effortless staging, committing, pushing, pulling, merging, and tagging.
   - Interactive stashing capabilities, complete with a dedicated `StashInspector` UI.
@@ -22,9 +22,10 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
   - Secure SSH key generation options with comment sanitization.
   - A Pull Request review dashboard to streamline code reviews.
 - **🎨 Premium Aesthetics**:
-  - Standardized CSS color variables and theme accents using modern CSS `color-mix` functions.
-  - Seamless Light/Dark theme configuration.
-  - Fully accessible (a11y) interactive elements, input fields, and custom scroll containers.
+  - Unified design system utilizing **Tailwind CSS v4** and modern CSS custom variables.
+  - **Radix UI** accessible overlay components (Dialogs, Popovers, Dropdowns, Context Menus, and Accordions).
+  - Raycast/Cursor inspired Command Palette for keyboard-driven navigation.
+  - Dynamic dark/light Monaco Diff Editor integrations that sync with system color schemes.
 - **🚀 Underlying Architecture**:
   - **Rust Backend**: Multithreaded command runner leveraging Rust `git2` bindings for maximum performance.
   - **State Management**: Highly optimized Zustand `repo-store` split into modular slices (`collaboration`, `git-data`, `settings`, `staging`, `tabs`).

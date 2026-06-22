@@ -1,20 +1,27 @@
 /* ═══════════════════════════════════════════════════════
    Basilico — Toolbar Component
-   Top action bar with branch selector and actions
+   Top action bar with repository selector, branch popover, and actions
    ═══════════════════════════════════════════════════════ */
 
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import * as Popover from "@radix-ui/react-popover";
+import { open } from "@tauri-apps/plugin-dialog";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
   Check,
   ChevronDown,
   Command,
+  FolderGit2,
+  FolderPlus,
   GitBranch,
+  Moon,
   RefreshCw,
   Search,
   Settings,
+  Sun,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./Toolbar.css";
@@ -29,7 +36,12 @@ export function Toolbar() {
     push,
     branches,
     checkoutBranch,
+    tabs,
+    activeTabId,
+    switchTab,
+    openRepository,
   } = useRepoStore();
+
   const {
     toggleCommandPalette,
     toggleSettings,
@@ -42,36 +54,33 @@ export function Toolbar() {
   const [isPulling, setIsPulling] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
 
-  const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
+  const [branchPopoverOpen, setBranchPopoverOpen] = useState(false);
   const [branchSearch, setBranchSearch] = useState("");
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on click outside
-  useEffect(() => {
-    if (!branchDropdownOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      ) {
-        setBranchDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [branchDropdownOpen]);
+  const [isDarkMode, setIsDarkMode] = useState(true);
 
-  // Close dropdown on Escape key
+  // Sync native color scheme with light-dark switcher
   useEffect(() => {
-    if (!branchDropdownOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setBranchDropdownOpen(false);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [branchDropdownOpen]);
+    const isDark =
+      document.documentElement.classList.contains("dark") ||
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("color-scheme")
+        .includes("dark");
+    setIsDarkMode(isDark);
+  }, []);
+
+  const toggleColorScheme = () => {
+    const nextDark = !isDarkMode;
+    setIsDarkMode(nextDark);
+    document.documentElement.style.colorScheme = nextDark ? "dark" : "light";
+    if (nextDark) {
+      document.documentElement.classList.add("dark");
+      document.documentElement.classList.remove("light");
+    } else {
+      document.documentElement.classList.add("light");
+      document.documentElement.classList.remove("dark");
+    }
+  };
 
   const handleCheckout = async (name: string) => {
     try {
@@ -80,13 +89,24 @@ export function Toolbar() {
         type: "success",
         message: `Checked out branch "${name}"`,
       });
-      setBranchDropdownOpen(false);
+      setBranchPopoverOpen(false);
       setBranchSearch("");
     } catch (err) {
       addNotification({
         type: "error",
         message: `Failed to checkout branch: ${err}`,
       });
+    }
+  };
+
+  const handleOpenRepo = async () => {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: "Open Git Repository",
+    });
+    if (selected) {
+      await openRepository(selected as string);
     }
   };
 
@@ -157,88 +177,138 @@ export function Toolbar() {
   const localBranches = filteredBranches.filter((b) => !b.isRemote);
   const remoteBranches = filteredBranches.filter((b) => b.isRemote);
 
+  const activeTabName =
+    tabs.find((t) => t.id === activeTabId)?.name || "Select Repository";
+
   return (
     <div className="toolbar">
       <div className="toolbar-section toolbar-left">
-        {/* Branch selector */}
-        <div className="toolbar-branch-wrapper" ref={dropdownRef}>
-          <button
-            className={`toolbar-btn toolbar-branch ${branchDropdownOpen ? "active" : ""}`}
-            onClick={() => {
-              setBranchDropdownOpen(!branchDropdownOpen);
-              setBranchSearch("");
-            }}
-            title="Switch branch"
-          >
-            <GitBranch size={14} />
-            <span className="truncate">{status?.branch || "No branch"}</span>
-            <ChevronDown size={12} className="toolbar-branch-chevron" />
-          </button>
+        {/* Repository Dropdown Selector */}
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild>
+            <button
+              className="toolbar-btn toolbar-repo-selector"
+              title="Switch active repository"
+            >
+              <FolderGit2
+                size={13}
+                style={{ color: "var(--accent-primary)" }}
+              />
+              <span className="truncate">{activeTabName}</span>
+              <ChevronDown size={11} className="opacity-60" />
+            </button>
+          </DropdownMenu.Trigger>
 
-          {branchDropdownOpen && (
-            <div className="toolbar-branch-dropdown animate-slide-down">
-              <div className="branch-dropdown-search-wrapper">
-                <Search size={12} className="branch-dropdown-search-icon" />
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content
+              className="radix-dropdown-content toolbar-repo-dropdown"
+              align="start"
+            >
+              <div className="popover-section-header">Active Repositories</div>
+              {tabs.map((tab) => (
+                <DropdownMenu.Item
+                  key={tab.id}
+                  className={`dropdown-item ${tab.id === activeTabId ? "active" : ""}`}
+                  onSelect={() => switchTab(tab.id)}
+                >
+                  <span className="truncate">{tab.name}</span>
+                  {tab.id === activeTabId && <Check size={12} />}
+                </DropdownMenu.Item>
+              ))}
+
+              <DropdownMenu.Separator className="dropdown-divider" />
+
+              <DropdownMenu.Item
+                className="dropdown-item"
+                onSelect={handleOpenRepo}
+              >
+                <div className="flex items-center gap-2">
+                  <FolderPlus size={13} />
+                  <span>Open Repository...</span>
+                </div>
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+
+        {/* Branch Selector Popover */}
+        <Popover.Root
+          open={branchPopoverOpen}
+          onOpenChange={setBranchPopoverOpen}
+        >
+          <Popover.Trigger asChild>
+            <button
+              className="toolbar-btn toolbar-branch-trigger"
+              title="Switch active branch"
+            >
+              <GitBranch size={13} />
+              <span className="truncate">{status?.branch || "No branch"}</span>
+              <ChevronDown size={11} className="opacity-60" />
+            </button>
+          </Popover.Trigger>
+
+          <Popover.Portal>
+            <Popover.Content
+              className="radix-popover-content toolbar-branch-popover"
+              align="start"
+              sideOffset={6}
+            >
+              <div className="popover-search-wrapper">
+                <Search size={12} className="popover-search-icon" />
                 <input
                   type="text"
-                  className="branch-dropdown-search"
+                  className="popover-search-input"
                   placeholder="Search branches..."
                   value={branchSearch}
                   onChange={(e) => setBranchSearch(e.target.value)}
                   autoFocus
-                  onClick={(e) => e.stopPropagation()}
                 />
               </div>
-              <div className="branch-dropdown-list custom-scrollbar">
+
+              <div className="popover-branch-list custom-scrollbar">
                 {localBranches.length === 0 && remoteBranches.length === 0 ? (
-                  <div className="branch-dropdown-empty">No branches found</div>
+                  <div className="popover-empty">No branches found</div>
                 ) : (
                   <>
                     {localBranches.length > 0 && (
-                      <div className="branch-dropdown-section-header">
+                      <div className="popover-section-header">
                         Local Branches
                       </div>
                     )}
                     {localBranches.map((branch) => (
                       <button
                         key={branch.name}
-                        className={`branch-dropdown-item ${branch.isHead ? "active" : ""}`}
+                        type="button"
+                        className={`popover-item ${branch.isHead ? "active" : ""}`}
                         onClick={() => handleCheckout(branch.name)}
                       >
-                        <span className="branch-dropdown-item-name truncate">
-                          {branch.name}
-                        </span>
-                        {branch.isHead && (
-                          <Check size={12} className="branch-active-check" />
-                        )}
+                        <span className="truncate">{branch.name}</span>
+                        {branch.isHead && <Check size={12} />}
                       </button>
                     ))}
 
                     {remoteBranches.length > 0 && (
-                      <div className="branch-dropdown-section-header">
+                      <div className="popover-section-header">
                         Remote Branches
                       </div>
                     )}
                     {remoteBranches.map((branch) => (
                       <button
                         key={branch.name}
-                        className="branch-dropdown-item remote"
+                        type="button"
+                        className="popover-item remote"
                         onClick={() => handleCheckout(branch.name)}
                       >
-                        <span className="branch-dropdown-item-name truncate">
-                          {branch.name}
-                        </span>
-                        {branch.isHead && (
-                          <Check size={12} className="branch-active-check" />
-                        )}
+                        <span className="truncate">{branch.name}</span>
+                        {branch.isHead && <Check size={12} />}
                       </button>
                     ))}
                   </>
                 )}
               </div>
-            </div>
-          )}
-        </div>
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
 
         {status && (status.ahead > 0 || status.behind > 0) && (
           <div className="toolbar-sync-status">
@@ -261,6 +331,7 @@ export function Toolbar() {
         {/* Sync Controls */}
         <div className="toolbar-sync-actions">
           <button
+            type="button"
             className={`toolbar-icon-btn ${isFetching ? "spinning" : ""}`}
             onClick={handleFetch}
             title="Fetch from remote (origin)"
@@ -270,6 +341,7 @@ export function Toolbar() {
             <RefreshCw size={13} />
           </button>
           <button
+            type="button"
             className={`toolbar-icon-btn ${isPulling ? "spinning" : ""}`}
             onClick={handlePull}
             title="Pull from remote (origin)"
@@ -279,6 +351,7 @@ export function Toolbar() {
             <ArrowDownToLine size={13} />
           </button>
           <button
+            type="button"
             className={`toolbar-icon-btn ${isPushing ? "spinning" : ""}`}
             onClick={() => handlePush(false)}
             title="Push to remote (origin)"
@@ -294,12 +367,14 @@ export function Toolbar() {
       <div className="toolbar-section toolbar-center">
         <div className="toolbar-segmented">
           <button
+            type="button"
             className={`toolbar-segment-btn ${activeView === "graph" ? "active" : ""}`}
             onClick={() => setActiveView("graph")}
           >
             History
           </button>
           <button
+            type="button"
             className={`toolbar-segment-btn ${activeView === "staging" ? "active" : ""}`}
             onClick={() => {
               setActiveView("staging");
@@ -328,37 +403,55 @@ export function Toolbar() {
       </div>
 
       <div className="toolbar-section toolbar-right">
+        {/* Color Scheme Switcher */}
         <button
-          className={`toolbar-btn toolbar-icon-btn ${isRefreshing ? "spinning" : ""}`}
+          type="button"
+          className="toolbar-icon-btn"
+          onClick={toggleColorScheme}
+          title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          aria-label="Toggle Color Scheme"
+        >
+          {isDarkMode ? <Sun size={13} /> : <Moon size={13} />}
+        </button>
+
+        <button
+          type="button"
+          className={`toolbar-icon-btn ${isRefreshing ? "spinning" : ""}`}
           onClick={refreshAll}
           title="Refresh repository"
           aria-label="Refresh repository"
         >
-          <RefreshCw size={14} />
+          <RefreshCw size={13} />
         </button>
+
         <button
-          className="toolbar-btn toolbar-icon-btn"
+          type="button"
+          className="toolbar-icon-btn"
           onClick={() => setActiveView("search")}
           title="Search (Ctrl+F)"
           aria-label="Search repository"
         >
-          <Search size={14} />
+          <Search size={13} />
         </button>
+
         <button
-          className="toolbar-btn toolbar-icon-btn"
+          type="button"
+          className="toolbar-icon-btn"
           onClick={toggleCommandPalette}
           title="Command Palette (Ctrl+Shift+P)"
           aria-label="Open Command Palette"
         >
-          <Command size={14} />
+          <Command size={13} />
         </button>
+
         <button
-          className="toolbar-btn toolbar-icon-btn"
+          type="button"
+          className="toolbar-icon-btn"
           onClick={toggleSettings}
           title="Settings (⌘,)"
           aria-label="Open Settings"
         >
-          <Settings size={14} />
+          <Settings size={13} />
         </button>
       </div>
     </div>

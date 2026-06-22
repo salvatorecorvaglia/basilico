@@ -1,8 +1,9 @@
 /* ═══════════════════════════════════════════════════════
    Basilico — Sidebar Component
-   Branch/tag/remote/stash tree view
+   Branch/tag/remote/stash tree view with Radix Context Menu integration
    ═══════════════════════════════════════════════════════ */
 
+import * as ContextMenu from "@radix-ui/react-context-menu";
 import {
   Archive,
   ArrowLeftRight,
@@ -60,7 +61,7 @@ function TreeSection({
         onClick={() => setIsOpen(!isOpen)}
       >
         <span className="sidebar-chevron">
-          {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </span>
         <span className="sidebar-section-icon">{icon}</span>
         <span className="sidebar-section-title">{title}</span>
@@ -118,14 +119,6 @@ export function Sidebar() {
     openPrompt,
     openConfirm,
   } = useUIStore();
-
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    targetName: string;
-    type: "branch" | "tag" | "stash" | "worktree" | "submodule";
-    isRemote?: boolean;
-  } | null>(null);
 
   const [worktreeModalOpen, setWorktreeModalOpen] = useState(false);
   const [submoduleModalOpen, setSubmoduleModalOpen] = useState(false);
@@ -299,53 +292,6 @@ export function Sidebar() {
     });
   };
 
-  const openMenu = (
-    e: React.MouseEvent,
-    targetName: string,
-    type: "branch" | "tag" | "stash" | "worktree" | "submodule",
-    isRemote?: boolean,
-  ) => {
-    e.preventDefault();
-    const menuWidth = 200;
-    const menuHeight =
-      type === "branch"
-        ? 240
-        : type === "tag"
-          ? 180
-          : type === "worktree"
-            ? 180
-            : type === "submodule"
-              ? 200
-              : 150;
-    const x =
-      e.clientX + menuWidth > window.innerWidth
-        ? e.clientX - menuWidth
-        : e.clientX;
-    const y =
-      e.clientY + menuHeight > window.innerHeight
-        ? e.clientY - menuHeight
-        : e.clientY;
-    setContextMenu({
-      x,
-      y,
-      targetName,
-      type,
-      isRemote,
-    });
-  };
-
-  const handleContextMenu = (
-    e: React.MouseEvent,
-    branchName: string,
-    isRemote: boolean,
-  ) => {
-    openMenu(e, branchName, "branch", isRemote);
-  };
-
-  const handleTagContextMenu = (e: React.MouseEvent, tagName: string) => {
-    openMenu(e, tagName, "tag");
-  };
-
   const handleDeleteBranch = (name: string, isRemote: boolean) => {
     openConfirm({
       title: "Delete Branch",
@@ -407,10 +353,6 @@ export function Sidebar() {
   const handleStashSelect = async (index: number) => {
     await loadStashDetail(index);
     setActiveView("stash-inspector");
-  };
-
-  const handleStashContextMenu = (e: React.MouseEvent, index: number) => {
-    openMenu(e, index.toString(), "stash");
   };
 
   const handleApplyStash = async (index: number) => {
@@ -529,16 +471,17 @@ export function Sidebar() {
   };
 
   return (
-    <div className="sidebar" onClick={() => setContextMenu(null)}>
+    <div className="sidebar">
       <div className="sidebar-content">
         {/* Local Branches */}
         <TreeSection
           title="Branches"
-          icon={<GitBranch size={14} />}
+          icon={<GitBranch size={13} />}
           count={localBranches.length}
           defaultOpen={true}
           action={
             <button
+              type="button"
               className="sidebar-header-btn"
               onClick={handleCreateBranch}
               title="Create new branch"
@@ -548,39 +491,89 @@ export function Sidebar() {
           }
         >
           {localBranches.map((branch) => (
-            <button
-              key={branch.name}
-              className={`sidebar-item ${branch.isHead ? "active" : ""}`}
-              onClick={() => handleCheckout(branch.name)}
-              onContextMenu={(e) => handleContextMenu(e, branch.name, false)}
-              title={branch.name}
-            >
-              <CircleDot
-                size={12}
-                className={`sidebar-item-dot ${branch.isHead ? "head" : ""}`}
-              />
-              <span className="sidebar-item-name truncate">{branch.name}</span>
-              {branch.isHead && (
-                <span className="sidebar-badge head">HEAD</span>
-              )}
-              {(branch.ahead > 0 || branch.behind > 0) && (
-                <span className="sidebar-sync">
-                  {branch.ahead > 0 && (
-                    <span className="sidebar-ahead">↑{branch.ahead}</span>
+            <ContextMenu.Root key={branch.name}>
+              <ContextMenu.Trigger>
+                <button
+                  type="button"
+                  className={`sidebar-item ${branch.isHead ? "active" : ""}`}
+                  onClick={() => handleCheckout(branch.name)}
+                  title={branch.name}
+                >
+                  <CircleDot
+                    size={11}
+                    className={`sidebar-item-dot ${branch.isHead ? "head" : ""}`}
+                  />
+                  <span className="sidebar-item-name truncate">
+                    {branch.name}
+                  </span>
+                  {branch.isHead && (
+                    <span className="sidebar-badge head">HEAD</span>
                   )}
-                  {branch.behind > 0 && (
-                    <span className="sidebar-behind">↓{branch.behind}</span>
+                  {(branch.ahead > 0 || branch.behind > 0) && (
+                    <span className="sidebar-sync">
+                      {branch.ahead > 0 && (
+                        <span className="sidebar-ahead">↑{branch.ahead}</span>
+                      )}
+                      {branch.behind > 0 && (
+                        <span className="sidebar-behind">↓{branch.behind}</span>
+                      )}
+                    </span>
                   )}
-                </span>
-              )}
-            </button>
+                </button>
+              </ContextMenu.Trigger>
+              <ContextMenu.Portal>
+                <ContextMenu.Content className="radix-context-menu">
+                  <ContextMenu.Item
+                    className="context-menu-item"
+                    onSelect={() => handleCheckout(branch.name)}
+                  >
+                    <CircleDot size={12} />
+                    <span>Checkout Branch</span>
+                  </ContextMenu.Item>
+                  <ContextMenu.Item
+                    className="context-menu-item"
+                    onSelect={() => {
+                      const activeBranch =
+                        branches.find((b) => b.isHead)?.name || "HEAD";
+                      startComparison(branch.name, activeBranch);
+                      setActiveView("compare");
+                    }}
+                  >
+                    <ArrowLeftRight size={12} />
+                    <span>Compare with Current Branch...</span>
+                  </ContextMenu.Item>
+                  <ContextMenu.Item
+                    className="context-menu-item"
+                    onSelect={() => handleMergeBranch(branch.name)}
+                  >
+                    <GitMerge size={12} />
+                    <span>Merge into Active Branch</span>
+                  </ContextMenu.Item>
+                  <ContextMenu.Item
+                    className="context-menu-item"
+                    onSelect={() => handleRenameBranch(branch.name)}
+                  >
+                    <Edit size={12} />
+                    <span>Rename Branch...</span>
+                  </ContextMenu.Item>
+                  <ContextMenu.Separator className="context-menu-divider" />
+                  <ContextMenu.Item
+                    className="context-menu-item danger"
+                    onSelect={() => handleDeleteBranch(branch.name, false)}
+                  >
+                    <Trash size={12} />
+                    <span>Delete Branch</span>
+                  </ContextMenu.Item>
+                </ContextMenu.Content>
+              </ContextMenu.Portal>
+            </ContextMenu.Root>
           ))}
         </TreeSection>
 
         {/* Remote Branches */}
         <TreeSection
           title="Remotes"
-          icon={<Globe size={14} />}
+          icon={<Globe size={13} />}
           count={remoteBranches.length}
           defaultOpen={false}
         >
@@ -591,26 +584,58 @@ export function Sidebar() {
             return (
               <div key={remote.name} className="sidebar-remote-group">
                 <div className="sidebar-remote-header">
-                  <Globe size={12} />
+                  <Globe size={11} className="text-tertiary" />
                   <span className="truncate">{remote.name}</span>
                   <span className="sidebar-remote-url truncate text-tertiary">
                     {remote.url}
                   </span>
                 </div>
                 {remoteBranchesForRemote.map((branch) => (
-                  <button
-                    key={branch.name}
-                    className="sidebar-item sidebar-item-nested"
-                    onClick={() => handleCheckout(branch.name)}
-                    onContextMenu={(e) =>
-                      handleContextMenu(e, branch.name, true)
-                    }
-                    title={branch.name}
-                  >
-                    <span className="sidebar-item-name truncate">
-                      {branch.name.replace(`${remote.name}/`, "")}
-                    </span>
-                  </button>
+                  <ContextMenu.Root key={branch.name}>
+                    <ContextMenu.Trigger>
+                      <button
+                        type="button"
+                        className="sidebar-item sidebar-item-nested"
+                        onClick={() => handleCheckout(branch.name)}
+                        title={branch.name}
+                      >
+                        <span className="sidebar-item-name truncate">
+                          {branch.name.replace(`${remote.name}/`, "")}
+                        </span>
+                      </button>
+                    </ContextMenu.Trigger>
+                    <ContextMenu.Portal>
+                      <ContextMenu.Content className="radix-context-menu">
+                        <ContextMenu.Item
+                          className="context-menu-item"
+                          onSelect={() => handleCheckout(branch.name)}
+                        >
+                          <CircleDot size={12} />
+                          <span>Checkout Branch</span>
+                        </ContextMenu.Item>
+                        <ContextMenu.Item
+                          className="context-menu-item"
+                          onSelect={() => {
+                            const activeBranch =
+                              branches.find((b) => b.isHead)?.name || "HEAD";
+                            startComparison(branch.name, activeBranch);
+                            setActiveView("compare");
+                          }}
+                        >
+                          <ArrowLeftRight size={12} />
+                          <span>Compare with Current Branch...</span>
+                        </ContextMenu.Item>
+                        <ContextMenu.Separator className="context-menu-divider" />
+                        <ContextMenu.Item
+                          className="context-menu-item danger"
+                          onSelect={() => handleDeleteBranch(branch.name, true)}
+                        >
+                          <Trash size={12} />
+                          <span>Delete Remote Branch</span>
+                        </ContextMenu.Item>
+                      </ContextMenu.Content>
+                    </ContextMenu.Portal>
+                  </ContextMenu.Root>
                 ))}
               </div>
             );
@@ -620,11 +645,12 @@ export function Sidebar() {
         {/* Tags */}
         <TreeSection
           title="Tags"
-          icon={<Tag size={14} />}
+          icon={<Tag size={13} />}
           count={tags.length}
           defaultOpen={false}
           action={
             <button
+              type="button"
               className="sidebar-header-btn"
               onClick={handleCreateTagPrompt}
               title="Create new tag"
@@ -634,26 +660,55 @@ export function Sidebar() {
           }
         >
           {tags.map((tag) => (
-            <button
-              key={tag.name}
-              className="sidebar-item"
-              onClick={() => handleCheckoutTag(tag.name)}
-              onContextMenu={(e) => handleTagContextMenu(e, tag.name)}
-              title={tag.message || tag.name}
-            >
-              <Tag size={12} className="sidebar-item-tag-icon" />
-              <span className="sidebar-item-name truncate">{tag.name}</span>
-              {tag.isAnnotated && (
-                <span className="sidebar-badge annotated">A</span>
-              )}
-            </button>
+            <ContextMenu.Root key={tag.name}>
+              <ContextMenu.Trigger>
+                <button
+                  type="button"
+                  className="sidebar-item"
+                  onClick={() => handleCheckoutTag(tag.name)}
+                  title={tag.message || tag.name}
+                >
+                  <Tag size={11} className="sidebar-item-tag-icon" />
+                  <span className="sidebar-item-name truncate">{tag.name}</span>
+                  {tag.isAnnotated && (
+                    <span className="sidebar-badge annotated">A</span>
+                  )}
+                </button>
+              </ContextMenu.Trigger>
+              <ContextMenu.Portal>
+                <ContextMenu.Content className="radix-context-menu">
+                  <ContextMenu.Item
+                    className="context-menu-item"
+                    onSelect={() => handleCheckoutTag(tag.name)}
+                  >
+                    <Tag size={12} />
+                    <span>Checkout Tag</span>
+                  </ContextMenu.Item>
+                  <ContextMenu.Item
+                    className="context-menu-item"
+                    onSelect={() => handlePushTag(tag.name)}
+                  >
+                    <Globe size={12} />
+                    <span>Push Tag to Remote</span>
+                  </ContextMenu.Item>
+                  <ContextMenu.Separator className="context-menu-divider" />
+                  <ContextMenu.Item
+                    className="context-menu-item danger"
+                    onSelect={() => handleDeleteTag(tag.name)}
+                  >
+                    <Trash size={12} />
+                    <span>Delete Tag</span>
+                  </ContextMenu.Item>
+                </ContextMenu.Content>
+              </ContextMenu.Portal>
+            </ContextMenu.Root>
           ))}
         </TreeSection>
 
         {/* Stashes */}
         <TreeSection
           title="Stashes"
-          icon={<Archive size={14} />}
+          icon={<Archive size={13} />}
           count={stashes.length}
           defaultOpen={false}
         >
@@ -661,88 +716,93 @@ export function Sidebar() {
             <div className="sidebar-empty">No stashes</div>
           ) : (
             stashes.map((stash) => (
-              <button
-                key={stash.index}
-                className="sidebar-item"
-                onClick={() => handleStashSelect(stash.index)}
-                onContextMenu={(e) => handleStashContextMenu(e, stash.index)}
-                title={stash.message}
-              >
-                <Archive size={12} className="sidebar-item-dot" />
-                <span className="sidebar-item-name truncate">
-                  {stash.message}
-                </span>
-              </button>
+              <ContextMenu.Root key={stash.index}>
+                <ContextMenu.Trigger>
+                  <button
+                    type="button"
+                    className="sidebar-item"
+                    onClick={() => handleStashSelect(stash.index)}
+                    title={stash.message}
+                  >
+                    <Archive size={11} className="sidebar-item-dot" />
+                    <span className="sidebar-item-name truncate">
+                      {stash.message}
+                    </span>
+                  </button>
+                </ContextMenu.Trigger>
+                <ContextMenu.Portal>
+                  <ContextMenu.Content className="radix-context-menu">
+                    <ContextMenu.Item
+                      className="context-menu-item"
+                      onSelect={() => handleApplyStash(stash.index)}
+                    >
+                      <Check size={12} />
+                      <span>Apply Stash</span>
+                    </ContextMenu.Item>
+                    <ContextMenu.Item
+                      className="context-menu-item"
+                      onSelect={() => handlePopStash(stash.index)}
+                    >
+                      <RotateCcw size={12} />
+                      <span>Pop Stash</span>
+                    </ContextMenu.Item>
+                    <ContextMenu.Separator className="context-menu-divider" />
+                    <ContextMenu.Item
+                      className="context-menu-item danger"
+                      onSelect={() => handleDropStash(stash.index)}
+                    >
+                      <Trash size={12} />
+                      <span>Drop Stash</span>
+                    </ContextMenu.Item>
+                  </ContextMenu.Content>
+                </ContextMenu.Portal>
+              </ContextMenu.Root>
             ))
           )}
         </TreeSection>
 
-        {/* Reflog Link */}
-        <div
-          className="sidebar-reflog-item"
-          style={{ marginTop: "var(--space-2)" }}
-        >
+        {/* Custom Actions Links Section */}
+        <div className="sidebar-custom-items">
+          {/* Reflog Link */}
           <button
-            className="sidebar-item"
+            type="button"
+            className={`sidebar-item ${activeView === "reflog" ? "active" : ""}`}
             onClick={() => setActiveView("reflog")}
           >
-            <Clock size={12} className="sidebar-item-dot" />
-            <span
-              className="sidebar-item-name truncate"
-              style={{
-                fontWeight: "var(--weight-semibold)",
-                color: "var(--text-primary)",
-              }}
-            >
+            <Clock size={11} className="sidebar-item-dot" />
+            <span className="sidebar-item-name truncate font-semibold">
               Reflog (HEAD)
             </span>
           </button>
-        </div>
 
-        {/* Pull Requests Link */}
-        <div
-          className="sidebar-pr-item"
-          style={{ marginTop: "var(--space-1)" }}
-        >
+          {/* Pull Requests Link */}
           <button
+            type="button"
             className={`sidebar-item ${activeView === "pull-requests" ? "active" : ""}`}
             onClick={() => setActiveView("pull-requests")}
           >
             <GitPullRequest
-              size={12}
+              size={11}
               className="sidebar-item-dot"
               style={{ color: "var(--accent-teal)" }}
             />
-            <span
-              className="sidebar-item-name truncate"
-              style={{
-                fontWeight: "var(--weight-semibold)",
-                color: "var(--text-primary)",
-              }}
-            >
+            <span className="sidebar-item-name truncate font-semibold">
               Pull Requests
             </span>
           </button>
-        </div>
 
-        {/* Clean Repository Link */}
-        <div
-          className="sidebar-clean-item"
-          style={{ marginTop: "var(--space-1)" }}
-        >
-          <button className="sidebar-item" onClick={openCleanModal}>
+          {/* Clean Repository Link */}
+          <button
+            type="button"
+            className="sidebar-item"
+            onClick={openCleanModal}
+          >
             <Trash
-              size={12}
+              size={11}
               className="sidebar-item-dot"
               style={{ color: "var(--color-danger)" }}
             />
-            <span
-              className="sidebar-item-name truncate"
-              style={{
-                fontWeight: "var(--weight-semibold)",
-                color: "var(--text-primary)",
-              }}
-            >
+            <span className="sidebar-item-name truncate font-semibold">
               Clean Repository...
             </span>
           </button>
@@ -751,11 +811,12 @@ export function Sidebar() {
         {/* Worktrees */}
         <TreeSection
           title="Worktrees"
-          icon={<FolderTree size={14} />}
+          icon={<FolderTree size={13} />}
           count={worktrees.length}
           defaultOpen={false}
           action={
             <button
+              type="button"
               className="sidebar-header-btn"
               onClick={() => setWorktreeModalOpen(true)}
               title="Add worktree"
@@ -768,19 +829,84 @@ export function Sidebar() {
             <div className="sidebar-empty">No worktrees</div>
           ) : (
             worktrees.map((wt) => (
-              <button
-                key={wt.path}
-                className="sidebar-item"
-                title={wt.path}
-                onContextMenu={(e) => openMenu(e, wt.path, "worktree")}
-                onDoubleClick={() => openRepository(wt.path)}
-              >
-                <FolderOpen size={12} className="sidebar-item-dot" />
-                <span className="sidebar-item-name truncate">{wt.name}</span>
-                {wt.branch && (
-                  <span className="sidebar-badge head">{wt.branch}</span>
-                )}
-              </button>
+              <ContextMenu.Root key={wt.path}>
+                <ContextMenu.Trigger>
+                  <button
+                    type="button"
+                    className="sidebar-item"
+                    title={wt.path}
+                    onDoubleClick={() => openRepository(wt.path)}
+                  >
+                    <FolderOpen size={11} className="sidebar-item-dot" />
+                    <span className="sidebar-item-name truncate">
+                      {wt.name}
+                    </span>
+                    {wt.branch && (
+                      <span className="sidebar-badge head">{wt.branch}</span>
+                    )}
+                  </button>
+                </ContextMenu.Trigger>
+                <ContextMenu.Portal>
+                  <ContextMenu.Content className="radix-context-menu">
+                    <ContextMenu.Item
+                      className="context-menu-item"
+                      onSelect={() => openRepository(wt.path)}
+                    >
+                      <FolderOpen size={12} />
+                      <span>Open in New Tab</span>
+                    </ContextMenu.Item>
+                    <ContextMenu.Item
+                      className="context-menu-item"
+                      onSelect={async () => {
+                        try {
+                          await pruneWorktrees();
+                          addNotification({
+                            type: "success",
+                            message: "Stale worktrees pruned",
+                          });
+                        } catch (err) {
+                          addNotification({
+                            type: "error",
+                            message: `Prune failed: ${err}`,
+                          });
+                        }
+                      }}
+                    >
+                      <Scissors size={12} />
+                      <span>Prune Stale Worktrees</span>
+                    </ContextMenu.Item>
+                    <ContextMenu.Separator className="context-menu-divider" />
+                    <ContextMenu.Item
+                      className="context-menu-item danger"
+                      onSelect={() => {
+                        openConfirm({
+                          title: "Remove Worktree",
+                          message: `Remove worktree at "${wt.path}"?`,
+                          confirmLabel: "Remove Worktree",
+                          isDanger: true,
+                          onConfirm: async () => {
+                            try {
+                              await removeWorktree(wt.path, false);
+                              addNotification({
+                                type: "success",
+                                message: "Worktree removed",
+                              });
+                            } catch (err) {
+                              addNotification({
+                                type: "error",
+                                message: `Remove failed: ${err}`,
+                              });
+                            }
+                          },
+                        });
+                      }}
+                    >
+                      <Trash size={12} />
+                      <span>Remove Worktree</span>
+                    </ContextMenu.Item>
+                  </ContextMenu.Content>
+                </ContextMenu.Portal>
+              </ContextMenu.Root>
             ))
           )}
         </TreeSection>
@@ -788,11 +914,12 @@ export function Sidebar() {
         {/* Submodules */}
         <TreeSection
           title="Submodules"
-          icon={<Package size={14} />}
+          icon={<Package size={13} />}
           count={submodules.length}
           defaultOpen={false}
           action={
             <button
+              type="button"
               className="sidebar-header-btn"
               onClick={() => setSubmoduleModalOpen(true)}
               title="Add submodule"
@@ -805,325 +932,123 @@ export function Sidebar() {
             <div className="sidebar-empty">No submodules</div>
           ) : (
             submodules.map((sm) => (
-              <button
-                key={sm.name}
-                className="sidebar-item"
-                title={sm.url || sm.path}
-                onContextMenu={(e) => openMenu(e, sm.path, "submodule")}
-                onDoubleClick={() => {
-                  // Open submodule as a new tab
-                  const repoPath = useRepoStore.getState().repoInfo?.path;
-                  if (repoPath) {
-                    openRepository(`${repoPath}/${sm.path}`);
-                  }
-                }}
-              >
-                <Package size={12} className="sidebar-item-dot" />
-                <span className="sidebar-item-name truncate">{sm.name}</span>
-                <span
-                  className={`sidebar-badge ${
-                    sm.status === "dirty"
-                      ? "annotated"
-                      : sm.status === "up-to-date"
-                        ? "head"
-                        : ""
-                  }`}
-                >
-                  {sm.status === "dirty"
-                    ? "●"
-                    : sm.status === "up-to-date"
-                      ? "✓"
-                      : sm.status === "initialized"
-                        ? "○"
-                        : "?"}
-                </span>
-              </button>
+              <ContextMenu.Root key={sm.name}>
+                <ContextMenu.Trigger>
+                  <button
+                    type="button"
+                    className="sidebar-item"
+                    title={sm.url || sm.path}
+                    onDoubleClick={() => {
+                      const repoPath = useRepoStore.getState().repoInfo?.path;
+                      if (repoPath) {
+                        openRepository(`${repoPath}/${sm.path}`);
+                      }
+                    }}
+                  >
+                    <Package size={11} className="sidebar-item-dot" />
+                    <span className="sidebar-item-name truncate">
+                      {sm.name}
+                    </span>
+                    <span
+                      className={`sidebar-badge ${
+                        sm.status === "dirty"
+                          ? "annotated"
+                          : sm.status === "up-to-date"
+                            ? "head"
+                            : ""
+                      }`}
+                    >
+                      {sm.status === "dirty"
+                        ? "●"
+                        : sm.status === "up-to-date"
+                          ? "✓"
+                          : sm.status === "initialized"
+                            ? "○"
+                            : "?"}
+                    </span>
+                  </button>
+                </ContextMenu.Trigger>
+                <ContextMenu.Portal>
+                  <ContextMenu.Content className="radix-context-menu">
+                    <ContextMenu.Item
+                      className="context-menu-item"
+                      onSelect={() => {
+                        const repoPath = useRepoStore.getState().repoInfo?.path;
+                        if (repoPath) {
+                          openRepository(`${repoPath}/${sm.path}`);
+                        }
+                      }}
+                    >
+                      <FolderOpen size={12} />
+                      <span>Open in New Tab</span>
+                    </ContextMenu.Item>
+                    <ContextMenu.Item
+                      className="context-menu-item"
+                      onSelect={async () => {
+                        try {
+                          await initSubmodules([sm.path]);
+                          addNotification({
+                            type: "success",
+                            message: `Submodule initialized`,
+                          });
+                        } catch (err) {
+                          addNotification({
+                            type: "error",
+                            message: `Init failed: ${err}`,
+                          });
+                        }
+                      }}
+                    >
+                      <Download size={12} />
+                      <span>Init Submodule</span>
+                    </ContextMenu.Item>
+                    <ContextMenu.Item
+                      className="context-menu-item"
+                      onSelect={async () => {
+                        try {
+                          await updateSubmodules([sm.path], true);
+                          addNotification({
+                            type: "success",
+                            message: `Submodule updated`,
+                          });
+                        } catch (err) {
+                          addNotification({
+                            type: "error",
+                            message: `Update failed: ${err}`,
+                          });
+                        }
+                      }}
+                    >
+                      <RefreshCw size={12} />
+                      <span>Update Submodule</span>
+                    </ContextMenu.Item>
+                    <ContextMenu.Item
+                      className="context-menu-item"
+                      onSelect={async () => {
+                        try {
+                          await syncSubmodules([sm.path]);
+                          addNotification({
+                            type: "success",
+                            message: `Submodule synced`,
+                          });
+                        } catch (err) {
+                          addNotification({
+                            type: "error",
+                            message: `Sync failed: ${err}`,
+                          });
+                        }
+                      }}
+                    >
+                      <RefreshCw size={12} />
+                      <span>Sync Submodule</span>
+                    </ContextMenu.Item>
+                  </ContextMenu.Content>
+                </ContextMenu.Portal>
+              </ContextMenu.Root>
             ))
           )}
         </TreeSection>
       </div>
-
-      {/* Floating Context Menu */}
-      {contextMenu && (
-        <div
-          className="sidebar-context-menu animate-fade-in"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {contextMenu.type === "branch" ? (
-            <>
-              <button
-                className="context-menu-item"
-                onClick={() => {
-                  handleCheckout(contextMenu.targetName);
-                  setContextMenu(null);
-                }}
-              >
-                <CircleDot size={12} />
-                <span>Checkout Branch</span>
-              </button>
-              <button
-                className="context-menu-item"
-                onClick={() => {
-                  const activeBranch =
-                    branches.find((b) => b.isHead)?.name || "HEAD";
-                  startComparison(contextMenu.targetName, activeBranch);
-                  setActiveView("compare");
-                  setContextMenu(null);
-                }}
-              >
-                <ArrowLeftRight size={12} />
-                <span>Compare with Current Branch...</span>
-              </button>
-              {!contextMenu.isRemote && (
-                <>
-                  <button
-                    className="context-menu-item"
-                    onClick={() => {
-                      handleMergeBranch(contextMenu.targetName);
-                      setContextMenu(null);
-                    }}
-                  >
-                    <GitMerge size={12} />
-                    <span>Merge into Active Branch</span>
-                  </button>
-                  <button
-                    className="context-menu-item"
-                    onClick={() => {
-                      handleRenameBranch(contextMenu.targetName);
-                      setContextMenu(null);
-                    }}
-                  >
-                    <Edit size={12} />
-                    <span>Rename Branch...</span>
-                  </button>
-                </>
-              )}
-              <button
-                className="context-menu-item context-menu-danger"
-                onClick={() => {
-                  handleDeleteBranch(
-                    contextMenu.targetName,
-                    !!contextMenu.isRemote,
-                  );
-                  setContextMenu(null);
-                }}
-              >
-                <Trash size={12} />
-                <span>Delete Branch</span>
-              </button>
-            </>
-          ) : contextMenu.type === "tag" ? (
-            <>
-              <button
-                className="context-menu-item"
-                onClick={() => {
-                  handleCheckoutTag(contextMenu.targetName);
-                  setContextMenu(null);
-                }}
-              >
-                <Tag size={12} />
-                <span>Checkout Tag</span>
-              </button>
-              <button
-                className="context-menu-item"
-                onClick={() => {
-                  handlePushTag(contextMenu.targetName);
-                  setContextMenu(null);
-                }}
-              >
-                <Globe size={12} />
-                <span>Push Tag to Remote</span>
-              </button>
-              <button
-                className="context-menu-item context-menu-danger"
-                onClick={() => {
-                  handleDeleteTag(contextMenu.targetName);
-                  setContextMenu(null);
-                }}
-              >
-                <Trash size={12} />
-                <span>Delete Tag</span>
-              </button>
-            </>
-          ) : contextMenu.type === "worktree" ? (
-            <>
-              <button
-                className="context-menu-item"
-                onClick={() => {
-                  openRepository(contextMenu.targetName);
-                  setContextMenu(null);
-                }}
-              >
-                <FolderOpen size={12} />
-                <span>Open in New Tab</span>
-              </button>
-              <button
-                className="context-menu-item"
-                onClick={async () => {
-                  try {
-                    await pruneWorktrees();
-                    addNotification({
-                      type: "success",
-                      message: "Stale worktrees pruned",
-                    });
-                  } catch (err) {
-                    addNotification({
-                      type: "error",
-                      message: `Prune failed: ${err}`,
-                    });
-                  }
-                  setContextMenu(null);
-                }}
-              >
-                <Scissors size={12} />
-                <span>Prune Stale Worktrees</span>
-              </button>
-              <button
-                className="context-menu-item context-menu-danger"
-                onClick={() => {
-                  const target = contextMenu.targetName;
-                  openConfirm({
-                    title: "Remove Worktree",
-                    message: `Remove worktree at "${target}"?`,
-                    confirmLabel: "Remove Worktree",
-                    isDanger: true,
-                    onConfirm: async () => {
-                      try {
-                        await removeWorktree(target, false);
-                        addNotification({
-                          type: "success",
-                          message: "Worktree removed",
-                        });
-                      } catch (err) {
-                        addNotification({
-                          type: "error",
-                          message: `Remove failed: ${err}`,
-                        });
-                      }
-                    },
-                  });
-                  setContextMenu(null);
-                }}
-              >
-                <Trash size={12} />
-                <span>Remove Worktree</span>
-              </button>
-            </>
-          ) : contextMenu.type === "submodule" ? (
-            <>
-              <button
-                className="context-menu-item"
-                onClick={() => {
-                  const repoPath = useRepoStore.getState().repoInfo?.path;
-                  if (repoPath)
-                    openRepository(`${repoPath}/${contextMenu.targetName}`);
-                  setContextMenu(null);
-                }}
-              >
-                <FolderOpen size={12} />
-                <span>Open in New Tab</span>
-              </button>
-              <button
-                className="context-menu-item"
-                onClick={async () => {
-                  try {
-                    await initSubmodules([contextMenu.targetName]);
-                    addNotification({
-                      type: "success",
-                      message: `Submodule initialized`,
-                    });
-                  } catch (err) {
-                    addNotification({
-                      type: "error",
-                      message: `Init failed: ${err}`,
-                    });
-                  }
-                  setContextMenu(null);
-                }}
-              >
-                <Download size={12} />
-                <span>Init Submodule</span>
-              </button>
-              <button
-                className="context-menu-item"
-                onClick={async () => {
-                  try {
-                    await updateSubmodules([contextMenu.targetName], true);
-                    addNotification({
-                      type: "success",
-                      message: `Submodule updated`,
-                    });
-                  } catch (err) {
-                    addNotification({
-                      type: "error",
-                      message: `Update failed: ${err}`,
-                    });
-                  }
-                  setContextMenu(null);
-                }}
-              >
-                <RefreshCw size={12} />
-                <span>Update Submodule</span>
-              </button>
-              <button
-                className="context-menu-item"
-                onClick={async () => {
-                  try {
-                    await syncSubmodules([contextMenu.targetName]);
-                    addNotification({
-                      type: "success",
-                      message: `Submodule synced`,
-                    });
-                  } catch (err) {
-                    addNotification({
-                      type: "error",
-                      message: `Sync failed: ${err}`,
-                    });
-                  }
-                  setContextMenu(null);
-                }}
-              >
-                <RefreshCw size={12} />
-                <span>Sync Submodule</span>
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                className="context-menu-item"
-                onClick={() => {
-                  handleApplyStash(parseInt(contextMenu.targetName, 10));
-                  setContextMenu(null);
-                }}
-              >
-                <Check size={12} />
-                <span>Apply Stash</span>
-              </button>
-              <button
-                className="context-menu-item"
-                onClick={() => {
-                  handlePopStash(parseInt(contextMenu.targetName, 10));
-                  setContextMenu(null);
-                }}
-              >
-                <RotateCcw size={12} />
-                <span>Pop Stash</span>
-              </button>
-              <button
-                className="context-menu-item context-menu-danger"
-                onClick={() => {
-                  handleDropStash(parseInt(contextMenu.targetName, 10));
-                  setContextMenu(null);
-                }}
-              >
-                <Trash size={12} />
-                <span>Drop Stash</span>
-              </button>
-            </>
-          )}
-        </div>
-      )}
 
       {/* Worktree Modal */}
       {worktreeModalOpen && (

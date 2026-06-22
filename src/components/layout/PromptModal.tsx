@@ -1,3 +1,4 @@
+import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -69,107 +70,111 @@ export function PromptModal() {
     }
   }, [promptOptions]);
 
-  // Handle escape key to cancel prompt
-  useEffect(() => {
-    if (!promptOptions) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        handleCancel();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [promptOptions, handleCancel]);
-
-  if (!promptOptions) return null;
+  const isOpen = !!promptOptions;
 
   return (
-    <div className="prompt-overlay animate-fade-in" onClick={handleCancel}>
-      <div
-        className="prompt-modal animate-scale-in"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="prompt-header">
-          <h3>{promptOptions.title}</h3>
-          <button className="prompt-close-btn" onClick={handleCancel}>
-            <X size={16} />
-          </button>
-        </div>
+    <Dialog.Root
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) handleCancel();
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Overlay className="prompt-overlay" />
+        <Dialog.Content className="prompt-modal">
+          {promptOptions && (
+            <form onSubmit={handleSubmit}>
+              {/* Header */}
+              <div className="prompt-header">
+                <Dialog.Title asChild>
+                  <h3>{promptOptions.title}</h3>
+                </Dialog.Title>
+                <Dialog.Close asChild>
+                  <button
+                    className="prompt-close-btn"
+                    aria-label="Close dialog"
+                  >
+                    <X size={16} />
+                  </button>
+                </Dialog.Close>
+              </div>
 
-        <form onSubmit={handleSubmit}>
-          {/* Body */}
-          <div className="prompt-body">
-            {promptOptions.description && (
-              <p className="prompt-desc">{promptOptions.description}</p>
-            )}
+              {/* Body */}
+              <div className="prompt-body">
+                {promptOptions.description && (
+                  <Dialog.Description asChild>
+                    <p className="prompt-desc">{promptOptions.description}</p>
+                  </Dialog.Description>
+                )}
 
-            <div className="prompt-fields">
-              {promptOptions.fields.map((field) => (
-                <div key={field.name} className="prompt-field-group">
-                  <label htmlFor={`prompt-field-${field.name}`}>
-                    {field.label}
-                    {field.required && (
-                      <span className="required-star"> *</span>
-                    )}
-                  </label>
+                <div className="prompt-fields">
+                  {promptOptions.fields.map((field) => (
+                    <div key={field.name} className="prompt-field-group">
+                      <label htmlFor={`prompt-field-${field.name}`}>
+                        {field.label}
+                        {field.required && (
+                          <span className="required-star"> *</span>
+                        )}
+                      </label>
 
-                  {field.type === "textarea" ? (
-                    <textarea
-                      id={`prompt-field-${field.name}`}
-                      ref={(el) => {
-                        inputRefs.current[field.name] = el;
-                      }}
-                      className="prompt-textarea"
-                      placeholder={field.placeholder}
-                      value={formValues[field.name] ?? ""}
-                      onChange={(e) =>
-                        handleValueChange(field.name, e.target.value)
-                      }
-                      rows={4}
-                      required={field.required}
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      id={`prompt-field-${field.name}`}
-                      ref={(el) => {
-                        inputRefs.current[field.name] = el;
-                      }}
-                      className="prompt-input"
-                      placeholder={field.placeholder}
-                      value={formValues[field.name] ?? ""}
-                      onChange={(e) =>
-                        handleValueChange(field.name, e.target.value)
-                      }
-                      required={field.required}
-                      autoComplete="off"
-                    />
-                  )}
+                      {field.type === "textarea" ? (
+                        <textarea
+                          id={`prompt-field-${field.name}`}
+                          ref={(el) => {
+                            inputRefs.current[field.name] = el;
+                          }}
+                          className="prompt-textarea"
+                          placeholder={field.placeholder}
+                          value={formValues[field.name] ?? ""}
+                          onChange={(e) =>
+                            handleValueChange(field.name, e.target.value)
+                          }
+                          rows={4}
+                          required={field.required}
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          id={`prompt-field-${field.name}`}
+                          ref={(el) => {
+                            inputRefs.current[field.name] = el;
+                          }}
+                          className="prompt-input"
+                          placeholder={field.placeholder}
+                          value={formValues[field.name] ?? ""}
+                          onChange={(e) =>
+                            handleValueChange(field.name, e.target.value)
+                          }
+                          required={field.required}
+                          autoComplete="off"
+                        />
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          {/* Footer */}
-          <div className="prompt-footer">
-            <button
-              type="button"
-              className="prompt-btn prompt-btn-outline"
-              onClick={handleCancel}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="prompt-btn prompt-btn-primary"
-              disabled={!isFormValid}
-            >
-              {promptOptions.submitLabel ?? "Submit"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+              {/* Footer */}
+              <div className="prompt-footer">
+                <button
+                  type="button"
+                  className="prompt-btn prompt-btn-outline"
+                  onClick={handleCancel}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="prompt-btn prompt-btn-primary"
+                  disabled={!isFormValid}
+                >
+                  {promptOptions.submitLabel ?? "Submit"}
+                </button>
+              </div>
+            </form>
+          )}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

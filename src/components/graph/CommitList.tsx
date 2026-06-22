@@ -1,3 +1,18 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — CommitList Component
+   TanStack Table + Virtualization + Radix Context Menu + Keyboard Nav
+   ═══════════════════════════════════════════════════════ */
+
+import * as ContextMenu from "@radix-ui/react-context-menu";
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getSortedRowModel,
+  type SortingState,
+  useReactTable,
+} from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ArrowLeftRight,
@@ -6,10 +21,11 @@ import {
   GitBranch,
   RotateCcw,
   Scissors,
+  Search,
   Tag,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { RefLabel } from "../../lib/git-types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { GraphCommit, RefLabel } from "../../lib/git-types";
 import {
   formatRelativeTime,
   getInitials,
@@ -43,6 +59,8 @@ function RefBadge({ ref: refLabel }: { ref: RefLabel }) {
   return <span className={classes.join(" ")}>{refLabel.name}</span>;
 }
 
+const columnHelper = createColumnHelper<GraphCommit>();
+
 export function CommitList() {
   const {
     commits,
@@ -64,11 +82,8 @@ export function CommitList() {
   const parentRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(600);
 
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    oid: string;
-  } | null>(null);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [globalFilter, setGlobalFilter] = useState("");
 
   useEffect(() => {
     const el = parentRef.current;
@@ -84,15 +99,112 @@ export function CommitList() {
     return () => observer.disconnect();
   }, []);
 
-  // Close context menu on any click outside
-  useEffect(() => {
-    const handleCloseMenu = () => setContextMenu(null);
-    window.addEventListener("click", handleCloseMenu);
-    return () => window.removeEventListener("click", handleCloseMenu);
-  }, []);
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor("shortOid", {
+        id: "sha",
+        header: "SHA",
+        cell: (info) => (
+          <span className="commit-col-sha-cell">{info.getValue()}</span>
+        ),
+        size: 70,
+      }),
+      columnHelper.accessor("message", {
+        id: "message",
+        header: "Message",
+        cell: (info) => (
+          <span className="commit-message truncate">{info.getValue()}</span>
+        ),
+        size: 280,
+      }),
+      columnHelper.display({
+        id: "branch",
+        header: "Branch",
+        cell: (info) => {
+          const commit = info.row.original;
+          const branchRefs = commit.refs.filter(
+            (r) =>
+              r.kind === "LocalBranch" ||
+              r.kind === "RemoteBranch" ||
+              r.kind === "Head",
+          );
+          return (
+            <div className="commit-ref-list">
+              {branchRefs.map((ref, idx) => (
+                <RefBadge key={idx} ref={ref} />
+              ))}
+            </div>
+          );
+        },
+        size: 110,
+      }),
+      columnHelper.display({
+        id: "tags",
+        header: "Tags",
+        cell: (info) => {
+          const commit = info.row.original;
+          const tagRefs = commit.refs.filter((r) => r.kind === "Tag");
+          return (
+            <div className="commit-ref-list">
+              {tagRefs.map((ref, idx) => (
+                <RefBadge key={idx} ref={ref} />
+              ))}
+            </div>
+          );
+        },
+        size: 90,
+      }),
+      columnHelper.accessor("authorName", {
+        id: "author",
+        header: "Author",
+        cell: (info) => (
+          <div className="commit-col-author-cell">
+            <span
+              className="commit-avatar"
+              style={{ background: stringToColor(info.getValue()) }}
+            >
+              {getInitials(info.getValue())}
+            </span>
+            <span className="commit-author-name truncate">
+              {info.getValue()}
+            </span>
+          </div>
+        ),
+        size: 130,
+      }),
+      columnHelper.accessor("authorDate", {
+        id: "date",
+        header: "Date",
+        cell: (info) => (
+          <span className="commit-col-date-cell">
+            {formatRelativeTime(info.getValue())}
+          </span>
+        ),
+        size: 95,
+      }),
+    ],
+    [],
+  );
+
+  const table = useReactTable({
+    data: commits,
+    columns,
+    state: {
+      sorting,
+      globalFilter,
+    },
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    columnResizeMode: "onChange",
+  });
+
+  const { rows } = table.getRowModel();
 
   const virtualizer = useVirtualizer({
-    count: commits.length,
+    count: rows.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 20,
@@ -102,25 +214,81 @@ export function CommitList() {
     const el = parentRef.current;
     if (!el) return;
 
-    // Load more when near bottom
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 500) {
       loadMoreCommits(500);
     }
   }, [loadMoreCommits]);
 
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable ||
+          target.closest(".monaco-editor"));
+      if (isInput) return;
+
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const currentIndex = rows.findIndex(
+          (r) => r.original.oid === selectedCommitOid,
+        );
+        let nextIndex = currentIndex;
+        if (e.key === "ArrowDown") {
+          nextIndex =
+            currentIndex < rows.length - 1 ? currentIndex + 1 : currentIndex;
+        } else if (e.key === "ArrowUp") {
+          nextIndex = currentIndex > 0 ? currentIndex - 1 : currentIndex;
+        }
+
+        const nextRow = rows[nextIndex];
+        if (nextRow) {
+          selectCommit(nextRow.original.oid);
+          virtualizer.scrollToIndex(nextIndex);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [rows, selectedCommitOid, selectCommit, virtualizer]);
+
   // Render loading skeleton
   if (isLoading && commits.length === 0) {
     return (
       <div className="commit-list-container">
+        <div className="commit-list-controls">
+          <div className="commit-list-search-wrapper">
+            <Search size={13} className="commit-list-search-icon" />
+            <div
+              className="skeleton-shimmer skeleton-line"
+              style={{ width: "80px", height: "12px", marginBottom: 0 }}
+            />
+          </div>
+        </div>
         <div className="commit-list-header">
           <div
             className="commit-list-header-graph"
             style={{ width: GRAPH_WIDTH }}
           />
-          <div className="commit-list-header-message">Message</div>
-          <div className="commit-list-header-author">Author</div>
-          <div className="commit-list-header-date">Date</div>
-          <div className="commit-list-header-sha">SHA</div>
+          <div className="commit-list-header-cell" style={{ width: "70px" }}>
+            SHA
+          </div>
+          <div className="commit-list-header-cell flex-1">Message</div>
+          <div className="commit-list-header-cell" style={{ width: "110px" }}>
+            Branch
+          </div>
+          <div className="commit-list-header-cell" style={{ width: "90px" }}>
+            Tags
+          </div>
+          <div className="commit-list-header-cell" style={{ width: "130px" }}>
+            Author
+          </div>
+          <div className="commit-list-header-cell" style={{ width: "95px" }}>
+            Date
+          </div>
         </div>
         <div
           className="commit-list-scroll"
@@ -138,90 +306,22 @@ export function CommitList() {
                 padding: "0 var(--space-3)",
               }}
             >
-              {/* Graph space */}
               <div style={{ width: GRAPH_WIDTH }} />
-
-              {/* Message */}
-              <div style={{ flex: 1, display: "flex", gap: "var(--space-2)" }}>
-                <div
-                  className="skeleton-shimmer skeleton-line"
-                  style={{
-                    width: `${50 + (index % 3) * 15}%`,
-                    height: "12px",
-                    marginBottom: 0,
-                  }}
-                />
-              </div>
-
-              {/* Author */}
               <div
+                className="skeleton-shimmer skeleton-line"
                 style={{
-                  width: "160px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--space-2)",
+                  width: `${50 + (index % 3) * 15}%`,
+                  height: "12px",
+                  marginBottom: 0,
+                  flex: 1,
                 }}
-              >
-                <div
-                  className="skeleton-shimmer skeleton-avatar"
-                  style={{ width: "20px", height: "20px" }}
-                />
-                <div
-                  className="skeleton-shimmer skeleton-line"
-                  style={{ width: "80px", height: "12px", marginBottom: 0 }}
-                />
-              </div>
-
-              {/* Date */}
-              <div style={{ width: "80px" }}>
-                <div
-                  className="skeleton-shimmer skeleton-line"
-                  style={{
-                    width: "60px",
-                    height: "12px",
-                    marginBottom: 0,
-                    marginLeft: "auto",
-                  }}
-                />
-              </div>
-
-              {/* SHA */}
-              <div style={{ width: "70px", paddingRight: "var(--space-3)" }}>
-                <div
-                  className="skeleton-shimmer skeleton-line"
-                  style={{
-                    width: "50px",
-                    height: "12px",
-                    marginBottom: 0,
-                    marginLeft: "auto",
-                  }}
-                />
-              </div>
+              />
             </div>
           ))}
         </div>
       </div>
     );
   }
-
-  const handleRowContextMenu = (e: React.MouseEvent, oid: string) => {
-    e.preventDefault();
-    const menuWidth = 220;
-    const menuHeight = 320;
-    const x =
-      e.clientX + menuWidth > window.innerWidth
-        ? e.clientX - menuWidth
-        : e.clientX;
-    const y =
-      e.clientY + menuHeight > window.innerHeight
-        ? e.clientY - menuHeight
-        : e.clientY;
-    setContextMenu({
-      x,
-      y,
-      oid,
-    });
-  };
 
   const handleCheckoutCommit = async (oid: string) => {
     try {
@@ -354,6 +454,20 @@ export function CommitList() {
 
   return (
     <div className="commit-list-container">
+      {/* Controls */}
+      <div className="commit-list-controls">
+        <div className="commit-list-search-wrapper">
+          <Search size={13} className="commit-list-search-icon" />
+          <input
+            type="text"
+            className="commit-list-search-input"
+            placeholder="Search commits..."
+            value={globalFilter}
+            onChange={(e) => setGlobalFilter(e.target.value)}
+          />
+        </div>
+      </div>
+
       {/* Header */}
       <div className="commit-list-header">
         <div
@@ -362,17 +476,35 @@ export function CommitList() {
         >
           Graph
         </div>
-        <div className="commit-list-header-message">Description</div>
-        <div className="commit-list-header-author">Author</div>
-        <div className="commit-list-header-date">Date</div>
-        <div className="commit-list-header-sha">SHA</div>
+        {table.getHeaderGroups()[0].headers.map((header) => (
+          <div
+            key={header.id}
+            className="commit-list-header-cell"
+            style={{ width: `${header.getSize()}px` }}
+            onClick={header.column.getToggleSortingHandler()}
+          >
+            {flexRender(header.column.columnDef.header, header.getContext())}
+            {header.column.getIsSorted()
+              ? header.column.getIsSorted() === "desc"
+                ? " 🔽"
+                : " 🔼"
+              : null}
+            <div
+              onMouseDown={header.getResizeHandler()}
+              onTouchStart={header.getResizeHandler()}
+              className={`resizer ${header.column.getIsResizing() ? "isResizing" : ""}`}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        ))}
       </div>
 
-      {/* Virtualized list */}
+      {/* Scroll area */}
       <div
         ref={parentRef}
         className="commit-list-scroll"
         onScroll={handleScroll}
+        tabIndex={0}
       >
         <div
           style={{
@@ -391,158 +523,123 @@ export function CommitList() {
             maxLane={maxLane}
           />
 
-          {/* Commit rows */}
+          {/* Table rows */}
           {virtualizer.getVirtualItems().map((virtualRow) => {
-            const commit = commits[virtualRow.index];
+            const row = rows[virtualRow.index];
+            const commit = row.original;
             const isSelected = commit.oid === selectedCommitOid;
 
             return (
-              <div
-                key={commit.oid}
-                className={`commit-row ${isSelected ? "selected" : ""}`}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: `${virtualRow.size}px`,
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-                onClick={() => selectCommit(commit.oid)}
-                onContextMenu={(e) => handleRowContextMenu(e, commit.oid)}
-              >
-                {/* Graph column spacer */}
-                <div
-                  className="commit-col-graph"
-                  style={{ width: GRAPH_WIDTH }}
-                />
-
-                {/* Message + refs */}
-                <div className="commit-col-message">
-                  {commit.refs.map((ref, i) => (
-                    <RefBadge key={i} ref={ref} />
-                  ))}
-                  <span className="commit-message truncate">
-                    {commit.message}
-                  </span>
-                </div>
-
-                {/* Author */}
-                <div className="commit-col-author">
-                  <span
-                    className="commit-avatar"
-                    style={{ background: stringToColor(commit.authorName) }}
+              <ContextMenu.Root key={commit.oid}>
+                <ContextMenu.Trigger>
+                  <div
+                    className={`commit-row ${isSelected ? "selected" : ""}`}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      height: `${virtualRow.size}px`,
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                    onClick={() => selectCommit(commit.oid)}
                   >
-                    {getInitials(commit.authorName)}
-                  </span>
-                  <span className="commit-author-name truncate">
-                    {commit.authorName}
-                  </span>
-                </div>
+                    <div
+                      className="commit-col-graph"
+                      style={{ width: GRAPH_WIDTH }}
+                    />
+                    {row.getVisibleCells().map((cell) => (
+                      <div
+                        key={cell.id}
+                        className="commit-col-cell"
+                        style={{ width: `${cell.column.getSize()}px` }}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </ContextMenu.Trigger>
 
-                {/* Date */}
-                <div className="commit-col-date">
-                  {formatRelativeTime(commit.authorDate)}
-                </div>
-
-                {/* SHA */}
-                <div className="commit-col-sha text-mono">
-                  {commit.shortOid}
-                </div>
-              </div>
+                <ContextMenu.Portal>
+                  <ContextMenu.Content className="radix-context-menu commit-context-menu">
+                    <ContextMenu.Item
+                      className="context-menu-item"
+                      onSelect={() => handleCheckoutCommit(commit.oid)}
+                    >
+                      <Check size={12} />
+                      <span>Checkout Commit (Detached HEAD)</span>
+                    </ContextMenu.Item>
+                    <ContextMenu.Item
+                      className="context-menu-item"
+                      onSelect={() => handleCherryPick(commit.oid)}
+                    >
+                      <Scissors size={12} />
+                      <span>Cherry-Pick Commit</span>
+                    </ContextMenu.Item>
+                    <ContextMenu.Item
+                      className="context-menu-item"
+                      onSelect={() => handleRevert(commit.oid)}
+                    >
+                      <RotateCcw size={12} />
+                      <span>Revert Commit</span>
+                    </ContextMenu.Item>
+                    <ContextMenu.Item
+                      className="context-menu-item"
+                      onSelect={() => openResetModal(commit.oid)}
+                    >
+                      <FolderSync size={12} />
+                      <span>Reset current branch here...</span>
+                    </ContextMenu.Item>
+                    <ContextMenu.Separator className="context-menu-divider" />
+                    <ContextMenu.Item
+                      className="context-menu-item"
+                      onSelect={() => {
+                        startComparison(commit.oid, "HEAD").then(() =>
+                          setActiveView("compare"),
+                        );
+                      }}
+                    >
+                      <ArrowLeftRight size={12} />
+                      <span>Compare with HEAD</span>
+                    </ContextMenu.Item>
+                    {selectedCommitOid && selectedCommitOid !== commit.oid && (
+                      <ContextMenu.Item
+                        className="context-menu-item"
+                        onSelect={() => {
+                          startComparison(selectedCommitOid, commit.oid).then(
+                            () => setActiveView("compare"),
+                          );
+                        }}
+                      >
+                        <ArrowLeftRight size={12} />
+                        <span>Compare with Selected Commit</span>
+                      </ContextMenu.Item>
+                    )}
+                    <ContextMenu.Separator className="context-menu-divider" />
+                    <ContextMenu.Item
+                      className="context-menu-item"
+                      onSelect={() => handleCreateBranchPrompt(commit.oid)}
+                    >
+                      <GitBranch size={12} />
+                      <span>Create Branch here...</span>
+                    </ContextMenu.Item>
+                    <ContextMenu.Item
+                      className="context-menu-item"
+                      onSelect={() => handleCreateTagPrompt(commit.oid)}
+                    >
+                      <Tag size={12} />
+                      <span>Create Tag here...</span>
+                    </ContextMenu.Item>
+                  </ContextMenu.Content>
+                </ContextMenu.Portal>
+              </ContextMenu.Root>
             );
           })}
         </div>
       </div>
-
-      {/* Commit Context Menu */}
-      {contextMenu && (
-        <div
-          className="sidebar-context-menu commit-context-menu"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            className="context-menu-item"
-            onClick={() => handleCheckoutCommit(contextMenu.oid)}
-          >
-            <Check size={12} />
-            <span>Checkout Commit (Detached HEAD)</span>
-          </button>
-
-          <button
-            className="context-menu-item"
-            onClick={() => handleCherryPick(contextMenu.oid)}
-          >
-            <Scissors size={12} />
-            <span>Cherry-Pick Commit</span>
-          </button>
-
-          <button
-            className="context-menu-item"
-            onClick={() => handleRevert(contextMenu.oid)}
-          >
-            <RotateCcw size={12} />
-            <span>Revert Commit</span>
-          </button>
-
-          <button
-            className="context-menu-item"
-            onClick={() => openResetModal(contextMenu.oid)}
-          >
-            <FolderSync size={12} />
-            <span>Reset current branch to this commit...</span>
-          </button>
-
-          <div className="context-menu-divider" />
-
-          <button
-            className="context-menu-item"
-            onClick={() => {
-              startComparison(contextMenu.oid, "HEAD").then(() =>
-                setActiveView("compare"),
-              );
-              setContextMenu(null);
-            }}
-          >
-            <ArrowLeftRight size={12} />
-            <span>Compare with HEAD</span>
-          </button>
-
-          {selectedCommitOid && selectedCommitOid !== contextMenu.oid && (
-            <button
-              className="context-menu-item"
-              onClick={() => {
-                startComparison(selectedCommitOid, contextMenu.oid).then(() =>
-                  setActiveView("compare"),
-                );
-                setContextMenu(null);
-              }}
-            >
-              <ArrowLeftRight size={12} />
-              <span>Compare with Selected Commit</span>
-            </button>
-          )}
-
-          <div className="context-menu-divider" />
-
-          <button
-            className="context-menu-item"
-            onClick={() => handleCreateBranchPrompt(contextMenu.oid)}
-          >
-            <GitBranch size={12} />
-            <span>Create Branch here...</span>
-          </button>
-
-          <button
-            className="context-menu-item"
-            onClick={() => handleCreateTagPrompt(contextMenu.oid)}
-          >
-            <Tag size={12} />
-            <span>Create Tag here...</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }

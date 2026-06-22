@@ -20,6 +20,7 @@ import {
   type FileContentPair,
   getFileContentPairRevisions,
 } from "../../lib/tauri-commands";
+import { useDarkMode } from "../../lib/use-dark-mode";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./StashInspector.css";
@@ -67,6 +68,7 @@ function getLanguageFromPath(filePath: string): string {
 }
 
 export function StashInspector() {
+  const isDark = useDarkMode();
   const {
     activeTabId,
     stashes,
@@ -364,7 +366,7 @@ export function StashInspector() {
                   original={contents.original}
                   modified={contents.modified}
                   language={getLanguageFromPath(selectedStashFile)}
-                  theme="vs-dark"
+                  theme={isDark ? "basilico-dark" : "basilico-light"}
                   height="100%"
                   options={{
                     renderSideBySide: splitView,

@@ -2,12 +2,13 @@
   position: fixed;
   inset: 0;
   z-index: var(--z-modal);
-  background: rgba(1, 4, 9, 0.7);
+  background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: fadeIn var(--transition-fast) ease-out;
 }
 
 .confirm-modal {
@@ -16,10 +17,12 @@
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
+  box-shadow: var(--shadow-xl), var(--shadow-glow);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: scaleIn var(--transition-fast) cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
 }
 
 /* ── Header ── */
@@ -38,8 +41,9 @@
 }
 
 .confirm-title-group h3 {
+  font-family: var(--font-family);
   font-size: var(--text-md);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-bold);
   color: var(--text-primary);
   margin: 0;
 }
@@ -48,23 +52,25 @@
   color: var(--color-danger);
 }
 .confirm-icon-info {
-  color: var(--text-link);
+  color: var(--accent-primary);
 }
 
 .confirm-close-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-md);
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
   background: transparent;
+  border: none;
   color: var(--text-tertiary);
+  cursor: pointer;
   transition: all var(--transition-fast);
 }
 
 .confirm-close-btn:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -74,6 +80,7 @@
 }
 
 .confirm-message {
+  font-family: var(--font-family);
   font-size: var(--text-sm);
   color: var(--text-secondary);
   line-height: var(--leading-normal);
@@ -87,7 +94,7 @@
   gap: var(--space-2);
   padding: var(--space-3) var(--space-5);
   border-top: 1px solid var(--border-default);
-  background: var(--bg-elevated);
+  background: var(--bg-inset);
 }
 
 .confirm-btn {
@@ -96,6 +103,7 @@
   justify-content: center;
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-md);
+  font-family: var(--font-family);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   transition: all var(--transition-fast);
@@ -119,7 +127,7 @@
 }
 
 .confirm-btn-danger:hover {
-  background: var(--color-danger-hover, #ff7b72);
+  background: color-mix(in srgb, var(--color-danger) 85%, black);
 }
 
 .confirm-btn-outline {
@@ -129,7 +137,7 @@
 }
 
 .confirm-btn-outline:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
   color: var(--text-primary);
-  border-color: var(--text-tertiary);
+  border-color: var(--text-secondary);
 }

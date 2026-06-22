@@ -1,68 +1,78 @@
 /* ═══════════════════════════════════════════════════════
-   Basilico — Dark Theme Design Tokens
-   Premium dark palette with teal/green accents
+   Basilico — Modern Design Tokens & Theme Variables
+   Linear/Cursor-inspired palette supporting native light & dark modes
    ═══════════════════════════════════════════════════════ */
 
 :root {
-  /* ── Base Colors ── */
-  --bg-base: #0d1117;
-  --bg-surface: #161b22;
-  --bg-elevated: #1c2128;
-  --bg-overlay: #21262d;
-  --bg-inset: #0a0e13;
+  /* Declare color schemes for viewport-wide native elements rendering */
+  color-scheme: dark light;
 
-  /* ── Border Colors ── */
-  --border-default: #30363d;
-  --border-muted: #21262d;
-  --border-subtle: #1b2027;
-  --border-accent: color-mix(in srgb, var(--accent-primary) 44%, transparent);
+  /* ── Base Theme Custom Properties (Light/Dark Switcher) ── */
+  --bg-base: light-dark(#f7f8fa, #09090b);
+  --bg-surface: light-dark(#ffffff, #0d0d11);
+  --bg-elevated: light-dark(#f1f3f6, #16161f);
+  --bg-overlay: light-dark(#e4e7eb, #222230);
+  --bg-inset: light-dark(#fafbfc, #050508);
+  --bg-hover: light-dark(#f1f3f6, #1c1c27);
+  --bg-active: light-dark(rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.15));
 
-  /* ── Text Colors ── */
-  --text-primary: #e6edf3;
-  --text-secondary: #8b949e;
-  --text-tertiary: #6e7681;
-  --text-link: #58a6ff;
-  --text-inverse: #0d1117;
-
-  /* ── Accent Colors ── */
-  --accent-primary: #2ea043;
-  --accent-primary-hover: color-mix(in srgb, var(--accent-primary) 85%, white);
-  --accent-secondary: #1f6feb;
-  --accent-secondary-hover: color-mix(
-    in srgb,
-    var(--accent-secondary) 85%,
-    white
+  /* ── Borders ── */
+  --border-default: light-dark(#e2e8f0, #1e1e2d);
+  --border-muted: light-dark(#f1f5f9, #141421);
+  --border-subtle: light-dark(#f8fafc, #0a0a0f);
+  --border-accent: light-dark(
+    rgba(79, 70, 229, 0.25),
+    rgba(99, 102, 241, 0.35)
   );
-  --accent-teal: #2dd4bf;
-  --accent-teal-hover: color-mix(in srgb, var(--accent-teal) 85%, white);
 
-  /* ── Semantic Colors ── */
-  --color-success: var(--accent-primary);
-  --color-warning: #d29922;
-  --color-danger: #f85149;
-  --color-info: #58a6ff;
+  /* ── Text ── */
+  --text-primary: light-dark(#0f172a, #f4f4f5);
+  --text-secondary: light-dark(#475569, #a1a1aa);
+  --text-tertiary: light-dark(#94a3b8, #60606a);
+  --text-link: light-dark(#4f46e5, #6366f1);
+  --text-inverse: light-dark(#ffffff, #09090b);
 
-  /* ── Diff Colors ── */
-  --diff-add-bg: #12261e;
-  --diff-add-text: #3fb950;
-  --diff-add-line: #1a3a2a;
-  --diff-del-bg: #2d1215;
-  --diff-del-text: #f85149;
-  --diff-del-line: #3d1519;
-  --diff-hunk-bg: #1c2d4f;
-  --diff-hunk-text: #58a6ff;
+  /* ── Accents (Sleek Violet/Indigo) ── */
+  --accent-primary: light-dark(#4f46e5, #6366f1);
+  --accent-primary-hover: light-dark(#4338ca, #818cf8);
+  --accent-secondary: light-dark(#0284c7, #38bdf8);
+  --accent-secondary-hover: light-dark(#0369a1, #7dd3fc);
+  --accent-teal: light-dark(#0d9488, #2dd4bf);
+  --accent-teal-hover: light-dark(#0f766e, #5eead4);
 
-  /* ── Graph Lane Colors ── */
-  --lane-0: #58a6ff;
-  --lane-1: #3fb950;
-  --lane-2: #f0883e;
-  --lane-3: #bc8cff;
-  --lane-4: #f85149;
-  --lane-5: #2dd4bf;
-  --lane-6: #d2a8ff;
-  --lane-7: #ffa657;
-  --lane-8: #ff7b72;
-  --lane-9: #79c0ff;
+  /* ── Semantics ── */
+  --color-success: light-dark(#059669, #10b981);
+  --color-warning: light-dark(#d97706, #f59e0b);
+  --color-danger: light-dark(#dc2626, #ef4444);
+  --color-info: light-dark(#2563eb, #3b82f6);
+
+  /* ── Diff Styling ── */
+  --diff-add-bg: light-dark(#ecfdf5, #062f1d);
+  --diff-add-text: light-dark(#065f46, #4ade80);
+  --diff-add-line: light-dark(#d1fae5, #0c4a2e);
+  --diff-del-bg: light-dark(#fef2f2, #3b0712);
+  --diff-del-text: light-dark(#991b1b, #f87171);
+  --diff-del-line: light-dark(#fee2e2, #5c0f22);
+  --diff-hunk-bg: light-dark(#eff6ff, #0f1e36);
+  --diff-hunk-text: light-dark(#1e40af, #60a5fa);
+
+  /* ── Scrollbars ── */
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: light-dark(#cbd5e1, #27273a);
+  --scrollbar-thumb-hover: light-dark(#94a3b8, #3f3f56);
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+
+  /* ── Graph Lane Colors (Curated sleek spectrum) ── */
+  --lane-0: #6366f1; /* Indigo */
+  --lane-1: #10b981; /* Emerald */
+  --lane-2: #f59e0b; /* Amber */
+  --lane-3: #a855f7; /* Purple */
+  --lane-4: #ec4899; /* Pink */
+  --lane-5: #06b6d4; /* Cyan */
+  --lane-6: #f97316; /* Orange */
+  --lane-7: #14b8a6; /* Teal */
+  --lane-8: #3b82f6; /* Blue */
+  --lane-9: #e11d48; /* Rose */
 
   /* ── Spacing Scale ── */
   --space-1: 4px;
@@ -77,7 +87,8 @@
 
   /* ── Typography ── */
   --font-family:
-    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
   --font-mono:
     "JetBrains Mono", "Cascadia Code", "Fira Code", "SF Mono", Consolas,
     monospace;
@@ -100,6 +111,7 @@
   --leading-relaxed: 1.75;
 
   /* ── Border Radius ── */
+  --radius-xs: 2px;
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
@@ -107,20 +119,19 @@
   --radius-full: 9999px;
 
   /* ── Shadows ── */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-md:
-    0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+    0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
   --shadow-lg:
-    0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+    0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
   --shadow-xl:
-    0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 20px
-    color-mix(in srgb, var(--accent-primary) 15%, transparent);
+    0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.15);
 
   /* ── Transitions ── */
-  --transition-fast: 100ms ease;
-  --transition-normal: 200ms ease;
-  --transition-slow: 300ms ease;
+  --transition-fast: 120ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-spring: 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* ── Z-Index Scale ── */
@@ -139,12 +150,10 @@
   --tabbar-height: 36px;
   --scrollbar-width: 8px;
 
-  /* ── Design System Alias & Compatibility Tokens ── */
+  /* Compatibility & Alias variables */
   --bg-primary: var(--bg-base);
   --bg-secondary: var(--bg-surface);
   --bg-tertiary: var(--bg-elevated);
-  --bg-hover: var(--bg-overlay);
-  --bg-active: color-mix(in srgb, var(--accent-primary) 8%, transparent);
   --border-color: var(--border-default);
   --border-active: var(--border-accent);
   --accent-color: var(--accent-primary);

@@ -1,8 +1,9 @@
 /* ═══════════════════════════════════════════════════════
    Basilico — CommandPalette Component
-   Floating command bar overlay (Cmd/Ctrl+Shift+P)
+   Floating command bar overlay using Radix Dialog (Cmd/Ctrl+Shift+P)
    ═══════════════════════════════════════════════════════ */
 
+import * as Dialog from "@radix-ui/react-dialog";
 import { ArrowRight, Command, Terminal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRepoStore } from "../../store/repo-store";
@@ -25,6 +26,7 @@ export function CommandPalette() {
     addNotification,
     openPrompt,
   } = useUIStore();
+
   const {
     refreshAll,
     fetch,
@@ -287,50 +289,27 @@ export function CommandPalette() {
   // Adjust selected index on filter changes
   useEffect(() => {
     setSelectedIndex(0);
-  }, []);
+  }, [query]);
 
-  // Handle global key events for toggling command palette (Cmd/Ctrl+Shift+P)
+  // Handle global key events for toggling command palette (Cmd/Ctrl+Shift+P or Cmd/Ctrl+K)
   useEffect(() => {
     const handleKeyDownGlobal = (e: KeyboardEvent) => {
-      if (
-        (e.metaKey || e.ctrlKey) &&
-        e.shiftKey &&
-        e.key.toLowerCase() === "p"
-      ) {
+      const isCmdK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k";
+      const isCmdShiftP =
+        (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "p";
+
+      if (isCmdK || isCmdShiftP) {
         e.preventDefault();
         toggleCommandPalette();
-      } else if (e.key === "?") {
-        // Only trigger cheat sheet if not inside form inputs
-        const target = e.target as HTMLElement;
-        if (
-          target &&
-          target.tagName !== "INPUT" &&
-          target.tagName !== "TEXTAREA"
-        ) {
-          e.preventDefault();
-          toggleCommandPalette();
-        }
       }
     };
     window.addEventListener("keydown", handleKeyDownGlobal);
     return () => window.removeEventListener("keydown", handleKeyDownGlobal);
   }, [toggleCommandPalette]);
 
-  // Auto-focus input when opened
-  useEffect(() => {
-    if (commandPaletteOpen) {
-      setQuery("");
-      setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [commandPaletteOpen]);
-
   // Handle keyboard navigation inside the open palette
   const handleKeyDownPalette = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      toggleCommandPalette();
-    } else if (e.key === "ArrowDown") {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       setSelectedIndex((prev) =>
         prev < filteredCommands.length - 1 ? prev + 1 : 0,
@@ -351,7 +330,6 @@ export function CommandPalette() {
   };
 
   // Scroll selected item into view automatically
-  // biome-ignore lint/correctness/useExhaustiveDependencies: trigger scroll on index or list changes
   useEffect(() => {
     const listEl = listRef.current;
     if (listEl) {
@@ -360,72 +338,68 @@ export function CommandPalette() {
         activeEl.scrollIntoView({ block: "nearest" });
       }
     }
-  }, [selectedIndex, filteredCommands]);
-
-  if (!commandPaletteOpen) return null;
+  }, [selectedIndex]);
 
   return (
-    <div
-      className="palette-overlay animate-fade-in"
-      onClick={toggleCommandPalette}
-    >
-      <div
-        className="palette-box"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={handleKeyDownPalette}
-      >
-        <div className="palette-search">
-          <Command size={18} className="palette-search-icon" />
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="Type a command or action to run..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <span className="palette-esc-badge">ESC</span>
-        </div>
+    <Dialog.Root open={commandPaletteOpen} onOpenChange={toggleCommandPalette}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="radix-dialog-overlay" />
+        <Dialog.Content
+          className="radix-dialog-content"
+          onKeyDown={handleKeyDownPalette}
+        >
+          <div className="palette-search">
+            <Command size={16} className="palette-search-icon" />
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Type a command or action to run..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              autoFocus
+            />
+            <span className="palette-esc-badge">ESC</span>
+          </div>
 
-        <div ref={listRef} className="palette-results custom-scrollbar">
-          {filteredCommands.length === 0 ? (
-            <div className="palette-empty">No commands match your query</div>
-          ) : (
-            filteredCommands.map((cmd, index) => (
-              <div
-                key={cmd.id}
-                className={`palette-row ${index === selectedIndex ? "active" : ""}`}
-                onMouseEnter={() => setSelectedIndex(index)}
-                onClick={() => {
-                  cmd.action();
-                  toggleCommandPalette();
-                }}
-              >
-                <div className="palette-row-left">
-                  <Terminal size={14} className="palette-row-icon" />
-                  <div className="palette-row-text">
-                    <span className="palette-row-name">{cmd.name}</span>
-                    <span className="palette-row-cat">{cmd.category}</span>
+          <div ref={listRef} className="palette-results custom-scrollbar">
+            {filteredCommands.length === 0 ? (
+              <div className="palette-empty">No commands match your query</div>
+            ) : (
+              filteredCommands.map((cmd, index) => (
+                <div
+                  key={cmd.id}
+                  className={`palette-row ${index === selectedIndex ? "active" : ""}`}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                  onClick={() => {
+                    cmd.action();
+                    toggleCommandPalette();
+                  }}
+                >
+                  <div className="palette-row-left">
+                    <Terminal size={14} className="palette-row-icon" />
+                    <div className="palette-row-text">
+                      <span className="palette-row-name">{cmd.name}</span>
+                      <span className="palette-row-cat">{cmd.category}</span>
+                    </div>
                   </div>
+                  {cmd.shortcut ? (
+                    <span className="palette-row-shortcut">{cmd.shortcut}</span>
+                  ) : (
+                    <ArrowRight size={12} className="palette-row-arrow" />
+                  )}
                 </div>
-                {cmd.shortcut ? (
-                  <span className="palette-row-shortcut text-mono">
-                    {cmd.shortcut}
-                  </span>
-                ) : (
-                  <ArrowRight size={12} className="palette-row-arrow" />
-                )}
-              </div>
-            ))
-          )}
-        </div>
+              ))
+            )}
+          </div>
 
-        <div className="palette-footer">
-          <span>
-            Use <b>↑↓</b> to navigate, <b>Enter</b> to select, <b>ESC</b> to
-            close
-          </span>
-        </div>
-      </div>
-    </div>
+          <div className="palette-footer">
+            <span>
+              Use <b>↑↓</b> to navigate, <b>Enter</b> to select, <b>ESC</b> to
+              close
+            </span>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

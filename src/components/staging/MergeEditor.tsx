@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import * as commands from "../../lib/tauri-commands";
+import { useDarkMode } from "../../lib/use-dark-mode";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./MergeEditor.css";
@@ -64,6 +65,7 @@ interface ConflictBlock {
 }
 
 export function MergeEditor() {
+  const isDark = useDarkMode();
   const {
     activeConflictedPath,
     conflictStages,
@@ -280,7 +282,7 @@ export function MergeEditor() {
                 <Editor
                   value={oursValue}
                   language={getLanguageFromPath(activeConflictedPath)}
-                  theme="vs-dark"
+                  theme={isDark ? "basilico-dark" : "basilico-light"}
                   height="100%"
                   options={{
                     readOnly: true,
@@ -302,7 +304,7 @@ export function MergeEditor() {
                 <Editor
                   value={theirsValue}
                   language={getLanguageFromPath(activeConflictedPath)}
-                  theme="vs-dark"
+                  theme={isDark ? "basilico-dark" : "basilico-light"}
                   height="100%"
                   options={{
                     readOnly: true,
@@ -372,7 +374,7 @@ export function MergeEditor() {
                 value={mergedValue}
                 onChange={(val) => setMergedValue(val || "")}
                 language={getLanguageFromPath(activeConflictedPath)}
-                theme="vs-dark"
+                theme={isDark ? "basilico-dark" : "basilico-light"}
                 height="100%"
                 options={{
                   readOnly: false,

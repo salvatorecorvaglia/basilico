@@ -79,8 +79,9 @@
 }
 
 .commit-inputs:focus-within {
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.2);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 1px
+    color-mix(in srgb, var(--accent-primary) 20%, transparent);
 }
 
 .commit-footer {
@@ -121,14 +122,16 @@
 }
 
 .commit-submit-btn.active {
-  background: linear-gradient(135deg, #2dd4bf, #0d9488);
-  border: none;
-  color: #0d1117;
+  background: var(--accent-primary);
+  border: 1px solid var(--accent-primary);
+  color: var(--text-inverse);
   cursor: pointer;
 }
 
 .commit-submit-btn.active:hover {
-  opacity: 0.9;
+  background: var(--accent-primary-hover);
+  border-color: var(--accent-primary-hover);
+  opacity: 1;
   transform: translateY(-1px);
 }
 

@@ -4,13 +4,14 @@
    ═══════════════════════════════════════════════════════ */
 
 import { DiffEditor } from "@monaco-editor/react";
-import { ArrowLeftRight, Check, Eye, FileCode, Trash2 } from "lucide-react";
+import { Check, Eye, FileCode, Minus, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { DiffHunkInfo } from "../../lib/git-types";
 import {
   type FileContentPair,
   getFileContentPair,
 } from "../../lib/tauri-commands";
+import { useDarkMode } from "../../lib/use-dark-mode";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./DiffView.css";
@@ -58,6 +59,7 @@ function getLanguageFromPath(filePath: string): string {
 }
 
 export function DiffView() {
+  const isDark = useDarkMode();
   const {
     activeTabId,
     selectedFilePath,
@@ -279,6 +281,7 @@ export function DiffView() {
           {/* View mode toggle */}
           <div className="diff-segmented-control">
             <button
+              type="button"
               className={`diff-control-btn ${viewMode === "visual" ? "active" : ""}`}
               onClick={() => setViewMode("visual")}
               title="Visual Split Diff"
@@ -287,6 +290,7 @@ export function DiffView() {
               <span>Full View</span>
             </button>
             <button
+              type="button"
               className={`diff-control-btn ${viewMode === "hunk" ? "active" : ""}`}
               onClick={() => setViewMode("hunk")}
               title="Granular Hunk Staging"
@@ -296,15 +300,26 @@ export function DiffView() {
             </button>
           </div>
 
-          {/* Monaco options */}
+          {/* Split/Inline toggle */}
           {viewMode === "visual" && (
-            <button
-              className={`diff-action-btn ${splitView ? "active" : ""}`}
-              onClick={() => setSplitView(!splitView)}
-              title="Toggle Split/Inline Diff"
-            >
-              <ArrowLeftRight size={13} />
-            </button>
+            <div className="diff-segmented-control">
+              <button
+                type="button"
+                className={`diff-control-btn ${splitView ? "active" : ""}`}
+                onClick={() => setSplitView(true)}
+                title="Split View"
+              >
+                <span>Split</span>
+              </button>
+              <button
+                type="button"
+                className={`diff-control-btn ${!splitView ? "active" : ""}`}
+                onClick={() => setSplitView(false)}
+                title="Unified/Inline View"
+              >
+                <span>Unified</span>
+              </button>
+            </div>
           )}
 
           {/* Stage / Unstage / Discard File */}
@@ -347,7 +362,7 @@ export function DiffView() {
               original={contents.original}
               modified={contents.modified}
               language={getLanguageFromPath(selectedFilePath)}
-              theme="vs-dark"
+              theme={isDark ? "basilico-dark" : "basilico-light"}
               height="100%"
               options={{
                 renderSideBySide: splitView,
@@ -408,7 +423,17 @@ export function DiffView() {
                           className="hunk-btn hunk-btn-secondary"
                           onClick={() => handleStageHunk(hunk)}
                         >
-                          {selectedFileIsStaged ? "Unstage Hunk" : "Stage Hunk"}
+                          {selectedFileIsStaged ? (
+                            <>
+                              <Minus size={11} />
+                              <span>Unstage Hunk</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus size={11} />
+                              <span>Stage Hunk</span>
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>

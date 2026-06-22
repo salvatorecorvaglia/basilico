@@ -2,6 +2,7 @@ import Editor from "@monaco-editor/react";
 import { Check, Copy, Download, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getFileContentAtRevision } from "../../lib/tauri-commands";
+import { useDarkMode } from "../../lib/use-dark-mode";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./FileViewerModal.css";
@@ -49,6 +50,7 @@ function getLanguageFromPath(filePath: string): string {
 }
 
 export function FileViewerModal() {
+  const isDark = useDarkMode();
   const { activeTabId } = useRepoStore();
   const {
     fileViewerOpen,
@@ -178,7 +180,7 @@ export function FileViewerModal() {
             <Editor
               value={content}
               language={getLanguageFromPath(fileViewerPath)}
-              theme="vs-dark"
+              theme={isDark ? "basilico-dark" : "basilico-light"}
               height="100%"
               options={{
                 readOnly: true,
