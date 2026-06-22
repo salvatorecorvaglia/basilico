@@ -24,6 +24,10 @@ pub async fn get_file_blame(
 ) -> Result<Vec<BlameLine>, AppError> {
     let repo = Repository::open(&path)?;
 
+    // Validate file_path
+    let workdir = repo.workdir().ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
+    let validated_full_path = crate::git::utils::validate_path(workdir, Path::new(&file_path))?;
+
     // 1. Get file content at the specified revision or HEAD/workdir
     let (content, resolved_oid) = if let Some(ref oid_str) = commit_oid {
         let obj = repo.revparse_single(oid_str)?;
@@ -42,7 +46,7 @@ pub async fn get_file_blame(
         )
     } else {
         // Read from workdir
-        let text = std::fs::read_to_string(Path::new(&path).join(&file_path))
+        let text = std::fs::read_to_string(&validated_full_path)
             .map_err(|e| AppError::io(format!("Failed to read file from workdir: {}", e)))?;
         (text, None)
     };

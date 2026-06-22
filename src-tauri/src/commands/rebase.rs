@@ -123,7 +123,7 @@ pub async fn rebase_step(
                 "Cannot continue rebase while there are merge conflicts.",
             ));
         }
-        let _ = rebase.commit(None, &signature, commit_message.as_deref());
+        rebase.commit(None, &signature, commit_message.as_deref())?;
     }
 
     let next_op = match rebase.next() {

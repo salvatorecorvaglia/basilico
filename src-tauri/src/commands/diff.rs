@@ -42,6 +42,8 @@ pub async fn get_file_content_pair(
     is_staged: bool,
 ) -> Result<FileContentPair, AppError> {
     let repo = git2::Repository::open(&path)?;
+    let workdir = repo.workdir().ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
+    let validated_full_path = crate::git::utils::validate_path(workdir, std::path::Path::new(&file_path))?;
 
     let mut original = String::new();
     let mut modified = String::new();
@@ -94,12 +96,10 @@ pub async fn get_file_content_pair(
         }
 
         // Modified: from Working Directory
-        if let Some(workdir) = repo.workdir() {
-            let full_path = workdir.join(&file_path);
-            if full_path.exists() && full_path.is_file() {
-                if let Ok(content) = std::fs::read_to_string(full_path) {
-                    modified = content;
-                }
+        let full_path = validated_full_path;
+        if full_path.exists() && full_path.is_file() {
+            if let Ok(content) = std::fs::read_to_string(full_path) {
+                modified = content;
             }
         }
     }

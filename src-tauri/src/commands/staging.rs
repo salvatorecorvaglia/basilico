@@ -5,11 +5,11 @@ use std::path::Path;
 #[tauri::command]
 pub async fn stage_files(path: String, files: Vec<String>) -> Result<(), AppError> {
     let repo = Repository::open(&path)?;
-    let repo_dir = Path::new(&path);
+    let workdir = repo.workdir().ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
     let mut index = repo.index()?;
     for file in files {
-        let full_path = repo_dir.join(&file);
-        if full_path.exists() {
+        let validated_full_path = crate::git::utils::validate_path(workdir, Path::new(&file))?;
+        if validated_full_path.exists() {
             index.add_path(Path::new(&file))?;
         } else {
             // File was deleted — stage the deletion
@@ -62,13 +62,16 @@ pub async fn apply_patch(path: String, patch: String, location: String) -> Resul
 pub async fn discard_changes(path: String, files: Vec<String>) -> Result<(), AppError> {
     let repo = Repository::open(&path)?;
     let index = repo.index()?;
-    let repo_dir = Path::new(&path);
+    let workdir = repo.workdir().ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
 
     let mut tracked_files = Vec::new();
     let mut untracked_files = Vec::new();
 
     for file in &files {
         let file_path = Path::new(file);
+        // Validate path to prevent directory traversal
+        let _validated_full_path = crate::git::utils::validate_path(workdir, file_path)?;
+
         if index.get_path(file_path, 0).is_some() {
             tracked_files.push(file);
         } else {
@@ -88,12 +91,12 @@ pub async fn discard_changes(path: String, files: Vec<String>) -> Result<(), App
 
     // 2. Delete untracked files from disk
     for file in untracked_files {
-        let full_path = repo_dir.join(file);
-        if std::fs::symlink_metadata(&full_path).is_ok() {
-            if full_path.is_dir() && !full_path.is_symlink() {
-                std::fs::remove_dir_all(&full_path)?;
+        let validated_full_path = crate::git::utils::validate_path(workdir, Path::new(file))?;
+        if std::fs::symlink_metadata(&validated_full_path).is_ok() {
+            if validated_full_path.is_dir() && !validated_full_path.is_symlink() {
+                std::fs::remove_dir_all(&validated_full_path)?;
             } else {
-                std::fs::remove_file(&full_path)?;
+                std::fs::remove_file(&validated_full_path)?;
             }
         }
     }
@@ -175,5 +178,32 @@ mod tests {
 
         let content = std::fs::read_to_string(repo.path.join("file.txt")).unwrap();
         assert_eq!(content, "original");
+    }
+
+    #[tokio::test]
+    async fn test_unsafe_paths() {
+        let repo = TempRepo::new();
+
+        // 1. absolute path
+        let err1 = stage_files(repo.path_str().to_string(), vec!["/etc/passwd".to_string()]).await;
+        assert!(err1.is_err());
+        assert_contains(&err1.unwrap_err().message, "Absolute paths are not allowed");
+
+        let err2 = discard_changes(repo.path_str().to_string(), vec!["/etc/passwd".to_string()]).await;
+        assert!(err2.is_err());
+        assert_contains(&err2.unwrap_err().message, "Absolute paths are not allowed");
+
+        // 2. path traversal path
+        let err3 = stage_files(repo.path_str().to_string(), vec!["../../file.txt".to_string()]).await;
+        assert!(err3.is_err());
+        assert_contains(&err3.unwrap_err().message, "Path traversal is not allowed");
+
+        let err4 = discard_changes(repo.path_str().to_string(), vec!["../../file.txt".to_string()]).await;
+        assert!(err4.is_err());
+        assert_contains(&err4.unwrap_err().message, "Path traversal is not allowed");
+    }
+
+    fn assert_contains(msg: &str, sub: &str) {
+        assert!(msg.contains(sub), "Expected error message '{}' to contain '{}'", msg, sub);
     }
 }

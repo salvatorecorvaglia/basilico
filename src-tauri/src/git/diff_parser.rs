@@ -213,6 +213,11 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
                     });
                 }
 
+                // Skip hunk header lines from being added to the hunk's lines list
+                if line.origin() == 'H' {
+                    return true;
+                }
+
                 let origin = match line.origin() {
                     '+' => {
                         files[idx].stats.additions += 1;

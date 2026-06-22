@@ -22,7 +22,10 @@ pub async fn open_repo(
 
 #[tauri::command]
 pub async fn close_repo(path: String, state: tauri::State<'_, AppState>) -> Result<(), AppError> {
-    state.remove_repo(&path);
+    let canonical = std::fs::canonicalize(&path)
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or(path);
+    state.remove_repo(&canonical);
     Ok(())
 }
 

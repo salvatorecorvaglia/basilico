@@ -174,6 +174,9 @@ fn compute_lanes(commits: &mut Vec<GraphCommit>) {
         return;
     }
 
+    // Gather all walked commit OIDs to identify boundary commits
+    let walked_oids: std::collections::HashSet<String> = commits.iter().map(|c| c.oid.clone()).collect();
+
     // Active lanes: each lane tracks which oid it's expecting next
     let mut active_lanes: Vec<Option<String>> = Vec::new();
 
@@ -210,9 +213,15 @@ fn compute_lanes(commits: &mut Vec<GraphCommit>) {
         let mut edges = Vec::new();
 
         for (p_idx, parent_oid) in parent_oids.iter().enumerate() {
+            let is_boundary = !walked_oids.contains(parent_oid);
+
             let target_lane = if p_idx == 0 {
                 // First parent takes current lane
-                active_lanes[lane] = Some(parent_oid.clone());
+                if !is_boundary {
+                    active_lanes[lane] = Some(parent_oid.clone());
+                } else {
+                    active_lanes[lane] = None;
+                }
                 lane
             } else {
                 // Merge parents get a new or free lane
@@ -230,7 +239,9 @@ fn compute_lanes(commits: &mut Vec<GraphCommit>) {
                                 active_lanes.len() - 1
                             }
                         };
-                        active_lanes[new_lane] = Some(parent_oid.clone());
+                        if !is_boundary {
+                            active_lanes[new_lane] = Some(parent_oid.clone());
+                        }
                         new_lane
                     }
                 }
@@ -317,5 +328,35 @@ mod tests {
 
         assert_eq!(commits[3].oid, "C1");
         assert_eq!(commits[3].lane, 0);
+    }
+
+    #[test]
+    fn test_compute_lanes_boundary_commits() {
+        // C2 has parent C1 which is not present in commits (boundary)
+        let mut commits = vec![
+            create_mock_commit("C2", vec!["C1"]),
+        ];
+
+        compute_lanes(&mut commits);
+
+        assert_eq!(commits[0].lane, 0);
+        assert_eq!(commits[0].edges.len(), 1);
+        assert_eq!(commits[0].edges[0].to_lane, 0);
+        assert_eq!(commits[0].edges[0].to_oid, "C1");
+
+        // With optimization, C1 is boundary so its lane is cleared.
+        // C4 (new branch) should be able to reuse lane 0 instead of allocating lane 1.
+        let mut commits2 = vec![
+            create_mock_commit("C2", vec!["C1"]),
+            create_mock_commit("C4", vec!["C3"]),
+        ];
+
+        compute_lanes(&mut commits2);
+        
+        assert_eq!(commits2[0].oid, "C2");
+        assert_eq!(commits2[0].lane, 0);
+
+        assert_eq!(commits2[1].oid, "C4");
+        assert_eq!(commits2[1].lane, 0);
     }
 }

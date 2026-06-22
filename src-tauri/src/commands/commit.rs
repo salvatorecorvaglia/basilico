@@ -42,8 +42,21 @@ pub async fn create_commit(
                 parents.push(parent_commit);
             }
         }
+
+        let has_merge_head = repo.find_reference("MERGE_HEAD").is_ok();
+        if let Ok(merge_ref) = repo.find_reference("MERGE_HEAD") {
+            if let Ok(merge_commit) = merge_ref.peel_to_commit() {
+                parents.push(merge_commit);
+            }
+        }
+
         let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
-        repo.commit(Some("HEAD"), &sig, &sig, &message, &tree, &parent_refs)?
+        let commit_oid = repo.commit(Some("HEAD"), &sig, &sig, &message, &tree, &parent_refs)?;
+
+        if has_merge_head {
+            let _ = repo.cleanup_state();
+        }
+        commit_oid
     };
 
     Ok(commit_id.to_string())

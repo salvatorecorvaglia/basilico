@@ -80,16 +80,16 @@ pub async fn pull(
         let target_object = repo.find_object(target_oid, None)?;
         repo.checkout_tree(&target_object, Some(CheckoutBuilder::new().safe()))?;
 
-        let refname = format!("refs/heads/{}", branch);
-        match repo.find_reference(&refname) {
-            Ok(mut r) => {
+        let head_ref = repo.head()?;
+        if head_ref.is_branch() {
+            if let Some(refname) = head_ref.name() {
+                let mut r = repo.find_reference(refname)?;
                 r.set_target(target_oid, &format!("pull: fast-forward to {}", target_oid))?;
+                repo.set_head(refname)?;
             }
-            Err(_) => {
-                repo.reference(&refname, target_oid, true, "pull: fast-forward")?;
-            }
+        } else {
+            repo.set_head_detached(target_oid)?;
         }
-        repo.set_head(&refname)?;
         return Ok("success".to_string());
     }
 

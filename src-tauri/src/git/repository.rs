@@ -75,11 +75,9 @@ pub struct RepoStatus {
 /// Open a repository and return summary info.
 pub fn open_repo(path: &str) -> Result<RepoInfo, AppError> {
     let repo = Repository::discover(path)?;
-    let workdir = repo
-        .workdir()
-        .unwrap_or_else(|| repo.path())
-        .to_string_lossy()
-        .to_string();
+    let workdir_path = repo.workdir().unwrap_or_else(|| repo.path());
+    let canonical_workdir = std::fs::canonicalize(workdir_path)?;
+    let workdir = canonical_workdir.to_string_lossy().to_string();
 
     let name = Path::new(&workdir)
         .file_name()
