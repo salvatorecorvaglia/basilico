@@ -271,6 +271,17 @@ export function CompareView() {
                       horizontal: "visible",
                     },
                   }}
+                  onMount={(editor: any) => {
+                    const originalDispose = editor.dispose;
+                    editor.dispose = () => {
+                      try {
+                        editor.setModel(null);
+                      } catch (e) {
+                        // Ignore
+                      }
+                      originalDispose.call(editor);
+                    };
+                  }}
                 />
               </div>
             </div>

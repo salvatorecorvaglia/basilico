@@ -382,6 +382,17 @@ export function StashInspector() {
                     scrollBeyondLastLine: false,
                     diffWordWrap: "off",
                   }}
+                  onMount={(editor: any) => {
+                    const originalDispose = editor.dispose;
+                    editor.dispose = () => {
+                      try {
+                        editor.setModel(null);
+                      } catch (e) {
+                        // Ignore
+                      }
+                      originalDispose.call(editor);
+                    };
+                  }}
                 />
               ) : (
                 <div className="stash-diff-placeholder">
