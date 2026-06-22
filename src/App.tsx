@@ -12,7 +12,6 @@ import { CleanModal } from "./components/clean/CleanModal";
 import { CommandPalette } from "./components/command-palette/CommandPalette";
 import { CommitDetail } from "./components/graph/CommitDetail";
 import { CommitList } from "./components/graph/CommitList";
-import { GitGraphFlow } from "./components/graph/GitGraphFlow";
 import { ResetModal } from "./components/graph/ResetModal";
 import { PullRequestReview } from "./components/layout/PullRequestReview";
 import { Sidebar } from "./components/layout/Sidebar";
@@ -94,17 +93,9 @@ function renderViewContent(activeView: string) {
     case "graph":
       return (
         <Group orientation="vertical">
-          {/* Commit List + Flow Graph split */}
+          {/* Commit List */}
           <Panel id="graph" defaultSize="60%" minSize="30%">
-            <Group orientation="horizontal">
-              <Panel id="flow-graph" defaultSize="35%" minSize="20%">
-                <GitGraphFlow />
-              </Panel>
-              <Separator className="resize-handle resize-handle-horizontal" />
-              <Panel id="list-table" defaultSize="65%" minSize="40%">
-                <CommitList />
-              </Panel>
-            </Group>
+            <CommitList />
           </Panel>
 
           <Separator className="resize-handle resize-handle-vertical" />

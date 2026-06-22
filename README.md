@@ -8,7 +8,6 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
 
 ## ✨ Features
 
-- **📊 Interactive Git Commit Graph**: A highly responsive, React Flow-based (`@xyflow/react`) Directed Acyclic Graph (DAG) for visualizing repository history with curved edges, nodes synchronized with the active commit list, and native support for zooming and panning.
 - **🛠 Core Git Operations**: 
   - Effortless staging, committing, pushing, pulling, merging, and tagging.
   - Interactive stashing capabilities, complete with a dedicated `StashInspector` UI.
