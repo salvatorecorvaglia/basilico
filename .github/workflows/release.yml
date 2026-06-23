@@ -122,15 +122,19 @@ jobs:
           - platform: 'macos-latest'
             target: 'aarch64-apple-darwin'
             args: '--target aarch64-apple-darwin'
+            makeflags: '-j1'
           - platform: 'macos-latest'
             target: 'x86_64-apple-darwin'
             args: '--target x86_64-apple-darwin'
+            makeflags: '-j1'
           - platform: 'ubuntu-22.04'
             target: ''
             args: ''
+            makeflags: ''
           - platform: 'windows-latest'
             target: ''
             args: ''
+            makeflags: ''
 
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 40
@@ -177,6 +181,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
+          MAKEFLAGS: ${{ matrix.makeflags }}
         with:
           tagName: v__VERSION__
           releaseName: 'Basilico v__VERSION__'
