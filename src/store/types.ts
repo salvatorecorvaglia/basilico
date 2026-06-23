@@ -9,7 +9,6 @@ import type {
   GrepMatch,
   RebaseStatus,
   RebaseTodoItem,
-  ReflogEntry,
   RemoteInfo,
   RepoInfo,
   RepoStatus,
@@ -42,7 +41,6 @@ export interface RepoState {
   // Phase 3 State
   blameLines: BlameLine[];
   fileHistory: FileHistoryEntry[];
-  reflogEntries: ReflogEntry[];
   stashes: StashInfo[];
 
   // Phase 5 State
@@ -120,7 +118,6 @@ export interface RepoState {
   // Phase 3 Actions
   loadFileBlame: (filePath: string, commitOid?: string | null) => Promise<void>;
   loadFileHistory: (filePath: string) => Promise<void>;
-  loadReflog: () => Promise<void>;
   loadStashes: () => Promise<void>;
   saveStash: (message: string, includeUntracked: boolean) => Promise<void>;
   applyStash: (index: number) => Promise<void>;
@@ -184,11 +181,6 @@ export interface RepoState {
     oid: string,
     mode: "soft" | "mixed" | "hard",
   ) => Promise<void>;
-  cleanRepository: (
-    dryRun: boolean,
-    cleanDirs: boolean,
-    includeIgnored: boolean,
-  ) => Promise<string[]>;
 
   // Phase 7 Actions
   loadCommitTree: (oid: string) => Promise<void>;

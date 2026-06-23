@@ -143,13 +143,11 @@ export type ActiveView =
   | "diff"
   | "blame"
   | "history"
-  | "reflog"
   | "search"
   | "rebase"
   | "bisect"
   | "compare"
   | "conflict-resolver"
-  | "pull-requests"
   | "stash-inspector";
 
 // ── Phase 3: Blame, History, Reflog, Stash Types ──
@@ -172,16 +170,6 @@ export interface FileHistoryEntry {
   authorDate: number;
   commitSummary: string;
   filePath: string;
-}
-
-export interface ReflogEntry {
-  index: number;
-  newOid: string;
-  oldOid: string;
-  selector: string;
-  committerName: string;
-  committerDate: number;
-  message: string;
 }
 
 export interface StashInfo {

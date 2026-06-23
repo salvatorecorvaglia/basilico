@@ -24,7 +24,6 @@ pub fn run() {
             commands::repo::close_repo,
             commands::repo::get_status,
             commands::repo::list_remotes,
-            commands::repo::clean_repository,
             // Log commands
             commands::log::get_log,
             // Diff commands
@@ -51,8 +50,6 @@ pub fn run() {
             commands::blame::get_file_blame,
             // History commands
             commands::history::get_file_history,
-            // Reflog commands
-            commands::reflog::get_reflog,
             // Stash commands
             commands::stash::list_stashes,
             commands::stash::save_stash,

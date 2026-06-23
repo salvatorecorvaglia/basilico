@@ -72,11 +72,6 @@ export interface CollaborationSlice {
     oid: string,
     mode: "soft" | "mixed" | "hard",
   ) => Promise<void>;
-  cleanRepository: (
-    dryRun: boolean,
-    cleanDirs: boolean,
-    includeIgnored: boolean,
-  ) => Promise<string[]>;
   loadCommitTree: (oid: string) => Promise<void>;
   startComparison: (base: string, target: string) => Promise<void>;
   selectCompareFile: (filePath: string | null) => Promise<void>;
@@ -728,31 +723,6 @@ export const createCollaborationSlice: StateCreator<
       await get().refreshAll();
     } catch (err) {
       console.error("Failed to reset to commit:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  cleanRepository: async (dryRun, cleanDirs, includeIgnored) => {
-    const { activeTabId } = get();
-    if (!activeTabId) throw new Error("No active repository");
-    set({ isLoading: true, error: null });
-    try {
-      const res = await commands.cleanRepository(
-        activeTabId,
-        dryRun,
-        cleanDirs,
-        includeIgnored,
-        { errorPrefix: "Clean failed" },
-      );
-      if (!dryRun) {
-        await get().refreshAll();
-      }
-      return res;
-    } catch (err) {
-      console.error("Failed to clean repository:", err);
       set({ error: String(err) });
       throw err;
     } finally {

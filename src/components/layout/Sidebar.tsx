@@ -11,14 +11,12 @@ import {
   ChevronDown,
   ChevronRight,
   CircleDot,
-  Clock,
   Download,
   Edit,
   FolderOpen,
   FolderTree,
   GitBranch,
   GitMerge,
-  GitPullRequest,
   Globe,
   Package,
   Plus,
@@ -111,14 +109,8 @@ export function Sidebar() {
     isLoading,
   } = useRepoStore();
 
-  const {
-    addNotification,
-    setActiveView,
-    openCleanModal,
-    activeView,
-    openPrompt,
-    openConfirm,
-  } = useUIStore();
+  const { addNotification, setActiveView, openPrompt, openConfirm } =
+    useUIStore();
 
   const [worktreeModalOpen, setWorktreeModalOpen] = useState(false);
   const [submoduleModalOpen, setSubmoduleModalOpen] = useState(false);
@@ -774,53 +766,6 @@ export function Sidebar() {
             ))
           )}
         </TreeSection>
-
-        {/* Custom Actions Links Section */}
-        <div className="sidebar-custom-items">
-          {/* Reflog Link */}
-          <button
-            type="button"
-            className={`sidebar-item ${activeView === "reflog" ? "active" : ""}`}
-            onClick={() => setActiveView("reflog")}
-          >
-            <Clock size={11} className="sidebar-item-dot" />
-            <span className="sidebar-item-name truncate font-semibold">
-              Reflog (HEAD)
-            </span>
-          </button>
-
-          {/* Pull Requests Link */}
-          <button
-            type="button"
-            className={`sidebar-item ${activeView === "pull-requests" ? "active" : ""}`}
-            onClick={() => setActiveView("pull-requests")}
-          >
-            <GitPullRequest
-              size={11}
-              className="sidebar-item-dot"
-              style={{ color: "var(--accent-teal)" }}
-            />
-            <span className="sidebar-item-name truncate font-semibold">
-              Pull Requests
-            </span>
-          </button>
-
-          {/* Clean Repository Link */}
-          <button
-            type="button"
-            className="sidebar-item"
-            onClick={openCleanModal}
-          >
-            <Trash
-              size={11}
-              className="sidebar-item-dot"
-              style={{ color: "var(--color-danger)" }}
-            />
-            <span className="sidebar-item-name truncate font-semibold">
-              Clean Repository...
-            </span>
-          </button>
-        </div>
 
         {/* Worktrees */}
         <TreeSection

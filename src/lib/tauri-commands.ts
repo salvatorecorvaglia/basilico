@@ -16,7 +16,6 @@ import type {
   GrepMatch,
   RebaseStatus,
   RebaseTodoItem,
-  ReflogEntry,
   RemoteInfo,
   RepoInfo,
   RepoStatus,
@@ -312,14 +311,6 @@ export const getFileHistory = (
     options,
   );
 
-// ── Phase 3: Reflog Commands ──
-
-export const getReflog = (
-  path: string,
-  maxEntries?: number | null,
-  options?: InvokeOptions,
-) => invokeCommand<ReflogEntry[]>("get_reflog", { path, maxEntries }, options);
-
 // ── Phase 3: Stash Commands ──
 
 export const listStashes = (path: string, options?: InvokeOptions) =>
@@ -552,19 +543,6 @@ export const resetToCommit = (
   mode: "soft" | "mixed" | "hard",
   options?: InvokeOptions,
 ) => invokeCommand<void>("reset_to_commit", { path, oid, mode }, options);
-
-export const cleanRepository = (
-  path: string,
-  dryRun: boolean,
-  cleanDirs: boolean,
-  includeIgnored: boolean,
-  options?: InvokeOptions,
-) =>
-  invokeCommand<string[]>(
-    "clean_repository",
-    { path, dryRun, cleanDirs, includeIgnored },
-    options,
-  );
 
 // ── Phase 7: Compare & Commit Tree Viewers Commands ──
 

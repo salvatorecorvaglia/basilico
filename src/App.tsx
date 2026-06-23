@@ -8,18 +8,15 @@ import { ArrowLeft, Wrench } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { BisectWizard } from "./components/bisect/BisectWizard";
-import { CleanModal } from "./components/clean/CleanModal";
 import { CommandPalette } from "./components/command-palette/CommandPalette";
 import { CommitDetail } from "./components/graph/CommitDetail";
 import { CommitList } from "./components/graph/CommitList";
 import { ResetModal } from "./components/graph/ResetModal";
-import { PullRequestReview } from "./components/layout/PullRequestReview";
 import { Sidebar } from "./components/layout/Sidebar";
 import { StatusBar } from "./components/layout/StatusBar";
 import { TabBar } from "./components/layout/TabBar";
 import { Toolbar } from "./components/layout/Toolbar";
 import { RebaseEditor } from "./components/rebase/RebaseEditor";
-import { ReflogView } from "./components/reflog/ReflogView";
 import { RepoSearch } from "./components/search/RepoSearch";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import { StagingArea } from "./components/staging/StagingArea";
@@ -126,8 +123,6 @@ function renderViewContent(activeView: string) {
       return <BlameView />;
     case "history":
       return <FileHistory />;
-    case "reflog":
-      return <ReflogView />;
     case "search":
       return <RepoSearch />;
     case "rebase":
@@ -138,8 +133,6 @@ function renderViewContent(activeView: string) {
       return <CompareView />;
     case "conflict-resolver":
       return <MergeEditor />;
-    case "pull-requests":
-      return <PullRequestReview />;
     case "stash-inspector":
       return <StashInspector />;
     default:
@@ -326,9 +319,6 @@ function App() {
 
       {/* Reset Modal */}
       <ResetModal />
-
-      {/* Clean Modal */}
-      <CleanModal />
 
       {/* File Viewer Modal */}
       <Suspense fallback={null}>

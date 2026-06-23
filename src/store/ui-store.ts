@@ -61,9 +61,6 @@ interface UIState {
   resetModalOpen: boolean;
   resetCommitOid: string | null;
 
-  // Clean modal (Phase 6)
-  cleanModalOpen: boolean;
-
   // File Viewer (Phase 7)
   fileViewerOpen: boolean;
   fileViewerPath: string | null;
@@ -86,8 +83,6 @@ interface UIState {
   toggleSettings: () => void;
   openResetModal: (oid: string) => void;
   closeResetModal: () => void;
-  openCleanModal: () => void;
-  closeCleanModal: () => void;
   openFileViewer: (filePath: string, oid: string) => void;
   closeFileViewer: () => void;
   openPrompt: (options: PromptOptions) => void;
@@ -108,7 +103,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   settingsOpen: false,
   resetModalOpen: false,
   resetCommitOid: null,
-  cleanModalOpen: false,
   fileViewerOpen: false,
   fileViewerPath: null,
   fileViewerOid: null,
@@ -137,10 +131,6 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ resetModalOpen: true, resetCommitOid: oid }),
 
   closeResetModal: () => set({ resetModalOpen: false, resetCommitOid: null }),
-
-  openCleanModal: () => set({ cleanModalOpen: true }),
-
-  closeCleanModal: () => set({ cleanModalOpen: false }),
 
   openFileViewer: (filePath: string, oid: string) =>
     set({ fileViewerOpen: true, fileViewerPath: filePath, fileViewerOid: oid }),

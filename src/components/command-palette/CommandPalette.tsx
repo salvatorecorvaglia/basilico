@@ -60,13 +60,7 @@ export function CommandPalette() {
       shortcut: "G S",
       action: () => setActiveView("staging"),
     },
-    {
-      id: "reflog",
-      name: "Switch View to HEAD Reflog",
-      category: "Navigation",
-      shortcut: "G R",
-      action: () => setActiveView("reflog"),
-    },
+
     {
       id: "search",
       name: "Switch View to Repository Search",
