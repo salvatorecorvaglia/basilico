@@ -38,4 +38,3 @@ pub async fn get_status(path: String) -> Result<repository::RepoStatus, AppError
 pub async fn list_remotes(path: String) -> Result<Vec<repository::RemoteInfo>, AppError> {
     repository::list_remotes(&path)
 }
-
