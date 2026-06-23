@@ -134,6 +134,12 @@
   font-weight: var(--weight-semibold);
 }
 
+.sidebar-item.selected {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  box-shadow: inset 0 0 0 1px var(--border-default);
+}
+
 .sidebar-item-nested {
   padding-left: var(--space-10);
 }

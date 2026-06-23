@@ -26,6 +26,13 @@
   height: 28px;
   flex: 1;
   max-width: 320px;
+  transition: all var(--transition-fast);
+}
+
+.commit-list-search-wrapper:focus-within {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--accent-primary) 15%, transparent);
 }
 
 .commit-list-search-icon {

@@ -75,7 +75,7 @@
 
 .search-input-wrapper:focus-within {
   border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.15);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-color) 15%, transparent);
 }
 
 .search-icon-input {

@@ -27,28 +27,42 @@ export function TabBar() {
   return (
     <div className="tabbar">
       <div className="tabbar-tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            className={`tabbar-tab ${tab.id === activeTabId ? "active" : ""}`}
-            onClick={() => switchTab(tab.id)}
-            title={tab.path}
-          >
-            <FolderOpen size={14} className="tabbar-tab-icon" />
-            <span className="tabbar-tab-name truncate">{tab.name}</span>
-            <span
-              className="tabbar-tab-close"
-              onClick={(e) => {
-                e.stopPropagation();
-                closeTab(tab.id);
-              }}
-              role="button"
+        {tabs.map((tab) => {
+          const isActive = tab.id === activeTabId;
+          const handleKeyDown = (e: React.KeyboardEvent) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              switchTab(tab.id);
+            }
+          };
+
+          return (
+            <div
+              key={tab.id}
+              role="tab"
               tabIndex={0}
+              aria-selected={isActive}
+              className={`tabbar-tab ${isActive ? "active" : ""}`}
+              onClick={() => switchTab(tab.id)}
+              onKeyDown={handleKeyDown}
+              title={tab.path}
             >
-              <X size={12} />
-            </span>
-          </button>
-        ))}
+              <FolderOpen size={14} className="tabbar-tab-icon" />
+              <span className="tabbar-tab-name truncate">{tab.name}</span>
+              <button
+                type="button"
+                className="tabbar-tab-close"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeTab(tab.id);
+                }}
+                aria-label={`Close tab for ${tab.name}`}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       <button

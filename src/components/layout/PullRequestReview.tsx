@@ -1,3 +1,4 @@
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   AlertCircle,
   ArrowLeftRight,
@@ -317,15 +318,14 @@ export function PullRequestReview() {
                       <ArrowLeftRight size={13} />
                       <span>Compare & Review Diff</span>
                     </button>
-                    <a
-                      href={pr.html_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => openUrl(pr.html_url)}
                       className="pr-btn pr-btn-outline"
                     >
                       <ExternalLink size={13} />
                       <span>View on GitHub</span>
-                    </a>
+                    </button>
                   </div>
                 </div>
               ))}

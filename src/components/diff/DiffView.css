@@ -366,21 +366,3 @@
 .line-content {
   flex: 1;
 }
-
-/* Custom Scrollbar for Hunks */
-.diff-hunk-list::-webkit-scrollbar {
-  width: 8px;
-}
-
-.diff-hunk-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.diff-hunk-list::-webkit-scrollbar-thumb {
-  background: var(--border-default);
-  border-radius: var(--radius-full);
-}
-
-.diff-hunk-list::-webkit-scrollbar-thumb:hover {
-  background: var(--text-tertiary);
-}

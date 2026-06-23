@@ -122,6 +122,8 @@ export function Sidebar() {
 
   const [worktreeModalOpen, setWorktreeModalOpen] = useState(false);
   const [submoduleModalOpen, setSubmoduleModalOpen] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   // Render loading skeleton
   if (isLoading && branches.length === 0) {
@@ -495,8 +497,12 @@ export function Sidebar() {
               <ContextMenu.Trigger>
                 <button
                   type="button"
-                  className={`sidebar-item ${branch.isHead ? "active" : ""}`}
-                  onClick={() => handleCheckout(branch.name)}
+                  className={`sidebar-item ${branch.isHead ? "active" : ""} ${selectedBranch === branch.name ? "selected" : ""}`}
+                  onClick={() => {
+                    setSelectedBranch(branch.name);
+                    setSelectedTag(null);
+                  }}
+                  onDoubleClick={() => handleCheckout(branch.name)}
                   title={branch.name}
                 >
                   <CircleDot
@@ -595,8 +601,12 @@ export function Sidebar() {
                     <ContextMenu.Trigger>
                       <button
                         type="button"
-                        className="sidebar-item sidebar-item-nested"
-                        onClick={() => handleCheckout(branch.name)}
+                        className={`sidebar-item sidebar-item-nested ${selectedBranch === branch.name ? "selected" : ""}`}
+                        onClick={() => {
+                          setSelectedBranch(branch.name);
+                          setSelectedTag(null);
+                        }}
+                        onDoubleClick={() => handleCheckout(branch.name)}
                         title={branch.name}
                       >
                         <span className="sidebar-item-name truncate">
@@ -664,8 +674,12 @@ export function Sidebar() {
               <ContextMenu.Trigger>
                 <button
                   type="button"
-                  className="sidebar-item"
-                  onClick={() => handleCheckoutTag(tag.name)}
+                  className={`sidebar-item ${selectedTag === tag.name ? "selected" : ""}`}
+                  onClick={() => {
+                    setSelectedTag(tag.name);
+                    setSelectedBranch(null);
+                  }}
+                  onDoubleClick={() => handleCheckoutTag(tag.name)}
                   title={tag.message || tag.name}
                 >
                   <Tag size={11} className="sidebar-item-tag-icon" />

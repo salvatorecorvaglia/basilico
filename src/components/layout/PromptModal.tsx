@@ -132,6 +132,31 @@ export function PromptModal() {
                           rows={4}
                           required={field.required}
                         />
+                      ) : field.type === "checkbox" ? (
+                        <div className="prompt-checkbox-wrapper">
+                          <input
+                            type="checkbox"
+                            id={`prompt-field-${field.name}`}
+                            ref={(el) => {
+                              inputRefs.current[field.name] =
+                                el as unknown as HTMLInputElement;
+                            }}
+                            className="prompt-checkbox"
+                            checked={formValues[field.name] === "true"}
+                            onChange={(e) =>
+                              handleValueChange(
+                                field.name,
+                                e.target.checked ? "true" : "false",
+                              )
+                            }
+                          />
+                          <label
+                            htmlFor={`prompt-field-${field.name}`}
+                            className="prompt-checkbox-label"
+                          >
+                            {field.placeholder}
+                          </label>
+                        </div>
                       ) : (
                         <input
                           type="text"

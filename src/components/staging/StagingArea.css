@@ -245,24 +245,6 @@
   background: color-mix(in srgb, var(--color-danger) 10%, transparent);
 }
 
-/* Custom Scrollbars */
-.staging-lists::-webkit-scrollbar {
-  width: 8px;
-}
-
-.staging-lists::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.staging-lists::-webkit-scrollbar-thumb {
-  background: var(--border-default);
-  border-radius: var(--radius-full);
-}
-
-.staging-lists::-webkit-scrollbar-thumb:hover {
-  background: var(--text-tertiary);
-}
-
 /* ── Conflict/State Banners ── */
 .staging-state-banner {
   display: flex;

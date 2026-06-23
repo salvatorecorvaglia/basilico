@@ -97,6 +97,12 @@
   opacity: 0;
   flex-shrink: 0;
   transition: all var(--transition-fast);
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  outline: none;
 }
 
 .tabbar-tab:hover .tabbar-tab-close {

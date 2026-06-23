@@ -60,7 +60,7 @@
 }
 
 .badge-rebase-state {
-  background: rgba(45, 212, 191, 0.15);
+  background: color-mix(in srgb, var(--accent-color) 15%, transparent);
   color: var(--accent-color);
   font-size: var(--text-xs);
   font-weight: 600;
@@ -94,10 +94,10 @@
   gap: 6px;
   font-size: var(--text-xs);
   color: var(--accent-color);
-  background: rgba(45, 212, 191, 0.1);
+  background: color-mix(in srgb, var(--accent-color) 10%, transparent);
   padding: 4px 10px;
   border-radius: 4px;
-  border: 1px solid rgba(45, 212, 191, 0.2);
+  border: 1px solid color-mix(in srgb, var(--accent-color) 20%, transparent);
 }
 
 .rebase-btn {
@@ -188,9 +188,9 @@
 }
 
 .rebase-row.current {
-  background: rgba(45, 212, 191, 0.05);
+  background: color-mix(in srgb, var(--accent-color) 5%, transparent);
   border-color: var(--accent-color);
-  box-shadow: 0 0 8px rgba(45, 212, 191, 0.1);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent-color) 10%, transparent);
 }
 
 .rebase-row.dragging {

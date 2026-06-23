@@ -56,44 +56,30 @@ export function StagingArea() {
           placeholder: "e.g., work in progress",
           required: false,
         },
+        {
+          name: "includeUntracked",
+          label: "Untracked Files",
+          placeholder: "Include untracked files in the stash",
+          type: "checkbox",
+          defaultValue: "false",
+        },
       ],
-      submitLabel: "Next",
-      onSubmit: (values) => {
+      submitLabel: "Save Stash",
+      onSubmit: async (values) => {
         const message = values.message || "";
-        openConfirm({
-          title: "Include Untracked Files?",
-          message: "Would you like to include untracked files in the stash?",
-          confirmLabel: "Include Untracked",
-          cancelLabel: "Only Tracked Files",
-          onConfirm: async () => {
-            try {
-              await saveStash(message.trim(), true);
-              addNotification({
-                type: "success",
-                message: "Stash saved successfully",
-              });
-            } catch (err) {
-              addNotification({
-                type: "error",
-                message: `Failed to save stash: ${err}`,
-              });
-            }
-          },
-          onCancel: async () => {
-            try {
-              await saveStash(message.trim(), false);
-              addNotification({
-                type: "success",
-                message: "Stash saved successfully",
-              });
-            } catch (err) {
-              addNotification({
-                type: "error",
-                message: `Failed to save stash: ${err}`,
-              });
-            }
-          },
-        });
+        const includeUntracked = values.includeUntracked === "true";
+        try {
+          await saveStash(message.trim(), includeUntracked);
+          addNotification({
+            type: "success",
+            message: "Stash saved successfully",
+          });
+        } catch (err) {
+          addNotification({
+            type: "error",
+            message: `Failed to save stash: ${err}`,
+          });
+        }
       },
     });
   };
@@ -141,6 +127,36 @@ export function StagingArea() {
     } else {
       stageFiles([path]);
     }
+  };
+
+  const createKeyDownHandler = (
+    file: string,
+    isStaged: boolean,
+    isConflicted = false,
+  ) => {
+    return (e: React.KeyboardEvent) => {
+      if (e.key === " " || e.key === "Spacebar") {
+        e.preventDefault();
+        handleCheckboxChange(file, isStaged);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        handleFileClick(file, isStaged, isConflicted);
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        if (!isStaged && !isConflicted) {
+          e.preventDefault();
+          const isUntracked = untracked.includes(file);
+          openConfirm({
+            title: isUntracked ? "Delete File" : "Discard Changes",
+            message: isUntracked
+              ? `Are you sure you want to delete ${getFileName(file)}? This will permanently delete the file.`
+              : `Are you sure you want to discard all changes in ${getFileName(file)}? This action cannot be undone.`,
+            confirmLabel: isUntracked ? "Delete" : "Discard",
+            isDanger: true,
+            onConfirm: () => discardChanges([file]),
+          });
+        }
+      }
+    };
   };
 
   const isCherryPicking =
@@ -300,6 +316,8 @@ export function StagingArea() {
                     <div
                       className={`staging-file-row ${selectedFilePath === file ? "selected" : ""}`}
                       onClick={() => handleFileClick(file, false, true)}
+                      tabIndex={0}
+                      onKeyDown={createKeyDownHandler(file, false, true)}
                     >
                       <span
                         className="staging-file-status"
@@ -373,6 +391,8 @@ export function StagingArea() {
                       <div
                         className={`staging-file-row ${selectedFilePath === file.path ? "selected" : ""}`}
                         onClick={() => handleFileClick(file.path, true)}
+                        tabIndex={0}
+                        onKeyDown={createKeyDownHandler(file.path, true, false)}
                       >
                         <input
                           type="checkbox"
@@ -446,6 +466,12 @@ export function StagingArea() {
                         <div
                           className={`staging-file-row ${selectedFilePath === file.path ? "selected" : ""}`}
                           onClick={() => handleFileClick(file.path, false)}
+                          tabIndex={0}
+                          onKeyDown={createKeyDownHandler(
+                            file.path,
+                            false,
+                            false,
+                          )}
                         >
                           <input
                             type="checkbox"
@@ -499,6 +525,8 @@ export function StagingArea() {
                         <div
                           className={`staging-file-row ${selectedFilePath === file ? "selected" : ""}`}
                           onClick={() => handleFileClick(file, false)}
+                          tabIndex={0}
+                          onKeyDown={createKeyDownHandler(file, false, false)}
                         >
                           <input
                             type="checkbox"

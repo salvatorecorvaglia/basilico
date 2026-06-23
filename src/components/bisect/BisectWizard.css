@@ -48,7 +48,7 @@
 }
 
 .badge-bisect-state.finished {
-  background: rgba(45, 212, 191, 0.15);
+  background: color-mix(in srgb, var(--accent-color) 15%, transparent);
   color: var(--accent-color);
 }
 
@@ -92,7 +92,7 @@
 
 .form-group input:focus {
   border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.15);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-color) 15%, transparent);
 }
 
 .help-text {
@@ -232,14 +232,14 @@
 }
 
 .btn-good {
-  background: rgba(45, 212, 191, 0.15);
+  background: color-mix(in srgb, var(--accent-color) 15%, transparent);
   color: var(--accent-color);
-  border: 1px solid rgba(45, 212, 191, 0.3);
+  border: 1px solid color-mix(in srgb, var(--accent-color) 30%, transparent);
 }
 
 .btn-good:hover {
-  background: rgba(45, 212, 191, 0.25);
-  box-shadow: 0 0 10px rgba(45, 212, 191, 0.15);
+  background: color-mix(in srgb, var(--accent-color) 25%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent-color) 15%, transparent);
 }
 
 .btn-skip {
@@ -254,7 +254,7 @@
 }
 
 .bisect-finished-panel {
-  background: rgba(45, 212, 191, 0.05);
+  background: color-mix(in srgb, var(--accent-color) 5%, transparent);
   border: 1px solid var(--accent-color);
   border-radius: 6px;
   padding: 16px;

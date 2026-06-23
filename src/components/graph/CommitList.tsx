@@ -17,6 +17,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ArrowLeftRight,
   Check,
+  ChevronDown,
+  ChevronUp,
   FolderSync,
   GitBranch,
   RotateCcw,
@@ -484,11 +486,27 @@ export function CommitList() {
             onClick={header.column.getToggleSortingHandler()}
           >
             {flexRender(header.column.columnDef.header, header.getContext())}
-            {header.column.getIsSorted()
-              ? header.column.getIsSorted() === "desc"
-                ? " 🔽"
-                : " 🔼"
-              : null}
+            {header.column.getIsSorted() ? (
+              header.column.getIsSorted() === "desc" ? (
+                <ChevronDown
+                  size={11}
+                  style={{
+                    marginLeft: "4px",
+                    color: "var(--accent-primary)",
+                    display: "inline-block",
+                  }}
+                />
+              ) : (
+                <ChevronUp
+                  size={11}
+                  style={{
+                    marginLeft: "4px",
+                    color: "var(--accent-primary)",
+                    display: "inline-block",
+                  }}
+                />
+              )
+            ) : null}
             <div
               onMouseDown={header.getResizeHandler()}
               onTouchStart={header.getResizeHandler()}

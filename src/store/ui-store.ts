@@ -17,7 +17,7 @@ export interface PromptField {
   name: string;
   label: string;
   placeholder?: string;
-  type?: "text" | "textarea";
+  type?: "text" | "textarea" | "checkbox";
   defaultValue?: string;
   required?: boolean;
 }

@@ -5,7 +5,7 @@
 
 import { Check, Edit2 } from "lucide-react";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./CommitBox.css";
@@ -31,9 +31,9 @@ export function CommitBox() {
   const [userSummaryBackup, setUserSummaryBackup] = useState("");
   const [userDescriptionBackup, setUserDescriptionBackup] = useState("");
 
-  // Handle Amend checkbox changes
-  useEffect(() => {
-    if (amend) {
+  const handleAmendToggle = (checked: boolean) => {
+    setAmend(checked);
+    if (checked) {
       // Backup current text
       setUserSummaryBackup(summary);
       setUserDescriptionBackup(description);
@@ -52,14 +52,7 @@ export function CommitBox() {
       setSummary(userSummaryBackup);
       setDescription(userDescriptionBackup);
     }
-  }, [
-    amend,
-    description,
-    userSummaryBackup,
-    userDescriptionBackup,
-    summary,
-    commits[0],
-  ]);
+  };
 
   const handleCommitSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,7 +132,7 @@ export function CommitBox() {
           <input
             type="checkbox"
             checked={amend}
-            onChange={(e) => setAmend(e.target.checked)}
+            onChange={(e) => handleAmendToggle(e.target.checked)}
             disabled={isLoading || commits.length === 0}
           />
           <span>Amend last commit</span>

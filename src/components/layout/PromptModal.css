@@ -184,3 +184,58 @@
   color: var(--text-primary);
   border-color: var(--text-secondary);
 }
+
+/* ── Checkbox Support ── */
+.prompt-checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.prompt-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-inset);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: all var(--transition-fast);
+  outline: none;
+  flex-shrink: 0;
+}
+
+.prompt-checkbox:hover {
+  border-color: var(--accent-primary);
+}
+
+.prompt-checkbox:checked {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.prompt-checkbox:checked::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 4px;
+  border-left: 1.5px solid var(--text-inverse);
+  border-bottom: 1.5px solid var(--text-inverse);
+  transform: rotate(-45deg);
+  top: 3px;
+  left: 2px;
+}
+
+.prompt-checkbox-label {
+  font-family: var(--font-family);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  user-select: none;
+  cursor: pointer;
+}
