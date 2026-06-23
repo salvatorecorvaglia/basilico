@@ -5,7 +5,9 @@ use std::path::Path;
 #[tauri::command]
 pub async fn stage_files(path: String, files: Vec<String>) -> Result<(), AppError> {
     let repo = Repository::open(&path)?;
-    let workdir = repo.workdir().ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
+    let workdir = repo
+        .workdir()
+        .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
     let mut index = repo.index()?;
     for file in files {
         let validated_full_path = crate::git::utils::validate_path(workdir, Path::new(&file))?;
@@ -62,7 +64,9 @@ pub async fn apply_patch(path: String, patch: String, location: String) -> Resul
 pub async fn discard_changes(path: String, files: Vec<String>) -> Result<(), AppError> {
     let repo = Repository::open(&path)?;
     let index = repo.index()?;
-    let workdir = repo.workdir().ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
+    let workdir = repo
+        .workdir()
+        .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
 
     let mut tracked_files = Vec::new();
     let mut untracked_files = Vec::new();
@@ -189,21 +193,35 @@ mod tests {
         assert!(err1.is_err());
         assert_contains(&err1.unwrap_err().message, "Absolute paths are not allowed");
 
-        let err2 = discard_changes(repo.path_str().to_string(), vec!["/etc/passwd".to_string()]).await;
+        let err2 =
+            discard_changes(repo.path_str().to_string(), vec!["/etc/passwd".to_string()]).await;
         assert!(err2.is_err());
         assert_contains(&err2.unwrap_err().message, "Absolute paths are not allowed");
 
         // 2. path traversal path
-        let err3 = stage_files(repo.path_str().to_string(), vec!["../../file.txt".to_string()]).await;
+        let err3 = stage_files(
+            repo.path_str().to_string(),
+            vec!["../../file.txt".to_string()],
+        )
+        .await;
         assert!(err3.is_err());
         assert_contains(&err3.unwrap_err().message, "Path traversal is not allowed");
 
-        let err4 = discard_changes(repo.path_str().to_string(), vec!["../../file.txt".to_string()]).await;
+        let err4 = discard_changes(
+            repo.path_str().to_string(),
+            vec!["../../file.txt".to_string()],
+        )
+        .await;
         assert!(err4.is_err());
         assert_contains(&err4.unwrap_err().message, "Path traversal is not allowed");
     }
 
     fn assert_contains(msg: &str, sub: &str) {
-        assert!(msg.contains(sub), "Expected error message '{}' to contain '{}'", msg, sub);
+        assert!(
+            msg.contains(sub),
+            "Expected error message '{}' to contain '{}'",
+            msg,
+            sub
+        );
     }
 }

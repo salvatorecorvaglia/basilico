@@ -1,5 +1,5 @@
-use std::path::{Path, Component, PathBuf};
 use crate::error::AppError;
+use std::path::{Component, Path, PathBuf};
 
 /// Validates that a user-supplied file path is relative and does not contain directory traversal (`..`) components.
 /// Returns the joined path if safe, or an error if invalid.

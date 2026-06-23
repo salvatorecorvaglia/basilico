@@ -25,7 +25,9 @@ pub async fn get_file_blame(
     let repo = Repository::open(&path)?;
 
     // Validate file_path
-    let workdir = repo.workdir().ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
+    let workdir = repo
+        .workdir()
+        .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
     let validated_full_path = crate::git::utils::validate_path(workdir, Path::new(&file_path))?;
 
     // 1. Get file content at the specified revision or HEAD/workdir

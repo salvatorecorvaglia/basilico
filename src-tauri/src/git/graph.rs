@@ -175,7 +175,8 @@ fn compute_lanes(commits: &mut Vec<GraphCommit>) {
     }
 
     // Gather all walked commit OIDs to identify boundary commits
-    let walked_oids: std::collections::HashSet<String> = commits.iter().map(|c| c.oid.clone()).collect();
+    let walked_oids: std::collections::HashSet<String> =
+        commits.iter().map(|c| c.oid.clone()).collect();
 
     // Active lanes: each lane tracks which oid it's expecting next
     let mut active_lanes: Vec<Option<String>> = Vec::new();
@@ -333,9 +334,7 @@ mod tests {
     #[test]
     fn test_compute_lanes_boundary_commits() {
         // C2 has parent C1 which is not present in commits (boundary)
-        let mut commits = vec![
-            create_mock_commit("C2", vec!["C1"]),
-        ];
+        let mut commits = vec![create_mock_commit("C2", vec!["C1"])];
 
         compute_lanes(&mut commits);
 
@@ -352,7 +351,7 @@ mod tests {
         ];
 
         compute_lanes(&mut commits2);
-        
+
         assert_eq!(commits2[0].oid, "C2");
         assert_eq!(commits2[0].lane, 0);
 
