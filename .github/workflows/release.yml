@@ -140,6 +140,7 @@ jobs:
     timeout-minutes: 40
     env:
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      MAKEFLAGS: ${{ matrix.makeflags }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -181,7 +182,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
-          MAKEFLAGS: ${{ matrix.makeflags }}
         with:
           tagName: v__VERSION__
           releaseName: 'Basilico v__VERSION__'
