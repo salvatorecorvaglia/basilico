@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+## [0.4.0] - 2026-06-23
+
+### Added
+
+- **Theme System**: Implemented a comprehensive theme system using CSS variables, offering dark mode support across all UI components.
+- **Security**: Added path validation utilities in the Rust backend to prevent directory traversal attacks.
+
+### Changed
+
+- **UI & Styling Modernization**:
+  - Modernized CSS variables using `color-mix` functions for cohesive styling.
+  - Standardized all modal views (`CleanModal`, `ResetModal`, `ConfirmModal`, `PromptModal`, `SettingsModal`) using fixed positioning and z-index constants.
+  - Enhanced sidebar branch and tag selection behavior.
+  - Refactored tab navigation bar (`TabBar`) and staging area (`StagingArea`) components.
+- **Dependency & Performance Optimization**:
+  - Streamlined the interface by removing the React Flow-based `GitGraphFlow` visualization and its heavy layout dependencies.
+  - Configured Monaco Editor to load web workers locally to improve performance and privacy rather than fetching them via CDN.
+- **Tooling & Code Quality**:
+  - Applied `rustfmt` to clean up and format the Rust backend codebase.
+  - Suppressed certain Biome linting errors and disabled the `noImportantStyles` rule in `biome.json`.
+  - Removed obsolete VS Code extensions configuration.
+
+### Fixed
+
+- **Memory Leak Resolution**: Patched memory leaks by ensuring proper disposal of Monaco Editor instances across key views (`CompareView`, `DiffView`, `FileHistory`, `StashInspector`).
+- **Git Operations**: Refined SSH credential resolution and conflict handling in the Rust backend.
+
 ## [0.3.0] - 2026-06-22
 
 ### Added
