@@ -12,6 +12,11 @@
 }
 
 .confirm-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: var(--z-modal);
   width: 440px;
   max-width: 90vw;
   background: var(--bg-surface);
