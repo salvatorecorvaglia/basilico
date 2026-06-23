@@ -19,7 +19,6 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
 - **📂 Workspace & Collaboration**:
   - Submodule and worktree management.
   - Secure SSH key generation options with comment sanitization.
-  - A Pull Request review dashboard to streamline code reviews.
 - **🎨 Premium Aesthetics**:
   - Unified design system utilizing **Tailwind CSS v4** and modern CSS custom variables.
   - **Radix UI** accessible overlay components (Dialogs, Popovers, Dropdowns, Context Menus, and Accordions).
@@ -107,6 +106,11 @@ npm run lint:fix
 Auto-format all source files:
 ```bash
 npm run format
+```
+
+Run frontend unit tests:
+```bash
+npx vitest run
 ```
 
 Verify that the React frontend builds and typechecks without errors:

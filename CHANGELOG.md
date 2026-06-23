@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+## [0.4.1] - 2026-06-23
+
+### Changed
+
+- **Refactoring**: Removed unnecessary newline in `list_remotes` command in the Rust backend.
+
+### Removed
+
+- **Unused Features**: Removed unused Pull Request review (`PullRequestReview`), Reflog (`ReflogView`), and Repository Cleaning (`CleanModal`) features and their corresponding Tauri backend commands to streamline the application structure.
 
 ## [0.4.0] - 2026-06-23
 
