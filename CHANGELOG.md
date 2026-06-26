@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.1] - 2026-06-23
+### Added
+
+- **Frontend State Management**: Introduced a multi-domain `loadingStates` tracker in the Zustand store to handle loading status individually per-domain (e.g., status, commits, branches, stashes) and prevent concurrent operations from clobbering each other.
 
 ### Changed
 
+- **Performance & Concurrency**: Offloaded blocking Git operations to asynchronous Tokio blocking tasks (`tokio::task::spawn_blocking`) in the Rust backend to prevent UI thread/tokio runtime stalls during heavy Git operations.
+- **State Management**: Refactored frontend repository store slices (`collaboration`, `git-data`, `staging`, `tabs`) to utilize the new granular domain-specific loading states instead of the global `isLoading` flag.
+- **UI & Helpers**: Migrated toast notification ID generation in `ui-store` to use `crypto.randomUUID()`.
 - **Refactoring**: Removed unnecessary newline in `list_remotes` command in the Rust backend.
 
 ### Removed
