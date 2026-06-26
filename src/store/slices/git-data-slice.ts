@@ -14,6 +14,16 @@ import type {
 import * as commands from "../../lib/tauri-commands";
 import type { RepoState } from "../types";
 
+/** Helper to update a single loading domain flag */
+function setLoading(
+  get: () => RepoState,
+  set: (s: Partial<RepoState>) => void,
+  domain: keyof RepoState["loadingStates"],
+  value: boolean,
+) {
+  set({ loadingStates: { ...get().loadingStates, [domain]: value } });
+}
+
 export interface GitDataSlice {
   repoInfo: RepoInfo | null;
   status: RepoStatus | null;
@@ -139,7 +149,7 @@ export const createGitDataSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true });
+    setLoading(get, set, "diff", true);
     try {
       const diff = await commands.getCommitDiff(activeTabId, oid, {
         silent: true,
@@ -150,7 +160,7 @@ export const createGitDataSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "diff", false);
     }
   },
 
@@ -158,7 +168,8 @@ export const createGitDataSlice: StateCreator<
     const { activeTabId, commits } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "commits", true);
+    set({ error: null });
     try {
       const moreCommits = await commands.getLog(
         activeTabId,
@@ -171,7 +182,7 @@ export const createGitDataSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "commits", false);
     }
   },
 
@@ -179,7 +190,8 @@ export const createGitDataSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, blameLines: [], error: null });
+    setLoading(get, set, "blame", true);
+    set({ blameLines: [], error: null });
     try {
       const lines = await commands.getFileBlame(
         activeTabId,
@@ -192,7 +204,7 @@ export const createGitDataSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "blame", false);
     }
   },
 
@@ -200,7 +212,8 @@ export const createGitDataSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, fileHistory: [], error: null });
+    setLoading(get, set, "history", true);
+    set({ fileHistory: [], error: null });
     try {
       const history = await commands.getFileHistory(activeTabId, filePath);
       set({ fileHistory: history });
@@ -209,7 +222,7 @@ export const createGitDataSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "history", false);
     }
   },
 
@@ -222,7 +235,8 @@ export const createGitDataSlice: StateCreator<
       return;
     }
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "search", true);
+    set({ error: null });
     try {
       const results = await commands.searchCommits(activeTabId, query, {
         errorPrefix: "Failed to search commits",
@@ -233,7 +247,7 @@ export const createGitDataSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "search", false);
     }
   },
 
@@ -246,7 +260,8 @@ export const createGitDataSlice: StateCreator<
       return;
     }
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "search", true);
+    set({ error: null });
     try {
       const results = await commands.grepCode(activeTabId, query, {
         errorPrefix: "Failed to search code",
@@ -257,7 +272,7 @@ export const createGitDataSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "search", false);
     }
   },
 });

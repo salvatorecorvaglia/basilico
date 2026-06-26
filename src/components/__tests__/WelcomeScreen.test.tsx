@@ -20,6 +20,20 @@ vi.mock("../../store/repo-store", () => ({
   useRepoStore: () => ({
     openRepository: mockOpenRepository,
     isLoading: false,
+    loadingStates: {
+      global: false,
+      commits: false,
+      status: false,
+      diff: false,
+      staging: false,
+      branches: false,
+      blame: false,
+      history: false,
+      stashes: false,
+      search: false,
+      collaboration: false,
+      settings: false,
+    },
   }),
 }));
 

@@ -21,6 +21,36 @@ import type {
   WorktreeInfo,
 } from "../lib/git-types";
 
+export interface LoadingStates {
+  global: boolean;
+  commits: boolean;
+  status: boolean;
+  diff: boolean;
+  staging: boolean;
+  branches: boolean;
+  blame: boolean;
+  history: boolean;
+  stashes: boolean;
+  search: boolean;
+  collaboration: boolean;
+  settings: boolean;
+}
+
+export const INITIAL_LOADING_STATES: LoadingStates = {
+  global: false,
+  commits: false,
+  status: false,
+  diff: false,
+  staging: false,
+  branches: false,
+  blame: false,
+  history: false,
+  stashes: false,
+  search: false,
+  collaboration: false,
+  settings: false,
+};
+
 export interface RepoState {
   // Tabs
   tabs: RepoTab[];
@@ -71,7 +101,9 @@ export interface RepoState {
   selectedFileIsStaged: boolean;
   localDiff: FileDiff | null;
 
-  // Loading states
+  // Loading states — per-domain flags prevent concurrent operations from clobbering each other
+  loadingStates: LoadingStates;
+  // Derived: true if ANY domain is loading (for backward-compatible simple checks)
   isLoading: boolean;
   isRefreshing: boolean;
   error: string | null;

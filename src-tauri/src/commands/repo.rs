@@ -8,7 +8,9 @@ pub async fn open_repo(
     path: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<repository::RepoInfo, AppError> {
-    let info = repository::open_repo(&path)?;
+    let info = tokio::task::spawn_blocking(move || repository::open_repo(&path))
+        .await
+        .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))??;
 
     // Only register and start watcher if it's not already tracked
     if !state.has_repo(&info.path) {
@@ -31,10 +33,14 @@ pub async fn close_repo(path: String, state: tauri::State<'_, AppState>) -> Resu
 
 #[tauri::command]
 pub async fn get_status(path: String) -> Result<repository::RepoStatus, AppError> {
-    repository::get_status(&path)
+    tokio::task::spawn_blocking(move || repository::get_status(&path))
+        .await
+        .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
 pub async fn list_remotes(path: String) -> Result<Vec<repository::RemoteInfo>, AppError> {
-    repository::list_remotes(&path)
+    tokio::task::spawn_blocking(move || repository::list_remotes(&path))
+        .await
+        .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }

@@ -6,6 +6,10 @@ pub async fn get_log(
     path: String,
     max_commits: Option<usize>,
 ) -> Result<Vec<graph::GraphCommit>, AppError> {
-    let max = max_commits.unwrap_or(1000);
-    graph::build_graph(&path, max)
+    tokio::task::spawn_blocking(move || {
+        let max = max_commits.unwrap_or(1000);
+        graph::build_graph(&path, max)
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }

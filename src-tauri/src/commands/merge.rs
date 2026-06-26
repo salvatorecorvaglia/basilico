@@ -1,135 +1,138 @@
 use crate::error::AppError;
+use crate::git::helpers;
 use git2::{build::CheckoutBuilder, MergeOptions, Repository};
 use std::path::Path;
 
 #[tauri::command]
 pub async fn merge_branch(path: String, branch_name: String) -> Result<String, AppError> {
-    let repo = Repository::open(&path)?;
+    tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&path)?;
 
-    // Find the branch reference
-    let ref_name = format!("refs/heads/{}", branch_name);
-    let reference = repo
-        .find_reference(&ref_name)
-        .or_else(|_| repo.find_reference(&format!("refs/remotes/{}", branch_name)))?;
+        // Find the branch reference
+        let ref_name = format!("refs/heads/{}", branch_name);
+        let reference = repo
+            .find_reference(&ref_name)
+            .or_else(|_| repo.find_reference(&format!("refs/remotes/{}", branch_name)))?;
 
-    let annotated = repo.reference_to_annotated_commit(&reference)?;
+        let annotated = repo.reference_to_annotated_commit(&reference)?;
 
-    let (merge_analysis, _) = repo.merge_analysis(&[&annotated])?;
+        let (merge_analysis, _) = repo.merge_analysis(&[&annotated])?;
 
-    if merge_analysis.is_up_to_date() {
-        return Ok("success".to_string());
-    }
+        if merge_analysis.is_up_to_date() {
+            return Ok("success".to_string());
+        }
 
-    if merge_analysis.is_fast_forward() {
-        let target_oid = annotated.id();
-        let target_object = repo.find_object(target_oid, None)?;
+        if merge_analysis.is_fast_forward() {
+            let target_oid = annotated.id();
+            let target_object = repo.find_object(target_oid, None)?;
+            let mut checkout_opts = CheckoutBuilder::new();
+            checkout_opts.safe();
+            repo.checkout_tree(&target_object, Some(&mut checkout_opts))?;
+
+            let head_ref = repo.find_reference("HEAD")?;
+            if let Some(refname) = head_ref.symbolic_target() {
+                let mut real_ref = repo.find_reference(refname)?;
+                real_ref.set_target(
+                    target_oid,
+                    &format!("merge: fast-forward to {}", target_oid),
+                )?;
+            } else {
+                repo.set_head_detached(target_oid)?;
+            }
+            return Ok("success".to_string());
+        }
+
+        let mut merge_opts = MergeOptions::new();
         let mut checkout_opts = CheckoutBuilder::new();
         checkout_opts.safe();
-        repo.checkout_tree(&target_object, Some(&mut checkout_opts))?;
 
-        let head_ref = repo.find_reference("HEAD")?;
-        if let Some(refname) = head_ref.symbolic_target() {
-            let mut real_ref = repo.find_reference(refname)?;
-            real_ref.set_target(
-                target_oid,
-                &format!("merge: fast-forward to {}", target_oid),
-            )?;
-        } else {
-            repo.set_head_detached(target_oid)?;
-        }
-        return Ok("success".to_string());
-    }
-
-    let mut merge_opts = MergeOptions::new();
-    let mut checkout_opts = CheckoutBuilder::new();
-    checkout_opts.safe();
-
-    repo.merge(
-        &[&annotated],
-        Some(&mut merge_opts),
-        Some(&mut checkout_opts),
-    )?;
-
-    if repo.index().map(|idx| idx.has_conflicts()).unwrap_or(false) {
-        Ok("conflicts".to_string())
-    } else {
-        // Create merge commit to finalize the merge
-        let head = repo.head()?.peel_to_commit()?;
-        let remote_commit = repo.find_commit(annotated.id())?;
-        let sig = repo.signature().unwrap_or_else(|_| {
-            git2::Signature::now("Basilico User", "user@basilico.app").unwrap()
-        });
-        let mut index = repo.index()?;
-        let tree_oid = index.write_tree()?;
-        let tree = repo.find_tree(tree_oid)?;
-        let msg = format!("Merge branch '{}'", branch_name);
-        repo.commit(
-            Some("HEAD"),
-            &sig,
-            &sig,
-            &msg,
-            &tree,
-            &[&head, &remote_commit],
+        repo.merge(
+            &[&annotated],
+            Some(&mut merge_opts),
+            Some(&mut checkout_opts),
         )?;
-        repo.cleanup_state()?;
-        Ok("success".to_string())
-    }
+
+        if repo.index().map(|idx| idx.has_conflicts()).unwrap_or(false) {
+            Ok("conflicts".to_string())
+        } else {
+            // Create merge commit to finalize the merge
+            let head = repo.head()?.peel_to_commit()?;
+            let remote_commit = repo.find_commit(annotated.id())?;
+            let msg = format!("Merge branch '{}'", branch_name);
+            helpers::create_merge_commit(&repo, &head, &remote_commit, &msg)?;
+            Ok("success".to_string())
+        }
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
 pub async fn abort_merge(path: String) -> Result<(), AppError> {
-    let repo = Repository::open(&path)?;
+    tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&path)?;
 
-    // Clean up merge state files
-    repo.cleanup_state()?;
+        // Clean up merge state files
+        repo.cleanup_state()?;
 
-    if let Ok(head_ref) = repo.head() {
-        if let Ok(commit) = head_ref.peel_to_commit() {
-            repo.reset(commit.as_object(), git2::ResetType::Hard, None)?;
+        if let Ok(head_ref) = repo.head() {
+            if let Ok(commit) = head_ref.peel_to_commit() {
+                repo.reset(commit.as_object(), git2::ResetType::Hard, None)?;
+            }
         }
-    }
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
 pub async fn get_conflicts(path: String) -> Result<Vec<String>, AppError> {
-    let repo = Repository::open(&path)?;
-    let index = repo.index()?;
-    let mut conflicts = Vec::new();
+    tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&path)?;
+        let index = repo.index()?;
+        let mut conflicts = Vec::new();
 
-    if let Ok(index_conflicts) = index.conflicts() {
-        for entry in index_conflicts {
-            if let Ok(conflict) = entry {
-                let path_str = if let Some(our) = conflict.our {
-                    Some(String::from_utf8_lossy(&our.path).to_string())
-                } else if let Some(their) = conflict.their {
-                    Some(String::from_utf8_lossy(&their.path).to_string())
-                } else {
-                    None
-                };
+        if let Ok(index_conflicts) = index.conflicts() {
+            for entry in index_conflicts {
+                if let Ok(conflict) = entry {
+                    let path_str = if let Some(our) = conflict.our {
+                        Some(String::from_utf8_lossy(&our.path).to_string())
+                    } else if let Some(their) = conflict.their {
+                        Some(String::from_utf8_lossy(&their.path).to_string())
+                    } else {
+                        None
+                    };
 
-                if let Some(p) = path_str {
-                    if !conflicts.contains(&p) {
-                        conflicts.push(p);
+                    if let Some(p) = path_str {
+                        if !conflicts.contains(&p) {
+                            conflicts.push(p);
+                        }
                     }
                 }
             }
         }
-    }
 
-    Ok(conflicts)
+        Ok(conflicts)
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
 pub async fn resolve_conflict(path: String, file_path: String) -> Result<(), AppError> {
-    let repo = Repository::open(&path)?;
-    let mut index = repo.index()?;
+    tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&path)?;
+        let mut index = repo.index()?;
 
-    // Adding resolved file to index clears conflict in git
-    index.add_path(Path::new(&file_path))?;
-    index.write()?;
-    Ok(())
+        // Adding resolved file to index clears conflict in git
+        index.add_path(Path::new(&file_path))?;
+        index.write()?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[cfg(test)]

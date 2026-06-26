@@ -13,32 +13,36 @@ pub struct StashInfo {
 
 #[tauri::command]
 pub async fn list_stashes(path: String) -> Result<Vec<StashInfo>, AppError> {
-    let mut repo = Repository::open(&path)?;
-    let mut stashes = Vec::new();
-    let mut entries = Vec::new();
+    tokio::task::spawn_blocking(move || {
+        let mut repo = Repository::open(&path)?;
+        let mut stashes = Vec::new();
+        let mut entries = Vec::new();
 
-    // Iterate through stashes and collect fields to avoid borrow checker issues
-    let _ = repo.stash_foreach(|idx, name, oid| {
-        entries.push((idx, name.to_string(), *oid));
-        true
-    });
-
-    for (idx, name, oid) in entries {
-        let msg = repo
-            .find_commit(oid)
-            .ok()
-            .and_then(|c| c.message().map(|m| m.trim().to_string()))
-            .unwrap_or_else(|| name.clone());
-
-        stashes.push(StashInfo {
-            index: idx,
-            name,
-            oid: oid.to_string(),
-            message: msg,
+        // Iterate through stashes and collect fields to avoid borrow checker issues
+        let _ = repo.stash_foreach(|idx, name, oid| {
+            entries.push((idx, name.to_string(), *oid));
+            true
         });
-    }
 
-    Ok(stashes)
+        for (idx, name, oid) in entries {
+            let msg = repo
+                .find_commit(oid)
+                .ok()
+                .and_then(|c| c.message().map(|m| m.trim().to_string()))
+                .unwrap_or_else(|| name.clone());
+
+            stashes.push(StashInfo {
+                index: idx,
+                name,
+                oid: oid.to_string(),
+                message: msg,
+            });
+        }
+
+        Ok(stashes)
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
@@ -47,39 +51,55 @@ pub async fn save_stash(
     message: String,
     include_untracked: bool,
 ) -> Result<(), AppError> {
-    let mut repo = Repository::open(&path)?;
+    tokio::task::spawn_blocking(move || {
+        let mut repo = Repository::open(&path)?;
 
-    // Find default signature
-    let sig = repo
-        .signature()
-        .or_else(|_| git2::Signature::now("Basilico", "basilico@example.com"))?;
+        // Find default signature
+        let sig = repo
+            .signature()
+            .or_else(|_| git2::Signature::now("Basilico", "basilico@example.com"))?;
 
-    let mut flags = StashFlags::DEFAULT;
-    if include_untracked {
-        flags |= StashFlags::INCLUDE_UNTRACKED;
-    }
+        let mut flags = StashFlags::DEFAULT;
+        if include_untracked {
+            flags |= StashFlags::INCLUDE_UNTRACKED;
+        }
 
-    repo.stash_save(&sig, &message, Some(flags))?;
-    Ok(())
+        repo.stash_save(&sig, &message, Some(flags))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
 pub async fn apply_stash(path: String, index: usize) -> Result<(), AppError> {
-    let mut repo = Repository::open(&path)?;
-    repo.stash_apply(index, None)?;
-    Ok(())
+    tokio::task::spawn_blocking(move || {
+        let mut repo = Repository::open(&path)?;
+        repo.stash_apply(index, None)?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
 pub async fn pop_stash(path: String, index: usize) -> Result<(), AppError> {
-    let mut repo = Repository::open(&path)?;
-    repo.stash_pop(index, None)?;
-    Ok(())
+    tokio::task::spawn_blocking(move || {
+        let mut repo = Repository::open(&path)?;
+        repo.stash_pop(index, None)?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
 pub async fn drop_stash(path: String, index: usize) -> Result<(), AppError> {
-    let mut repo = Repository::open(&path)?;
-    repo.stash_drop(index)?;
-    Ok(())
+    tokio::task::spawn_blocking(move || {
+        let mut repo = Repository::open(&path)?;
+        repo.stash_drop(index)?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }

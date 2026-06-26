@@ -11,6 +11,16 @@ import type {
 import * as commands from "../../lib/tauri-commands";
 import type { RepoState } from "../types";
 
+/** Helper to update a single loading domain flag */
+function setLoading(
+  get: () => RepoState,
+  set: (s: Partial<RepoState>) => void,
+  domain: keyof RepoState["loadingStates"],
+  value: boolean,
+) {
+  set({ loadingStates: { ...get().loadingStates, [domain]: value } });
+}
+
 export interface CollaborationSlice {
   rebaseTodoItems: RebaseTodoItem[];
   rebaseStatus: RebaseStatus | null;
@@ -99,7 +109,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "branches", true);
+    set({ error: null });
     try {
       await commands.checkoutBranch(activeTabId, branchName, {
         errorPrefix: "Failed to checkout branch",
@@ -111,7 +122,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "branches", false);
     }
   },
 
@@ -119,7 +130,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "branches", true);
+    set({ error: null });
     try {
       await commands.createBranch(activeTabId, name, startPoint, {
         errorPrefix: "Failed to create branch",
@@ -130,7 +142,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "branches", false);
     }
   },
 
@@ -138,7 +150,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "branches", true);
+    set({ error: null });
     try {
       await commands.deleteBranch(activeTabId, name, isRemote, {
         errorPrefix: "Failed to delete branch",
@@ -149,7 +162,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "branches", false);
     }
   },
 
@@ -157,7 +170,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "branches", true);
+    set({ error: null });
     try {
       await commands.renameBranch(activeTabId, currentName, newName, {
         errorPrefix: "Failed to rename branch",
@@ -168,7 +182,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "branches", false);
     }
   },
 
@@ -176,7 +190,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.deleteTag(activeTabId, name, {
         errorPrefix: "Failed to delete tag",
@@ -187,7 +202,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -195,7 +210,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.createTag(activeTabId, name, targetOid, message, force, {
         errorPrefix: "Failed to create tag",
@@ -206,7 +222,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -214,7 +230,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.pushTag(activeTabId, remote, tagName, {
         errorPrefix: "Failed to push tag",
@@ -225,7 +242,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -233,7 +250,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return "conflicts";
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       const result = await commands.mergeBranch(activeTabId, branchName, {
         errorPrefix: "Failed to merge",
@@ -245,7 +263,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -253,7 +271,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.abortMerge(activeTabId, {
         errorPrefix: "Failed to abort merge",
@@ -264,7 +283,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -272,7 +291,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.resolveConflict(activeTabId, filePath, {
         errorPrefix: "Failed to resolve conflict",
@@ -283,7 +303,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -310,7 +330,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return "conflicts";
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       const result = await commands.pull(activeTabId, remote, branch, {
         errorPrefix: "Pull failed",
@@ -322,7 +343,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -330,7 +351,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.push(activeTabId, remote, branch, force, {
         errorPrefix: "Push failed",
@@ -341,7 +363,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -349,7 +371,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       const items = await commands.rebaseInit(activeTabId, upstream, {
         errorPrefix: "Failed to initialize rebase",
@@ -367,7 +390,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -375,7 +398,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.rebaseWriteTodo(activeTabId, items, {
         errorPrefix: "Failed to write rebase todo",
@@ -386,7 +410,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -394,7 +418,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       const status = await commands.rebaseStep(
         activeTabId,
@@ -410,7 +435,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -418,7 +443,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       const state = await commands.bisectStart(activeTabId, bad, good, {
         errorPrefix: "Failed to start bisect",
@@ -430,7 +456,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -438,7 +464,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       const state = await commands.bisectMark(activeTabId, status, {
         errorPrefix: "Failed to mark bisect",
@@ -450,7 +477,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -458,7 +485,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.bisectReset(activeTabId, {
         errorPrefix: "Failed to reset bisect",
@@ -470,7 +498,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -493,7 +521,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.addWorktree(activeTabId, path, branch, newBranch, {
         errorPrefix: "Failed to add worktree",
@@ -504,7 +533,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -512,7 +541,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.removeWorktree(activeTabId, worktreePath, force, {
         errorPrefix: "Failed to remove worktree",
@@ -523,7 +553,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -531,7 +561,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.pruneWorktrees(activeTabId, {
         errorPrefix: "Failed to prune worktrees",
@@ -542,7 +573,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -565,7 +596,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.initSubmodules(activeTabId, paths, {
         errorPrefix: "Failed to initialize submodules",
@@ -576,7 +608,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -584,7 +616,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.updateSubmodules(activeTabId, paths, recursive, {
         errorPrefix: "Failed to update submodules",
@@ -595,7 +628,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -603,7 +636,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.syncSubmodules(activeTabId, paths, {
         errorPrefix: "Failed to sync submodules",
@@ -614,7 +648,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
@@ -622,7 +656,8 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.addSubmodule(activeTabId, url, path, {
         errorPrefix: "Failed to add submodule",
@@ -634,14 +669,15 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
   cherryPickCommit: async (oid) => {
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       const res = await commands.cherryPickCommit(activeTabId, oid, {
         errorPrefix: "Cherry-pick failed",
@@ -653,14 +689,15 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
   cherryPickAbort: async () => {
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.cherryPickAbort(activeTabId, {
         errorPrefix: "Cherry-pick abort failed",
@@ -671,14 +708,15 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
   revertCommit: async (oid) => {
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       const res = await commands.revertCommit(activeTabId, oid, {
         errorPrefix: "Revert failed",
@@ -690,14 +728,15 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
   revertAbort: async () => {
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.revertAbort(activeTabId, {
         errorPrefix: "Revert abort failed",
@@ -708,14 +747,15 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
   resetToCommit: async (oid, mode) => {
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "collaboration", true);
+    set({ error: null });
     try {
       await commands.resetToCommit(activeTabId, oid, mode, {
         errorPrefix: "Reset failed",
@@ -726,14 +766,15 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "collaboration", false);
     }
   },
 
   loadCommitTree: async (oid: string) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
-    set({ isLoading: true, commitTree: [], error: null });
+    setLoading(get, set, "diff", true);
+    set({ commitTree: [], error: null });
     try {
       const tree = await commands.getCommitTree(activeTabId, oid, {
         silent: true,
@@ -744,15 +785,15 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "diff", false);
     }
   },
 
   startComparison: async (base: string, target: string) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
+    setLoading(get, set, "diff", true);
     set({
-      isLoading: true,
       compareBase: base,
       compareTarget: target,
       compareDiff: [],
@@ -778,7 +819,7 @@ export const createCollaborationSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "diff", false);
     }
   },
 

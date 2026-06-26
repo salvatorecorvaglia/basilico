@@ -1,7 +1,7 @@
 import type { StateCreator } from "zustand";
 import type { RepoTab } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
-import type { RepoState } from "../types";
+import { INITIAL_LOADING_STATES, type RepoState } from "../types";
 
 export interface TabsSlice {
   tabs: RepoTab[];
@@ -19,7 +19,10 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
   activeTabId: null,
 
   openRepository: async (path: string) => {
-    set({ isLoading: true, error: null });
+    set({
+      loadingStates: { ...get().loadingStates, global: true },
+      error: null,
+    });
 
     try {
       const info = await commands.openRepo(path, {
@@ -54,7 +57,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      set({ loadingStates: { ...get().loadingStates, global: false } });
     }
   },
 
@@ -97,12 +100,17 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
         selectedFilePath: null,
         selectedFileIsStaged: false,
         localDiff: null,
+        loadingStates: { ...INITIAL_LOADING_STATES },
         error: null,
       });
 
       // If there's a new active tab, reload its data
       if (newActive) {
-        get().refreshAll();
+        get()
+          .refreshAll()
+          .catch((err) =>
+            console.error("Failed to refresh after tab close:", err),
+          );
       }
     } else {
       set({ tabs: filtered });
@@ -141,6 +149,10 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
     }));
 
     // Reload data for the new active tab
-    get().refreshAll();
+    get()
+      .refreshAll()
+      .catch((err) =>
+        console.error("Failed to refresh after tab switch:", err),
+      );
   },
 });

@@ -147,7 +147,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   closeConfirm: () => set({ confirmOptions: null }),
 
   addNotification: (notification) => {
-    const id = Math.random().toString(36).slice(2);
+    const id = crypto.randomUUID();
 
     // De-duplication and merging logic for errors to prevent duplicate toasts
     if (notification.type === "error") {

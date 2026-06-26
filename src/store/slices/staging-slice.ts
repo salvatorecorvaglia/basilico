@@ -3,6 +3,16 @@ import type { ConflictStages, FileDiff, StashInfo } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
 import type { RepoState } from "../types";
 
+/** Helper to update a single loading domain flag */
+function setLoading(
+  get: () => RepoState,
+  set: (s: Partial<RepoState>) => void,
+  domain: keyof RepoState["loadingStates"],
+  value: boolean,
+) {
+  set({ loadingStates: { ...get().loadingStates, [domain]: value } });
+}
+
 export interface StagingSlice {
   stashes: StashInfo[];
   selectedStashIndex: number | null;
@@ -68,7 +78,7 @@ export const createStagingSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true });
+    setLoading(get, set, "diff", true);
     try {
       const diff = await commands.getFileDiff(activeTabId, path, isStaged, {
         silent: true,
@@ -79,7 +89,7 @@ export const createStagingSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "diff", false);
     }
   },
 
@@ -87,7 +97,8 @@ export const createStagingSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "staging", true);
+    set({ error: null });
     try {
       await commands.stageFiles(activeTabId, files, {
         errorPrefix: "Failed to stage files",
@@ -104,7 +115,7 @@ export const createStagingSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "staging", false);
     }
   },
 
@@ -112,7 +123,8 @@ export const createStagingSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "staging", true);
+    set({ error: null });
     try {
       await commands.unstageFiles(activeTabId, files, {
         errorPrefix: "Failed to unstage files",
@@ -129,7 +141,7 @@ export const createStagingSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "staging", false);
     }
   },
 
@@ -137,7 +149,8 @@ export const createStagingSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "staging", true);
+    set({ error: null });
     try {
       await commands.discardChanges(activeTabId, files, {
         errorPrefix: "Failed to discard changes",
@@ -155,7 +168,7 @@ export const createStagingSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "staging", false);
     }
   },
 
@@ -163,7 +176,8 @@ export const createStagingSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "staging", true);
+    set({ error: null });
     try {
       await commands.applyPatch(activeTabId, patch, location, {
         errorPrefix: "Failed to apply patch",
@@ -180,7 +194,7 @@ export const createStagingSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "staging", false);
     }
   },
 
@@ -188,7 +202,8 @@ export const createStagingSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "staging", true);
+    set({ error: null });
     try {
       await commands.createCommit(activeTabId, message, null, null, amend, {
         errorPrefix: "Failed to commit",
@@ -200,7 +215,7 @@ export const createStagingSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "staging", false);
     }
   },
 
@@ -221,7 +236,8 @@ export const createStagingSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "stashes", true);
+    set({ error: null });
     try {
       await commands.saveStash(activeTabId, message, includeUntracked, {
         errorPrefix: "Failed to save stash",
@@ -232,7 +248,7 @@ export const createStagingSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "stashes", false);
     }
   },
 
@@ -240,7 +256,8 @@ export const createStagingSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "stashes", true);
+    set({ error: null });
     try {
       await commands.applyStash(activeTabId, index, {
         errorPrefix: "Failed to apply stash",
@@ -251,7 +268,7 @@ export const createStagingSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "stashes", false);
     }
   },
 
@@ -259,7 +276,8 @@ export const createStagingSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "stashes", true);
+    set({ error: null });
     try {
       await commands.popStash(activeTabId, index, {
         errorPrefix: "Failed to pop stash",
@@ -270,7 +288,7 @@ export const createStagingSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "stashes", false);
     }
   },
 
@@ -278,7 +296,8 @@ export const createStagingSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "stashes", true);
+    set({ error: null });
     try {
       await commands.dropStash(activeTabId, index, {
         errorPrefix: "Failed to drop stash",
@@ -289,7 +308,7 @@ export const createStagingSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "stashes", false);
     }
   },
 
@@ -297,12 +316,12 @@ export const createStagingSlice: StateCreator<
     const { activeTabId, stashes } = get();
     if (!activeTabId) return;
 
+    setLoading(get, set, "stashes", true);
     set({
       selectedStashIndex: index,
       stashDiff: [],
       selectedStashFile: null,
       selectedStashFileDiff: null,
-      isLoading: true,
       error: null,
     });
     try {
@@ -327,7 +346,7 @@ export const createStagingSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "stashes", false);
     }
   },
 
@@ -347,7 +366,8 @@ export const createStagingSlice: StateCreator<
     const { activeTabId, stashes } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "stashes", true);
+    set({ error: null });
     try {
       const stash = stashes.find((s) => s.index === index);
       if (!stash) {
@@ -373,7 +393,7 @@ export const createStagingSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "stashes", false);
     }
   },
 
@@ -381,8 +401,8 @@ export const createStagingSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
+    setLoading(get, set, "staging", true);
     set({
-      isLoading: true,
       conflictStages: null,
       activeConflictedPath: filePath,
       error: null,
@@ -397,7 +417,7 @@ export const createStagingSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "staging", false);
     }
   },
 
@@ -405,7 +425,8 @@ export const createStagingSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isLoading: true, error: null });
+    setLoading(get, set, "staging", true);
+    set({ error: null });
     try {
       await commands.saveMergedResolution(
         activeTabId,
@@ -420,7 +441,7 @@ export const createStagingSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     } finally {
-      set({ isLoading: false });
+      setLoading(get, set, "staging", false);
     }
   },
 });
