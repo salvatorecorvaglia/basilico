@@ -76,8 +76,7 @@ pub async fn save_merged_resolution(
         let workdir = repo
             .workdir()
             .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
-        let validated_full_path =
-            crate::git::utils::validate_path(workdir, Path::new(&file_path))?;
+        let validated_full_path = crate::git::utils::validate_path(workdir, Path::new(&file_path))?;
 
         fs::write(&validated_full_path, merged_content)?;
 

@@ -29,8 +29,7 @@ pub async fn get_file_blame(
         let workdir = repo
             .workdir()
             .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
-        let validated_full_path =
-            crate::git::utils::validate_path(workdir, Path::new(&file_path))?;
+        let validated_full_path = crate::git::utils::validate_path(workdir, Path::new(&file_path))?;
 
         // 1. Get file content at the specified revision or HEAD/workdir
         let (content, resolved_oid) = if let Some(ref oid_str) = commit_oid {
@@ -93,26 +92,23 @@ pub async fn get_file_blame(
                     };
 
                     // Fetch commit details (caching to avoid disk requests)
-                    let (author_name, author_email, summary) =
-                        if let Some(cached) = commit_cache.get(&final_oid) {
-                            cached
+                    let (author_name, author_email, summary) = if let Some(cached) =
+                        commit_cache.get(&final_oid)
+                    {
+                        cached
+                    } else {
+                        let (name, email, summ) = if let Ok(commit) = repo.find_commit(final_oid) {
+                            let sig = commit.author();
+                            let name = sig.name().unwrap_or("Unknown").to_string();
+                            let email = sig.email().unwrap_or("").to_string();
+                            let summary = commit.summary().unwrap_or("").to_string();
+                            (name, email, summary)
                         } else {
-                            let (name, email, summ) =
-                                if let Ok(commit) = repo.find_commit(final_oid) {
-                                    let sig = commit.author();
-                                    let name = sig.name().unwrap_or("Unknown").to_string();
-                                    let email = sig.email().unwrap_or("").to_string();
-                                    let summary = commit.summary().unwrap_or("").to_string();
-                                    (name, email, summary)
-                                } else {
-                                    ("Unknown".to_string(), "".to_string(), "".to_string())
-                                };
-                            commit_cache.insert(
-                                final_oid,
-                                (name.clone(), email.clone(), summ.clone()),
-                            );
-                            commit_cache.get(&final_oid).unwrap()
+                            ("Unknown".to_string(), "".to_string(), "".to_string())
                         };
+                        commit_cache.insert(final_oid, (name.clone(), email.clone(), summ.clone()));
+                        commit_cache.get(&final_oid).unwrap()
+                    };
 
                     blame_lines.push(BlameLine {
                         line_no,

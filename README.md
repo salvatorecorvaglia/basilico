@@ -35,15 +35,15 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
 
 Here is a high-level overview of the workspace layout:
 
-- **[`src-tauri/`](file:///Users/salvatorecorvaglia/github/basilico/src-tauri)**: The native Rust backend.
-  - **[`src/lib.rs`](file:///Users/salvatorecorvaglia/github/basilico/src-tauri/src/lib.rs)**: Defines native commands, setup configurations, and window layout initialization.
-  - **[`Cargo.toml`](file:///Users/salvatorecorvaglia/github/basilico/src-tauri/Cargo.toml)**: Cargo dependency manifest, leveraging `git2` and `tokio`.
-- **[`src/`](file:///Users/salvatorecorvaglia/github/basilico/src)**: The React and TypeScript frontend.
-  - **[`src/components/`](file:///Users/salvatorecorvaglia/github/basilico/src/components)**: Core visual components (diff view, commit graph, modals, settings, staging, etc.).
-  - **[`src/store/`](file:///Users/salvatorecorvaglia/github/basilico/src/store)**: State slices managed via Zustand.
-  - **[`src/styles/`](file:///Users/salvatorecorvaglia/github/basilico/src/styles)**: Premium design-system variables (`theme.css` and `index.css`).
-- **[`package.json`](file:///Users/salvatorecorvaglia/github/basilico/package.json)**: Node.js scripts and frontend/devDependencies configurations.
-- **[`vite.config.ts`](file:///Users/salvatorecorvaglia/github/basilico/vite.config.ts)**: Configures the Vite dev server and bundler.
+- **[`src-tauri/`](src-tauri)**: The native Rust backend.
+  - **[`src/lib.rs`](src-tauri/src/lib.rs)**: Defines native commands, setup configurations, and window layout initialization.
+  - **[`Cargo.toml`](src-tauri/Cargo.toml)**: Cargo dependency manifest, leveraging `git2` and `tokio`.
+- **[`src/`](src)**: The React and TypeScript frontend.
+  - **[`src/components/`](src/components)**: Core visual components (diff view, commit graph, modals, settings, staging, etc.).
+  - **[`src/store/`](src/store)**: State slices managed via Zustand.
+  - **[`src/styles/`](src/styles)**: Premium design-system variables (`theme.css` and `index.css`).
+- **[`package.json`](package.json)**: Node.js scripts and frontend/devDependencies configurations.
+- **[`vite.config.ts`](vite.config.ts)**: Configures the Vite dev server and bundler.
 
 ---
 

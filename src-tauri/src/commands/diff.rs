@@ -99,8 +99,7 @@ pub async fn get_file_content_pair(
                         if let Ok(tree) = commit.tree() {
                             if let Ok(entry) = tree.get_path(std::path::Path::new(&file_path)) {
                                 if let Ok(blob) = repo.find_blob(entry.id()) {
-                                    original =
-                                        String::from_utf8_lossy(blob.content()).to_string();
+                                    original = String::from_utf8_lossy(blob.content()).to_string();
                                 }
                             }
                         }

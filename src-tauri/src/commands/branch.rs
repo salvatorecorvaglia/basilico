@@ -192,13 +192,23 @@ mod tests {
         assert!(created_branch.is_some());
 
         // 2. Rename branch
-        rename_branch(path.clone(), "feature/new-branch".to_string(), "feature/renamed-branch".to_string())
-            .await
-            .unwrap();
+        rename_branch(
+            path.clone(),
+            "feature/new-branch".to_string(),
+            "feature/renamed-branch".to_string(),
+        )
+        .await
+        .unwrap();
 
         let branches = list_branches(path.clone()).await.unwrap();
-        assert!(branches.iter().find(|b| b.name == "feature/new-branch").is_none());
-        assert!(branches.iter().find(|b| b.name == "feature/renamed-branch").is_some());
+        assert!(branches
+            .iter()
+            .find(|b| b.name == "feature/new-branch")
+            .is_none());
+        assert!(branches
+            .iter()
+            .find(|b| b.name == "feature/renamed-branch")
+            .is_some());
 
         // 3. Delete branch
         delete_branch(path.clone(), "feature/renamed-branch".to_string(), false)
@@ -206,6 +216,9 @@ mod tests {
             .unwrap();
 
         let branches = list_branches(path.clone()).await.unwrap();
-        assert!(branches.iter().find(|b| b.name == "feature/renamed-branch").is_none());
+        assert!(branches
+            .iter()
+            .find(|b| b.name == "feature/renamed-branch")
+            .is_none());
     }
 }

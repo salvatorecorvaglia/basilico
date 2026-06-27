@@ -70,10 +70,8 @@ pub async fn get_file_history(
 
                     for delta_idx in 0..diff.deltas().len() {
                         if let Some(delta) = diff.get_delta(delta_idx) {
-                            let new_file_path =
-                                delta.new_file().path().and_then(|p| p.to_str());
-                            let old_file_path =
-                                delta.old_file().path().and_then(|p| p.to_str());
+                            let new_file_path = delta.new_file().path().and_then(|p| p.to_str());
+                            let old_file_path = delta.old_file().path().and_then(|p| p.to_str());
 
                             let matches_new =
                                 new_file_path.map(|p| p == current_path).unwrap_or(false);

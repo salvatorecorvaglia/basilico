@@ -91,10 +91,7 @@ pub async fn pull(
             if head_ref.is_branch() {
                 if let Some(refname) = head_ref.name() {
                     let mut r = repo.find_reference(refname)?;
-                    r.set_target(
-                        target_oid,
-                        &format!("pull: fast-forward to {}", target_oid),
-                    )?;
+                    r.set_target(target_oid, &format!("pull: fast-forward to {}", target_oid))?;
                     repo.set_head(refname)?;
                 }
             } else {
