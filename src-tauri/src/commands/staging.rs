@@ -30,6 +30,12 @@ pub async fn stage_files(path: String, files: Vec<String>) -> Result<(), AppErro
 pub async fn unstage_files(path: String, files: Vec<String>) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
+        let workdir = repo
+            .workdir()
+            .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
+        for file in &files {
+            let _ = crate::git::utils::validate_path(workdir, Path::new(file))?;
+        }
         let head = repo.head();
         match head {
             Ok(head_ref) => {

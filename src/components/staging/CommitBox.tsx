@@ -54,8 +54,7 @@ export function CommitBox() {
     }
   };
 
-  const handleCommitSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const performCommit = async () => {
     if (!summary.trim()) return;
 
     const fullMessage = description.trim()
@@ -71,6 +70,20 @@ export function CommitBox() {
       setUserDescriptionBackup("");
     } catch (err) {
       addNotification({ type: "error", message: `Failed to commit: ${err}` });
+    }
+  };
+
+  const handleCommitSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await performCommit();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      if (canCommit) {
+        performCommit();
+      }
     }
   };
 
@@ -112,6 +125,7 @@ export function CommitBox() {
           placeholder="Commit title (e.g. feat: add login button)"
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
+          onKeyDown={handleKeyDown}
           disabled={isLoading}
           maxLength={72}
           required
@@ -121,6 +135,7 @@ export function CommitBox() {
           placeholder="Add an optional extended description..."
           value={description}
           onChange={(e) => setDescription(e.target.value)}
+          onKeyDown={handleKeyDown}
           disabled={isLoading}
           rows={3}
         />

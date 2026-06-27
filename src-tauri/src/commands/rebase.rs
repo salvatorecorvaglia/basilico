@@ -116,6 +116,15 @@ pub async fn rebase_step(
         });
     }
 
+    if action == "skip" {
+        let head = repo.head()?;
+        let commit = head.peel_to_commit()?;
+        let obj = commit.into_object();
+        let mut opts = git2::build::CheckoutBuilder::new();
+        opts.force();
+        repo.checkout_tree(&obj, Some(&mut opts))?;
+    }
+
     if action == "continue" {
         let index = repo.index()?;
         if index.has_conflicts() {

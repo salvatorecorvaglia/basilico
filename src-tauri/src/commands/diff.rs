@@ -130,6 +130,11 @@ pub async fn get_file_content_at_revision(
 ) -> Result<String, AppError> {
     tokio::task::spawn_blocking(move || {
         let repo = git2::Repository::open(&path)?;
+        let workdir = repo
+            .workdir()
+            .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
+        let _validated_full_path =
+            crate::git::utils::validate_path(workdir, std::path::Path::new(&file_path))?;
 
         // Resolve revision spec (like commit SHA or SHA^)
         let obj = repo.revparse_single(&revision)?;
@@ -181,6 +186,11 @@ pub async fn get_file_content_pair_revisions(
 ) -> Result<FileContentPair, AppError> {
     tokio::task::spawn_blocking(move || {
         let repo = git2::Repository::open(&path)?;
+        let workdir = repo
+            .workdir()
+            .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
+        let _validated_full_path =
+            crate::git::utils::validate_path(workdir, std::path::Path::new(&file_path))?;
 
         let mut original = String::new();
         let mut modified = String::new();

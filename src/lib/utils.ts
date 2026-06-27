@@ -129,3 +129,46 @@ export function getStatusColor(status: string): string {
       return "var(--text-secondary)";
   }
 }
+
+/** Get language code for Monaco editor based on file path extension */
+export function getLanguageFromPath(filePath: string): string {
+  const ext = filePath.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "js":
+    case "jsx":
+      return "javascript";
+    case "ts":
+    case "tsx":
+      return "typescript";
+    case "rs":
+      return "rust";
+    case "py":
+      return "python";
+    case "go":
+      return "go";
+    case "java":
+      return "java";
+    case "cpp":
+    case "cc":
+    case "h":
+      return "cpp";
+    case "cs":
+      return "csharp";
+    case "css":
+      return "css";
+    case "html":
+      return "html";
+    case "json":
+      return "json";
+    case "md":
+      return "markdown";
+    case "sh":
+    case "bash":
+      return "shell";
+    case "yml":
+    case "yaml":
+      return "yaml";
+    default:
+      return "plaintext";
+  }
+}

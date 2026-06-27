@@ -3,51 +3,10 @@ import { Check, Copy, Download, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getFileContentAtRevision } from "../../lib/tauri-commands";
 import { useDarkMode } from "../../lib/use-dark-mode";
+import { getLanguageFromPath } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./FileViewerModal.css";
-
-function getLanguageFromPath(filePath: string): string {
-  const ext = filePath.split(".").pop()?.toLowerCase();
-  switch (ext) {
-    case "js":
-    case "jsx":
-      return "javascript";
-    case "ts":
-    case "tsx":
-      return "typescript";
-    case "rs":
-      return "rust";
-    case "py":
-      return "python";
-    case "go":
-      return "go";
-    case "java":
-      return "java";
-    case "cpp":
-    case "cc":
-    case "h":
-      return "cpp";
-    case "cs":
-      return "csharp";
-    case "css":
-      return "css";
-    case "html":
-      return "html";
-    case "json":
-      return "json";
-    case "md":
-      return "markdown";
-    case "sh":
-    case "bash":
-      return "shell";
-    case "yml":
-    case "yaml":
-      return "yaml";
-    default:
-      return "plaintext";
-  }
-}
 
 export function FileViewerModal() {
   const isDark = useDarkMode();

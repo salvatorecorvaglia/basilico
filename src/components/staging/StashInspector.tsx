@@ -22,51 +22,10 @@ import {
   getFileContentPairRevisions,
 } from "../../lib/tauri-commands";
 import { useDarkMode } from "../../lib/use-dark-mode";
+import { getLanguageFromPath } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./StashInspector.css";
-
-function getLanguageFromPath(filePath: string): string {
-  const ext = filePath.split(".").pop()?.toLowerCase();
-  switch (ext) {
-    case "js":
-    case "jsx":
-      return "javascript";
-    case "ts":
-    case "tsx":
-      return "typescript";
-    case "rs":
-      return "rust";
-    case "py":
-      return "python";
-    case "go":
-      return "go";
-    case "java":
-      return "java";
-    case "cpp":
-    case "cc":
-    case "h":
-      return "cpp";
-    case "cs":
-      return "csharp";
-    case "css":
-      return "css";
-    case "html":
-      return "html";
-    case "json":
-      return "json";
-    case "md":
-      return "markdown";
-    case "sh":
-    case "bash":
-      return "shell";
-    case "yml":
-    case "yaml":
-      return "yaml";
-    default:
-      return "plaintext";
-  }
-}
 
 export function StashInspector() {
   const isDark = useDarkMode();
@@ -105,13 +64,19 @@ export function StashInspector() {
     }
 
     setLoadingContents(true);
-    // Base: stash parent commit (stash.oid + "^1")
-    // Target: stash merge commit (stash.oid)
+    // Base: stash parent commit (stash.oid + "^1"), empty for untracked files
+    // Target: stash merge commit (stash.oid) or stash untracked commit (stash.oid + "^3")
+    const isUntracked = selectedStashFileDiff?.status === "untracked";
+    const baseRev = isUntracked ? "" : `${selectedStash.oid}^1`;
+    const targetRev = isUntracked
+      ? `${selectedStash.oid}^3`
+      : selectedStash.oid;
+
     getFileContentPairRevisions(
       activeTabId,
       selectedStashFile,
-      `${selectedStash.oid}^1`,
-      selectedStash.oid,
+      baseRev,
+      targetRev,
     )
       .then((data) => {
         setContents(data);
@@ -123,7 +88,13 @@ export function StashInspector() {
       .finally(() => {
         setLoadingContents(false);
       });
-  }, [activeTabId, selectedStashIndex, selectedStashFile, selectedStash]);
+  }, [
+    activeTabId,
+    selectedStashIndex,
+    selectedStashFile,
+    selectedStash,
+    selectedStashFileDiff,
+  ]);
 
   if (selectedStashIndex === null || !selectedStash) {
     return (

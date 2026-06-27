@@ -68,7 +68,8 @@ pub async fn pull(
             ssh_key_path.clone(),
         ));
 
-        remote_obj.fetch(&[branch.as_str()], Some(&mut fetch_opts), None)?;
+        let refspec = format!("+refs/heads/{}:refs/remotes/{}/{}", branch, remote, branch);
+        remote_obj.fetch(&[refspec.as_str()], Some(&mut fetch_opts), None)?;
 
         // Step 2: Merge the remote tracking branch into current HEAD
         let remote_ref = format!("refs/remotes/{}/{}", remote, branch);

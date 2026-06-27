@@ -60,6 +60,18 @@ pub async fn get_file_history(
                     let parent = commit.parent(p_idx)?;
                     let parent_tree = parent.tree()?;
 
+                    let current_entry = commit_tree
+                        .get_path(std::path::Path::new(&current_path))
+                        .ok()
+                        .map(|e| (e.id(), e.filemode()));
+                    let parent_entry = parent_tree
+                        .get_path(std::path::Path::new(&current_path))
+                        .ok()
+                        .map(|e| (e.id(), e.filemode()));
+                    if current_entry == parent_entry {
+                        continue;
+                    }
+
                     // Generate diff with rename detection
                     let mut diff =
                         repo.diff_tree_to_tree(Some(&parent_tree), Some(&commit_tree), None)?;

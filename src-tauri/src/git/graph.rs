@@ -64,8 +64,8 @@ pub fn build_graph(path: &str, max_commits: usize) -> Result<Vec<GraphCommit>, A
 
     // Also push all branches/tags so we see the full graph
     for r in repo.references()?.flatten() {
-        if let Some(oid) = r.target() {
-            let _ = revwalk.push(oid);
+        if let Ok(commit_ref) = r.peel(git2::ObjectType::Commit) {
+            let _ = revwalk.push(commit_ref.id());
         }
     }
 

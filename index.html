@@ -1,34 +1,36 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/tauri.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Basilico</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <script>
-      (function() {
-        // NOTE: The presets map below must be kept in sync with the source of truth:
-        // /Users/salvatorecorvaglia/github/basilico/src/lib/theme-presets.ts
-        const theme = localStorage.getItem('basilico-theme') || 'sage-green';
-        const presets = {
-          'sage-green': '#2ea043',
-          'royal-blue': '#1f6feb',
-          'amethyst-purple': '#8b5cf6',
-          'amber-gold': '#d29922',
-          'crimson-red': '#f85149',
-          'ocean-teal': '#2dd4bf'
-        };
-        const color = presets[theme] || '#2ea043';
-        document.documentElement.style.setProperty('--accent-primary', color);
-      })();
-    </script>
-  </head>
 
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/tauri.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Basilico</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <script>
+    (function () {
+      const theme = localStorage.getItem('basilico-theme') || 'sage-green';
+      const presets = {
+        'sage-green': '#2ea043',
+        'royal-blue': '#1f6feb',
+        'amethyst-purple': '#8b5cf6',
+        'amber-gold': '#d29922',
+        'crimson-red': '#f85149',
+        'ocean-teal': '#2dd4bf'
+      };
+      const color = presets[theme] || '#2ea043';
+      document.documentElement.style.setProperty('--accent-primary', color);
+    })();
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
 </html>
