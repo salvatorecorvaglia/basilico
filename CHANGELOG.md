@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Stash Inspector**: Added support for viewing diffs of untracked files in stashes. The backend now retrieves the 3rd parent commit of a stash (which contains untracked files in Git) and includes those files with an "untracked" status in the returned diffs.
+
+### Changed
+
+- **Refactoring & Code Quality**:
+  - Centralized language detection logic in the frontend by introducing the `getLanguageFromPath` helper utility in `utils.ts`, replacing duplicate extension-to-language mappings across Monaco Editor components (`CompareView`, `DiffView`, `FileViewerModal`, `FileHistory`, `MergeEditor`, `StashInspector`).
+  - Reformatted `index.html` structure.
+
+### Removed
+
+- **Welcome Screen**: Removed the development-only "Open Basilico Repository" button and its associated CSS styling.
+
 ## [0.5.0] - 2026-06-27
 
 ### Added
