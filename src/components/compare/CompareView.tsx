@@ -1,5 +1,6 @@
 import { DiffEditor } from "@monaco-editor/react";
 import { ArrowLeftRight, CheckCircle, FileCode, X } from "lucide-react";
+import type { editor } from "monaco-editor";
 import { useEffect, useState } from "react";
 import * as commands from "../../lib/tauri-commands";
 import {
@@ -123,7 +124,7 @@ export function CompareView() {
           message: "Swapped comparison direction",
         });
       })
-      .catch((err: any) => {
+      .catch((err: unknown) => {
         addNotification({ type: "error", message: `Swap failed: ${err}` });
       });
   };
@@ -271,12 +272,12 @@ export function CompareView() {
                       horizontal: "visible",
                     },
                   }}
-                  onMount={(editor: any) => {
+                  onMount={(editor: editor.IStandaloneDiffEditor) => {
                     const originalDispose = editor.dispose;
                     editor.dispose = () => {
                       try {
                         editor.setModel(null);
-                      } catch (e) {
+                      } catch {
                         // Ignore
                       }
                       originalDispose.call(editor);

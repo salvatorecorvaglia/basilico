@@ -307,15 +307,13 @@ pub fn list_remotes(path: &str) -> Result<Vec<RemoteInfo>, AppError> {
     let remote_names = repo.remotes()?;
     let mut remotes = Vec::new();
 
-    for name in remote_names.iter() {
-        if let Some(name) = name {
-            let remote = repo.find_remote(name)?;
-            remotes.push(RemoteInfo {
-                name: name.to_string(),
-                url: remote.url().map(String::from),
-                push_url: remote.pushurl().map(String::from),
-            });
-        }
+    for name in remote_names.iter().flatten() {
+        let remote = repo.find_remote(name)?;
+        remotes.push(RemoteInfo {
+            name: name.to_string(),
+            url: remote.url().map(String::from),
+            push_url: remote.pushurl().map(String::from),
+        });
     }
 
     Ok(remotes)

@@ -5,7 +5,7 @@
 
 import { listen } from "@tauri-apps/api/event";
 import { ArrowLeft, Wrench } from "lucide-react";
-import { lazy, Suspense, useCallback, useEffect } from "react";
+import React, { lazy, Suspense, useCallback, useEffect } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { BisectWizard } from "./components/bisect/BisectWizard";
 import { CommandPalette } from "./components/command-palette/CommandPalette";
@@ -67,25 +67,34 @@ import "./App.css";
 
 function matchesShortcut(e: KeyboardEvent, shortcutStr: string): boolean {
   const parts = shortcutStr.split("+");
-  let meta = false;
-  let shift = false;
+  let hasCmdOrCtrl = false;
+  let hasShift = false;
   let key = "";
   for (const part of parts) {
     if (part === "CmdOrCtrl") {
-      meta = e.metaKey || e.ctrlKey;
+      hasCmdOrCtrl = true;
     } else if (part === "Shift") {
-      shift = e.shiftKey;
+      hasShift = true;
     } else {
       key = part.toLowerCase();
     }
   }
 
-  if (key === "enter") return meta && shift === e.shiftKey && e.key === "Enter";
-  if (key === ",") return meta && shift === e.shiftKey && e.key === ",";
-  return meta && shift === e.shiftKey && e.key.toLowerCase() === key;
+  const matchesMeta = (e.metaKey || e.ctrlKey) === hasCmdOrCtrl;
+  const matchesShift = e.shiftKey === hasShift;
+
+  if (key === "enter") return matchesMeta && matchesShift && e.key === "Enter";
+  if (key === ",") return matchesMeta && matchesShift && e.key === ",";
+  return matchesMeta && matchesShift && e.key.toLowerCase() === key;
 }
 
-function renderViewContent(activeView: string) {
+interface ViewRouterProps {
+  activeView: string;
+}
+
+const ViewRouter = React.memo(function ViewRouter({
+  activeView,
+}: ViewRouterProps) {
   switch (activeView) {
     case "graph":
       return (
@@ -163,7 +172,7 @@ function renderViewContent(activeView: string) {
         </div>
       );
   }
-}
+});
 
 function App() {
   const {
@@ -191,7 +200,7 @@ function App() {
   // Listen to file system changes from Rust watcher
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
-    let timeoutId: any = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const setupListener = async () => {
       unsubscribe = await listen<{ repoPath: string }>(
@@ -366,7 +375,7 @@ function App() {
                     </div>
                   }
                 >
-                  {renderViewContent(activeView)}
+                  <ViewRouter activeView={activeView} />
                 </Suspense>
               </Panel>
             </Group>

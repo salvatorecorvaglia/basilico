@@ -33,25 +33,42 @@ export interface InvokeOptions {
   errorPrefix?: string;
 }
 
-export function parseAppError(err: any): AppError {
+export function parseAppError(err: unknown): AppError {
   if (err && typeof err === "object" && "message" in err && "kind" in err) {
     return err as AppError;
   }
+
+  let message = "Unknown error";
+  if (typeof err === "string") {
+    message = err;
+  } else if (err && typeof err === "object") {
+    if ("message" in err) {
+      message = String((err as { message: unknown }).message);
+    } else {
+      try {
+        message = JSON.stringify(err);
+      } catch {
+        message = String(err);
+      }
+    }
+  } else if (err !== null && err !== undefined) {
+    message = String(err);
+  }
+
   return {
-    message:
-      typeof err === "string" ? err : err?.message || JSON.stringify(err),
+    message,
     kind: "Unknown",
   };
 }
 
 async function invokeCommand<T>(
   cmd: string,
-  args?: Record<string, any>,
+  args?: Record<string, unknown>,
   options?: InvokeOptions,
 ): Promise<T> {
   try {
     return await invoke<T>(cmd, args);
-  } catch (err: any) {
+  } catch (err: unknown) {
     const appError = parseAppError(err);
     console.error(`[Tauri Command Error] ${cmd}:`, appError);
 
@@ -80,6 +97,9 @@ export const getStatus = (path: string, options?: InvokeOptions) =>
 
 export const listRemotes = (path: string, options?: InvokeOptions) =>
   invokeCommand<RemoteInfo[]>("list_remotes", { path }, options);
+
+export const getRepoInfo = (path: string, options?: InvokeOptions) =>
+  invokeCommand<RepoInfo>("get_repo_info", { path }, options);
 
 // ── Log Commands ──
 

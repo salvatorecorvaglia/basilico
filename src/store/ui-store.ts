@@ -152,23 +152,10 @@ export const useUIStore = create<UIState>((set, get) => ({
     // De-duplication and merging logic for errors to prevent duplicate toasts
     if (notification.type === "error") {
       const existing = get().notifications.find(
-        (n) =>
-          n.type === "error" &&
-          (n.message.includes(notification.message) ||
-            notification.message.includes(n.message)),
+        (n) => n.type === "error" && n.message === notification.message,
       );
 
       if (existing) {
-        // If the new message is longer (more detailed), update the existing toast
-        if (notification.message.length > existing.message.length) {
-          set((state) => ({
-            notifications: state.notifications.map((n) =>
-              n.id === existing.id
-                ? { ...n, message: notification.message }
-                : n,
-            ),
-          }));
-        }
         return;
       }
     }
@@ -189,15 +176,23 @@ export const useUIStore = create<UIState>((set, get) => ({
     }));
 
     // Auto-remove after timeout
-    setTimeout(() => {
-      set((state) => ({
-        notifications: state.notifications.filter((n) => n.id !== id),
-      }));
+    const timeoutId = setTimeout(() => {
+      get().removeNotification(id);
     }, timeout);
+    activeTimeouts.set(id, timeoutId);
   },
 
-  removeNotification: (id: string) =>
+  removeNotification: (id: string) => {
+    const timeoutId = activeTimeouts.get(id);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      activeTimeouts.delete(id);
+    }
     set((state) => ({
       notifications: state.notifications.filter((n) => n.id !== id),
-    })),
+    }));
+  },
 }));
+
+// Module-level map to track active timeout handles per notification ID to prevent leaks
+const activeTimeouts = new Map<string, ReturnType<typeof setTimeout>>();

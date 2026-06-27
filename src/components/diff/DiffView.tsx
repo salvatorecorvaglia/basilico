@@ -5,6 +5,7 @@
 
 import { DiffEditor } from "@monaco-editor/react";
 import { Check, Eye, FileCode, Minus, Plus, Trash2 } from "lucide-react";
+import type { editor } from "monaco-editor";
 import { useEffect, useState } from "react";
 import type { DiffHunkInfo } from "../../lib/git-types";
 import {
@@ -378,12 +379,12 @@ export function DiffView() {
                 scrollBeyondLastLine: false,
                 diffWordWrap: "off",
               }}
-              onMount={(editor: any) => {
+              onMount={(editor: editor.IStandaloneDiffEditor) => {
                 const originalDispose = editor.dispose;
                 editor.dispose = () => {
                   try {
                     editor.setModel(null);
-                  } catch (e) {
+                  } catch {
                     // Ignore
                   }
                   originalDispose.call(editor);

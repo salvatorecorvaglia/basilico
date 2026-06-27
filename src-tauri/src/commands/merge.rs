@@ -95,20 +95,18 @@ pub async fn get_conflicts(path: String) -> Result<Vec<String>, AppError> {
         let mut conflicts = Vec::new();
 
         if let Ok(index_conflicts) = index.conflicts() {
-            for entry in index_conflicts {
-                if let Ok(conflict) = entry {
-                    let path_str = if let Some(our) = conflict.our {
-                        Some(String::from_utf8_lossy(&our.path).to_string())
-                    } else if let Some(their) = conflict.their {
-                        Some(String::from_utf8_lossy(&their.path).to_string())
-                    } else {
-                        None
-                    };
+            for conflict in index_conflicts.flatten() {
+                let path_str = if let Some(our) = conflict.our {
+                    Some(String::from_utf8_lossy(&our.path).to_string())
+                } else if let Some(their) = conflict.their {
+                    Some(String::from_utf8_lossy(&their.path).to_string())
+                } else {
+                    None
+                };
 
-                    if let Some(p) = path_str {
-                        if !conflicts.contains(&p) {
-                            conflicts.push(p);
-                        }
+                if let Some(p) = path_str {
+                    if !conflicts.contains(&p) {
+                        conflicts.push(p);
                     }
                 }
             }
@@ -226,5 +224,58 @@ mod tests {
         let head_commit = repo.repo.head().unwrap().peel_to_commit().unwrap();
         assert_eq!(head_commit.parent_count(), 2);
         assert_eq!(head_commit.message().unwrap(), "Merge branch 'branch1'");
+    }
+
+    #[tokio::test]
+    async fn test_merge_branch_conflicts_and_abort() {
+        let repo = TempRepo::new();
+        repo.write_file("test.txt", "initial content");
+        repo.commit("initial commit");
+
+        // Save main branch name
+        let main_branch_name = repo.repo.head().unwrap().shorthand().unwrap().to_string();
+
+        // Create branch1 and commit a change to test.txt
+        create_branch(repo.path_str().to_string(), "branch1".to_string(), None)
+            .await
+            .unwrap();
+        crate::commands::branch::checkout_branch(
+            repo.path_str().to_string(),
+            "branch1".to_string(),
+        )
+        .await
+        .unwrap();
+        repo.write_file("test.txt", "branch 1 content");
+        repo.commit("commit branch 1");
+
+        // Go back to main and commit a conflicting change to test.txt
+        crate::commands::branch::checkout_branch(
+            repo.path_str().to_string(),
+            main_branch_name.clone(),
+        )
+        .await
+        .unwrap();
+        repo.write_file("test.txt", "branch 2 content");
+        repo.commit("commit branch 2");
+
+        // Merge branch1 (should cause conflict)
+        let result = merge_branch(repo.path_str().to_string(), "branch1".to_string())
+            .await
+            .unwrap();
+        assert_eq!(result, "conflicts");
+
+        // Verify conflict exists
+        let conflicts = get_conflicts(repo.path_str().to_string()).await.unwrap();
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(conflicts[0], "test.txt");
+
+        // Abort merge
+        abort_merge(repo.path_str().to_string()).await.unwrap();
+
+        // Verify conflicts cleared and test.txt restored
+        let conflicts_after = get_conflicts(repo.path_str().to_string()).await.unwrap();
+        assert!(conflicts_after.is_empty());
+        let file_content = std::fs::read_to_string(repo.path.join("test.txt")).unwrap();
+        assert_eq!(file_content, "branch 2 content");
     }
 }

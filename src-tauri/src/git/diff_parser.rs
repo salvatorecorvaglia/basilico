@@ -253,54 +253,7 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::{self, File};
-    use std::io::Write;
-    use std::path::PathBuf;
-    use uuid::Uuid;
-
-    struct TempRepo {
-        path: PathBuf,
-    }
-
-    impl TempRepo {
-        fn new() -> Self {
-            let uuid = Uuid::new_v4().to_string();
-            let mut path = std::env::current_dir().unwrap();
-            // Ensure we are inside a target folder in the workspace
-            if !path.ends_with("src-tauri") {
-                path.push("src-tauri");
-            }
-            path.push("target");
-            path.push(format!("test-repo-{}", uuid));
-            fs::create_dir_all(&path).unwrap();
-
-            // Initialize repo
-            let repo = Repository::init(&path).unwrap();
-
-            // Configure identity for commits
-            let mut config = repo.config().unwrap();
-            config.set_str("user.name", "Test User").unwrap();
-            config.set_str("user.email", "test@example.com").unwrap();
-
-            Self { path }
-        }
-
-        fn write_file(&self, name: &str, content: &str) {
-            let file_path = self.path.join(name);
-            let mut file = File::create(file_path).unwrap();
-            file.write_all(content.as_bytes()).unwrap();
-        }
-
-        fn path_str(&self) -> &str {
-            self.path.to_str().unwrap()
-        }
-    }
-
-    impl Drop for TempRepo {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.path);
-        }
-    }
+    use crate::test_utils::TempRepo;
 
     #[test]
     fn test_empty_repo_diffs() {

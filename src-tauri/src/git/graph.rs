@@ -63,11 +63,9 @@ pub fn build_graph(path: &str, max_commits: usize) -> Result<Vec<GraphCommit>, A
     revwalk.push_head()?;
 
     // Also push all branches/tags so we see the full graph
-    for reference in repo.references()? {
-        if let Ok(r) = reference {
-            if let Some(oid) = r.target() {
-                let _ = revwalk.push(oid);
-            }
+    for r in repo.references()?.flatten() {
+        if let Some(oid) = r.target() {
+            let _ = revwalk.push(oid);
         }
     }
 
@@ -169,7 +167,7 @@ fn build_ref_map(repo: &Repository) -> Result<HashMap<String, Vec<RefLabel>>, Ap
 
 /// Compute lane assignments for graph rendering.
 /// Uses a simple greedy lane allocation algorithm.
-fn compute_lanes(commits: &mut Vec<GraphCommit>) {
+fn compute_lanes(commits: &mut [GraphCommit]) {
     if commits.is_empty() {
         return;
     }
@@ -181,9 +179,9 @@ fn compute_lanes(commits: &mut Vec<GraphCommit>) {
     // Active lanes: each lane tracks which oid it's expecting next
     let mut active_lanes: Vec<Option<String>> = Vec::new();
 
-    for i in 0..commits.len() {
-        let oid = commits[i].oid.clone();
-        let parent_oids = commits[i].parent_oids.clone();
+    for commit in commits.iter_mut() {
+        let oid = commit.oid.clone();
+        let parent_oids = commit.parent_oids.clone();
 
         // Find existing lane for this commit
         let lane = active_lanes
@@ -201,7 +199,7 @@ fn compute_lanes(commits: &mut Vec<GraphCommit>) {
                 }
             });
 
-        commits[i].lane = lane;
+        commit.lane = lane;
 
         // Clear all lanes pointing to this commit
         for l in active_lanes.iter_mut() {
@@ -256,7 +254,7 @@ fn compute_lanes(commits: &mut Vec<GraphCommit>) {
             });
         }
 
-        commits[i].edges = edges;
+        commit.edges = edges;
     }
 }
 

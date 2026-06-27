@@ -9,17 +9,8 @@ import type {
   WorktreeInfo,
 } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
+import { setLoading } from "../store-helpers";
 import type { RepoState } from "../types";
-
-/** Helper to update a single loading domain flag */
-function setLoading(
-  get: () => RepoState,
-  set: (s: Partial<RepoState>) => void,
-  domain: keyof RepoState["loadingStates"],
-  value: boolean,
-) {
-  set({ loadingStates: { ...get().loadingStates, [domain]: value } });
-}
 
 export interface CollaborationSlice {
   rebaseTodoItems: RebaseTodoItem[];
@@ -136,7 +127,8 @@ export const createCollaborationSlice: StateCreator<
       await commands.createBranch(activeTabId, name, startPoint, {
         errorPrefix: "Failed to create branch",
       });
-      await get().refreshAll();
+      // Targeted refresh: only branches needed after create
+      await get().refreshBranches();
     } catch (err) {
       console.error("Failed to create branch:", err);
       set({ error: String(err) });
@@ -156,7 +148,8 @@ export const createCollaborationSlice: StateCreator<
       await commands.deleteBranch(activeTabId, name, isRemote, {
         errorPrefix: "Failed to delete branch",
       });
-      await get().refreshAll();
+      // Targeted refresh: only branches needed after delete
+      await get().refreshBranches();
     } catch (err) {
       console.error("Failed to delete branch:", err);
       set({ error: String(err) });
@@ -176,7 +169,8 @@ export const createCollaborationSlice: StateCreator<
       await commands.renameBranch(activeTabId, currentName, newName, {
         errorPrefix: "Failed to rename branch",
       });
-      await get().refreshAll();
+      // Targeted refresh: only branches needed after rename
+      await get().refreshBranches();
     } catch (err) {
       console.error("Failed to rename branch:", err);
       set({ error: String(err) });
@@ -196,7 +190,8 @@ export const createCollaborationSlice: StateCreator<
       await commands.deleteTag(activeTabId, name, {
         errorPrefix: "Failed to delete tag",
       });
-      await get().refreshAll();
+      // Targeted refresh: only branches/tags needed
+      await get().refreshBranches();
     } catch (err) {
       console.error("Failed to delete tag:", err);
       set({ error: String(err) });
@@ -216,7 +211,8 @@ export const createCollaborationSlice: StateCreator<
       await commands.createTag(activeTabId, name, targetOid, message, force, {
         errorPrefix: "Failed to create tag",
       });
-      await get().refreshAll();
+      // Targeted refresh: only branches/tags needed
+      await get().refreshBranches();
     } catch (err) {
       console.error("Failed to create tag:", err);
       set({ error: String(err) });
@@ -236,7 +232,8 @@ export const createCollaborationSlice: StateCreator<
       await commands.pushTag(activeTabId, remote, tagName, {
         errorPrefix: "Failed to push tag",
       });
-      await get().refreshAll();
+      // Targeted refresh: only branches/tags needed
+      await get().refreshBranches();
     } catch (err) {
       console.error("Failed to push tag:", err);
       set({ error: String(err) });
@@ -256,7 +253,8 @@ export const createCollaborationSlice: StateCreator<
       const result = await commands.mergeBranch(activeTabId, branchName, {
         errorPrefix: "Failed to merge",
       });
-      await get().refreshAll();
+      // Targeted refresh: commits + status after merge
+      await get().refreshCommitsAndStatus();
       return result;
     } catch (err) {
       console.error("Failed to merge branch:", err);
@@ -277,7 +275,8 @@ export const createCollaborationSlice: StateCreator<
       await commands.abortMerge(activeTabId, {
         errorPrefix: "Failed to abort merge",
       });
-      await get().refreshAll();
+      // Targeted refresh: commits + status after merge abort
+      await get().refreshCommitsAndStatus();
     } catch (err) {
       console.error("Failed to abort merge:", err);
       set({ error: String(err) });
@@ -297,7 +296,8 @@ export const createCollaborationSlice: StateCreator<
       await commands.resolveConflict(activeTabId, filePath, {
         errorPrefix: "Failed to resolve conflict",
       });
-      await get().refreshAll();
+      // Targeted refresh: only status after conflict resolve
+      await get().refreshStatus();
     } catch (err) {
       console.error("Failed to resolve conflict:", err);
       set({ error: String(err) });
@@ -682,7 +682,8 @@ export const createCollaborationSlice: StateCreator<
       const res = await commands.cherryPickCommit(activeTabId, oid, {
         errorPrefix: "Cherry-pick failed",
       });
-      await get().refreshAll();
+      // Targeted refresh: commits + status after cherry-pick
+      await get().refreshCommitsAndStatus();
       return res as "success" | "conflicts";
     } catch (err) {
       console.error("Failed to cherry-pick:", err);
@@ -702,7 +703,8 @@ export const createCollaborationSlice: StateCreator<
       await commands.cherryPickAbort(activeTabId, {
         errorPrefix: "Cherry-pick abort failed",
       });
-      await get().refreshAll();
+      // Targeted refresh: commits + status after cherry-pick abort
+      await get().refreshCommitsAndStatus();
     } catch (err) {
       console.error("Failed to abort cherry-pick:", err);
       set({ error: String(err) });
@@ -721,7 +723,8 @@ export const createCollaborationSlice: StateCreator<
       const res = await commands.revertCommit(activeTabId, oid, {
         errorPrefix: "Revert failed",
       });
-      await get().refreshAll();
+      // Targeted refresh: commits + status after revert
+      await get().refreshCommitsAndStatus();
       return res as "success" | "conflicts";
     } catch (err) {
       console.error("Failed to revert commit:", err);
@@ -741,7 +744,8 @@ export const createCollaborationSlice: StateCreator<
       await commands.revertAbort(activeTabId, {
         errorPrefix: "Revert abort failed",
       });
-      await get().refreshAll();
+      // Targeted refresh: commits + status after revert abort
+      await get().refreshCommitsAndStatus();
     } catch (err) {
       console.error("Failed to abort revert:", err);
       set({ error: String(err) });
@@ -760,7 +764,8 @@ export const createCollaborationSlice: StateCreator<
       await commands.resetToCommit(activeTabId, oid, mode, {
         errorPrefix: "Reset failed",
       });
-      await get().refreshAll();
+      // Targeted refresh: commits + status after reset
+      await get().refreshCommitsAndStatus();
     } catch (err) {
       console.error("Failed to reset to commit:", err);
       set({ error: String(err) });

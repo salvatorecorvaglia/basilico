@@ -173,4 +173,39 @@ mod tests {
         let head = repo.repo.head().unwrap();
         assert_eq!(head.name().unwrap(), "refs/heads/feature/test-slash");
     }
+
+    #[tokio::test]
+    async fn test_create_rename_delete_branch() {
+        let repo = TempRepo::new();
+        repo.write_file("test.txt", "hello");
+        repo.commit("initial commit");
+
+        let path = repo.path_str().to_string();
+
+        // 1. Create branch
+        create_branch(path.clone(), "feature/new-branch".to_string(), None)
+            .await
+            .unwrap();
+
+        let branches = list_branches(path.clone()).await.unwrap();
+        let created_branch = branches.iter().find(|b| b.name == "feature/new-branch");
+        assert!(created_branch.is_some());
+
+        // 2. Rename branch
+        rename_branch(path.clone(), "feature/new-branch".to_string(), "feature/renamed-branch".to_string())
+            .await
+            .unwrap();
+
+        let branches = list_branches(path.clone()).await.unwrap();
+        assert!(branches.iter().find(|b| b.name == "feature/new-branch").is_none());
+        assert!(branches.iter().find(|b| b.name == "feature/renamed-branch").is_some());
+
+        // 3. Delete branch
+        delete_branch(path.clone(), "feature/renamed-branch".to_string(), false)
+            .await
+            .unwrap();
+
+        let branches = list_branches(path.clone()).await.unwrap();
+        assert!(branches.iter().find(|b| b.name == "feature/renamed-branch").is_none());
+    }
 }

@@ -108,11 +108,16 @@ export interface RepoState {
   isRefreshing: boolean;
   error: string | null;
 
+  // Generation counter — incremented on tab switch to detect stale async responses
+  refreshGeneration: number;
+
   // Actions
   openRepository: (path: string) => Promise<void>;
   closeTab: (tabId: string) => void;
   switchTab: (tabId: string) => void;
   refreshStatus: () => Promise<void>;
+  refreshCommitsAndStatus: () => Promise<void>;
+  refreshBranches: () => Promise<void>;
   refreshAll: () => Promise<void>;
   refreshOnFileSystemChange: () => Promise<void>;
   selectCommit: (oid: string | null) => Promise<void>;

@@ -15,6 +15,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
+import type { RebaseStatus } from "../../lib/git-types";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./RebaseEditor.css";
@@ -87,7 +88,7 @@ export function RebaseEditor() {
     writeRebaseTodo(updated);
   };
 
-  const handleRebaseResult = (res: any) => {
+  const handleRebaseResult = (res: RebaseStatus) => {
     if (res.status === "finished") {
       addNotification({
         type: "success",

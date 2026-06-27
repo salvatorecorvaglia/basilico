@@ -25,7 +25,7 @@
       },
       "suspicious": {
         "noArrayIndexKey": "off",
-        "noExplicitAny": "off"
+        "noExplicitAny": "warn"
       },
       "correctness": {
         "noUnknownProperty": "off",

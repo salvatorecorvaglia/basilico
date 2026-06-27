@@ -24,6 +24,7 @@ pub fn run() {
             commands::repo::close_repo,
             commands::repo::get_status,
             commands::repo::list_remotes,
+            commands::repo::get_repo_info,
             // Log commands
             commands::log::get_log,
             // Diff commands

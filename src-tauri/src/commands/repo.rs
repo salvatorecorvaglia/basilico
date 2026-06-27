@@ -44,3 +44,12 @@ pub async fn list_remotes(path: String) -> Result<Vec<repository::RemoteInfo>, A
         .await
         .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
+
+/// Get repository info without registering a watcher.
+/// Used by refreshAll to avoid the open_repo side-effect.
+#[tauri::command]
+pub async fn get_repo_info(path: String) -> Result<repository::RepoInfo, AppError> {
+    tokio::task::spawn_blocking(move || repository::open_repo(&path))
+        .await
+        .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+}

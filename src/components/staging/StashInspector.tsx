@@ -15,6 +15,7 @@ import {
   Play,
   Trash2,
 } from "lucide-react";
+import type { editor } from "monaco-editor";
 import { useEffect, useState } from "react";
 import {
   type FileContentPair,
@@ -382,12 +383,12 @@ export function StashInspector() {
                     scrollBeyondLastLine: false,
                     diffWordWrap: "off",
                   }}
-                  onMount={(editor: any) => {
+                  onMount={(editor: editor.IStandaloneDiffEditor) => {
                     const originalDispose = editor.dispose;
                     editor.dispose = () => {
                       try {
                         editor.setModel(null);
-                      } catch (e) {
+                      } catch {
                         // Ignore
                       }
                       originalDispose.call(editor);

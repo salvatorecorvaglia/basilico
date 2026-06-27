@@ -12,17 +12,8 @@ import type {
   TagInfo,
 } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
+import { setLoading } from "../store-helpers";
 import type { RepoState } from "../types";
-
-/** Helper to update a single loading domain flag */
-function setLoading(
-  get: () => RepoState,
-  set: (s: Partial<RepoState>) => void,
-  domain: keyof RepoState["loadingStates"],
-  value: boolean,
-) {
-  set({ loadingStates: { ...get().loadingStates, [domain]: value } });
-}
 
 export interface GitDataSlice {
   repoInfo: RepoInfo | null;
@@ -38,7 +29,11 @@ export interface GitDataSlice {
   commitSearchResults: GraphCommit[];
   grepSearchResults: GrepMatch[];
 
+  refreshGeneration: number;
+
   refreshStatus: () => Promise<void>;
+  refreshCommitsAndStatus: () => Promise<void>;
+  refreshBranches: () => Promise<void>;
   refreshAll: () => Promise<void>;
   refreshOnFileSystemChange: () => Promise<void>;
   selectCommit: (oid: string | null) => Promise<void>;
@@ -68,14 +63,19 @@ export const createGitDataSlice: StateCreator<
   commitSearchResults: [],
   grepSearchResults: [],
 
+  refreshGeneration: 0,
+
   refreshStatus: async () => {
-    const { activeTabId } = get();
+    const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
     set({ isRefreshing: true, error: null });
     try {
       const status = await commands.getStatus(activeTabId, { silent: true });
-      set({ status });
+      // Guard: only apply if still the same tab
+      if (get().refreshGeneration === refreshGeneration) {
+        set({ status });
+      }
     } catch (err) {
       console.error("Failed to refresh status:", err);
       set({ error: String(err) });
@@ -85,8 +85,52 @@ export const createGitDataSlice: StateCreator<
     }
   },
 
+  refreshCommitsAndStatus: async () => {
+    const { activeTabId, refreshGeneration } = get();
+    if (!activeTabId) return;
+
+    set({ isRefreshing: true, error: null });
+    try {
+      const [status, commits] = await Promise.all([
+        commands.getStatus(activeTabId, { silent: true }),
+        commands.getLog(activeTabId, 500, { silent: true }),
+      ]);
+      // Guard: only apply if still the same tab
+      if (get().refreshGeneration === refreshGeneration) {
+        set({ status, commits });
+      }
+    } catch (err) {
+      console.error("Failed to refresh commits and status:", err);
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ isRefreshing: false });
+    }
+  },
+
+  refreshBranches: async () => {
+    const { activeTabId, refreshGeneration } = get();
+    if (!activeTabId) return;
+
+    set({ error: null });
+    try {
+      const [branches, tags] = await Promise.all([
+        commands.listBranches(activeTabId, { silent: true }),
+        commands.listTags(activeTabId, { silent: true }),
+      ]);
+      // Guard: only apply if still the same tab
+      if (get().refreshGeneration === refreshGeneration) {
+        set({ branches, tags });
+      }
+    } catch (err) {
+      console.error("Failed to refresh branches:", err);
+      set({ error: String(err) });
+      throw err;
+    }
+  },
+
   refreshAll: async () => {
-    const { activeTabId } = get();
+    const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
     set({ isRefreshing: true, error: null });
@@ -99,20 +143,31 @@ export const createGitDataSlice: StateCreator<
           commands.listRemotes(activeTabId, { silent: true }),
           commands.getLog(activeTabId, 500, { silent: true }),
           commands.listStashes(activeTabId, { silent: true }),
-          commands.openRepo(activeTabId, { silent: true }),
+          commands.getRepoInfo(activeTabId, { silent: true }),
         ]);
 
-      set({ status, branches, tags, remotes, commits, stashes, repoInfo });
+      // Guard: only apply if still the same tab
+      if (get().refreshGeneration === refreshGeneration) {
+        set({ status, branches, tags, remotes, commits, stashes, repoInfo });
 
-      // Load worktrees and submodules in background (non-blocking)
-      commands
-        .listWorktrees(activeTabId, { silent: true })
-        .then((worktrees) => set({ worktrees }))
-        .catch(() => set({ worktrees: [] }));
-      commands
-        .listSubmodules(activeTabId, { silent: true })
-        .then((submodules) => set({ submodules }))
-        .catch(() => set({ submodules: [] }));
+        // Load worktrees and submodules in background (non-blocking)
+        commands
+          .listWorktrees(activeTabId, { silent: true })
+          .then((worktrees) => {
+            if (get().refreshGeneration === refreshGeneration) {
+              set({ worktrees });
+            }
+          })
+          .catch(() => set({ worktrees: [] }));
+        commands
+          .listSubmodules(activeTabId, { silent: true })
+          .then((submodules) => {
+            if (get().refreshGeneration === refreshGeneration) {
+              set({ submodules });
+            }
+          })
+          .catch(() => set({ submodules: [] }));
+      }
     } catch (err) {
       console.error("Failed to refresh:", err);
       set({ error: String(err) });
@@ -123,7 +178,7 @@ export const createGitDataSlice: StateCreator<
   },
 
   refreshOnFileSystemChange: async () => {
-    const { activeTabId } = get();
+    const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
     set({ isRefreshing: true, error: null });
@@ -132,7 +187,10 @@ export const createGitDataSlice: StateCreator<
         commands.getStatus(activeTabId, { silent: true }),
         commands.getLog(activeTabId, 500, { silent: true }),
       ]);
-      set({ status, commits });
+      // Guard: only apply if still the same tab
+      if (get().refreshGeneration === refreshGeneration) {
+        set({ status, commits });
+      }
     } catch (err) {
       console.error("Failed to refresh on file change:", err);
       set({ error: String(err) });
@@ -146,7 +204,7 @@ export const createGitDataSlice: StateCreator<
 
     if (!oid) return;
 
-    const { activeTabId } = get();
+    const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
     setLoading(get, set, "diff", true);
@@ -154,7 +212,10 @@ export const createGitDataSlice: StateCreator<
       const diff = await commands.getCommitDiff(activeTabId, oid, {
         silent: true,
       });
-      set({ commitDiff: diff });
+      // Guard: only apply if still the same tab
+      if (get().refreshGeneration === refreshGeneration) {
+        set({ commitDiff: diff });
+      }
     } catch (err) {
       console.error("Failed to load commit diff:", err);
       set({ error: String(err) });

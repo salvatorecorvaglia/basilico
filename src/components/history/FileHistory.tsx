@@ -1,5 +1,6 @@
 import { DiffEditor } from "@monaco-editor/react";
 import { ArrowLeft } from "lucide-react";
+import type { editor } from "monaco-editor";
 import { useEffect, useState } from "react";
 import { getFileContentAtRevision } from "../../lib/tauri-commands";
 import { formatDateTime } from "../../lib/utils";
@@ -236,12 +237,12 @@ export function FileHistory() {
                   "JetBrains Mono, Fira Code, Menlo, Monaco, Consolas, monospace",
                 scrollBeyondLastLine: false,
               }}
-              onMount={(editor: any) => {
+              onMount={(editor: editor.IStandaloneDiffEditor) => {
                 const originalDispose = editor.dispose;
                 editor.dispose = () => {
                   try {
                     editor.setModel(null);
-                  } catch (e) {
+                  } catch {
                     // Ignore
                   }
                   originalDispose.call(editor);

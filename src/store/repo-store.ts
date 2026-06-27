@@ -46,4 +46,3 @@ export const useRepoStore = create<RepoState>((set, get, store) => ({
   ...createCollaborationSlice(set, get, store),
   ...createSettingsSlice(set, get, store),
 }));
-

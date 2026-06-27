@@ -8,6 +8,12 @@ pub struct TempRepo {
     pub repo: git2::Repository,
 }
 
+impl Default for TempRepo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TempRepo {
     pub fn new() -> Self {
         let uuid = Uuid::new_v4().to_string();

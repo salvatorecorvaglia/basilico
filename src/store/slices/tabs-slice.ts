@@ -102,6 +102,8 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
         localDiff: null,
         loadingStates: { ...INITIAL_LOADING_STATES },
         error: null,
+        // Increment generation to invalidate in-flight async responses from old tab
+        refreshGeneration: get().refreshGeneration + 1,
       });
 
       // If there's a new active tab, reload its data
@@ -146,6 +148,8 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
       selectedFileIsStaged: false,
       localDiff: null,
       error: null,
+      // Increment generation to invalidate in-flight async responses from old tab
+      refreshGeneration: state.refreshGeneration + 1,
     }));
 
     // Reload data for the new active tab
