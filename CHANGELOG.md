@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Frontend State Management**: Introduced a multi-domain `loadingStates` tracker in the Zustand store to handle loading status individually per-domain (e.g., status, commits, branches, stashes) and prevent concurrent operations from clobbering each other.
+- **UI & Error Handling**: Implemented a React `ErrorBoundary` component to gracefully catch client-side runtime errors and display a recovery UI.
+- **Testing**: Added comprehensive frontend unit tests for Tauri commands, store actions/helpers, and utility functions using Vitest.
 
 ### Changed
 
@@ -17,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **State Management**: Refactored frontend repository store slices (`collaboration`, `git-data`, `staging`, `tabs`) to utilize the new granular domain-specific loading states instead of the global `isLoading` flag.
 - **UI & Helpers**: Migrated toast notification ID generation in `ui-store` to use `crypto.randomUUID()`.
 - **Refactoring**: Removed unnecessary newline in `list_remotes` command in the Rust backend.
+- **Frontend State Management**: Refactored Zustand store slices (`staging-slice`, `git-data-slice`, `collaboration-slice`) to use standard action helpers and optimize state transitions.
+- **Code Quality**: Cleaned up code formatting, normalized project documentation links across `README.md` and `CONTRIBUTING.md`, and refactored docstrings/code comments in Tauri command files (`blame.rs`, `branch.rs`, `conflict_resolver.rs`, `diff.rs`, `history.rs`, `mod.rs`, `remote.rs`).
 
 ### Removed
 
