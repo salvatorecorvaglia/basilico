@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-27
+
 ### Added
 
 - **Frontend State Management**: Introduced a multi-domain `loadingStates` tracker in the Zustand store to handle loading status individually per-domain (e.g., status, commits, branches, stashes) and prevent concurrent operations from clobbering each other.

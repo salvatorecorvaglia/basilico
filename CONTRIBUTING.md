@@ -125,12 +125,14 @@ Familiarize yourself with the layout before modifying code:
 * **Formatting & Linting**: We use **Biome** for code formatting, linting, and import sorting. Before committing, run `npm run lint:fix` or set up the Biome VS Code extension to automatically format your files on save.
 * **Premium Aesthetics**: Basilico prioritizes visually stunning, premium dark-mode styling. Stick to the curated color palette and layout tokens defined in [theme.css](src/styles/theme.css).
 * **Styling**: We use **Tailwind CSS v4** utility classes alongside standard CSS/Vanilla CSS custom variables for layout and visual styling. Maintain component purity and ensure component styling adheres strictly to our design tokens.
-* **TypeScript & React**: Maintain strict type safety. Avoid using `any`. Write modern React functional components with hooks.
+* **TypeScript & React**: Maintain strict type safety. Avoid using `any`. Write modern React functional components with hooks. Wrap error-prone visual component mounts in the custom React `ErrorBoundary` component to provide a fallback recovery UI instead of crashing the entire application.
+* **State Management**: Use domain-specific loading states (`loadingStates`) defined in the Zustand `repo-store` rather than a global `isLoading` flag to prevent concurrent operations from clobbering each other.
 
 ### 🦀 Rust Backend Style
 * Follow standard idiomatic Rust styling guidelines.
 * Avoid using `.unwrap()` on `Option` or `Result` types. Properly propagate errors using Tauri-compatible error structures (such as [error.rs](src-tauri/src/error.rs)).
 * Use `parking_lot` primitives for synchronization instead of standard library mutexes when appropriate to avoid blocking async contexts.
+* **Non-Blocking Operations**: Never execute synchronous, CPU-intensive, or blocking IO/Git actions (like heavy `git2` revision walks or diff parses) directly inside the main async Tauri commands. Always offload them using `tokio::task::spawn_blocking` to avoid stalling the async executor and the client UI thread.
 
 ---
 

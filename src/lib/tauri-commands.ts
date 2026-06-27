@@ -51,7 +51,7 @@ export function parseAppError(err: unknown): AppError {
         message = String(err);
       }
     }
-  } else if (err !== null && err !== undefined) {
+  } else {
     message = String(err);
   }
 

@@ -19,14 +19,15 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
 - **📂 Workspace & Collaboration**:
   - Submodule and worktree management.
   - Secure SSH key generation options with comment sanitization.
-- **🎨 Premium Aesthetics**:
+- **🎨 Premium Aesthetics & UI**:
   - Unified design system utilizing **Tailwind CSS v4** and modern CSS custom variables.
   - **Radix UI** accessible overlay components (Dialogs, Popovers, Dropdowns, Context Menus, and Accordions).
   - Raycast/Cursor inspired Command Palette for keyboard-driven navigation.
   - Dynamic dark/light Monaco Diff Editor integrations that sync with system color schemes.
+  - **Fault Tolerance**: Dedicated React `ErrorBoundary` component that catches client-side runtime errors and displays a premium recovery UI to ensure smooth user recovery.
 - **🚀 Underlying Architecture**:
-  - **Rust Backend**: Multithreaded command runner leveraging Rust `git2` bindings for maximum performance.
-  - **State Management**: Highly optimized Zustand `repo-store` split into modular slices (`collaboration`, `git-data`, `settings`, `staging`, `tabs`).
+  - **Rust Backend**: Multithreaded command runner leveraging Rust `git2` bindings for maximum performance, with heavy or blocking Git operations offloaded to asynchronous Tokio tasks (`tokio::task::spawn_blocking`) to keep the UI thread completely stall-free.
+  - **State Management**: Highly optimized Zustand `repo-store` split into modular slices (`collaboration`, `git-data`, `settings`, `staging`, `tabs`) using a granular, domain-specific `loadingStates` tracker to handle loading status individually per domain and avoid race conditions.
   - **Watcher**: A live repository file system watcher using `notify` to automatically refresh application state on local edits.
 
 ---
