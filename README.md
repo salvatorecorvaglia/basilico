@@ -10,7 +10,7 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
 
 - **🛠 Core Git Operations**: 
   - Effortless staging, committing, pushing, pulling, merging, and tagging.
-  - Interactive stashing capabilities, complete with a dedicated `StashInspector` UI.
+  - Interactive stashing capabilities, complete with a dedicated `StashInspector` UI supporting untracked file diffs.
   - Soft, mixed, and hard modes for `git reset` via a custom `ResetModal` UI.
 - **🔍 Advanced Inspection & Comparison**:
   - **Revision Compare**: Select and compare revisions, explore file trees, and view side-by-side or inline diffs.
@@ -41,6 +41,7 @@ Here is a high-level overview of the workspace layout:
   - **[`Cargo.toml`](src-tauri/Cargo.toml)**: Cargo dependency manifest, leveraging `git2` and `tokio`.
 - **[`src/`](src)**: The React and TypeScript frontend.
   - **[`src/components/`](src/components)**: Core visual components (diff view, commit graph, modals, settings, staging, etc.).
+  - **[`src/lib/`](src/lib)**: Shared utility helpers, API types, and Tauri command wrappers.
   - **[`src/store/`](src/store)**: State slices managed via Zustand.
   - **[`src/styles/`](src/styles)**: Premium design-system variables (`theme.css` and `index.css`).
 - **[`package.json`](package.json)**: Node.js scripts and frontend/devDependencies configurations.

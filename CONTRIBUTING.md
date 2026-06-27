@@ -69,7 +69,7 @@ git checkout -b fix/your-bugfix-name
 Ensure you have the following installed on your local machine:
 * **Node.js** (v22 or higher recommended; v18 minimum)
 * **Rust Toolchain** (via [rustup](https://rustup.rs/))
-* **System dependencies** required for Tauri developments (see the [Tauri Prerequisites Guide](https://v2.tauri.app/start/prerequisites/)).
+* **System dependencies** required for Tauri development (see the [Tauri Prerequisites Guide](https://v2.tauri.app/start/prerequisites/)).
 
 ### Local Installation
 
@@ -110,10 +110,13 @@ Familiarize yourself with the layout before modifying code:
   * [Cargo.toml](src-tauri/Cargo.toml): Dependency manifest.
   * [main.rs](src-tauri/src/main.rs): Minimal application entrypoint.
   * [lib.rs](src-tauri/src/lib.rs): Native commands, setup configurations, and window layout initialization.
+  * [commands/](src-tauri/src/commands): Tauri commands representing operations such as staging, reset, merge, stash, and blame.
+  * [git/](src-tauri/src/git): Underlying wrapper utilities interacting with `git2`/`libgit2` bindings.
   * Commands and logic are backed by `git2`/`libgit2` bindings for git operations, `tokio` for async runtime, and `notify` for filesystem changes.
 * **`src/`**: React frontend.
   * [main.tsx](src/main.tsx): React entrypoint.
   * [components](src/components): Shared visual components and views.
+  * [lib/](src/lib): Shared utilities, helper constants, type definitions, and Tauri command bindings.
   * [styles](src/styles): Contains [theme.css](src/styles/theme.css) and [index.css](src/styles/index.css) defining design system variables and premium dark-mode styles.
   * [store](src/store): Zustand global state management stores.
 

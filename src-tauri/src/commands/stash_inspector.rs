@@ -18,7 +18,8 @@ pub async fn get_stash_diff(
             let untracked_commit = commit.parent(2)?;
             let untracked_tree = untracked_commit.tree()?;
             let mut opts = git2::DiffOptions::new();
-            let untracked_diff = repo.diff_tree_to_tree(None, Some(&untracked_tree), Some(&mut opts))?;
+            let untracked_diff =
+                repo.diff_tree_to_tree(None, Some(&untracked_tree), Some(&mut opts))?;
             let mut parsed_untracked = parse_diff(&untracked_diff)?;
 
             for f in &mut parsed_untracked {
