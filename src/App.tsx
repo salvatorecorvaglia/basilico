@@ -61,6 +61,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { ConfirmModal } from "./components/layout/ConfirmModal";
 import { NotificationToast } from "./components/layout/NotificationToast";
 import { PromptModal } from "./components/layout/PromptModal";
+import { useUpdater } from "./hooks/use-updater";
 import { useRepoStore } from "./store/repo-store";
 import { useUIStore } from "./store/ui-store";
 import "./App.css";
@@ -175,6 +176,9 @@ const ViewRouter = React.memo(function ViewRouter({
 });
 
 function App() {
+  // Check for updates (production only)
+  useUpdater();
+
   const {
     tabs,
     activeTabId,

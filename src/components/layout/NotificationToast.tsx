@@ -34,6 +34,20 @@ export function NotificationToast() {
             </div>
             <div className="toast-content">
               <p className="toast-message">{notif.message}</p>
+              {notif.description && (
+                <p className="toast-description">{notif.description}</p>
+              )}
+              {notif.action && (
+                <button
+                  className="toast-action-btn"
+                  onClick={() => {
+                    notif.action?.onClick();
+                    removeNotification(notif.id);
+                  }}
+                >
+                  {notif.action.label}
+                </button>
+              )}
             </div>
             <button
               className="toast-close-btn"
@@ -41,10 +55,12 @@ export function NotificationToast() {
             >
               <X size={12} />
             </button>
-            <div
-              className="toast-progress-bar"
-              style={{ animationDuration: `${notif.timeout ?? 4000}ms` }}
-            />
+            {notif.timeout && notif.timeout < 100000 && (
+              <div
+                className="toast-progress-bar"
+                style={{ animationDuration: `${notif.timeout}ms` }}
+              />
+            )}
           </div>
         );
       })}

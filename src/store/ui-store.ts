@@ -10,7 +10,12 @@ interface Notification {
   id: string;
   type: "success" | "error" | "info" | "warning";
   message: string;
+  description?: string;
   timeout?: number;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
 export interface PromptField {
@@ -188,11 +193,13 @@ export const useUIStore = create<UIState>((set, get) => ({
 
     set({ notifications: updated });
 
-    // Auto-remove after timeout
-    const timeoutId = setTimeout(() => {
-      get().removeNotification(id);
-    }, timeout);
-    activeTimeouts.set(id, timeoutId);
+    // Auto-remove after timeout unless it's set to stay open (e.g. >= 100000)
+    if (timeout < 100000) {
+      const timeoutId = setTimeout(() => {
+        get().removeNotification(id);
+      }, timeout);
+      activeTimeouts.set(id, timeoutId);
+    }
   },
 
   removeNotification: (id: string) => {
