@@ -22,7 +22,14 @@ vi.mock("../../lib/tauri-commands", () => ({
   grepCode: vi.fn(),
 }));
 
-import type { GraphCommit } from "../../lib/git-types";
+import type {
+  BranchInfo,
+  FileDiff,
+  GraphCommit,
+  GrepMatch,
+  RepoStatus,
+  TagInfo,
+} from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
 import { useRepoStore } from "../repo-store";
 
@@ -52,7 +59,7 @@ describe("git-data-slice", () => {
 
   describe("refreshStatus", () => {
     it("should fetch status and save to state if generation matches", async () => {
-      const mockStatus = { branch: "main", files: [] };
+      const mockStatus = { branch: "main", files: [] } as unknown as RepoStatus;
       vi.mocked(commands.getStatus).mockResolvedValue(mockStatus);
 
       await useRepoStore.getState().refreshStatus();
@@ -65,7 +72,7 @@ describe("git-data-slice", () => {
     });
 
     it("should ignore update if refreshGeneration has changed", async () => {
-      const mockStatus = { branch: "main", files: [] };
+      const mockStatus = { branch: "main", files: [] } as unknown as RepoStatus;
       vi.mocked(commands.getStatus).mockImplementation(
         () =>
           new Promise((resolve) => {
@@ -85,7 +92,7 @@ describe("git-data-slice", () => {
 
   describe("refreshCommitsAndStatus", () => {
     it("should fetch commits and status", async () => {
-      const mockStatus = { branch: "main", files: [] };
+      const mockStatus = { branch: "main", files: [] } as unknown as RepoStatus;
       const mockCommits = [
         {
           oid: "123",
@@ -96,7 +103,7 @@ describe("git-data-slice", () => {
           lane: 0,
           parents: [],
         },
-      ];
+      ] as unknown as GraphCommit[];
       vi.mocked(commands.getStatus).mockResolvedValue(mockStatus);
       vi.mocked(commands.getLog).mockResolvedValue(mockCommits);
 
@@ -110,7 +117,7 @@ describe("git-data-slice", () => {
 
   describe("refreshOnFileSystemChange", () => {
     it("should fetch status, branches, and tags, but NOT the commit log", async () => {
-      const mockStatus = { branch: "main", files: [] };
+      const mockStatus = { branch: "main", files: [] } as unknown as RepoStatus;
       const mockBranches = [
         {
           name: "main",
@@ -119,8 +126,10 @@ describe("git-data-slice", () => {
           upstream: null,
           isRemote: false,
         },
-      ];
-      const mockTags = [{ name: "v1.0.0", oid: "123", targetOid: "123" }];
+      ] as unknown as BranchInfo[];
+      const mockTags = [
+        { name: "v1.0.0", oid: "123", targetOid: "123" },
+      ] as unknown as TagInfo[];
 
       vi.mocked(commands.getStatus).mockResolvedValue(mockStatus);
       vi.mocked(commands.listBranches).mockResolvedValue(mockBranches);
@@ -150,7 +159,7 @@ describe("git-data-slice", () => {
           isBinary: false,
           hunks: [],
         },
-      ];
+      ] as unknown as FileDiff[];
       vi.mocked(commands.getCommitDiff).mockResolvedValue(mockDiff);
 
       await useRepoStore.getState().selectCommit("abc123Oid");
@@ -164,7 +173,7 @@ describe("git-data-slice", () => {
   describe("loadMoreCommits", () => {
     it("should query next page of commits", async () => {
       useRepoStore.setState({ commits: [{} as unknown as GraphCommit] });
-      const mockCommits = [{}, {}];
+      const mockCommits = [{}, {}] as unknown as GraphCommit[];
       vi.mocked(commands.getLog).mockResolvedValue(mockCommits);
 
       await useRepoStore.getState().loadMoreCommits(10);
@@ -178,17 +187,21 @@ describe("git-data-slice", () => {
 
   describe("searchCommits & grepCode", () => {
     it("should update search results", async () => {
-      vi.mocked(commands.searchCommits).mockResolvedValue([{ oid: "1" }]);
+      vi.mocked(commands.searchCommits).mockResolvedValue([
+        { oid: "1" },
+      ] as unknown as GraphCommit[]);
       vi.mocked(commands.grepCode).mockResolvedValue([
-        { filepath: "file.txt" },
-      ]);
+        { filePath: "file.txt", lineNumber: 1, content: "line content" },
+      ] as unknown as GrepMatch[]);
 
       await useRepoStore.getState().searchCommits("my query");
       await useRepoStore.getState().grepCode("code query");
 
       const state = useRepoStore.getState();
       expect(state.commitSearchResults).toEqual([{ oid: "1" }]);
-      expect(state.grepSearchResults).toEqual([{ filepath: "file.txt" }]);
+      expect(state.grepSearchResults).toEqual([
+        { filePath: "file.txt", lineNumber: 1, content: "line content" },
+      ]);
     });
   });
 });

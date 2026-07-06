@@ -26,7 +26,7 @@ vi.mock("../../store/ui-store", () => ({
   },
 }));
 
-import type { RepoInfo } from "../../lib/git-types";
+import type { RepoInfo, RepoStatus } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
 import { useRepoStore } from "../repo-store";
 
@@ -60,11 +60,13 @@ describe("tabs-slice", () => {
         headOid: "abc123",
         defaultBranch: "main",
       };
-      vi.mocked(commands.openRepo).mockResolvedValue(mockRepoInfo);
+      vi.mocked(commands.openRepo).mockResolvedValue(
+        mockRepoInfo as unknown as RepoInfo,
+      );
       vi.mocked(commands.getStatus).mockResolvedValue({
         branch: "main",
         files: [],
-      });
+      } as unknown as RepoStatus);
       vi.mocked(commands.getLog).mockResolvedValue([]);
       vi.mocked(commands.listBranches).mockResolvedValue([]);
       vi.mocked(commands.listTags).mockResolvedValue([]);
@@ -74,7 +76,9 @@ describe("tabs-slice", () => {
       vi.mocked(commands.getStagedDiff).mockResolvedValue([]);
       vi.mocked(commands.listWorktrees).mockResolvedValue([]);
       vi.mocked(commands.listSubmodules).mockResolvedValue([]);
-      vi.mocked(commands.getRepoInfo).mockResolvedValue(mockRepoInfo);
+      vi.mocked(commands.getRepoInfo).mockResolvedValue(
+        mockRepoInfo as unknown as RepoInfo,
+      );
 
       await useRepoStore.getState().openRepository("/test/repo");
 
@@ -94,12 +98,14 @@ describe("tabs-slice", () => {
       };
       vi.mocked(commands.openRepo).mockImplementation(
         () =>
-          new Promise((resolve) => setTimeout(() => resolve(mockRepoInfo), 50)),
+          new Promise((resolve) =>
+            setTimeout(() => resolve(mockRepoInfo as unknown as RepoInfo), 50),
+          ),
       );
       vi.mocked(commands.getStatus).mockResolvedValue({
         branch: "main",
         files: [],
-      });
+      } as unknown as RepoStatus);
       vi.mocked(commands.getLog).mockResolvedValue([]);
       vi.mocked(commands.listBranches).mockResolvedValue([]);
       vi.mocked(commands.listTags).mockResolvedValue([]);
@@ -109,7 +115,9 @@ describe("tabs-slice", () => {
       vi.mocked(commands.getStagedDiff).mockResolvedValue([]);
       vi.mocked(commands.listWorktrees).mockResolvedValue([]);
       vi.mocked(commands.listSubmodules).mockResolvedValue([]);
-      vi.mocked(commands.getRepoInfo).mockResolvedValue(mockRepoInfo);
+      vi.mocked(commands.getRepoInfo).mockResolvedValue(
+        mockRepoInfo as unknown as RepoInfo,
+      );
 
       // Fire two concurrent opens
       const p1 = useRepoStore.getState().openRepository("/test/repo");
@@ -191,7 +199,7 @@ describe("tabs-slice", () => {
       vi.mocked(commands.getStatus).mockResolvedValue({
         branch: "main",
         files: [],
-      });
+      } as unknown as RepoStatus);
       vi.mocked(commands.getLog).mockResolvedValue([]);
       vi.mocked(commands.listBranches).mockResolvedValue([]);
       vi.mocked(commands.listTags).mockResolvedValue([]);
@@ -201,7 +209,9 @@ describe("tabs-slice", () => {
       vi.mocked(commands.getStagedDiff).mockResolvedValue([]);
       vi.mocked(commands.listWorktrees).mockResolvedValue([]);
       vi.mocked(commands.listSubmodules).mockResolvedValue([]);
-      vi.mocked(commands.getRepoInfo).mockResolvedValue(mockRepoInfo);
+      vi.mocked(commands.getRepoInfo).mockResolvedValue(
+        mockRepoInfo as unknown as RepoInfo,
+      );
 
       useRepoStore.getState().switchTab("/repo2");
 
