@@ -116,13 +116,13 @@ pub fn run() {
             // Stash inspector commands
             commands::stash_inspector::get_stash_diff,
         ])
-        .setup(|app| {
+        .setup(|_app| {
             log::info!("Basilico starting...");
 
             // Set up window
             #[cfg(debug_assertions)]
             {
-                let window = app.get_webview_window("main").unwrap();
+                let window = _app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
 
