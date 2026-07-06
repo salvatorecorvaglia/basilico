@@ -7,19 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-06
+
 ### Added
 
 - **Stash Inspector**: Added support for viewing diffs of untracked files in stashes. The backend now retrieves the 3rd parent commit of a stash (which contains untracked files in Git) and includes those files with an "untracked" status in the returned diffs.
+- **Sidebar Trees**: Split branch, remote, tag, stash, submodule, and worktree layouts from the main Sidebar view into modular subcomponents (`BranchTree`, `RemoteTree`, `TagTree`, `StashTree`, `SubmoduleTree`, `WorktreeTree`) with rich custom context menu actions.
+- **Client-Side Validation & Mapping**:
+  - Implemented standard Git reference formatting rules via `validateBranchName` for robust branch validation before creation.
+  - Implemented a user-friendly error mapper (`friendlyErrorMessage`) that converts raw Git CLI and Rust errors to actionable feedback notifications.
+- **Testing & QA**: Added comprehensive Vitest test coverage for helper functions (`error-messages`, `git-validation`, `theme-presets`) and store slices (`collaboration-slice`, `git-data-slice`, `tabs-slice`).
 
 ### Changed
 
 - **Refactoring & Code Quality**:
   - Centralized language detection logic in the frontend by introducing the `getLanguageFromPath` helper utility in `utils.ts`, replacing duplicate extension-to-language mappings across Monaco Editor components (`CompareView`, `DiffView`, `FileViewerModal`, `FileHistory`, `MergeEditor`, `StashInspector`).
   - Reformatted `index.html` structure.
+- **Asynchronous Execution**: Offloaded synchronous or blocking operations in `rebase`, `bisect`, `gpg`, `settings`, `submodule`, and `worktree` commands to asynchronous Tokio worker threads (`tokio::task::spawn_blocking`) in the Rust backend.
+- **Git Rebase auto-stepping**: Refactored `rebase_step` command to loop and automatically process non-pausing actions (picks, squashes, fixups) until complete, conflicted, or explicitly paused.
+- **Git Author Verification**: Updated `create_commit` to explicitly verify that the local Git author name and email are configured, returning a clean error if missing instead of silently using fallback details.
+- **Dynamic Accent Themes**: Updated the theme preset manager to dynamically alter the root document's `data-theme` attribute instead of individual inline style definitions, supporting light/dark responsive accents.
+- **Monaco Themes**: Re-engineered Monaco Editor theme registrations to dynamically read CSS variables and automatically re-apply on system or accent theme changes using a DOM `MutationObserver`.
 
 ### Removed
 
 - **Welcome Screen**: Removed the development-only "Open Basilico Repository" button and its associated CSS styling.
+
+### Security
+
+- **Path Traversal Protection**: Implemented strict path validation (`validate_path`) in backend commands for `apply_patch`, `add_submodule`, and `add_worktree` to prevent directory traversal vulnerabilities.
 
 ## [0.5.0] - 2026-06-27
 

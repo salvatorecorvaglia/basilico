@@ -12,23 +12,29 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
   - Effortless staging, committing, pushing, pulling, merging, and tagging.
   - Interactive stashing capabilities, complete with a dedicated `StashInspector` UI supporting untracked file diffs.
   - Soft, mixed, and hard modes for `git reset` via a custom `ResetModal` UI.
+  - Client-side branch name validation matching standard `git check-ref-format` specifications.
+  - Automated multi-step Git rebase operation execution loop.
 - **🔍 Advanced Inspection & Comparison**:
   - **Revision Compare**: Select and compare revisions, explore file trees, and view side-by-side or inline diffs.
   - **Git Blame**: An integrated blame view with detailed modification history tracking for individual lines.
   - **Conflict Resolver**: Interactive merge conflict resolution interface to handle conflicts quickly and safely.
 - **📂 Workspace & Collaboration**:
-  - Submodule and worktree management.
+  - Submodule and worktree management with built-in path traversal security checks.
   - Secure SSH key generation options with comment sanitization.
+  - Automated Git author configuration check before commit creation.
 - **🎨 Premium Aesthetics & UI**:
   - Unified design system utilizing **Tailwind CSS v4** and modern CSS custom variables.
+  - Curated, dynamic accent theme presets (Sage Green, Royal Blue, Amethyst Purple, Amber Gold, Crimson Red, Ocean Teal) with dark/light variants.
+  - Modular sidebar navigation trees (`BranchTree`, `RemoteTree`, `TagTree`, `StashTree`, `SubmoduleTree`, `WorktreeTree`) with rich custom context actions.
   - **Radix UI** accessible overlay components (Dialogs, Popovers, Dropdowns, Context Menus, and Accordions).
   - Raycast/Cursor inspired Command Palette for keyboard-driven navigation.
-  - Dynamic dark/light Monaco Diff Editor integrations that sync with system color schemes.
+  - Dynamic dark/light Monaco Diff Editor integrations syncing with active theme presets and system color schemes in real-time.
   - **Fault Tolerance**: Dedicated React `ErrorBoundary` component that catches client-side runtime errors and displays a premium recovery UI to ensure smooth user recovery.
 - **🚀 Underlying Architecture**:
   - **Rust Backend**: Multithreaded command runner leveraging Rust `git2` bindings for maximum performance, with heavy or blocking Git operations offloaded to asynchronous Tokio tasks (`tokio::task::spawn_blocking`) to keep the UI thread completely stall-free.
   - **State Management**: Highly optimized Zustand `repo-store` split into modular slices (`collaboration`, `git-data`, `settings`, `staging`, `tabs`) using a granular, domain-specific `loadingStates` tracker to handle loading status individually per domain and avoid race conditions.
-  - **Watcher**: A live repository file system watcher using `notify` to automatically refresh application state on local edits.
+  - **Watcher**: A live repository file system watcher recursively tracking root changes using `notify` to automatically refresh application state on local edits.
+  - **Error Mapping**: Automated translation of raw Git/Rust CLI error outputs to user-friendly actionable feedback notifications.
 
 ---
 

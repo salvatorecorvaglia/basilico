@@ -130,12 +130,14 @@ Familiarize yourself with the layout before modifying code:
 * **Styling**: We use **Tailwind CSS v4** utility classes alongside standard CSS/Vanilla CSS custom variables for layout and visual styling. Maintain component purity and ensure component styling adheres strictly to our design tokens.
 * **TypeScript & React**: Maintain strict type safety. Avoid using `any`. Write modern React functional components with hooks. Wrap error-prone visual component mounts in the custom React `ErrorBoundary` component to provide a fallback recovery UI instead of crashing the entire application.
 * **State Management**: Use domain-specific loading states (`loadingStates`) defined in the Zustand `repo-store` rather than a global `isLoading` flag to prevent concurrent operations from clobbering each other.
+* **Error Handling & Validation**: Use `validateBranchName` for branch creation input validation, and wrap Tauri command error results in `friendlyErrorMessage` before showing them to the user.
 
 ### 🦀 Rust Backend Style
 * Follow standard idiomatic Rust styling guidelines.
 * Avoid using `.unwrap()` on `Option` or `Result` types. Properly propagate errors using Tauri-compatible error structures (such as [error.rs](src-tauri/src/error.rs)).
 * Use `parking_lot` primitives for synchronization instead of standard library mutexes when appropriate to avoid blocking async contexts.
 * **Non-Blocking Operations**: Never execute synchronous, CPU-intensive, or blocking IO/Git actions (like heavy `git2` revision walks or diff parses) directly inside the main async Tauri commands. Always offload them using `tokio::task::spawn_blocking` to avoid stalling the async executor and the client UI thread.
+* **Security & Path Validation**: Always perform path validation via `crate::git::utils::validate_path` on user-provided file paths or patch deltas in commands (such as submodules, worktrees, or patch applications) to prevent directory traversal vulnerabilities.
 
 ---
 
