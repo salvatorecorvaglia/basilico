@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock tauri-commands before importing the store
 vi.mock("../../lib/tauri-commands", () => ({
@@ -42,9 +42,15 @@ describe("collaboration-slice", () => {
     });
     // Mock the refresh methods on the store
     useRepoStore.getState().refreshAll = vi.fn().mockResolvedValue(undefined);
-    useRepoStore.getState().refreshBranches = vi.fn().mockResolvedValue(undefined);
-    useRepoStore.getState().refreshStatus = vi.fn().mockResolvedValue(undefined);
-    useRepoStore.getState().refreshCommitsAndStatus = vi.fn().mockResolvedValue(undefined);
+    useRepoStore.getState().refreshBranches = vi
+      .fn()
+      .mockResolvedValue(undefined);
+    useRepoStore.getState().refreshStatus = vi
+      .fn()
+      .mockResolvedValue(undefined);
+    useRepoStore.getState().refreshCommitsAndStatus = vi
+      .fn()
+      .mockResolvedValue(undefined);
     vi.clearAllMocks();
   });
 
@@ -54,9 +60,13 @@ describe("collaboration-slice", () => {
 
       await useRepoStore.getState().checkoutBranch("feature-branch");
 
-      expect(commands.checkoutBranch).toHaveBeenCalledWith("/test/repo", "feature-branch", {
-        errorPrefix: "Failed to checkout branch",
-      });
+      expect(commands.checkoutBranch).toHaveBeenCalledWith(
+        "/test/repo",
+        "feature-branch",
+        {
+          errorPrefix: "Failed to checkout branch",
+        },
+      );
       expect(useRepoStore.getState().refreshAll).toHaveBeenCalled();
     });
   });
@@ -67,9 +77,14 @@ describe("collaboration-slice", () => {
 
       await useRepoStore.getState().createBranch("new-branch", "main");
 
-      expect(commands.createBranch).toHaveBeenCalledWith("/test/repo", "new-branch", "main", {
-        errorPrefix: "Failed to create branch",
-      });
+      expect(commands.createBranch).toHaveBeenCalledWith(
+        "/test/repo",
+        "new-branch",
+        "main",
+        {
+          errorPrefix: "Failed to create branch",
+        },
+      );
       expect(useRepoStore.getState().refreshBranches).toHaveBeenCalled();
     });
   });
@@ -80,9 +95,14 @@ describe("collaboration-slice", () => {
 
       await useRepoStore.getState().deleteBranch("old-branch", false);
 
-      expect(commands.deleteBranch).toHaveBeenCalledWith("/test/repo", "old-branch", false, {
-        errorPrefix: "Failed to delete branch",
-      });
+      expect(commands.deleteBranch).toHaveBeenCalledWith(
+        "/test/repo",
+        "old-branch",
+        false,
+        {
+          errorPrefix: "Failed to delete branch",
+        },
+      );
       expect(useRepoStore.getState().refreshBranches).toHaveBeenCalled();
     });
   });
@@ -93,9 +113,14 @@ describe("collaboration-slice", () => {
 
       await useRepoStore.getState().renameBranch("old-name", "new-name");
 
-      expect(commands.renameBranch).toHaveBeenCalledWith("/test/repo", "old-name", "new-name", {
-        errorPrefix: "Failed to rename branch",
-      });
+      expect(commands.renameBranch).toHaveBeenCalledWith(
+        "/test/repo",
+        "old-name",
+        "new-name",
+        {
+          errorPrefix: "Failed to rename branch",
+        },
+      );
       expect(useRepoStore.getState().refreshBranches).toHaveBeenCalled();
     });
   });
@@ -107,10 +132,16 @@ describe("collaboration-slice", () => {
       const result = await useRepoStore.getState().mergeBranch("feature");
 
       expect(result).toBe("success");
-      expect(commands.mergeBranch).toHaveBeenCalledWith("/test/repo", "feature", {
-        errorPrefix: "Failed to merge",
-      });
-      expect(useRepoStore.getState().refreshCommitsAndStatus).toHaveBeenCalled();
+      expect(commands.mergeBranch).toHaveBeenCalledWith(
+        "/test/repo",
+        "feature",
+        {
+          errorPrefix: "Failed to merge",
+        },
+      );
+      expect(
+        useRepoStore.getState().refreshCommitsAndStatus,
+      ).toHaveBeenCalled();
     });
   });
 
@@ -132,9 +163,14 @@ describe("collaboration-slice", () => {
       const result = await useRepoStore.getState().pull("origin", "main");
 
       expect(result).toBe("success");
-      expect(commands.pull).toHaveBeenCalledWith("/test/repo", "origin", "main", {
-        errorPrefix: "Pull failed",
-      });
+      expect(commands.pull).toHaveBeenCalledWith(
+        "/test/repo",
+        "origin",
+        "main",
+        {
+          errorPrefix: "Pull failed",
+        },
+      );
       expect(useRepoStore.getState().refreshAll).toHaveBeenCalled();
     });
 
@@ -143,9 +179,15 @@ describe("collaboration-slice", () => {
 
       await useRepoStore.getState().push("origin", "main", true);
 
-      expect(commands.push).toHaveBeenCalledWith("/test/repo", "origin", "main", true, {
-        errorPrefix: "Push failed",
-      });
+      expect(commands.push).toHaveBeenCalledWith(
+        "/test/repo",
+        "origin",
+        "main",
+        true,
+        {
+          errorPrefix: "Push failed",
+        },
+      );
       expect(useRepoStore.getState().refreshAll).toHaveBeenCalled();
     });
   });
@@ -155,7 +197,9 @@ describe("collaboration-slice", () => {
       const err = new Error("Network connection lost");
       (commands.fetch as any).mockRejectedValue(err);
 
-      await expect(useRepoStore.getState().fetch("origin")).rejects.toThrow("Network connection lost");
+      await expect(useRepoStore.getState().fetch("origin")).rejects.toThrow(
+        "Network connection lost",
+      );
 
       const state = useRepoStore.getState();
       expect(state.errors.collaboration).toContain("Network connection lost");

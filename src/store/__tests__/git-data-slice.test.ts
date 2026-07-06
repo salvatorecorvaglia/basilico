@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock tauri-commands before importing the store
 vi.mock("../../lib/tauri-commands", () => ({
@@ -58,7 +58,9 @@ describe("git-data-slice", () => {
 
       const state = useRepoStore.getState();
       expect(state.status).toEqual(mockStatus);
-      expect(commands.getStatus).toHaveBeenCalledWith("/test/repo", { silent: true });
+      expect(commands.getStatus).toHaveBeenCalledWith("/test/repo", {
+        silent: true,
+      });
     });
 
     it("should ignore update if refreshGeneration has changed", async () => {
@@ -83,7 +85,17 @@ describe("git-data-slice", () => {
   describe("refreshCommitsAndStatus", () => {
     it("should fetch commits and status", async () => {
       const mockStatus = { branch: "main", files: [] };
-      const mockCommits = [{ oid: "123", shortOid: "123", author: "A", date: 1, message: "m", lane: 0, parents: [] }];
+      const mockCommits = [
+        {
+          oid: "123",
+          shortOid: "123",
+          author: "A",
+          date: 1,
+          message: "m",
+          lane: 0,
+          parents: [],
+        },
+      ];
       (commands.getStatus as any).mockResolvedValue(mockStatus);
       (commands.getLog as any).mockResolvedValue(mockCommits);
 
@@ -98,7 +110,15 @@ describe("git-data-slice", () => {
   describe("refreshOnFileSystemChange", () => {
     it("should fetch status, branches, and tags, but NOT the commit log", async () => {
       const mockStatus = { branch: "main", files: [] };
-      const mockBranches = [{ name: "main", isCurrent: true, oid: "123", upstream: null, isRemote: false }];
+      const mockBranches = [
+        {
+          name: "main",
+          isCurrent: true,
+          oid: "123",
+          upstream: null,
+          isRemote: false,
+        },
+      ];
       const mockTags = [{ name: "v1.0.0", oid: "123", targetOid: "123" }];
 
       (commands.getStatus as any).mockResolvedValue(mockStatus);
@@ -119,7 +139,17 @@ describe("git-data-slice", () => {
 
   describe("selectCommit", () => {
     it("should update selected OID and load commit diff", async () => {
-      const mockDiff = [{ path: "file.txt", oldPath: "file.txt", status: "Modified", additions: 1, deletions: 1, isBinary: false, hunks: [] }];
+      const mockDiff = [
+        {
+          path: "file.txt",
+          oldPath: "file.txt",
+          status: "Modified",
+          additions: 1,
+          deletions: 1,
+          isBinary: false,
+          hunks: [],
+        },
+      ];
       (commands.getCommitDiff as any).mockResolvedValue(mockDiff);
 
       await useRepoStore.getState().selectCommit("abc123Oid");
@@ -138,7 +168,9 @@ describe("git-data-slice", () => {
 
       await useRepoStore.getState().loadMoreCommits(10);
 
-      expect(commands.getLog).toHaveBeenCalledWith("/test/repo", 11, { silent: true });
+      expect(commands.getLog).toHaveBeenCalledWith("/test/repo", 11, {
+        silent: true,
+      });
       expect(useRepoStore.getState().commits.length).toBe(2);
     });
   });

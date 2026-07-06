@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { applyThemeToDOM } from "../theme-presets";
 
 describe("theme-presets", () => {
@@ -9,12 +9,16 @@ describe("theme-presets", () => {
 
   it("should apply theme to the document element", () => {
     applyThemeToDOM("royal-blue");
-    expect(document.documentElement.getAttribute("data-theme")).toBe("royal-blue");
+    expect(document.documentElement.getAttribute("data-theme")).toBe(
+      "royal-blue",
+    );
   });
 
   it("should apply ocean-teal theme preset", () => {
     applyThemeToDOM("ocean-teal");
-    expect(document.documentElement.getAttribute("data-theme")).toBe("ocean-teal");
+    expect(document.documentElement.getAttribute("data-theme")).toBe(
+      "ocean-teal",
+    );
   });
 
   it("should not set unknown theme presets", () => {

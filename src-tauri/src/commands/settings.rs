@@ -114,8 +114,8 @@ pub async fn generate_ssh_key(comment: String) -> Result<String, AppError> {
                 "SSH key comment must contain at least one valid character",
             ));
         }
-        let home =
-            dirs::home_dir().ok_or_else(|| AppError::settings("Could not determine home directory"))?;
+        let home = dirs::home_dir()
+            .ok_or_else(|| AppError::settings("Could not determine home directory"))?;
         let ssh_dir = home.join(".ssh");
         let key_path = ssh_dir.join("id_basilico");
 
@@ -173,8 +173,8 @@ pub async fn generate_ssh_key(comment: String) -> Result<String, AppError> {
 #[tauri::command]
 pub async fn list_ssh_keys() -> Result<Vec<String>, AppError> {
     tokio::task::spawn_blocking(move || {
-        let home =
-            dirs::home_dir().ok_or_else(|| AppError::settings("Could not determine home directory"))?;
+        let home = dirs::home_dir()
+            .ok_or_else(|| AppError::settings("Could not determine home directory"))?;
         let ssh_dir = home.join(".ssh");
 
         if !ssh_dir.exists() {

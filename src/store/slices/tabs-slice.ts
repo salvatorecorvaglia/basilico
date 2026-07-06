@@ -131,7 +131,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
     }
 
     // Tell Rust to clean up
-    commands.closeRepo(tabId, { silent: true }).catch(() => { });
+    commands.closeRepo(tabId, { silent: true }).catch(() => {});
   },
 
   switchTab: (tabId: string) => {

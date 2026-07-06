@@ -14,10 +14,7 @@ interface SubmoduleTreeProps {
   onOpenModal: () => void;
 }
 
-export function SubmoduleTree({
-  submodules,
-  onOpenModal,
-}: SubmoduleTreeProps) {
+export function SubmoduleTree({ submodules, onOpenModal }: SubmoduleTreeProps) {
   const { openRepository, initSubmodules, updateSubmodules, syncSubmodules } =
     useRepoStore();
   const { addNotification } = useUIStore();

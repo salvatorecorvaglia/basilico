@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock tauri-commands before importing the store
 vi.mock("../../lib/tauri-commands", () => ({
@@ -134,7 +134,12 @@ describe("tabs-slice", () => {
       // Set up initial state with one tab
       useRepoStore.setState({
         tabs: [
-          { id: "/test/repo", path: "/test/repo", name: "repo", isActive: true },
+          {
+            id: "/test/repo",
+            path: "/test/repo",
+            name: "repo",
+            isActive: true,
+          },
         ],
         activeTabId: "/test/repo",
         repoInfo: mockRepoInfo as any,
@@ -175,7 +180,13 @@ describe("tabs-slice", () => {
       });
 
       // Mock refreshAll to prevent actual command calls
-      const mockRepoInfo = { path: "/repo2", name: "repo2", isHeadDetached: false, headOid: "abc", defaultBranch: "main" };
+      const mockRepoInfo = {
+        path: "/repo2",
+        name: "repo2",
+        isHeadDetached: false,
+        headOid: "abc",
+        defaultBranch: "main",
+      };
       (commands.getStatus as any).mockResolvedValue({
         branch: "main",
         files: [],

@@ -4,12 +4,7 @@
    ═══════════════════════════════════════════════════════ */
 
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import {
-  ArrowLeftRight,
-  CircleDot,
-  Globe,
-  Trash,
-} from "lucide-react";
+import { ArrowLeftRight, CircleDot, Globe, Trash } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { BranchInfo, RemoteInfo } from "../../lib/git-types";
 import { useRepoStore } from "../../store/repo-store";

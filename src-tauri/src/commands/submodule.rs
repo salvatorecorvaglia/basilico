@@ -160,7 +160,7 @@ pub async fn add_submodule(repo_path: String, url: String, path: String) -> Resu
         let workdir = repo
             .workdir()
             .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
-        
+
         // Validate path traversal
         let _ = crate::git::utils::validate_path(workdir, std::path::Path::new(&path))?;
 

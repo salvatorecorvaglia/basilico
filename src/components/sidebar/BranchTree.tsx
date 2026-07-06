@@ -214,9 +214,7 @@ export function BranchTree({ branches }: BranchTreeProps) {
               className={`sidebar-item-dot ${branch.isHead ? "head" : ""}`}
             />
             <span className="sidebar-item-name truncate">{branch.name}</span>
-            {branch.isHead && (
-              <span className="sidebar-badge head">HEAD</span>
-            )}
+            {branch.isHead && <span className="sidebar-badge head">HEAD</span>}
             {(branch.ahead > 0 || branch.behind > 0) && (
               <span className="sidebar-sync">
                 {branch.ahead > 0 && (

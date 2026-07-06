@@ -3,20 +3,17 @@
    Branch/tag/remote/stash tree view — decomposed into sub-components
    ═══════════════════════════════════════════════════════ */
 
-import {
-  ChevronDown,
-  ChevronRight,
-} from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { useRepoStore } from "../../store/repo-store";
-import { SubmoduleModal } from "../submodule/SubmoduleModal";
-import { WorktreeModal } from "../worktree/WorktreeModal";
 import { BranchTree } from "../sidebar/BranchTree";
 import { RemoteTree } from "../sidebar/RemoteTree";
-import { TagTree } from "../sidebar/TagTree";
 import { StashTree } from "../sidebar/StashTree";
-import { WorktreeTree } from "../sidebar/WorktreeTree";
 import { SubmoduleTree } from "../sidebar/SubmoduleTree";
+import { TagTree } from "../sidebar/TagTree";
+import { WorktreeTree } from "../sidebar/WorktreeTree";
+import { SubmoduleModal } from "../submodule/SubmoduleModal";
+import { WorktreeModal } from "../worktree/WorktreeModal";
 import "./Sidebar.css";
 
 interface TreeSectionProps {

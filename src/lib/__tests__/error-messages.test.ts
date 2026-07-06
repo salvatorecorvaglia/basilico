@@ -25,9 +25,7 @@ describe("friendlyErrorMessage", () => {
   });
 
   it("should map branch exists errors", () => {
-    const msg = friendlyErrorMessage(
-      "branch 'feature/login' already exists",
-    );
+    const msg = friendlyErrorMessage("branch 'feature/login' already exists");
     expect(msg).toContain("already exists");
   });
 

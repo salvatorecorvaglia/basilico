@@ -191,7 +191,11 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
             // Truncate parsing if diff is too large
             let total_lines: usize = files[idx].hunks.iter().map(|h| h.lines.len()).sum();
             if total_lines > 5000 {
-                let already_truncated = files[idx].hunks.last().map(|h| h.header == "Truncated").unwrap_or(false);
+                let already_truncated = files[idx]
+                    .hunks
+                    .last()
+                    .map(|h| h.header == "Truncated")
+                    .unwrap_or(false);
                 if !already_truncated {
                     files[idx].hunks.push(DiffHunkInfo {
                         header: "Truncated".to_string(),

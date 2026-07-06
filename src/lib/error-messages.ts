@@ -45,7 +45,8 @@ const ERROR_MAPPINGS: ErrorMapping[] = [
 
   // Push
   {
-    pattern: /rejected.*non-fast-forward|failed to push.*updates were rejected/i,
+    pattern:
+      /rejected.*non-fast-forward|failed to push.*updates were rejected/i,
     message:
       "Push rejected: the remote has changes you don't have locally. Pull the latest changes first.",
   },
@@ -58,7 +59,8 @@ const ERROR_MAPPINGS: ErrorMapping[] = [
   // Branch
   {
     pattern: /branch.*already exists/i,
-    message: "A branch with that name already exists. Please choose a different name.",
+    message:
+      "A branch with that name already exists. Please choose a different name.",
   },
   {
     pattern: /cannot delete.*checked out/i,

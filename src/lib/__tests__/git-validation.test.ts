@@ -72,12 +72,17 @@ describe("validateBranchName", () => {
       expect(validateBranchName("@")).not.toBeNull();
     });
 
-    it.each(["~", "^", ":", "?", "[", "\\", "*"])(
-      'should reject names containing "%s"',
-      (char) => {
-        expect(validateBranchName(`feature${char}branch`)).not.toBeNull();
-      },
-    );
+    it.each([
+      "~",
+      "^",
+      ":",
+      "?",
+      "[",
+      "\\",
+      "*",
+    ])('should reject names containing "%s"', (char) => {
+      expect(validateBranchName(`feature${char}branch`)).not.toBeNull();
+    });
 
     it("should reject control characters", () => {
       expect(validateBranchName("feature\x01branch")).not.toBeNull();

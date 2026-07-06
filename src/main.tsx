@@ -44,7 +44,6 @@ function getCssVar(name: string, fallback: string): string {
 }
 
 function defineMonacoThemes(monacoInstance: typeof monaco) {
-
   monacoInstance.editor.defineTheme("basilico-dark", {
     base: "vs-dark",
     inherit: true,
@@ -53,7 +52,10 @@ function defineMonacoThemes(monacoInstance: typeof monaco) {
       "editor.background": getCssVar("--bg-surface", "#0d0d11"),
       "editor.lineHighlightBackground": getCssVar("--bg-hover", "#1c1c27"),
       "editorLineNumber.foreground": getCssVar("--text-tertiary", "#60606a"),
-      "editorLineNumber.activeForeground": getCssVar("--text-secondary", "#a1a1aa"),
+      "editorLineNumber.activeForeground": getCssVar(
+        "--text-secondary",
+        "#a1a1aa",
+      ),
     },
   });
   monacoInstance.editor.defineTheme("basilico-light", {
@@ -64,7 +66,10 @@ function defineMonacoThemes(monacoInstance: typeof monaco) {
       "editor.background": getCssVar("--bg-surface", "#ffffff"),
       "editor.lineHighlightBackground": getCssVar("--bg-hover", "#f1f3f6"),
       "editorLineNumber.foreground": getCssVar("--text-tertiary", "#94a3b8"),
-      "editorLineNumber.activeForeground": getCssVar("--text-secondary", "#0f172a"),
+      "editorLineNumber.activeForeground": getCssVar(
+        "--text-secondary",
+        "#0f172a",
+      ),
     },
   });
 }

@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { setLoading, setError, clearError, withLoading } from "../store-helpers";
+import {
+  clearError,
+  setError,
+  setLoading,
+  withLoading,
+} from "../store-helpers";
 
 // Minimal mock for store state
 function createMockStore(overrides = {}) {
@@ -54,9 +59,18 @@ describe("store-helpers", () => {
     it("should set isLoading to false when no domains are loading", () => {
       const { get, set } = createMockStore({
         loadingStates: {
-          global: false, commits: true, status: false, diff: false,
-          staging: false, branches: false, blame: false, history: false,
-          stashes: false, search: false, collaboration: false, settings: false,
+          global: false,
+          commits: true,
+          status: false,
+          diff: false,
+          staging: false,
+          branches: false,
+          blame: false,
+          history: false,
+          stashes: false,
+          search: false,
+          collaboration: false,
+          settings: false,
         },
         isLoading: true,
       });
@@ -71,9 +85,18 @@ describe("store-helpers", () => {
     it("should keep isLoading true when other domains are still loading", () => {
       const { get, set } = createMockStore({
         loadingStates: {
-          global: false, commits: true, status: true, diff: false,
-          staging: false, branches: false, blame: false, history: false,
-          stashes: false, search: false, collaboration: false, settings: false,
+          global: false,
+          commits: true,
+          status: true,
+          diff: false,
+          staging: false,
+          branches: false,
+          blame: false,
+          history: false,
+          stashes: false,
+          search: false,
+          collaboration: false,
+          settings: false,
         },
       });
 

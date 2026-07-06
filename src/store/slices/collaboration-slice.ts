@@ -102,122 +102,182 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "branches", "Failed to checkout branch", async () => {
-      await commands.checkoutBranch(activeTabId, branchName, {
-        errorPrefix: "Failed to checkout branch",
-      });
-      set({ selectedFilePath: null, localDiff: null });
-      await get().refreshAll();
-    });
+    await withLoading(
+      get,
+      set,
+      "branches",
+      "Failed to checkout branch",
+      async () => {
+        await commands.checkoutBranch(activeTabId, branchName, {
+          errorPrefix: "Failed to checkout branch",
+        });
+        set({ selectedFilePath: null, localDiff: null });
+        await get().refreshAll();
+      },
+    );
   },
 
   createBranch: async (name, startPoint = null) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "branches", "Failed to create branch", async () => {
-      await commands.createBranch(activeTabId, name, startPoint, {
-        errorPrefix: "Failed to create branch",
-      });
-      await get().refreshBranches();
-    });
+    await withLoading(
+      get,
+      set,
+      "branches",
+      "Failed to create branch",
+      async () => {
+        await commands.createBranch(activeTabId, name, startPoint, {
+          errorPrefix: "Failed to create branch",
+        });
+        await get().refreshBranches();
+      },
+    );
   },
 
   deleteBranch: async (name, isRemote) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "branches", "Failed to delete branch", async () => {
-      await commands.deleteBranch(activeTabId, name, isRemote, {
-        errorPrefix: "Failed to delete branch",
-      });
-      await get().refreshBranches();
-    });
+    await withLoading(
+      get,
+      set,
+      "branches",
+      "Failed to delete branch",
+      async () => {
+        await commands.deleteBranch(activeTabId, name, isRemote, {
+          errorPrefix: "Failed to delete branch",
+        });
+        await get().refreshBranches();
+      },
+    );
   },
 
   renameBranch: async (currentName, newName) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "branches", "Failed to rename branch", async () => {
-      await commands.renameBranch(activeTabId, currentName, newName, {
-        errorPrefix: "Failed to rename branch",
-      });
-      await get().refreshBranches();
-    });
+    await withLoading(
+      get,
+      set,
+      "branches",
+      "Failed to rename branch",
+      async () => {
+        await commands.renameBranch(activeTabId, currentName, newName, {
+          errorPrefix: "Failed to rename branch",
+        });
+        await get().refreshBranches();
+      },
+    );
   },
 
   deleteTag: async (name) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to delete tag", async () => {
-      await commands.deleteTag(activeTabId, name, {
-        errorPrefix: "Failed to delete tag",
-      });
-      await get().refreshBranches();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to delete tag",
+      async () => {
+        await commands.deleteTag(activeTabId, name, {
+          errorPrefix: "Failed to delete tag",
+        });
+        await get().refreshBranches();
+      },
+    );
   },
 
   createTag: async (name, targetOid, message = null, force = false) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to create tag", async () => {
-      await commands.createTag(activeTabId, name, targetOid, message, force, {
-        errorPrefix: "Failed to create tag",
-      });
-      await get().refreshBranches();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to create tag",
+      async () => {
+        await commands.createTag(activeTabId, name, targetOid, message, force, {
+          errorPrefix: "Failed to create tag",
+        });
+        await get().refreshBranches();
+      },
+    );
   },
 
   pushTag: async (remote, tagName) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to push tag", async () => {
-      await commands.pushTag(activeTabId, remote, tagName, {
-        errorPrefix: "Failed to push tag",
-      });
-      await get().refreshBranches();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to push tag",
+      async () => {
+        await commands.pushTag(activeTabId, remote, tagName, {
+          errorPrefix: "Failed to push tag",
+        });
+        await get().refreshBranches();
+      },
+    );
   },
 
   mergeBranch: async (branchName) => {
     const { activeTabId } = get();
     if (!activeTabId) return "conflicts";
 
-    return await withLoading(get, set, "collaboration", "Failed to merge branch", async () => {
-      const result = await commands.mergeBranch(activeTabId, branchName, {
-        errorPrefix: "Failed to merge",
-      });
-      await get().refreshCommitsAndStatus();
-      return result;
-    });
+    return await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to merge branch",
+      async () => {
+        const result = await commands.mergeBranch(activeTabId, branchName, {
+          errorPrefix: "Failed to merge",
+        });
+        await get().refreshCommitsAndStatus();
+        return result;
+      },
+    );
   },
 
   abortMerge: async () => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to abort merge", async () => {
-      await commands.abortMerge(activeTabId, {
-        errorPrefix: "Failed to abort merge",
-      });
-      await get().refreshCommitsAndStatus();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to abort merge",
+      async () => {
+        await commands.abortMerge(activeTabId, {
+          errorPrefix: "Failed to abort merge",
+        });
+        await get().refreshCommitsAndStatus();
+      },
+    );
   },
 
   resolveConflict: async (filePath) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to resolve conflict", async () => {
-      await commands.resolveConflict(activeTabId, filePath, {
-        errorPrefix: "Failed to resolve conflict",
-      });
-      await get().refreshStatus();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to resolve conflict",
+      async () => {
+        await commands.resolveConflict(activeTabId, filePath, {
+          errorPrefix: "Failed to resolve conflict",
+        });
+        await get().refreshStatus();
+      },
+    );
   },
 
   fetch: async (remote) => {
@@ -236,13 +296,19 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return "conflicts";
 
-    return await withLoading(get, set, "collaboration", "Pull failed", async () => {
-      const result = await commands.pull(activeTabId, remote, branch, {
-        errorPrefix: "Pull failed",
-      });
-      await get().refreshAll();
-      return result;
-    });
+    return await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Pull failed",
+      async () => {
+        const result = await commands.pull(activeTabId, remote, branch, {
+          errorPrefix: "Pull failed",
+        });
+        await get().refreshAll();
+        return result;
+      },
+    );
   },
 
   push: async (remote, branch, force) => {
@@ -261,87 +327,123 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to initialize rebase", async () => {
-      const items = await commands.rebaseInit(activeTabId, upstream, {
-        errorPrefix: "Failed to initialize rebase",
-      });
-      set({
-        rebaseTodoItems: items,
-        rebaseStatus: {
-          status: "stepping",
-          currentOid: null,
-          message: "Rebase initialized",
-        },
-      });
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to initialize rebase",
+      async () => {
+        const items = await commands.rebaseInit(activeTabId, upstream, {
+          errorPrefix: "Failed to initialize rebase",
+        });
+        set({
+          rebaseTodoItems: items,
+          rebaseStatus: {
+            status: "stepping",
+            currentOid: null,
+            message: "Rebase initialized",
+          },
+        });
+      },
+    );
   },
 
   writeRebaseTodo: async (items) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to write rebase todo", async () => {
-      await commands.rebaseWriteTodo(activeTabId, items, {
-        errorPrefix: "Failed to write rebase todo",
-      });
-      set({ rebaseTodoItems: items });
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to write rebase todo",
+      async () => {
+        await commands.rebaseWriteTodo(activeTabId, items, {
+          errorPrefix: "Failed to write rebase todo",
+        });
+        set({ rebaseTodoItems: items });
+      },
+    );
   },
 
   stepRebase: async (action, commitMessage = null) => {
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
 
-    return await withLoading(get, set, "collaboration", "Failed to step rebase", async () => {
-      const status = await commands.rebaseStep(
-        activeTabId,
-        action,
-        commitMessage,
-        { errorPrefix: "Failed to step rebase" },
-      );
-      set({ rebaseStatus: status });
-      await get().refreshAll();
-      return status;
-    });
+    return await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to step rebase",
+      async () => {
+        const status = await commands.rebaseStep(
+          activeTabId,
+          action,
+          commitMessage,
+          { errorPrefix: "Failed to step rebase" },
+        );
+        set({ rebaseStatus: status });
+        await get().refreshAll();
+        return status;
+      },
+    );
   },
 
   startBisect: async (bad, good) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to start bisect", async () => {
-      const state = await commands.bisectStart(activeTabId, bad, good, {
-        errorPrefix: "Failed to start bisect",
-      });
-      set({ bisectState: state });
-      await get().refreshAll();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to start bisect",
+      async () => {
+        const state = await commands.bisectStart(activeTabId, bad, good, {
+          errorPrefix: "Failed to start bisect",
+        });
+        set({ bisectState: state });
+        await get().refreshAll();
+      },
+    );
   },
 
   markBisect: async (status) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to mark bisect", async () => {
-      const state = await commands.bisectMark(activeTabId, status, {
-        errorPrefix: "Failed to mark bisect",
-      });
-      set({ bisectState: state });
-      await get().refreshAll();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to mark bisect",
+      async () => {
+        const state = await commands.bisectMark(activeTabId, status, {
+          errorPrefix: "Failed to mark bisect",
+        });
+        set({ bisectState: state });
+        await get().refreshAll();
+      },
+    );
   },
 
   resetBisect: async () => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to reset bisect", async () => {
-      await commands.bisectReset(activeTabId, {
-        errorPrefix: "Failed to reset bisect",
-      });
-      set({ bisectState: null });
-      await get().refreshAll();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to reset bisect",
+      async () => {
+        await commands.bisectReset(activeTabId, {
+          errorPrefix: "Failed to reset bisect",
+        });
+        set({ bisectState: null });
+        await get().refreshAll();
+      },
+    );
   },
 
   loadWorktrees: async () => {
@@ -363,36 +465,54 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to add worktree", async () => {
-      await commands.addWorktree(activeTabId, path, branch, newBranch, {
-        errorPrefix: "Failed to add worktree",
-      });
-      await get().loadWorktrees();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to add worktree",
+      async () => {
+        await commands.addWorktree(activeTabId, path, branch, newBranch, {
+          errorPrefix: "Failed to add worktree",
+        });
+        await get().loadWorktrees();
+      },
+    );
   },
 
   removeWorktree: async (worktreePath, force = false) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to remove worktree", async () => {
-      await commands.removeWorktree(activeTabId, worktreePath, force, {
-        errorPrefix: "Failed to remove worktree",
-      });
-      await get().loadWorktrees();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to remove worktree",
+      async () => {
+        await commands.removeWorktree(activeTabId, worktreePath, force, {
+          errorPrefix: "Failed to remove worktree",
+        });
+        await get().loadWorktrees();
+      },
+    );
   },
 
   pruneWorktrees: async () => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to prune worktrees", async () => {
-      await commands.pruneWorktrees(activeTabId, {
-        errorPrefix: "Failed to prune worktrees",
-      });
-      await get().loadWorktrees();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to prune worktrees",
+      async () => {
+        await commands.pruneWorktrees(activeTabId, {
+          errorPrefix: "Failed to prune worktrees",
+        });
+        await get().loadWorktrees();
+      },
+    );
   },
 
   loadSubmodules: async () => {
@@ -414,99 +534,147 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to initialize submodules", async () => {
-      await commands.initSubmodules(activeTabId, paths, {
-        errorPrefix: "Failed to initialize submodules",
-      });
-      await get().loadSubmodules();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to initialize submodules",
+      async () => {
+        await commands.initSubmodules(activeTabId, paths, {
+          errorPrefix: "Failed to initialize submodules",
+        });
+        await get().loadSubmodules();
+      },
+    );
   },
 
   updateSubmodules: async (paths, recursive = true) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to update submodules", async () => {
-      await commands.updateSubmodules(activeTabId, paths, recursive, {
-        errorPrefix: "Failed to update submodules",
-      });
-      await get().loadSubmodules();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to update submodules",
+      async () => {
+        await commands.updateSubmodules(activeTabId, paths, recursive, {
+          errorPrefix: "Failed to update submodules",
+        });
+        await get().loadSubmodules();
+      },
+    );
   },
 
   syncSubmodules: async (paths) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to sync submodules", async () => {
-      await commands.syncSubmodules(activeTabId, paths, {
-        errorPrefix: "Failed to sync submodules",
-      });
-      await get().loadSubmodules();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to sync submodules",
+      async () => {
+        await commands.syncSubmodules(activeTabId, paths, {
+          errorPrefix: "Failed to sync submodules",
+        });
+        await get().loadSubmodules();
+      },
+    );
   },
 
   addSubmodule: async (url, path) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "collaboration", "Failed to add submodule", async () => {
-      await commands.addSubmodule(activeTabId, url, path, {
-        errorPrefix: "Failed to add submodule",
-      });
-      await get().loadSubmodules();
-      await get().refreshAll();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Failed to add submodule",
+      async () => {
+        await commands.addSubmodule(activeTabId, url, path, {
+          errorPrefix: "Failed to add submodule",
+        });
+        await get().loadSubmodules();
+        await get().refreshAll();
+      },
+    );
   },
 
   cherryPickCommit: async (oid) => {
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
 
-    return await withLoading(get, set, "collaboration", "Cherry-pick failed", async () => {
-      const res = await commands.cherryPickCommit(activeTabId, oid, {
-        errorPrefix: "Cherry-pick failed",
-      });
-      await get().refreshCommitsAndStatus();
-      return res as "success" | "conflicts";
-    });
+    return await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Cherry-pick failed",
+      async () => {
+        const res = await commands.cherryPickCommit(activeTabId, oid, {
+          errorPrefix: "Cherry-pick failed",
+        });
+        await get().refreshCommitsAndStatus();
+        return res as "success" | "conflicts";
+      },
+    );
   },
 
   cherryPickAbort: async () => {
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
 
-    await withLoading(get, set, "collaboration", "Cherry-pick abort failed", async () => {
-      await commands.cherryPickAbort(activeTabId, {
-        errorPrefix: "Cherry-pick abort failed",
-      });
-      await get().refreshCommitsAndStatus();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Cherry-pick abort failed",
+      async () => {
+        await commands.cherryPickAbort(activeTabId, {
+          errorPrefix: "Cherry-pick abort failed",
+        });
+        await get().refreshCommitsAndStatus();
+      },
+    );
   },
 
   revertCommit: async (oid) => {
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
 
-    return await withLoading(get, set, "collaboration", "Revert failed", async () => {
-      const res = await commands.revertCommit(activeTabId, oid, {
-        errorPrefix: "Revert failed",
-      });
-      await get().refreshCommitsAndStatus();
-      return res as "success" | "conflicts";
-    });
+    return await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Revert failed",
+      async () => {
+        const res = await commands.revertCommit(activeTabId, oid, {
+          errorPrefix: "Revert failed",
+        });
+        await get().refreshCommitsAndStatus();
+        return res as "success" | "conflicts";
+      },
+    );
   },
 
   revertAbort: async () => {
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
 
-    await withLoading(get, set, "collaboration", "Revert abort failed", async () => {
-      await commands.revertAbort(activeTabId, {
-        errorPrefix: "Revert abort failed",
-      });
-      await get().refreshCommitsAndStatus();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Revert abort failed",
+      async () => {
+        await commands.revertAbort(activeTabId, {
+          errorPrefix: "Revert abort failed",
+        });
+        await get().refreshCommitsAndStatus();
+      },
+    );
   },
 
   resetToCommit: async (oid, mode) => {
@@ -525,40 +693,52 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "diff", "Failed to load commit tree", async () => {
-      set({ commitTree: [] });
-      const tree = await commands.getCommitTree(activeTabId, oid, {
-        silent: true,
-      });
-      set({ commitTree: tree });
-    });
+    await withLoading(
+      get,
+      set,
+      "diff",
+      "Failed to load commit tree",
+      async () => {
+        set({ commitTree: [] });
+        const tree = await commands.getCommitTree(activeTabId, oid, {
+          silent: true,
+        });
+        set({ commitTree: tree });
+      },
+    );
   },
 
   startComparison: async (base: string, target: string) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(get, set, "diff", "Failed to load comparison diff", async () => {
-      set({
-        compareBase: base,
-        compareTarget: target,
-        compareDiff: [],
-        selectedCompareFile: null,
-        compareFileDiff: null,
-      });
-      const diffs = await commands.getCompareDiff(activeTabId, base, target, {
-        silent: true,
-      });
-      set({ compareDiff: diffs });
+    await withLoading(
+      get,
+      set,
+      "diff",
+      "Failed to load comparison diff",
+      async () => {
+        set({
+          compareBase: base,
+          compareTarget: target,
+          compareDiff: [],
+          selectedCompareFile: null,
+          compareFileDiff: null,
+        });
+        const diffs = await commands.getCompareDiff(activeTabId, base, target, {
+          silent: true,
+        });
+        set({ compareDiff: diffs });
 
-      // Auto select first file if available
-      if (diffs.length > 0) {
-        const firstFile = diffs[0].newPath || diffs[0].oldPath;
-        if (firstFile) {
-          await get().selectCompareFile(firstFile);
+        // Auto select first file if available
+        if (diffs.length > 0) {
+          const firstFile = diffs[0].newPath || diffs[0].oldPath;
+          if (firstFile) {
+            await get().selectCompareFile(firstFile);
+          }
         }
-      }
-    });
+      },
+    );
   },
 
   selectCompareFile: async (filePath: string | null) => {

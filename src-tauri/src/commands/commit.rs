@@ -78,7 +78,9 @@ pub async fn cherry_pick_commit(path: String, oid: String) -> Result<String, App
             .current_dir(&path)
             .args(["cherry-pick", &oid])
             .output()
-            .map_err(|e| AppError::command(format!("Failed to execute cherry-pick process: {}", e)))?;
+            .map_err(|e| {
+                AppError::command(format!("Failed to execute cherry-pick process: {}", e))
+            })?;
 
         let repo = Repository::open(&path)?;
         match repo.state() {
@@ -106,7 +108,9 @@ pub async fn cherry_pick_abort(path: String) -> Result<(), AppError> {
             .current_dir(&path)
             .args(["cherry-pick", "--abort"])
             .output()
-            .map_err(|e| AppError::command(format!("Failed to abort cherry-pick process: {}", e)))?;
+            .map_err(|e| {
+                AppError::command(format!("Failed to abort cherry-pick process: {}", e))
+            })?;
 
         if output.status.success() {
             Ok(())
