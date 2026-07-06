@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-07-06
+
+### Added
+
+- **Windows Credential Helper Support**: Implemented Windows-specific custom Git credential helper resolution and execution logic in the Rust backend for secure credential retrieval on Windows platforms.
+
+### Changed
+
+- **CI/CD & Workspace**: Enabled esbuild in `pnpm-workspace.yaml` and updated CI/CD workflow configurations (`.github/workflows/ci.yml` and `.github/workflows/release.yml`).
+
 ## [0.7.0] - 2026-07-06
 
 ### Added
