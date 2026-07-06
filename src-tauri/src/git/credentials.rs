@@ -42,7 +42,9 @@ pub fn make_callbacks<'a>(custom_ssh_path: Option<String>) -> RemoteCallbacks<'a
             #[cfg(target_os = "windows")]
             {
                 if let Ok(config) = git2::Config::open_default() {
-                    if let Some((username, password)) = get_credentials_via_custom_helper(&config, _url, username_from_url) {
+                    if let Some((username, password)) =
+                        get_credentials_via_custom_helper(&config, _url, username_from_url)
+                    {
                         return Cred::userpass_plaintext(&username, &password);
                     }
                 }
@@ -78,7 +80,14 @@ pub fn make_callbacks<'a>(custom_ssh_path: Option<String>) -> RemoteCallbacks<'a
 /// Manually parses a URL scheme, host, port, and path for git remote URLs
 /// without relying on external dependencies like the url crate.
 #[cfg(target_os = "windows")]
-fn parse_url_manually(url: &str) -> (Option<String>, Option<String>, Option<String>, Option<String>) {
+fn parse_url_manually(
+    url: &str,
+) -> (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+) {
     let parts: Vec<&str> = url.splitn(2, "://").collect();
     if parts.len() < 2 {
         return (None, None, None, None);
@@ -236,7 +245,11 @@ fn execute_custom_helper(
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(e) => {
-            log::debug!("Failed to spawn custom credential helper {}: {}", cmd_exe, e);
+            log::debug!(
+                "Failed to spawn custom credential helper {}: {}",
+                cmd_exe,
+                e
+            );
             return None;
         }
     };
@@ -266,7 +279,11 @@ fn execute_custom_helper(
     let output = match child.wait_with_output() {
         Ok(out) => out,
         Err(e) => {
-            log::debug!("Failed waiting for custom credential helper {}: {}", cmd_exe, e);
+            log::debug!(
+                "Failed waiting for custom credential helper {}: {}",
+                cmd_exe,
+                e
+            );
             return None;
         }
     };
