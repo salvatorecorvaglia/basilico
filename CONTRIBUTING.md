@@ -112,7 +112,7 @@ Familiarize yourself with the layout before modifying code:
   * [lib.rs](src-tauri/src/lib.rs): Native commands, setup configurations, and window layout initialization.
   * [commands/](src-tauri/src/commands): Tauri commands representing operations such as staging, reset, merge, stash, and blame.
   * [git/](src-tauri/src/git): Underlying wrapper utilities interacting with `git2`/`libgit2` bindings.
-  * Commands and logic are backed by `git2`/`libgit2` bindings for git operations, `tokio` for async runtime, and `notify` for filesystem changes.
+  * Commands and logic are backed by `git2`/`libgit2` bindings for git operations, `tokio` for async runtime, `notify` for filesystem changes, and Tauri's updater plugin.
 * **`src/`**: React frontend.
   * [main.tsx](src/main.tsx): React entrypoint.
   * [components](src/components): Shared visual components and views.

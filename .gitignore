@@ -39,6 +39,11 @@ src-tauri/bin/
 **/tauri-updater.key
 **/tauri-updater.pub
 
+# Testing and Cache
+coverage/
+.biome_cache/
+*.tsbuildinfo
+
 # AI Tools
 .openai/
 .chatgpt/

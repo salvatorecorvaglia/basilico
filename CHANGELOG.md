@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-06
+
+### Added
+
+- **Automatic App Updates**: Integrated Tauri's updater and process relaunch plugins (`@tauri-apps/plugin-updater` and `@tauri-apps/plugin-process`) to automatically check for updates in production builds. Features include interactive toast notifications with real-time download completion percentages and a "Restart now" action to complete the update process.
+
+### Changed
+
+- **Rust Backend**: Refactored the application setup closure parameter to `_app` in `src-tauri/src/lib.rs` to prevent compiler warnings about unused variables.
+
 ## [0.6.1] - 2026-07-06
 
 ### Fixed

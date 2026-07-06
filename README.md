@@ -35,6 +35,7 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
   - **State Management**: Highly optimized Zustand `repo-store` split into modular slices (`collaboration`, `git-data`, `settings`, `staging`, `tabs`) using a granular, domain-specific `loadingStates` tracker to handle loading status individually per domain and avoid race conditions.
   - **Watcher**: A live repository file system watcher recursively tracking root changes using `notify` to automatically refresh application state on local edits.
   - **Error Mapping**: Automated translation of raw Git/Rust CLI error outputs to user-friendly actionable feedback notifications.
+  - **Auto-Updater**: Seamless integration with Tauri's native updater and process relaunch plugins to automatically check for updates in production builds, displaying interactive progress percentages in custom toast notifications and supporting one-click application restarts.
 
 ---
 
