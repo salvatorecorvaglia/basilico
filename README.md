@@ -143,6 +143,23 @@ Linter checks:
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets
 ```
 
+## 📦 Production Builds & Installation Notes
+
+Since these builds are signed with self-generated credentials or built on public runner systems without official developer licenses, your operating system might show security warnings:
+
+### macOS ("App is damaged and can't be opened")
+This is macOS Gatekeeper protecting your system from unsigned apps. To run Basilico:
+1. Move `Basilico.app` to your `/Applications` directory.
+2. Open your terminal and run:
+   ```bash
+   xattr -cr /Applications/Basilico.app
+   ```
+3. Launch the app normally.
+
+### Windows (SmartScreen / Startup Issues)
+1. **Windows SmartScreen**: Click **"More Info"** -> **"Run anyway"**.
+2. **Missing WebView2 Runtime**: Basilico requires the Microsoft WebView2 Runtime. If you are on an older Windows version and the application fails to load, download and install the [Evergreen Bootstrapper from Microsoft](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
+
 ---
 
 ## 🤝 Contributing
