@@ -26,6 +26,7 @@ vi.mock("../../store/ui-store", () => ({
   },
 }));
 
+import type { RepoInfo } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
 import { useRepoStore } from "../repo-store";
 
@@ -59,21 +60,21 @@ describe("tabs-slice", () => {
         headOid: "abc123",
         defaultBranch: "main",
       };
-      (commands.openRepo as any).mockResolvedValue(mockRepoInfo);
-      (commands.getStatus as any).mockResolvedValue({
+      vi.mocked(commands.openRepo).mockResolvedValue(mockRepoInfo);
+      vi.mocked(commands.getStatus).mockResolvedValue({
         branch: "main",
         files: [],
       });
-      (commands.getLog as any).mockResolvedValue([]);
-      (commands.listBranches as any).mockResolvedValue([]);
-      (commands.listTags as any).mockResolvedValue([]);
-      (commands.listRemotes as any).mockResolvedValue([]);
-      (commands.listStashes as any).mockResolvedValue([]);
-      (commands.getWorkdirDiff as any).mockResolvedValue([]);
-      (commands.getStagedDiff as any).mockResolvedValue([]);
-      (commands.listWorktrees as any).mockResolvedValue([]);
-      (commands.listSubmodules as any).mockResolvedValue([]);
-      (commands.getRepoInfo as any).mockResolvedValue(mockRepoInfo);
+      vi.mocked(commands.getLog).mockResolvedValue([]);
+      vi.mocked(commands.listBranches).mockResolvedValue([]);
+      vi.mocked(commands.listTags).mockResolvedValue([]);
+      vi.mocked(commands.listRemotes).mockResolvedValue([]);
+      vi.mocked(commands.listStashes).mockResolvedValue([]);
+      vi.mocked(commands.getWorkdirDiff).mockResolvedValue([]);
+      vi.mocked(commands.getStagedDiff).mockResolvedValue([]);
+      vi.mocked(commands.listWorktrees).mockResolvedValue([]);
+      vi.mocked(commands.listSubmodules).mockResolvedValue([]);
+      vi.mocked(commands.getRepoInfo).mockResolvedValue(mockRepoInfo);
 
       await useRepoStore.getState().openRepository("/test/repo");
 
@@ -91,24 +92,24 @@ describe("tabs-slice", () => {
         headOid: "abc123",
         defaultBranch: "main",
       };
-      (commands.openRepo as any).mockImplementation(
+      vi.mocked(commands.openRepo).mockImplementation(
         () =>
           new Promise((resolve) => setTimeout(() => resolve(mockRepoInfo), 50)),
       );
-      (commands.getStatus as any).mockResolvedValue({
+      vi.mocked(commands.getStatus).mockResolvedValue({
         branch: "main",
         files: [],
       });
-      (commands.getLog as any).mockResolvedValue([]);
-      (commands.listBranches as any).mockResolvedValue([]);
-      (commands.listTags as any).mockResolvedValue([]);
-      (commands.listRemotes as any).mockResolvedValue([]);
-      (commands.listStashes as any).mockResolvedValue([]);
-      (commands.getWorkdirDiff as any).mockResolvedValue([]);
-      (commands.getStagedDiff as any).mockResolvedValue([]);
-      (commands.listWorktrees as any).mockResolvedValue([]);
-      (commands.listSubmodules as any).mockResolvedValue([]);
-      (commands.getRepoInfo as any).mockResolvedValue(mockRepoInfo);
+      vi.mocked(commands.getLog).mockResolvedValue([]);
+      vi.mocked(commands.listBranches).mockResolvedValue([]);
+      vi.mocked(commands.listTags).mockResolvedValue([]);
+      vi.mocked(commands.listRemotes).mockResolvedValue([]);
+      vi.mocked(commands.listStashes).mockResolvedValue([]);
+      vi.mocked(commands.getWorkdirDiff).mockResolvedValue([]);
+      vi.mocked(commands.getStagedDiff).mockResolvedValue([]);
+      vi.mocked(commands.listWorktrees).mockResolvedValue([]);
+      vi.mocked(commands.listSubmodules).mockResolvedValue([]);
+      vi.mocked(commands.getRepoInfo).mockResolvedValue(mockRepoInfo);
 
       // Fire two concurrent opens
       const p1 = useRepoStore.getState().openRepository("/test/repo");
@@ -142,11 +143,11 @@ describe("tabs-slice", () => {
           },
         ],
         activeTabId: "/test/repo",
-        repoInfo: mockRepoInfo as any,
+        repoInfo: mockRepoInfo as unknown as RepoInfo,
         selectedCommitOid: "abc123",
       });
 
-      (commands.closeRepo as any).mockResolvedValue(undefined);
+      vi.mocked(commands.closeRepo).mockResolvedValue(undefined);
 
       useRepoStore.getState().closeTab("/test/repo");
 
@@ -187,20 +188,20 @@ describe("tabs-slice", () => {
         headOid: "abc",
         defaultBranch: "main",
       };
-      (commands.getStatus as any).mockResolvedValue({
+      vi.mocked(commands.getStatus).mockResolvedValue({
         branch: "main",
         files: [],
       });
-      (commands.getLog as any).mockResolvedValue([]);
-      (commands.listBranches as any).mockResolvedValue([]);
-      (commands.listTags as any).mockResolvedValue([]);
-      (commands.listRemotes as any).mockResolvedValue([]);
-      (commands.listStashes as any).mockResolvedValue([]);
-      (commands.getWorkdirDiff as any).mockResolvedValue([]);
-      (commands.getStagedDiff as any).mockResolvedValue([]);
-      (commands.listWorktrees as any).mockResolvedValue([]);
-      (commands.listSubmodules as any).mockResolvedValue([]);
-      (commands.getRepoInfo as any).mockResolvedValue(mockRepoInfo);
+      vi.mocked(commands.getLog).mockResolvedValue([]);
+      vi.mocked(commands.listBranches).mockResolvedValue([]);
+      vi.mocked(commands.listTags).mockResolvedValue([]);
+      vi.mocked(commands.listRemotes).mockResolvedValue([]);
+      vi.mocked(commands.listStashes).mockResolvedValue([]);
+      vi.mocked(commands.getWorkdirDiff).mockResolvedValue([]);
+      vi.mocked(commands.getStagedDiff).mockResolvedValue([]);
+      vi.mocked(commands.listWorktrees).mockResolvedValue([]);
+      vi.mocked(commands.listSubmodules).mockResolvedValue([]);
+      vi.mocked(commands.getRepoInfo).mockResolvedValue(mockRepoInfo);
 
       useRepoStore.getState().switchTab("/repo2");
 

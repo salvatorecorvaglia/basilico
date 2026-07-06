@@ -22,6 +22,7 @@ vi.mock("../../lib/tauri-commands", () => ({
   grepCode: vi.fn(),
 }));
 
+import type { GraphCommit } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
 import { useRepoStore } from "../repo-store";
 
@@ -52,7 +53,7 @@ describe("git-data-slice", () => {
   describe("refreshStatus", () => {
     it("should fetch status and save to state if generation matches", async () => {
       const mockStatus = { branch: "main", files: [] };
-      (commands.getStatus as any).mockResolvedValue(mockStatus);
+      vi.mocked(commands.getStatus).mockResolvedValue(mockStatus);
 
       await useRepoStore.getState().refreshStatus();
 
@@ -65,7 +66,7 @@ describe("git-data-slice", () => {
 
     it("should ignore update if refreshGeneration has changed", async () => {
       const mockStatus = { branch: "main", files: [] };
-      (commands.getStatus as any).mockImplementation(
+      vi.mocked(commands.getStatus).mockImplementation(
         () =>
           new Promise((resolve) => {
             // increment generation mid-flight
@@ -96,8 +97,8 @@ describe("git-data-slice", () => {
           parents: [],
         },
       ];
-      (commands.getStatus as any).mockResolvedValue(mockStatus);
-      (commands.getLog as any).mockResolvedValue(mockCommits);
+      vi.mocked(commands.getStatus).mockResolvedValue(mockStatus);
+      vi.mocked(commands.getLog).mockResolvedValue(mockCommits);
 
       await useRepoStore.getState().refreshCommitsAndStatus();
 
@@ -121,9 +122,9 @@ describe("git-data-slice", () => {
       ];
       const mockTags = [{ name: "v1.0.0", oid: "123", targetOid: "123" }];
 
-      (commands.getStatus as any).mockResolvedValue(mockStatus);
-      (commands.listBranches as any).mockResolvedValue(mockBranches);
-      (commands.listTags as any).mockResolvedValue(mockTags);
+      vi.mocked(commands.getStatus).mockResolvedValue(mockStatus);
+      vi.mocked(commands.listBranches).mockResolvedValue(mockBranches);
+      vi.mocked(commands.listTags).mockResolvedValue(mockTags);
 
       await useRepoStore.getState().refreshOnFileSystemChange();
 
@@ -150,7 +151,7 @@ describe("git-data-slice", () => {
           hunks: [],
         },
       ];
-      (commands.getCommitDiff as any).mockResolvedValue(mockDiff);
+      vi.mocked(commands.getCommitDiff).mockResolvedValue(mockDiff);
 
       await useRepoStore.getState().selectCommit("abc123Oid");
 
@@ -162,9 +163,9 @@ describe("git-data-slice", () => {
 
   describe("loadMoreCommits", () => {
     it("should query next page of commits", async () => {
-      useRepoStore.setState({ commits: [{} as any] });
+      useRepoStore.setState({ commits: [{} as unknown as GraphCommit] });
       const mockCommits = [{}, {}];
-      (commands.getLog as any).mockResolvedValue(mockCommits);
+      vi.mocked(commands.getLog).mockResolvedValue(mockCommits);
 
       await useRepoStore.getState().loadMoreCommits(10);
 
@@ -177,8 +178,10 @@ describe("git-data-slice", () => {
 
   describe("searchCommits & grepCode", () => {
     it("should update search results", async () => {
-      (commands.searchCommits as any).mockResolvedValue([{ oid: "1" }]);
-      (commands.grepCode as any).mockResolvedValue([{ filepath: "file.txt" }]);
+      vi.mocked(commands.searchCommits).mockResolvedValue([{ oid: "1" }]);
+      vi.mocked(commands.grepCode).mockResolvedValue([
+        { filepath: "file.txt" },
+      ]);
 
       await useRepoStore.getState().searchCommits("my query");
       await useRepoStore.getState().grepCode("code query");

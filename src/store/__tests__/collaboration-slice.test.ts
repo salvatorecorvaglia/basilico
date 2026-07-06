@@ -56,7 +56,7 @@ describe("collaboration-slice", () => {
 
   describe("checkoutBranch", () => {
     it("should call checkoutBranch tauri command and refreshAll", async () => {
-      (commands.checkoutBranch as any).mockResolvedValue(undefined);
+      vi.mocked(commands.checkoutBranch).mockResolvedValue(undefined);
 
       await useRepoStore.getState().checkoutBranch("feature-branch");
 
@@ -73,7 +73,7 @@ describe("collaboration-slice", () => {
 
   describe("createBranch", () => {
     it("should call createBranch tauri command and refreshBranches", async () => {
-      (commands.createBranch as any).mockResolvedValue(undefined);
+      vi.mocked(commands.createBranch).mockResolvedValue(undefined);
 
       await useRepoStore.getState().createBranch("new-branch", "main");
 
@@ -91,7 +91,7 @@ describe("collaboration-slice", () => {
 
   describe("deleteBranch", () => {
     it("should call deleteBranch tauri command and refreshBranches", async () => {
-      (commands.deleteBranch as any).mockResolvedValue(undefined);
+      vi.mocked(commands.deleteBranch).mockResolvedValue(undefined);
 
       await useRepoStore.getState().deleteBranch("old-branch", false);
 
@@ -109,7 +109,7 @@ describe("collaboration-slice", () => {
 
   describe("renameBranch", () => {
     it("should call renameBranch tauri command and refreshBranches", async () => {
-      (commands.renameBranch as any).mockResolvedValue(undefined);
+      vi.mocked(commands.renameBranch).mockResolvedValue(undefined);
 
       await useRepoStore.getState().renameBranch("old-name", "new-name");
 
@@ -127,7 +127,7 @@ describe("collaboration-slice", () => {
 
   describe("mergeBranch", () => {
     it("should call mergeBranch and refreshCommitsAndStatus", async () => {
-      (commands.mergeBranch as any).mockResolvedValue("success");
+      vi.mocked(commands.mergeBranch).mockResolvedValue("success");
 
       const result = await useRepoStore.getState().mergeBranch("feature");
 
@@ -147,7 +147,7 @@ describe("collaboration-slice", () => {
 
   describe("fetch, pull, and push", () => {
     it("should fetch from remote and refreshAll", async () => {
-      (commands.fetch as any).mockResolvedValue(undefined);
+      vi.mocked(commands.fetch).mockResolvedValue(undefined);
 
       await useRepoStore.getState().fetch("origin");
 
@@ -158,7 +158,7 @@ describe("collaboration-slice", () => {
     });
 
     it("should pull from remote and refreshAll", async () => {
-      (commands.pull as any).mockResolvedValue("success");
+      vi.mocked(commands.pull).mockResolvedValue("success");
 
       const result = await useRepoStore.getState().pull("origin", "main");
 
@@ -175,7 +175,7 @@ describe("collaboration-slice", () => {
     });
 
     it("should push to remote and refreshAll", async () => {
-      (commands.push as any).mockResolvedValue(undefined);
+      vi.mocked(commands.push).mockResolvedValue(undefined);
 
       await useRepoStore.getState().push("origin", "main", true);
 
@@ -195,7 +195,7 @@ describe("collaboration-slice", () => {
   describe("error handling with withLoading", () => {
     it("should capture and set error in errors map when action fails", async () => {
       const err = new Error("Network connection lost");
-      (commands.fetch as any).mockRejectedValue(err);
+      vi.mocked(commands.fetch).mockRejectedValue(err);
 
       await expect(useRepoStore.getState().fetch("origin")).rejects.toThrow(
         "Network connection lost",

@@ -5,9 +5,10 @@ import {
   setLoading,
   withLoading,
 } from "../store-helpers";
+import type { RepoState } from "../types";
 
 // Minimal mock for store state
-function createMockStore(overrides = {}) {
+function createMockStore(overrides: Partial<RepoState> = {}) {
   const state = {
     loadingStates: {
       global: false,
@@ -27,16 +28,18 @@ function createMockStore(overrides = {}) {
     error: null,
     errors: {},
     ...overrides,
-  };
+  } as unknown as RepoState;
 
-  const get = vi.fn(() => state as any);
-  const set = vi.fn((update: any) => {
-    if (typeof update === "function") {
-      Object.assign(state, update(state));
-    } else {
-      Object.assign(state, update);
-    }
-  });
+  const get = vi.fn(() => state);
+  const set = vi.fn(
+    (update: Partial<RepoState> | ((s: RepoState) => Partial<RepoState>)) => {
+      if (typeof update === "function") {
+        Object.assign(state, update(state));
+      } else {
+        Object.assign(state, update);
+      }
+    },
+  );
 
   return { state, get, set };
 }

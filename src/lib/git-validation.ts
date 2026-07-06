@@ -64,6 +64,7 @@ export function validateBranchName(name: string): string | null {
   }
 
   // Cannot contain ASCII control characters, space, ~, ^, :, ?, [, \, *
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: we need to match control characters to validate git branch names
   const invalidCharsRegex = /[\x00-\x1f\x7f ~^:?[\\*]/;
   const match = name.match(invalidCharsRegex);
   if (match) {
