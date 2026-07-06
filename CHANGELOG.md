@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-07-06
+
+### Fixed
+
+- **Windows Console Window Flash**: Fixed console windows flashing briefly during background Git/process execution (such as during refresh/fetch) on Windows by setting the `CREATE_NO_WINDOW` creation flag on all spawned command-line subprocesses.
+
 ## [0.6.0] - 2026-07-06
 
 ### Added
