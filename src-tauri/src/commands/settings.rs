@@ -101,91 +101,99 @@ pub async fn save_settings(app: tauri::AppHandle, settings: UserSettings) -> Res
 
 #[tauri::command]
 pub async fn generate_ssh_key(comment: String) -> Result<String, AppError> {
-    // Sanitize comment to prevent argument injection
-    let sanitized_comment: String = comment
-        .chars()
-        .filter(|c| {
-            c.is_alphanumeric() || *c == ' ' || *c == '@' || *c == '.' || *c == '-' || *c == '_'
-        })
-        .collect();
-    if sanitized_comment.is_empty() {
-        return Err(AppError::settings(
-            "SSH key comment must contain at least one valid character",
-        ));
-    }
-    let home =
-        dirs::home_dir().ok_or_else(|| AppError::settings("Could not determine home directory"))?;
-    let ssh_dir = home.join(".ssh");
-    let key_path = ssh_dir.join("id_basilico");
+    tokio::task::spawn_blocking(move || {
+        // Sanitize comment to prevent argument injection
+        let sanitized_comment: String = comment
+            .chars()
+            .filter(|c| {
+                c.is_alphanumeric() || *c == ' ' || *c == '@' || *c == '.' || *c == '-' || *c == '_'
+            })
+            .collect();
+        if sanitized_comment.is_empty() {
+            return Err(AppError::settings(
+                "SSH key comment must contain at least one valid character",
+            ));
+        }
+        let home =
+            dirs::home_dir().ok_or_else(|| AppError::settings("Could not determine home directory"))?;
+        let ssh_dir = home.join(".ssh");
+        let key_path = ssh_dir.join("id_basilico");
 
-    // Create .ssh directory if it doesn't exist
-    fs::create_dir_all(&ssh_dir)
-        .map_err(|e| AppError::settings(format!("Failed to create .ssh directory: {}", e)))?;
+        // Create .ssh directory if it doesn't exist
+        fs::create_dir_all(&ssh_dir)
+            .map_err(|e| AppError::settings(format!("Failed to create .ssh directory: {}", e)))?;
 
-    // Check if key already exists
-    if key_path.exists() {
-        // Read and return the existing public key
+        // Check if key already exists
+        if key_path.exists() {
+            // Read and return the existing public key
+            let pub_path = ssh_dir.join("id_basilico.pub");
+            return fs::read_to_string(&pub_path).map_err(|e| {
+                AppError::settings(format!(
+                    "Key already exists but failed to read public key: {}",
+                    e
+                ))
+            });
+        }
+
+        let key_path_str = key_path
+            .to_str()
+            .ok_or_else(|| AppError::settings("Invalid UTF-8 in key path"))?;
+
+        let output = crate::commands::new_command("ssh-keygen")
+            .args([
+                "-t",
+                "ed25519",
+                "-C",
+                &sanitized_comment,
+                "-f",
+                key_path_str,
+                "-N",
+                "",
+            ])
+            .output()
+            .map_err(|e| AppError::command(format!("Failed to run ssh-keygen: {}", e)))?;
+
+        if !output.status.success() {
+            return Err(AppError::command(String::from_utf8_lossy(&output.stderr)));
+        }
+
+        // Read and return the public key
         let pub_path = ssh_dir.join("id_basilico.pub");
-        return fs::read_to_string(&pub_path).map_err(|e| {
+        fs::read_to_string(&pub_path).map_err(|e| {
             AppError::settings(format!(
-                "Key already exists but failed to read public key: {}",
+                "Generated key but failed to read public key: {}",
                 e
             ))
-        });
-    }
-
-    let key_path_str = key_path
-        .to_str()
-        .ok_or_else(|| AppError::settings("Invalid UTF-8 in key path"))?;
-
-    let output = crate::commands::new_command("ssh-keygen")
-        .args([
-            "-t",
-            "ed25519",
-            "-C",
-            &sanitized_comment,
-            "-f",
-            key_path_str,
-            "-N",
-            "",
-        ])
-        .output()
-        .map_err(|e| AppError::command(format!("Failed to run ssh-keygen: {}", e)))?;
-
-    if !output.status.success() {
-        return Err(AppError::command(String::from_utf8_lossy(&output.stderr)));
-    }
-
-    // Read and return the public key
-    let pub_path = ssh_dir.join("id_basilico.pub");
-    fs::read_to_string(&pub_path).map_err(|e| {
-        AppError::settings(format!(
-            "Generated key but failed to read public key: {}",
-            e
-        ))
+        })
     })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
 pub async fn list_ssh_keys() -> Result<Vec<String>, AppError> {
-    let home =
-        dirs::home_dir().ok_or_else(|| AppError::settings("Could not determine home directory"))?;
-    let ssh_dir = home.join(".ssh");
+    tokio::task::spawn_blocking(move || {
+        let home =
+            dirs::home_dir().ok_or_else(|| AppError::settings("Could not determine home directory"))?;
+        let ssh_dir = home.join(".ssh");
 
-    if !ssh_dir.exists() {
-        return Ok(Vec::new());
-    }
-
-    let known_key_names = ["id_rsa", "id_ed25519", "id_ecdsa", "id_dsa", "id_basilico"];
-
-    let mut found_keys = Vec::new();
-
-    for name in &known_key_names {
-        let key_path = ssh_dir.join(name);
-        if key_path.exists() {
-            found_keys.push(name.to_string());
+        if !ssh_dir.exists() {
+            return Ok(Vec::new());
         }
-    }
 
-    Ok(found_keys)
+        let known_key_names = ["id_rsa", "id_ed25519", "id_ecdsa", "id_dsa", "id_basilico"];
+
+        let mut found_keys = Vec::new();
+
+        for name in &known_key_names {
+            let key_path = ssh_dir.join(name);
+            if key_path.exists() {
+                found_keys.push(name.to_string());
+            }
+        }
+
+        Ok(found_keys)
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }

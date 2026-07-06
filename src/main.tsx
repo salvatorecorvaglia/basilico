@@ -32,17 +32,28 @@ self.MonacoEnvironment = {
 // Configure the loader to use the local monaco instance instead of fetching from CDN
 loader.config({ monaco });
 
-// Configure Monaco Editor themes globally
-loader.init().then((monacoInstance) => {
+/**
+ * Reads CSS custom properties from the DOM to derive Monaco theme colors.
+ * Falls back to sensible defaults if variables are not defined.
+ */
+function getCssVar(name: string, fallback: string): string {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+  return value || fallback;
+}
+
+function defineMonacoThemes(monacoInstance: typeof monaco) {
+
   monacoInstance.editor.defineTheme("basilico-dark", {
     base: "vs-dark",
     inherit: true,
     rules: [],
     colors: {
-      "editor.background": "#0d0d11", // matches var(--bg-surface) in dark mode
-      "editor.lineHighlightBackground": "#1c1c27", // matches var(--bg-hover) in dark mode
-      "editorLineNumber.foreground": "#60606a",
-      "editorLineNumber.activeForeground": "#a1a1aa",
+      "editor.background": getCssVar("--bg-surface", "#0d0d11"),
+      "editor.lineHighlightBackground": getCssVar("--bg-hover", "#1c1c27"),
+      "editorLineNumber.foreground": getCssVar("--text-tertiary", "#60606a"),
+      "editorLineNumber.activeForeground": getCssVar("--text-secondary", "#a1a1aa"),
     },
   });
   monacoInstance.editor.defineTheme("basilico-light", {
@@ -50,11 +61,25 @@ loader.init().then((monacoInstance) => {
     inherit: true,
     rules: [],
     colors: {
-      "editor.background": "#ffffff", // matches var(--bg-surface) in light mode
-      "editor.lineHighlightBackground": "#f1f3f6", // matches var(--bg-hover) in light mode
-      "editorLineNumber.foreground": "#94a3b8",
-      "editorLineNumber.activeForeground": "#0f172a",
+      "editor.background": getCssVar("--bg-surface", "#ffffff"),
+      "editor.lineHighlightBackground": getCssVar("--bg-hover", "#f1f3f6"),
+      "editorLineNumber.foreground": getCssVar("--text-tertiary", "#94a3b8"),
+      "editorLineNumber.activeForeground": getCssVar("--text-secondary", "#0f172a"),
     },
+  });
+}
+
+// Configure Monaco Editor themes globally
+loader.init().then((monacoInstance) => {
+  defineMonacoThemes(monacoInstance);
+
+  // Re-define themes when the data-theme attribute changes
+  const observer = new MutationObserver(() => {
+    defineMonacoThemes(monacoInstance);
+  });
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme", "class"],
   });
 });
 

@@ -17,13 +17,10 @@ export const THEME_PRESETS: ThemePreset[] = [
   { id: "ocean-teal", color: "#2dd4bf" },
 ];
 
-/** Apply a theme preset to the DOM by updating CSS custom properties */
+/** Apply a theme preset to the DOM by updating the data-theme attribute */
 export function applyThemeToDOM(themeId: string): void {
   const preset = THEME_PRESETS.find((p) => p.id === themeId);
   if (preset) {
-    document.documentElement.style.setProperty(
-      "--accent-primary",
-      preset.color,
-    );
+    document.documentElement.setAttribute("data-theme", themeId);
   }
 }

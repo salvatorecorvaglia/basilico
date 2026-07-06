@@ -25,7 +25,8 @@ pub mod worktree;
 /// when running as a packaged GUI application.
 pub fn new_command(program: &str) -> std::process::Command {
     let mut cmd = std::process::Command::new(program);
-    cmd.env("LANG", "C").env("LC_ALL", "C");
+    // Use UTF-8 locale instead of C locale to support Unicode filenames
+    cmd.env("LANG", "en_US.UTF-8").env("LC_ALL", "en_US.UTF-8");
     #[cfg(target_os = "macos")]
     {
         if let Ok(current_path) = std::env::var("PATH") {

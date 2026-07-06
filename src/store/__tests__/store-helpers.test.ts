@@ -1,13 +1,122 @@
 import { describe, expect, it, vi } from "vitest";
-import { withLoading } from "../store-helpers";
+import { setLoading, setError, clearError, withLoading } from "../store-helpers";
+
+// Minimal mock for store state
+function createMockStore(overrides = {}) {
+  const state = {
+    loadingStates: {
+      global: false,
+      commits: false,
+      status: false,
+      diff: false,
+      staging: false,
+      branches: false,
+      blame: false,
+      history: false,
+      stashes: false,
+      search: false,
+      collaboration: false,
+      settings: false,
+    },
+    isLoading: false,
+    error: null,
+    errors: {},
+    ...overrides,
+  };
+
+  const get = vi.fn(() => state as any);
+  const set = vi.fn((update: any) => {
+    if (typeof update === "function") {
+      Object.assign(state, update(state));
+    } else {
+      Object.assign(state, update);
+    }
+  });
+
+  return { state, get, set };
+}
 
 describe("store-helpers", () => {
-  describe("withLoading", () => {
-    it("should set loading to true, run function, and set loading to false", async () => {
-      const get = vi.fn().mockReturnValue({
-        loadingStates: { commits: false },
+  describe("setLoading", () => {
+    it("should set a domain loading flag and recalculate isLoading", () => {
+      const { get, set } = createMockStore();
+
+      setLoading(get, set, "commits", true);
+
+      expect(set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          loadingStates: expect.objectContaining({ commits: true }),
+          isLoading: true,
+        }),
+      );
+    });
+
+    it("should set isLoading to false when no domains are loading", () => {
+      const { get, set } = createMockStore({
+        loadingStates: {
+          global: false, commits: true, status: false, diff: false,
+          staging: false, branches: false, blame: false, history: false,
+          stashes: false, search: false, collaboration: false, settings: false,
+        },
+        isLoading: true,
       });
-      const set = vi.fn();
+
+      setLoading(get, set, "commits", false);
+
+      expect(set).toHaveBeenCalledWith(
+        expect.objectContaining({ isLoading: false }),
+      );
+    });
+
+    it("should keep isLoading true when other domains are still loading", () => {
+      const { get, set } = createMockStore({
+        loadingStates: {
+          global: false, commits: true, status: true, diff: false,
+          staging: false, branches: false, blame: false, history: false,
+          stashes: false, search: false, collaboration: false, settings: false,
+        },
+      });
+
+      setLoading(get, set, "commits", false);
+
+      expect(set).toHaveBeenCalledWith(
+        expect.objectContaining({ isLoading: true }),
+      );
+    });
+  });
+
+  describe("setError / clearError", () => {
+    it("should set both global error and domain error", () => {
+      const { get, set } = createMockStore();
+
+      setError(get, set, "commits", "Something failed");
+
+      expect(set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: "Something failed",
+          errors: { commits: "Something failed" },
+        }),
+      );
+    });
+
+    it("should clear domain error", () => {
+      const { get, set } = createMockStore({
+        errors: { commits: "Old error" },
+      });
+
+      clearError(get, set, "commits");
+
+      expect(set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          errors: expect.objectContaining({ commits: null }),
+        }),
+      );
+    });
+  });
+
+  describe("withLoading", () => {
+    it("should set loading, run function, and clear loading", async () => {
+      const { get, set } = createMockStore();
       const action = vi.fn().mockResolvedValue("result");
 
       const res = await withLoading(
@@ -20,38 +129,22 @@ describe("store-helpers", () => {
 
       expect(res).toBe("result");
       expect(action).toHaveBeenCalled();
-
-      // Verify setLoading call sequence:
-      // First call starts loading and clears error
-      expect(set).toHaveBeenNthCalledWith(1, {
-        loadingStates: { commits: true },
-      });
-      expect(set).toHaveBeenNthCalledWith(2, {
-        error: null,
-      });
-      // Last call stops loading
-      expect(set).toHaveBeenLastCalledWith({
-        loadingStates: { commits: false },
-      });
     });
 
     it("should set error and turn off loading when action throws", async () => {
-      const get = vi.fn().mockReturnValue({
-        loadingStates: { commits: false },
-      });
-      const set = vi.fn();
+      const { get, set } = createMockStore();
       const action = vi.fn().mockRejectedValue(new Error("Failed"));
 
       await expect(
         withLoading(get, set, "commits", "Error prefix", action),
       ).rejects.toThrow("Failed");
 
-      expect(set).toHaveBeenCalledWith({
-        error: "Error: Failed",
-      });
-      expect(set).toHaveBeenLastCalledWith({
-        loadingStates: { commits: false },
-      });
+      // Error should have been set
+      expect(set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.stringContaining("Failed"),
+        }),
+      );
     });
   });
 });

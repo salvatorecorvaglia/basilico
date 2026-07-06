@@ -188,6 +188,28 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
             .and_then(|path| file_map.get(path).copied());
 
         if let Some(idx) = file_idx {
+            // Truncate parsing if diff is too large
+            let total_lines: usize = files[idx].hunks.iter().map(|h| h.lines.len()).sum();
+            if total_lines > 5000 {
+                let already_truncated = files[idx].hunks.last().map(|h| h.header == "Truncated").unwrap_or(false);
+                if !already_truncated {
+                    files[idx].hunks.push(DiffHunkInfo {
+                        header: "Truncated".to_string(),
+                        old_start: 0,
+                        old_lines: 0,
+                        new_start: 0,
+                        new_lines: 0,
+                        lines: vec![DiffLineInfo {
+                            origin: "info".to_string(),
+                            content: "Diff truncated: too many lines to display.".to_string(),
+                            old_lineno: None,
+                            new_lineno: None,
+                        }],
+                    });
+                }
+                return true;
+            }
+
             if let Some(hunk_info) = hunk {
                 let header = String::from_utf8_lossy(hunk_info.header())
                     .trim()

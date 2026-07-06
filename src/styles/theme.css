@@ -32,8 +32,8 @@
   --text-link: light-dark(#4f46e5, #6366f1);
   --text-inverse: light-dark(#ffffff, #09090b);
 
-  /* ── Accents (Sleek Violet/Indigo) ── */
-  --accent-primary: light-dark(#4f46e5, #6366f1);
+  /* ── Accents (Sage Green default) ── */
+  --accent-primary: light-dark(#2ea043, #3fb950);
   --accent-primary-hover: light-dark(
     color-mix(in srgb, var(--accent-primary) 85%, black),
     color-mix(in srgb, var(--accent-primary) 85%, white)
@@ -164,3 +164,29 @@
   --color-primary-hover: var(--accent-primary-hover);
   --color-danger-hover: color-mix(in srgb, var(--color-danger) 85%, white);
 }
+
+/* ── Dynamic Accent Theme Presets with Dark/Light Support ── */
+:root[data-theme="sage-green"] {
+  --accent-primary: light-dark(#2ea043, #3fb950);
+}
+
+:root[data-theme="royal-blue"] {
+  --accent-primary: light-dark(#1f6feb, #38bdf8);
+}
+
+:root[data-theme="amethyst-purple"] {
+  --accent-primary: light-dark(#8b5cf6, #a78bfa);
+}
+
+:root[data-theme="amber-gold"] {
+  --accent-primary: light-dark(#d29922, #fbbf24);
+}
+
+:root[data-theme="crimson-red"] {
+  --accent-primary: light-dark(#f85149, #ff7b72);
+}
+
+:root[data-theme="ocean-teal"] {
+  --accent-primary: light-dark(#2dd4bf, #5eead4);
+}
+

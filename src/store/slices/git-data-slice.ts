@@ -183,13 +183,17 @@ export const createGitDataSlice: StateCreator<
 
     set({ isRefreshing: true, error: null });
     try {
-      const [status, commits] = await Promise.all([
+      // Only refresh status + branches on filesystem change, NOT the full commit log.
+      // The commit log is expensive (500 commits + graph layout) and doesn't change on file saves.
+      // Include branches so CLI-created/deleted branches are reflected in the sidebar.
+      const [status, branches, tags] = await Promise.all([
         commands.getStatus(activeTabId, { silent: true }),
-        commands.getLog(activeTabId, 500, { silent: true }),
+        commands.listBranches(activeTabId, { silent: true }),
+        commands.listTags(activeTabId, { silent: true }),
       ]);
       // Guard: only apply if still the same tab
       if (get().refreshGeneration === refreshGeneration) {
-        set({ status, commits });
+        set({ status, branches, tags });
       }
     } catch (err) {
       console.error("Failed to refresh on file change:", err);

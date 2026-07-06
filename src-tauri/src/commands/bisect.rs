@@ -73,11 +73,15 @@ pub async fn bisect_start(
     bad: String,
     good: String,
 ) -> Result<BisectState, AppError> {
-    // First run reset to clear any stale bisect state
-    let _ = run_git_cmd(&repo_path, &["bisect", "reset"]);
+    tokio::task::spawn_blocking(move || {
+        // First run reset to clear any stale bisect state
+        let _ = run_git_cmd(&repo_path, &["bisect", "reset"]);
 
-    let output = run_git_cmd(&repo_path, &["bisect", "start", &bad, &good])?;
-    Ok(get_bisect_state(&repo_path, output))
+        let output = run_git_cmd(&repo_path, &["bisect", "start", &bad, &good])?;
+        Ok(get_bisect_state(&repo_path, output))
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
@@ -85,12 +89,20 @@ pub async fn bisect_mark(
     repo_path: String,
     status: String, // "good", "bad", "skip"
 ) -> Result<BisectState, AppError> {
-    let output = run_git_cmd(&repo_path, &["bisect", &status])?;
-    Ok(get_bisect_state(&repo_path, output))
+    tokio::task::spawn_blocking(move || {
+        let output = run_git_cmd(&repo_path, &["bisect", &status])?;
+        Ok(get_bisect_state(&repo_path, output))
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
 pub async fn bisect_reset(repo_path: String) -> Result<(), AppError> {
-    run_git_cmd(&repo_path, &["bisect", "reset"])?;
-    Ok(())
+    tokio::task::spawn_blocking(move || {
+        run_git_cmd(&repo_path, &["bisect", "reset"])?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }

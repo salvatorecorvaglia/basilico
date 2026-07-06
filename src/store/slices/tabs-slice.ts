@@ -11,6 +11,9 @@ export interface TabsSlice {
   switchTab: (tabId: string) => void;
 }
 
+/** Tracks in-flight openRepository calls to prevent duplicate concurrent opens */
+const pendingOpens = new Set<string>();
+
 export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
   set,
   get,
@@ -19,6 +22,10 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
   activeTabId: null,
 
   openRepository: async (path: string) => {
+    // Deduplicate concurrent calls for the same path
+    if (pendingOpens.has(path)) return;
+    pendingOpens.add(path);
+
     set({
       loadingStates: { ...get().loadingStates, global: true },
       error: null,
@@ -58,6 +65,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
       throw err;
     } finally {
       set({ loadingStates: { ...get().loadingStates, global: false } });
+      pendingOpens.delete(path);
     }
   },
 
@@ -101,25 +109,29 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
         selectedFileIsStaged: false,
         localDiff: null,
         loadingStates: { ...INITIAL_LOADING_STATES },
+        isLoading: false,
         error: null,
+        errors: {},
         // Increment generation to invalidate in-flight async responses from old tab
         refreshGeneration: get().refreshGeneration + 1,
       });
 
       // If there's a new active tab, reload its data
+      // Surface errors to user instead of swallowing them silently
       if (newActive) {
         get()
           .refreshAll()
-          .catch((err) =>
-            console.error("Failed to refresh after tab close:", err),
-          );
+          .catch((err) => {
+            console.error("Failed to refresh after tab close:", err);
+            set({ error: String(err) });
+          });
       }
     } else {
       set({ tabs: filtered });
     }
 
     // Tell Rust to clean up
-    commands.closeRepo(tabId, { silent: true }).catch(() => {});
+    commands.closeRepo(tabId, { silent: true }).catch(() => { });
   },
 
   switchTab: (tabId: string) => {
@@ -148,15 +160,18 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
       selectedFileIsStaged: false,
       localDiff: null,
       error: null,
+      errors: {},
       // Increment generation to invalidate in-flight async responses from old tab
       refreshGeneration: state.refreshGeneration + 1,
     }));
 
     // Reload data for the new active tab
+    // Surface errors to user instead of swallowing them silently
     get()
       .refreshAll()
-      .catch((err) =>
-        console.error("Failed to refresh after tab switch:", err),
-      );
+      .catch((err) => {
+        console.error("Failed to refresh after tab switch:", err);
+        set({ error: String(err) });
+      });
   },
 });

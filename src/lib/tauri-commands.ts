@@ -4,6 +4,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { useUIStore } from "../store/ui-store";
+import { friendlyErrorMessage } from "./error-messages";
 import type {
   AppError,
   BisectState,
@@ -74,9 +75,11 @@ async function invokeCommand<T>(
 
     if (!options?.silent) {
       const prefix = options?.errorPrefix ? `${options.errorPrefix}: ` : "";
+      // Convert raw git errors to user-friendly messages
+      const friendly = friendlyErrorMessage(appError.message);
       useUIStore.getState().addNotification({
         type: "error",
-        message: `${prefix}${appError.message}`,
+        message: `${prefix}${friendly}`,
       });
     }
 

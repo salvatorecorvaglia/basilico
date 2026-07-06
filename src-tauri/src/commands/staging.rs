@@ -61,7 +61,21 @@ pub async fn unstage_files(path: String, files: Vec<String>) -> Result<(), AppEr
 pub async fn apply_patch(path: String, patch: String, location: String) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
+        let workdir = repo
+            .workdir()
+            .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
         let diff = git2::Diff::from_buffer(patch.as_bytes())?;
+
+        // Validate all file paths in the patch to prevent directory traversal
+        for delta in diff.deltas() {
+            if let Some(old_path) = delta.old_file().path() {
+                crate::git::utils::validate_path(workdir, old_path)?;
+            }
+            if let Some(new_path) = delta.new_file().path() {
+                crate::git::utils::validate_path(workdir, new_path)?;
+            }
+        }
+
         let mut apply_opts = ApplyOptions::new();
 
         let apply_loc = match location.as_str() {
@@ -236,6 +250,41 @@ mod tests {
         .await;
         assert!(err4.is_err());
         assert_contains(&err4.unwrap_err().message, "Path traversal is not allowed");
+    }
+
+    #[tokio::test]
+    async fn test_apply_patch_rejects_path_traversal() {
+        let repo = TempRepo::new();
+        repo.write_file("dummy.txt", "initial");
+        repo.commit("initial");
+
+        // Craft a patch that tries to write to ../../evil.txt
+        let traversal_patch = "\
+diff --git a/../../evil.txt b/../../evil.txt
+new file mode 100644
+--- /dev/null
++++ b/../../evil.txt
+@@ -0,0 +1 @@
++malicious content
+";
+
+        let result = apply_patch(
+            repo.path_str().to_string(),
+            traversal_patch.to_string(),
+            "workdir".to_string(),
+        )
+        .await;
+
+        assert!(
+            result.is_err(),
+            "Expected error for path traversal in patch"
+        );
+        let err = result.unwrap_err();
+        assert!(
+            err.message.contains("traversal") || err.message.contains("not allowed"),
+            "Expected path traversal error, got: {}",
+            err.message
+        );
     }
 
     fn assert_contains(msg: &str, sub: &str) {

@@ -14,16 +14,7 @@
   <script>
     (function () {
       const theme = localStorage.getItem('basilico-theme') || 'sage-green';
-      const presets = {
-        'sage-green': '#2ea043',
-        'royal-blue': '#1f6feb',
-        'amethyst-purple': '#8b5cf6',
-        'amber-gold': '#d29922',
-        'crimson-red': '#f85149',
-        'ocean-teal': '#2dd4bf'
-      };
-      const color = presets[theme] || '#2ea043';
-      document.documentElement.style.setProperty('--accent-primary', color);
+      document.documentElement.setAttribute('data-theme', theme);
     })();
   </script>
 </head>

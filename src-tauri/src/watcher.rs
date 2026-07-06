@@ -28,11 +28,14 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
         };
 
         let watch_path = Path::new(&repo_path);
+
+        // Watch root recursively so new top-level directories are automatically covered.
+        // The event filter below handles ignoring node_modules/target/etc.
         if let Err(e) = debouncer
             .watcher()
             .watch(watch_path, RecursiveMode::Recursive)
         {
-            log::error!("Failed to watch path {}: {}", repo_path, e);
+            log::error!("Failed to watch root path {}: {}", repo_path, e);
             return;
         }
 

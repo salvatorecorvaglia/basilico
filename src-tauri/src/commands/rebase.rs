@@ -29,47 +29,51 @@ pub async fn rebase_init(
     repo_path: String,
     upstream: String,
 ) -> Result<Vec<RebaseTodoItem>, AppError> {
-    let repo = Repository::open(&repo_path)?;
+    tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&repo_path)?;
 
-    let mut rebase = if let Ok(r) = repo.open_rebase(None) {
-        r
-    } else {
-        let upstream_obj = repo.revparse_single(&upstream)?;
-        let upstream_commit = repo.find_annotated_commit(upstream_obj.id())?;
+        let mut rebase = if let Ok(r) = repo.open_rebase(None) {
+            r
+        } else {
+            let upstream_obj = repo.revparse_single(&upstream)?;
+            let upstream_commit = repo.find_annotated_commit(upstream_obj.id())?;
 
-        let mut opts = RebaseOptions::new();
-        repo.rebase(None, Some(&upstream_commit), None, Some(&mut opts))?
-    };
+            let mut opts = RebaseOptions::new();
+            repo.rebase(None, Some(&upstream_commit), None, Some(&mut opts))?
+        };
 
-    let mut items = Vec::new();
-    let count = rebase.len();
-    for i in 0..count {
-        if let Some(op) = rebase.nth(i) {
-            let oid = op.id();
-            let summary = repo
-                .find_commit(oid)
-                .map(|c| c.summary().unwrap_or("").to_string())
-                .unwrap_or_default();
+        let mut items = Vec::new();
+        let count = rebase.len();
+        for i in 0..count {
+            if let Some(op) = rebase.nth(i) {
+                let oid = op.id();
+                let summary = repo
+                    .find_commit(oid)
+                    .map(|c| c.summary().unwrap_or("").to_string())
+                    .unwrap_or_default();
 
-            let action = match op.kind().unwrap_or(git2::RebaseOperationType::Pick) {
-                git2::RebaseOperationType::Pick => "pick",
-                git2::RebaseOperationType::Reword => "reword",
-                git2::RebaseOperationType::Edit => "edit",
-                git2::RebaseOperationType::Squash => "squash",
-                git2::RebaseOperationType::Fixup => "fixup",
-                git2::RebaseOperationType::Exec => "exec",
+                let action = match op.kind().unwrap_or(git2::RebaseOperationType::Pick) {
+                    git2::RebaseOperationType::Pick => "pick",
+                    git2::RebaseOperationType::Reword => "reword",
+                    git2::RebaseOperationType::Edit => "edit",
+                    git2::RebaseOperationType::Squash => "squash",
+                    git2::RebaseOperationType::Fixup => "fixup",
+                    git2::RebaseOperationType::Exec => "exec",
+                }
+                .to_string();
+
+                items.push(RebaseTodoItem {
+                    action,
+                    oid: oid.to_string(),
+                    summary,
+                });
             }
-            .to_string();
-
-            items.push(RebaseTodoItem {
-                action,
-                oid: oid.to_string(),
-                summary,
-            });
         }
-    }
 
-    Ok(items)
+        Ok(items)
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
@@ -77,21 +81,25 @@ pub async fn rebase_write_todo(
     repo_path: String,
     items: Vec<RebaseTodoItem>,
 ) -> Result<(), AppError> {
-    let repo = Repository::open(&repo_path)?;
-    let todo_path = repo.path().join("rebase-merge/git-rebase-todo");
+    tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&repo_path)?;
+        let todo_path = repo.path().join("rebase-merge/git-rebase-todo");
 
-    let mut content = String::new();
-    for item in items {
-        let short_oid = if item.oid.len() >= 7 {
-            &item.oid[0..7]
-        } else {
-            &item.oid
-        };
-        content.push_str(&format!("{} {} {}\n", item.action, short_oid, item.summary));
-    }
+        let mut content = String::new();
+        for item in items {
+            let short_oid = if item.oid.len() >= 7 {
+                &item.oid[0..7]
+            } else {
+                &item.oid
+            };
+            content.push_str(&format!("{} {} {}\n", item.action, short_oid, item.summary));
+        }
 
-    fs::write(todo_path, content)?;
-    Ok(())
+        fs::write(todo_path, content)?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
@@ -100,99 +108,91 @@ pub async fn rebase_step(
     action: String,
     commit_message: Option<String>,
 ) -> Result<RebaseStatus, AppError> {
-    let repo = Repository::open(&repo_path)?;
-    let mut rebase = repo.open_rebase(None)?;
+    tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&repo_path)?;
+        let mut rebase = repo.open_rebase(None)?;
 
-    let signature = repo
-        .signature()
-        .unwrap_or_else(|_| Signature::now("Basilico User", "user@basilico.io").unwrap());
+        let signature = repo
+            .signature()
+            .unwrap_or_else(|_| Signature::now("Basilico User", "user@basilico.io").unwrap());
 
-    if action == "abort" {
-        rebase.abort()?;
-        return Ok(RebaseStatus {
-            status: "none".to_string(),
-            current_oid: None,
-            message: Some("Rebase aborted".to_string()),
-        });
-    }
-
-    if action == "skip" {
-        let head = repo.head()?;
-        let commit = head.peel_to_commit()?;
-        let obj = commit.into_object();
-        let mut opts = git2::build::CheckoutBuilder::new();
-        opts.force();
-        repo.checkout_tree(&obj, Some(&mut opts))?;
-    }
-
-    if action == "continue" {
-        let index = repo.index()?;
-        if index.has_conflicts() {
-            return Err(AppError::conflict(
-                "Cannot continue rebase while there are merge conflicts.",
-            ));
+        if action == "abort" {
+            rebase.abort()?;
+            return Ok(RebaseStatus {
+                status: "none".to_string(),
+                current_oid: None,
+                message: Some("Rebase aborted".to_string()),
+            });
         }
-        rebase.commit(None, &signature, commit_message.as_deref())?;
-    }
 
-    let next_op = match rebase.next() {
-        Some(Ok(op)) => Some(op),
-        None => None,
-        Some(Err(e)) => return Err(AppError::from(e)),
-    };
+        if action == "skip" {
+            let head = repo.head()?;
+            let commit = head.peel_to_commit()?;
+            let obj = commit.into_object();
+            let mut opts = git2::build::CheckoutBuilder::new();
+            opts.force();
+            repo.checkout_tree(&obj, Some(&mut opts))?;
+        }
 
-    let status = match next_op {
-        Some(op) => {
-            let oid = op.id();
+        if action == "continue" {
             let index = repo.index()?;
             if index.has_conflicts() {
-                RebaseStatus {
+                return Err(AppError::conflict(
+                    "Cannot continue rebase while there are merge conflicts.",
+                ));
+            }
+            rebase.commit(None, &signature, commit_message.as_deref())?;
+        }
+
+        loop {
+            let next_op = match rebase.next() {
+                Some(Ok(op)) => op,
+                None => {
+                    rebase.finish(None)?;
+                    return Ok(RebaseStatus {
+                        status: "finished".to_string(),
+                        current_oid: None,
+                        message: Some("Rebase completed successfully".to_string()),
+                    });
+                }
+                Some(Err(e)) => return Err(AppError::from(e)),
+            };
+
+            let oid = next_op.id();
+            let index = repo.index()?;
+            if index.has_conflicts() {
+                return Ok(RebaseStatus {
                     status: "conflict".to_string(),
                     current_oid: Some(oid.to_string()),
                     message: Some(format!("Conflict at commit {}", oid)),
-                }
-            } else {
-                let kind = op.kind().unwrap_or(git2::RebaseOperationType::Pick);
-                match kind {
-                    git2::RebaseOperationType::Edit => RebaseStatus {
+                });
+            }
+
+            let kind = next_op.kind().unwrap_or(git2::RebaseOperationType::Pick);
+            match kind {
+                git2::RebaseOperationType::Edit => {
+                    return Ok(RebaseStatus {
                         status: "edit".to_string(),
                         current_oid: Some(oid.to_string()),
                         message: Some(format!("Paused for editing at commit {}", oid)),
-                    },
-                    git2::RebaseOperationType::Reword => RebaseStatus {
+                    });
+                }
+                git2::RebaseOperationType::Reword => {
+                    return Ok(RebaseStatus {
                         status: "reword".to_string(),
                         current_oid: Some(oid.to_string()),
                         message: Some(format!("Paused for rewording at commit {}", oid)),
-                    },
-                    _ => {
-                        // Pick, Squash, Fixup, Exec: auto commit
-                        match rebase.commit(None, &signature, None) {
-                            Ok(_) => RebaseStatus {
-                                status: "stepping".to_string(),
-                                current_oid: Some(oid.to_string()),
-                                message: Some(format!("Applied commit {}", oid)),
-                            },
-                            Err(e) => RebaseStatus {
-                                status: "stepping".to_string(),
-                                current_oid: Some(oid.to_string()),
-                                message: Some(format!("Applied commit {} ({})", oid, e)),
-                            },
-                        }
-                    }
+                    });
+                }
+                _ => {
+                    // Pick, Squash, Fixup, Exec: auto commit and loop
+                    rebase.commit(None, &signature, None)?;
                 }
             }
         }
-        None => {
-            rebase.finish(None)?;
-            RebaseStatus {
-                status: "finished".to_string(),
-                current_oid: None,
-                message: Some("Rebase completed successfully".to_string()),
-            }
-        }
-    };
-
-    Ok(status)
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[cfg(test)]
@@ -251,5 +251,44 @@ mod tests {
         // Read it back by opening rebase to verify
         let rebase = repo.repo.open_rebase(None).unwrap();
         assert_eq!(rebase.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_rebase_step_loop() {
+        let repo = TempRepo::new();
+        repo.write_file("test.txt", "initial");
+        repo.commit("initial");
+
+        let base_oid = repo.repo.head().unwrap().target().unwrap();
+
+        crate::commands::branch::create_branch(
+            repo.path_str().to_string(),
+            "branch1".to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+        crate::commands::branch::checkout_branch(
+            repo.path_str().to_string(),
+            "branch1".to_string(),
+        )
+        .await
+        .unwrap();
+
+        repo.write_file("test2.txt", "hello 2");
+        repo.commit("commit 2");
+
+        repo.write_file("test3.txt", "hello 3");
+        repo.commit("commit 3");
+
+        let _todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
+            .await
+            .unwrap();
+
+        let status = rebase_step(repo.path_str().to_string(), "none".to_string(), None)
+            .await
+            .unwrap();
+
+        assert_eq!(status.status, "finished");
     }
 }

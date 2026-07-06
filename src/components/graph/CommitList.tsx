@@ -444,10 +444,14 @@ export function CommitList() {
     });
   };
 
-  if (commits.length === 0) {
+  if (commits.length === 0 && !isLoading) {
     return (
       <div className="commit-list-empty">
-        <p>No commits to display</p>
+        <GitBranch size={32} className="text-tertiary" style={{ marginBottom: "var(--space-3)" }} />
+        <p style={{ fontWeight: 500, marginBottom: "var(--space-2)" }}>No commits yet</p>
+        <p className="text-tertiary" style={{ fontSize: "var(--font-size-sm)", maxWidth: "280px", textAlign: "center", lineHeight: 1.5 }}>
+          This repository has no commits. Stage some files and create your first commit to get started.
+        </p>
       </div>
     );
   }

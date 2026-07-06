@@ -17,69 +17,73 @@ pub struct WorktreeInfo {
 
 #[tauri::command]
 pub async fn list_worktrees(repo_path: String) -> Result<Vec<WorktreeInfo>, AppError> {
-    let output = crate::commands::new_command("git")
-        .args(["worktree", "list", "--porcelain"])
-        .current_dir(&repo_path)
-        .output()
-        .map_err(|e| AppError::command(format!("Failed to run git worktree list: {}", e)))?;
+    tokio::task::spawn_blocking(move || {
+        let output = crate::commands::new_command("git")
+            .args(["worktree", "list", "--porcelain"])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| AppError::command(format!("Failed to run git worktree list: {}", e)))?;
 
-    if !output.status.success() {
-        return Err(AppError::git(String::from_utf8_lossy(&output.stderr)));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut worktrees = Vec::new();
-    let mut current_path: Option<String> = None;
-    let mut current_head = String::new();
-    let mut current_branch: Option<String> = None;
-
-    for line in stdout.lines() {
-        if line.starts_with("worktree ") {
-            // Save previous entry if exists
-            if let Some(ref path) = current_path {
-                let name = std::path::Path::new(path)
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| path.clone());
-                worktrees.push(WorktreeInfo {
-                    path: path.clone(),
-                    name,
-                    head: current_head.clone(),
-                    branch: current_branch.take(),
-                });
-            }
-            current_path = Some(line.trim_start_matches("worktree ").to_string());
-            current_head.clear();
-            current_branch = None;
-        } else if line.starts_with("HEAD ") {
-            current_head = line.trim_start_matches("HEAD ").to_string();
-        } else if line.starts_with("branch ") {
-            let branch_ref = line.trim_start_matches("branch ").to_string();
-            // Strip refs/heads/ prefix for display
-            current_branch = Some(
-                branch_ref
-                    .strip_prefix("refs/heads/")
-                    .unwrap_or(&branch_ref)
-                    .to_string(),
-            );
+        if !output.status.success() {
+            return Err(AppError::git(String::from_utf8_lossy(&output.stderr)));
         }
-    }
 
-    // Don't forget the last entry
-    if let Some(ref path) = current_path {
-        let name = std::path::Path::new(path)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| path.clone());
-        worktrees.push(WorktreeInfo {
-            path: path.clone(),
-            name,
-            head: current_head,
-            branch: current_branch,
-        });
-    }
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut worktrees = Vec::new();
+        let mut current_path: Option<String> = None;
+        let mut current_head = String::new();
+        let mut current_branch: Option<String> = None;
 
-    Ok(worktrees)
+        for line in stdout.lines() {
+            if line.starts_with("worktree ") {
+                // Save previous entry if exists
+                if let Some(ref path) = current_path {
+                    let name = std::path::Path::new(path)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_else(|| path.clone());
+                    worktrees.push(WorktreeInfo {
+                        path: path.clone(),
+                        name,
+                        head: current_head.clone(),
+                        branch: current_branch.take(),
+                    });
+                }
+                current_path = Some(line.trim_start_matches("worktree ").to_string());
+                current_head.clear();
+                current_branch = None;
+            } else if line.starts_with("HEAD ") {
+                current_head = line.trim_start_matches("HEAD ").to_string();
+            } else if line.starts_with("branch ") {
+                let branch_ref = line.trim_start_matches("branch ").to_string();
+                // Strip refs/heads/ prefix for display
+                current_branch = Some(
+                    branch_ref
+                        .strip_prefix("refs/heads/")
+                        .unwrap_or(&branch_ref)
+                        .to_string(),
+                );
+            }
+        }
+
+        // Don't forget the last entry
+        if let Some(ref path) = current_path {
+            let name = std::path::Path::new(path)
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| path.clone());
+            worktrees.push(WorktreeInfo {
+                path: path.clone(),
+                name,
+                head: current_head,
+                branch: current_branch,
+            });
+        }
+
+        Ok(worktrees)
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
@@ -89,36 +93,48 @@ pub async fn add_worktree(
     branch: Option<String>,
     new_branch: Option<String>,
 ) -> Result<(), AppError> {
-    // Ensure parent directory exists
-    if let Some(parent) = std::path::Path::new(&path).parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| AppError::io(format!("Failed to create parent directory: {}", e)))?;
+    // Validate path traversal
+    let path_obj = std::path::Path::new(&path);
+    for component in path_obj.components() {
+        if let std::path::Component::ParentDir = component {
+            return Err(AppError::invalid_state("Path traversal is not allowed"));
+        }
     }
 
-    let mut args = vec!["worktree".to_string(), "add".to_string()];
+    tokio::task::spawn_blocking(move || {
+        // Ensure parent directory exists
+        if let Some(parent) = std::path::Path::new(&path).parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| AppError::io(format!("Failed to create parent directory: {}", e)))?;
+        }
 
-    if let Some(ref nb) = new_branch {
-        args.push("-b".to_string());
-        args.push(nb.clone());
-    }
+        let mut args = vec!["worktree".to_string(), "add".to_string()];
 
-    args.push(path);
+        if let Some(ref nb) = new_branch {
+            args.push("-b".to_string());
+            args.push(nb.clone());
+        }
 
-    if let Some(ref b) = branch {
-        args.push(b.clone());
-    }
+        args.push(path);
 
-    let output = crate::commands::new_command("git")
-        .args(&args)
-        .current_dir(&repo_path)
-        .output()
-        .map_err(|e| AppError::command(format!("Failed to run git worktree add: {}", e)))?;
+        if let Some(ref b) = branch {
+            args.push(b.clone());
+        }
 
-    if !output.status.success() {
-        return Err(AppError::git(String::from_utf8_lossy(&output.stderr)));
-    }
+        let output = crate::commands::new_command("git")
+            .args(&args)
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| AppError::command(format!("Failed to run git worktree add: {}", e)))?;
 
-    Ok(())
+        if !output.status.success() {
+            return Err(AppError::git(String::from_utf8_lossy(&output.stderr)));
+        }
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
@@ -127,38 +143,46 @@ pub async fn remove_worktree(
     worktree_path: String,
     force: bool,
 ) -> Result<(), AppError> {
-    let mut args = vec!["worktree", "remove"];
+    tokio::task::spawn_blocking(move || {
+        let mut args = vec!["worktree", "remove"];
 
-    if force {
-        args.push("--force");
-    }
+        if force {
+            args.push("--force");
+        }
 
-    args.push(&worktree_path);
+        args.push(&worktree_path);
 
-    let output = crate::commands::new_command("git")
-        .args(&args)
-        .current_dir(&repo_path)
-        .output()
-        .map_err(|e| AppError::command(format!("Failed to run git worktree remove: {}", e)))?;
+        let output = crate::commands::new_command("git")
+            .args(&args)
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| AppError::command(format!("Failed to run git worktree remove: {}", e)))?;
 
-    if !output.status.success() {
-        return Err(AppError::git(String::from_utf8_lossy(&output.stderr)));
-    }
+        if !output.status.success() {
+            return Err(AppError::git(String::from_utf8_lossy(&output.stderr)));
+        }
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
 pub async fn prune_worktrees(repo_path: String) -> Result<(), AppError> {
-    let output = crate::commands::new_command("git")
-        .args(["worktree", "prune"])
-        .current_dir(&repo_path)
-        .output()
-        .map_err(|e| AppError::command(format!("Failed to run git worktree prune: {}", e)))?;
+    tokio::task::spawn_blocking(move || {
+        let output = crate::commands::new_command("git")
+            .args(["worktree", "prune"])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| AppError::command(format!("Failed to run git worktree prune: {}", e)))?;
 
-    if !output.status.success() {
-        return Err(AppError::git(String::from_utf8_lossy(&output.stderr)));
-    }
+        if !output.status.success() {
+            return Err(AppError::git(String::from_utf8_lossy(&output.stderr)));
+        }
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }

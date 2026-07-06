@@ -103,10 +103,12 @@ export interface RepoState {
 
   // Loading states — per-domain flags prevent concurrent operations from clobbering each other
   loadingStates: LoadingStates;
-  // Derived: true if ANY domain is loading (for backward-compatible simple checks)
+  // Derived: true if ANY domain is loading (recalculated on every setLoading call)
   isLoading: boolean;
   isRefreshing: boolean;
   error: string | null;
+  // Per-domain error states to prevent concurrent operations from clobbering each other
+  errors: Record<string, string | null>;
 
   // Generation counter — incremented on tab switch to detect stale async responses
   refreshGeneration: number;

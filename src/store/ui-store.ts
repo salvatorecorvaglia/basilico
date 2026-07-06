@@ -171,9 +171,22 @@ export const useUIStore = create<UIState>((set, get) => ({
             : 4000);
     const newNotification = { ...notification, id, timeout };
 
-    set((state) => ({
-      notifications: [...state.notifications, newNotification],
-    }));
+    // Cap notification count to prevent unbounded accumulation
+    const MAX_NOTIFICATIONS = 5;
+    const current = get().notifications;
+    let updated = [...current, newNotification];
+    if (updated.length > MAX_NOTIFICATIONS) {
+      const oldest = updated[0];
+      // Clean up the timeout for the removed notification
+      const oldTimeoutId = activeTimeouts.get(oldest.id);
+      if (oldTimeoutId) {
+        clearTimeout(oldTimeoutId);
+        activeTimeouts.delete(oldest.id);
+      }
+      updated = updated.slice(updated.length - MAX_NOTIFICATIONS);
+    }
+
+    set({ notifications: updated });
 
     // Auto-remove after timeout
     const timeoutId = setTimeout(() => {

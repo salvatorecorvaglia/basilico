@@ -5,14 +5,60 @@
 
 import type { RepoState } from "./types";
 
-/** Helper to update a single loading domain flag */
+/** Recalculate whether ANY domain loading flag is set */
+function computeIsLoading(loadingStates: RepoState["loadingStates"]): boolean {
+  return (
+    loadingStates.global ||
+    loadingStates.commits ||
+    loadingStates.status ||
+    loadingStates.diff ||
+    loadingStates.staging ||
+    loadingStates.branches ||
+    loadingStates.blame ||
+    loadingStates.history ||
+    loadingStates.stashes ||
+    loadingStates.search ||
+    loadingStates.collaboration ||
+    loadingStates.settings
+  );
+}
+
+/** Helper to update a single loading domain flag and recalculate isLoading */
 export function setLoading(
   get: () => RepoState,
   set: (s: Partial<RepoState>) => void,
   domain: keyof RepoState["loadingStates"],
   value: boolean,
 ) {
-  set({ loadingStates: { ...get().loadingStates, [domain]: value } });
+  const newLoadingStates = { ...get().loadingStates, [domain]: value };
+  set({
+    loadingStates: newLoadingStates,
+    isLoading: computeIsLoading(newLoadingStates),
+  });
+}
+
+/** Helper to set a per-domain error */
+export function setError(
+  get: () => RepoState,
+  set: (s: Partial<RepoState>) => void,
+  domain: string,
+  message: string | null,
+) {
+  set({
+    error: message, // backward compat: also set the global error
+    errors: { ...get().errors, [domain]: message },
+  });
+}
+
+/** Helper to clear a per-domain error */
+export function clearError(
+  get: () => RepoState,
+  set: (s: Partial<RepoState>) => void,
+  domain: string,
+) {
+  set({
+    errors: { ...get().errors, [domain]: null },
+  });
 }
 
 /**
@@ -29,12 +75,12 @@ export async function withLoading<T>(
   fn: () => Promise<T>,
 ): Promise<T> {
   setLoading(get, set, domain, true);
-  set({ error: null });
+  clearError(get, set, domain);
   try {
     return await fn();
   } catch (err) {
     console.error(`${errorLabel}:`, err);
-    set({ error: String(err) });
+    setError(get, set, domain, String(err));
     throw err;
   } finally {
     setLoading(get, set, domain, false);

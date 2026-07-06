@@ -9,7 +9,7 @@ import type {
   WorktreeInfo,
 } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
-import { setLoading } from "../store-helpers";
+import { withLoading } from "../store-helpers";
 import type { RepoState } from "../types";
 
 export interface CollaborationSlice {
@@ -96,284 +96,172 @@ export const createCollaborationSlice: StateCreator<
   selectedCompareFile: null,
   compareFileDiff: null,
 
+  // All actions below now use withLoading() to eliminate boilerplate
+
   checkoutBranch: async (branchName) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "branches", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "branches", "Failed to checkout branch", async () => {
       await commands.checkoutBranch(activeTabId, branchName, {
         errorPrefix: "Failed to checkout branch",
       });
       set({ selectedFilePath: null, localDiff: null });
       await get().refreshAll();
-    } catch (err) {
-      console.error("Failed to checkout branch:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "branches", false);
-    }
+    });
   },
 
   createBranch: async (name, startPoint = null) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "branches", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "branches", "Failed to create branch", async () => {
       await commands.createBranch(activeTabId, name, startPoint, {
         errorPrefix: "Failed to create branch",
       });
-      // Targeted refresh: only branches needed after create
       await get().refreshBranches();
-    } catch (err) {
-      console.error("Failed to create branch:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "branches", false);
-    }
+    });
   },
 
   deleteBranch: async (name, isRemote) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "branches", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "branches", "Failed to delete branch", async () => {
       await commands.deleteBranch(activeTabId, name, isRemote, {
         errorPrefix: "Failed to delete branch",
       });
-      // Targeted refresh: only branches needed after delete
       await get().refreshBranches();
-    } catch (err) {
-      console.error("Failed to delete branch:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "branches", false);
-    }
+    });
   },
 
   renameBranch: async (currentName, newName) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "branches", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "branches", "Failed to rename branch", async () => {
       await commands.renameBranch(activeTabId, currentName, newName, {
         errorPrefix: "Failed to rename branch",
       });
-      // Targeted refresh: only branches needed after rename
       await get().refreshBranches();
-    } catch (err) {
-      console.error("Failed to rename branch:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "branches", false);
-    }
+    });
   },
 
   deleteTag: async (name) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to delete tag", async () => {
       await commands.deleteTag(activeTabId, name, {
         errorPrefix: "Failed to delete tag",
       });
-      // Targeted refresh: only branches/tags needed
       await get().refreshBranches();
-    } catch (err) {
-      console.error("Failed to delete tag:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   createTag: async (name, targetOid, message = null, force = false) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to create tag", async () => {
       await commands.createTag(activeTabId, name, targetOid, message, force, {
         errorPrefix: "Failed to create tag",
       });
-      // Targeted refresh: only branches/tags needed
       await get().refreshBranches();
-    } catch (err) {
-      console.error("Failed to create tag:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   pushTag: async (remote, tagName) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to push tag", async () => {
       await commands.pushTag(activeTabId, remote, tagName, {
         errorPrefix: "Failed to push tag",
       });
-      // Targeted refresh: only branches/tags needed
       await get().refreshBranches();
-    } catch (err) {
-      console.error("Failed to push tag:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   mergeBranch: async (branchName) => {
     const { activeTabId } = get();
     if (!activeTabId) return "conflicts";
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    return await withLoading(get, set, "collaboration", "Failed to merge branch", async () => {
       const result = await commands.mergeBranch(activeTabId, branchName, {
         errorPrefix: "Failed to merge",
       });
-      // Targeted refresh: commits + status after merge
       await get().refreshCommitsAndStatus();
       return result;
-    } catch (err) {
-      console.error("Failed to merge branch:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   abortMerge: async () => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to abort merge", async () => {
       await commands.abortMerge(activeTabId, {
         errorPrefix: "Failed to abort merge",
       });
-      // Targeted refresh: commits + status after merge abort
       await get().refreshCommitsAndStatus();
-    } catch (err) {
-      console.error("Failed to abort merge:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   resolveConflict: async (filePath) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to resolve conflict", async () => {
       await commands.resolveConflict(activeTabId, filePath, {
         errorPrefix: "Failed to resolve conflict",
       });
-      // Targeted refresh: only status after conflict resolve
       await get().refreshStatus();
-    } catch (err) {
-      console.error("Failed to resolve conflict:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   fetch: async (remote) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    set({ isRefreshing: true, error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Fetch failed", async () => {
       await commands.fetch(activeTabId, remote, {
         errorPrefix: "Fetch failed",
       });
       await get().refreshAll();
-    } catch (err) {
-      console.error("Failed to fetch:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      set({ isRefreshing: false });
-    }
+    });
   },
 
   pull: async (remote, branch) => {
     const { activeTabId } = get();
     if (!activeTabId) return "conflicts";
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    return await withLoading(get, set, "collaboration", "Pull failed", async () => {
       const result = await commands.pull(activeTabId, remote, branch, {
         errorPrefix: "Pull failed",
       });
       await get().refreshAll();
       return result;
-    } catch (err) {
-      console.error("Failed to pull:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   push: async (remote, branch, force) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Push failed", async () => {
       await commands.push(activeTabId, remote, branch, force, {
         errorPrefix: "Push failed",
       });
       await get().refreshAll();
-    } catch (err) {
-      console.error("Failed to push:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   initRebase: async (upstream) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to initialize rebase", async () => {
       const items = await commands.rebaseInit(activeTabId, upstream, {
         errorPrefix: "Failed to initialize rebase",
       });
@@ -385,42 +273,26 @@ export const createCollaborationSlice: StateCreator<
           message: "Rebase initialized",
         },
       });
-    } catch (err) {
-      console.error("Failed to initialize rebase:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   writeRebaseTodo: async (items) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to write rebase todo", async () => {
       await commands.rebaseWriteTodo(activeTabId, items, {
         errorPrefix: "Failed to write rebase todo",
       });
       set({ rebaseTodoItems: items });
-    } catch (err) {
-      console.error("Failed to write rebase todo:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   stepRebase: async (action, commitMessage = null) => {
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    return await withLoading(get, set, "collaboration", "Failed to step rebase", async () => {
       const status = await commands.rebaseStep(
         activeTabId,
         action,
@@ -430,76 +302,46 @@ export const createCollaborationSlice: StateCreator<
       set({ rebaseStatus: status });
       await get().refreshAll();
       return status;
-    } catch (err) {
-      console.error("Failed to step rebase:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   startBisect: async (bad, good) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to start bisect", async () => {
       const state = await commands.bisectStart(activeTabId, bad, good, {
         errorPrefix: "Failed to start bisect",
       });
       set({ bisectState: state });
       await get().refreshAll();
-    } catch (err) {
-      console.error("Failed to start bisect:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   markBisect: async (status) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to mark bisect", async () => {
       const state = await commands.bisectMark(activeTabId, status, {
         errorPrefix: "Failed to mark bisect",
       });
       set({ bisectState: state });
       await get().refreshAll();
-    } catch (err) {
-      console.error("Failed to mark bisect:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   resetBisect: async () => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to reset bisect", async () => {
       await commands.bisectReset(activeTabId, {
         errorPrefix: "Failed to reset bisect",
       });
       set({ bisectState: null });
       await get().refreshAll();
-    } catch (err) {
-      console.error("Failed to reset bisect:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   loadWorktrees: async () => {
@@ -521,60 +363,36 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to add worktree", async () => {
       await commands.addWorktree(activeTabId, path, branch, newBranch, {
         errorPrefix: "Failed to add worktree",
       });
       await get().loadWorktrees();
-    } catch (err) {
-      console.error("Failed to add worktree:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   removeWorktree: async (worktreePath, force = false) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to remove worktree", async () => {
       await commands.removeWorktree(activeTabId, worktreePath, force, {
         errorPrefix: "Failed to remove worktree",
       });
       await get().loadWorktrees();
-    } catch (err) {
-      console.error("Failed to remove worktree:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   pruneWorktrees: async () => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to prune worktrees", async () => {
       await commands.pruneWorktrees(activeTabId, {
         errorPrefix: "Failed to prune worktrees",
       });
       await get().loadWorktrees();
-    } catch (err) {
-      console.error("Failed to prune worktrees:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   loadSubmodules: async () => {
@@ -596,217 +414,138 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to initialize submodules", async () => {
       await commands.initSubmodules(activeTabId, paths, {
         errorPrefix: "Failed to initialize submodules",
       });
       await get().loadSubmodules();
-    } catch (err) {
-      console.error("Failed to init submodules:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   updateSubmodules: async (paths, recursive = true) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to update submodules", async () => {
       await commands.updateSubmodules(activeTabId, paths, recursive, {
         errorPrefix: "Failed to update submodules",
       });
       await get().loadSubmodules();
-    } catch (err) {
-      console.error("Failed to update submodules:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   syncSubmodules: async (paths) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to sync submodules", async () => {
       await commands.syncSubmodules(activeTabId, paths, {
         errorPrefix: "Failed to sync submodules",
       });
       await get().loadSubmodules();
-    } catch (err) {
-      console.error("Failed to sync submodules:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   addSubmodule: async (url, path) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+    await withLoading(get, set, "collaboration", "Failed to add submodule", async () => {
       await commands.addSubmodule(activeTabId, url, path, {
         errorPrefix: "Failed to add submodule",
       });
       await get().loadSubmodules();
       await get().refreshAll();
-    } catch (err) {
-      console.error("Failed to add submodule:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   cherryPickCommit: async (oid) => {
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+
+    return await withLoading(get, set, "collaboration", "Cherry-pick failed", async () => {
       const res = await commands.cherryPickCommit(activeTabId, oid, {
         errorPrefix: "Cherry-pick failed",
       });
-      // Targeted refresh: commits + status after cherry-pick
       await get().refreshCommitsAndStatus();
       return res as "success" | "conflicts";
-    } catch (err) {
-      console.error("Failed to cherry-pick:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   cherryPickAbort: async () => {
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+
+    await withLoading(get, set, "collaboration", "Cherry-pick abort failed", async () => {
       await commands.cherryPickAbort(activeTabId, {
         errorPrefix: "Cherry-pick abort failed",
       });
-      // Targeted refresh: commits + status after cherry-pick abort
       await get().refreshCommitsAndStatus();
-    } catch (err) {
-      console.error("Failed to abort cherry-pick:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   revertCommit: async (oid) => {
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+
+    return await withLoading(get, set, "collaboration", "Revert failed", async () => {
       const res = await commands.revertCommit(activeTabId, oid, {
         errorPrefix: "Revert failed",
       });
-      // Targeted refresh: commits + status after revert
       await get().refreshCommitsAndStatus();
       return res as "success" | "conflicts";
-    } catch (err) {
-      console.error("Failed to revert commit:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   revertAbort: async () => {
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+
+    await withLoading(get, set, "collaboration", "Revert abort failed", async () => {
       await commands.revertAbort(activeTabId, {
         errorPrefix: "Revert abort failed",
       });
-      // Targeted refresh: commits + status after revert abort
       await get().refreshCommitsAndStatus();
-    } catch (err) {
-      console.error("Failed to abort revert:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   resetToCommit: async (oid, mode) => {
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
-    setLoading(get, set, "collaboration", true);
-    set({ error: null });
-    try {
+
+    await withLoading(get, set, "collaboration", "Reset failed", async () => {
       await commands.resetToCommit(activeTabId, oid, mode, {
         errorPrefix: "Reset failed",
       });
-      // Targeted refresh: commits + status after reset
       await get().refreshCommitsAndStatus();
-    } catch (err) {
-      console.error("Failed to reset to commit:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "collaboration", false);
-    }
+    });
   },
 
   loadCommitTree: async (oid: string) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
-    setLoading(get, set, "diff", true);
-    set({ commitTree: [], error: null });
-    try {
+
+    await withLoading(get, set, "diff", "Failed to load commit tree", async () => {
+      set({ commitTree: [] });
       const tree = await commands.getCommitTree(activeTabId, oid, {
         silent: true,
       });
       set({ commitTree: tree });
-    } catch (err) {
-      console.error("Failed to load commit tree:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "diff", false);
-    }
+    });
   },
 
   startComparison: async (base: string, target: string) => {
     const { activeTabId } = get();
     if (!activeTabId) return;
-    setLoading(get, set, "diff", true);
-    set({
-      compareBase: base,
-      compareTarget: target,
-      compareDiff: [],
-      selectedCompareFile: null,
-      compareFileDiff: null,
-      error: null,
-    });
-    try {
+
+    await withLoading(get, set, "diff", "Failed to load comparison diff", async () => {
+      set({
+        compareBase: base,
+        compareTarget: target,
+        compareDiff: [],
+        selectedCompareFile: null,
+        compareFileDiff: null,
+      });
       const diffs = await commands.getCompareDiff(activeTabId, base, target, {
         silent: true,
       });
@@ -819,13 +558,7 @@ export const createCollaborationSlice: StateCreator<
           await get().selectCompareFile(firstFile);
         }
       }
-    } catch (err) {
-      console.error("Failed to load comparison diff:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "diff", false);
-    }
+    });
   },
 
   selectCompareFile: async (filePath: string | null) => {
