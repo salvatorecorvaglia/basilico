@@ -439,6 +439,18 @@ export function DiffView() {
                             ) : (
                               <div className="hunk-line-spacer" />
                             )}
+                            <span className="hunk-line-number hunk-line-number-old">
+                              {line.oldLineno !== null &&
+                              line.oldLineno !== undefined
+                                ? line.oldLineno
+                                : ""}
+                            </span>
+                            <span className="hunk-line-number hunk-line-number-new">
+                              {line.newLineno !== null &&
+                              line.newLineno !== undefined
+                                ? line.newLineno
+                                : ""}
+                            </span>
                             <span className="line-prefix">{line.origin}</span>
                             <span className="line-content">{line.content}</span>
                           </div>

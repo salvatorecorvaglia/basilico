@@ -7,6 +7,9 @@ import { WelcomeScreen } from "../WelcomeScreen";
 vi.mock("lucide-react", () => ({
   FolderOpen: () => <div data-testid="folder-open-icon" />,
   ArrowRight: () => <div data-testid="arrow-right-icon" />,
+  Download: () => <div data-testid="download-icon" />,
+  FolderPlus: () => <div data-testid="folder-plus-icon" />,
+  X: () => <div data-testid="x-icon" />,
 }));
 
 // Mock Tauri plugin-dialog
@@ -19,6 +22,8 @@ const mockOpenRepository = vi.fn();
 vi.mock("../../store/repo-store", () => ({
   useRepoStore: () => ({
     openRepository: mockOpenRepository,
+    cloneRepository: vi.fn(),
+    initializeRepository: vi.fn(),
     isLoading: false,
     loadingStates: {
       global: false,
@@ -48,10 +53,12 @@ describe("WelcomeScreen Component", () => {
 
   it("renders open repository button", () => {
     render(<WelcomeScreen />);
-    const button = screen.getByRole("button", { name: /Open Repository/i });
+    const button = screen.getByRole("button", {
+      name: /Open Local Repository/i,
+    });
     expect(button).toBeInTheDocument();
     expect(
-      screen.getByText("Browse to a local Git repository"),
+      screen.getByText("Browse to an existing Git repository on disk"),
     ).toBeInTheDocument();
   });
 
@@ -60,7 +67,9 @@ describe("WelcomeScreen Component", () => {
     vi.mocked(open).mockResolvedValue("/path/to/repo");
 
     render(<WelcomeScreen />);
-    const button = screen.getByRole("button", { name: /Open Repository/i });
+    const button = screen.getByRole("button", {
+      name: /Open Local Repository/i,
+    });
     fireEvent.click(button);
 
     expect(open).toHaveBeenCalledWith({

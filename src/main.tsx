@@ -32,14 +32,54 @@ self.MonacoEnvironment = {
 // Configure the loader to use the local monaco instance instead of fetching from CDN
 loader.config({ monaco });
 
+function splitLightDark(str: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let depth = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+    if (char === "(") {
+      depth++;
+      current += char;
+    } else if (char === ")") {
+      depth--;
+      current += char;
+    } else if (char === "," && depth === 0) {
+      parts.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  parts.push(current);
+  return parts;
+}
+
 /**
  * Reads CSS custom properties from the DOM to derive Monaco theme colors.
  * Falls back to sensible defaults if variables are not defined.
  */
 function getCssVar(name: string, fallback: string): string {
-  const value = getComputedStyle(document.documentElement)
+  let value = getComputedStyle(document.documentElement)
     .getPropertyValue(name)
     .trim();
+
+  if (!value) return fallback;
+
+  if (value.startsWith("light-dark(")) {
+    const content = value.slice("light-dark(".length, -1);
+    const parts = splitLightDark(content);
+    if (parts.length === 2) {
+      const isDark =
+        document.documentElement.classList.contains("dark") ||
+        document.documentElement.style.colorScheme === "dark" ||
+        getComputedStyle(document.documentElement)
+          .getPropertyValue("color-scheme")
+          .includes("dark");
+      value = (isDark ? parts[1] : parts[0]).trim();
+    }
+  }
+
   return value || fallback;
 }
 
@@ -81,6 +121,14 @@ loader.init().then((monacoInstance) => {
   // Re-define themes when the data-theme attribute changes
   const observer = new MutationObserver(() => {
     defineMonacoThemes(monacoInstance);
+    // Force re-apply of theme to redraw all mounted editor instances with new CSS variables
+    const isDark =
+      document.documentElement.classList.contains("dark") ||
+      document.documentElement.style.colorScheme === "dark" ||
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("color-scheme")
+        .includes("dark");
+    monacoInstance.editor.setTheme(isDark ? "basilico-dark" : "basilico-light");
   });
   observer.observe(document.documentElement, {
     attributes: true,

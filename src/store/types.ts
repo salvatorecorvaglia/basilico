@@ -116,6 +116,8 @@ export interface RepoState {
 
   // Actions
   openRepository: (path: string) => Promise<void>;
+  cloneRepository: (url: string, path: string) => Promise<void>;
+  initializeRepository: (path: string) => Promise<void>;
   closeTab: (tabId: string) => void;
   switchTab: (tabId: string) => void;
   restoreRepositories: (

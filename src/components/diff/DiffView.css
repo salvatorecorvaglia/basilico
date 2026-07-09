@@ -366,3 +366,37 @@
 .line-content {
   flex: 1;
 }
+
+/* Hunk Line Numbers Gutters */
+.hunk-line-number {
+  width: 32px;
+  text-align: right;
+  padding-right: var(--space-2);
+  user-select: none;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  opacity: 0.7;
+  border-right: 1px solid var(--border-default);
+  margin-right: var(--space-2);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.hunk-line-number-old {
+  border-color: var(--border-default);
+}
+
+.hunk-line-number-new {
+  border-right: none;
+  margin-right: var(--space-3);
+}
+
+.hunk-line-added .hunk-line-number {
+  color: var(--diff-add-text);
+  border-color: color-mix(in srgb, var(--diff-add-text) 25%, transparent);
+}
+
+.hunk-line-removed .hunk-line-number {
+  color: var(--diff-del-text);
+  border-color: color-mix(in srgb, var(--diff-del-text) 25%, transparent);
+}

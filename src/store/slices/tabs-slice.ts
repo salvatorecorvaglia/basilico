@@ -8,6 +8,8 @@ export interface TabsSlice {
   activeTabId: string | null;
   hasRestored: boolean;
   openRepository: (path: string) => Promise<void>;
+  cloneRepository: (url: string, path: string) => Promise<void>;
+  initializeRepository: (path: string) => Promise<void>;
   closeTab: (tabId: string) => void;
   switchTab: (tabId: string) => void;
   restoreRepositories: (
@@ -79,6 +81,44 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
     } finally {
       set({ loadingStates: { ...get().loadingStates, global: false } });
       pendingOpens.delete(path);
+    }
+  },
+
+  cloneRepository: async (url: string, path: string) => {
+    set({
+      loadingStates: { ...get().loadingStates, global: true },
+      error: null,
+    });
+    try {
+      const info = await commands.cloneRepo(url, path, {
+        errorPrefix: "Failed to clone repository",
+      });
+      // Automatically open the cloned repo
+      await get().openRepository(info.path);
+    } catch (err) {
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ loadingStates: { ...get().loadingStates, global: false } });
+    }
+  },
+
+  initializeRepository: async (path: string) => {
+    set({
+      loadingStates: { ...get().loadingStates, global: true },
+      error: null,
+    });
+    try {
+      await commands.initRepo(path, {
+        errorPrefix: "Failed to initialize repository",
+      });
+      // Automatically open the initialized repo
+      await get().openRepository(path);
+    } catch (err) {
+      set({ error: String(err) });
+      throw err;
+    } finally {
+      set({ loadingStates: { ...get().loadingStates, global: false } });
     }
   },
 

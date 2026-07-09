@@ -104,6 +104,12 @@ export const listRemotes = (path: string, options?: InvokeOptions) =>
 export const getRepoInfo = (path: string, options?: InvokeOptions) =>
   invokeCommand<RepoInfo>("get_repo_info", { path }, options);
 
+export const cloneRepo = (url: string, path: string, options?: InvokeOptions) =>
+  invokeCommand<RepoInfo>("clone_repo", { url, path }, options);
+
+export const initRepo = (path: string, options?: InvokeOptions) =>
+  invokeCommand<void>("init_repo", { path }, options);
+
 // ── Log Commands ──
 
 export const getLog = (

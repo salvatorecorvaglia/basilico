@@ -53,3 +53,38 @@ pub async fn get_repo_info(path: String) -> Result<repository::RepoInfo, AppErro
         .await
         .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
+
+#[tauri::command]
+pub async fn clone_repo(
+    app: tauri::AppHandle,
+    url: String,
+    path: String,
+) -> Result<repository::RepoInfo, AppError> {
+    let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
+    let info = tokio::task::spawn_blocking(move || {
+        let callbacks = crate::git::credentials::make_callbacks(ssh_key_path);
+        let mut fetch_opts = git2::FetchOptions::new();
+        fetch_opts.remote_callbacks(callbacks);
+
+        let mut builder = git2::build::RepoBuilder::new();
+        builder.fetch_options(fetch_opts);
+
+        builder.clone(&url, std::path::Path::new(&path))?;
+        repository::open_repo(&path)
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))??;
+
+    Ok(info)
+}
+
+#[tauri::command]
+pub async fn init_repo(path: String) -> Result<(), AppError> {
+    tokio::task::spawn_blocking(move || {
+        git2::Repository::init(std::path::Path::new(&path))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+}
+

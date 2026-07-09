@@ -1,6 +1,8 @@
 use crate::error::AppError;
 use git2::{Repository, Signature};
 use serde::Serialize;
+use std::io::Write;
+use std::process::Stdio;
 
 #[tauri::command]
 pub async fn create_commit(
@@ -28,41 +30,119 @@ pub async fn create_commit(
             })?
         };
 
-        // Create commit and point HEAD to it
-        let commit_id = if amend {
-            let head_ref = repo.head()?;
-            let commit_to_amend = head_ref.peel_to_commit()?;
-            commit_to_amend.amend(
-                Some("HEAD"),
-                Some(&sig),
-                Some(&sig),
-                None,
-                Some(&message),
-                Some(&tree),
-            )?
+        // Determine parents
+        let mut parents = Vec::new();
+        if amend {
+            if let Ok(head_ref) = repo.head() {
+                if let Ok(commit_to_amend) = head_ref.peel_to_commit() {
+                    for parent in commit_to_amend.parents() {
+                        parents.push(parent);
+                    }
+                }
+            }
         } else {
-            let mut parents = Vec::new();
             if let Ok(head_ref) = repo.head() {
                 if let Ok(parent_commit) = head_ref.peel_to_commit() {
                     parents.push(parent_commit);
                 }
             }
 
-            let has_merge_head = repo.find_reference("MERGE_HEAD").is_ok();
-            if let Ok(merge_ref) = repo.find_reference("MERGE_HEAD") {
-                if let Ok(merge_commit) = merge_ref.peel_to_commit() {
-                    parents.push(merge_commit);
+            if repo.find_reference("MERGE_HEAD").is_ok() {
+                if let Ok(merge_ref) = repo.find_reference("MERGE_HEAD") {
+                    if let Ok(merge_commit) = merge_ref.peel_to_commit() {
+                        parents.push(merge_commit);
+                    }
                 }
             }
+        }
 
-            let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
-            let commit_oid =
-                repo.commit(Some("HEAD"), &sig, &sig, &message, &tree, &parent_refs)?;
+        let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
 
-            if has_merge_head {
+        // Check if GPG signing is enabled in Git config
+        let config = repo.config()?;
+        let gpg_sign = config.get_bool("commit.gpgsign").unwrap_or(false);
+        let signing_key = config.get_string("user.signingkey").ok();
+
+        let commit_id = if gpg_sign {
+            // GPG sign commit
+            let commit_content_buf = repo.commit_create_buffer(
+                &sig,
+                &sig,
+                &message,
+                &tree,
+                &parent_refs,
+            )?;
+            let commit_content = std::str::from_utf8(&commit_content_buf)
+                .map_err(|_| AppError::invalid_state("Commit buffer is not valid UTF-8"))?;
+
+            let mut cmd = std::process::Command::new("gpg");
+            cmd.arg("--status-fd").arg("2").arg("-bsa");
+            if let Some(ref key) = signing_key {
+                cmd.arg("-u").arg(key);
+            }
+
+            #[cfg(target_os = "windows")]
+            {
+                use std::os::windows::process::CommandExt;
+                cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+            }
+
+            cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+            let mut child = cmd.spawn().map_err(|e| AppError::command(format!("Failed to spawn gpg: {}", e)))?;
+            
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin.write_all(commit_content.as_bytes())?;
+            }
+            
+            let output = child.wait_with_output().map_err(|e| AppError::command(format!("Failed to wait for gpg: {}", e)))?;
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+                return Err(AppError::gpg(format!("GPG signing failed: {}", stderr)));
+            }
+            
+            let signature = String::from_utf8_lossy(&output.stdout).to_string();
+            let commit_oid = repo.commit_signed(commit_content, &signature, Some("gpgsig"))?;
+
+            // Update HEAD
+            let head_ref = repo.head()?;
+            if head_ref.is_branch() {
+                if let Some(refname) = head_ref.name() {
+                    let mut r = repo.find_reference(refname)?;
+                    r.set_target(commit_oid, &format!("commit (signed): {}", message))?;
+                    repo.set_head(refname)?;
+                }
+            } else {
+                repo.set_head_detached(commit_oid)?;
+            }
+
+            if !amend && repo.find_reference("MERGE_HEAD").is_ok() {
                 let _ = repo.cleanup_state();
             }
+
             commit_oid
+        } else {
+            // Unsigned commit
+            if amend {
+                let head_ref = repo.head()?;
+                let commit_to_amend = head_ref.peel_to_commit()?;
+                commit_to_amend.amend(
+                    Some("HEAD"),
+                    Some(&sig),
+                    Some(&sig),
+                    None,
+                    Some(&message),
+                    Some(&tree),
+                )?
+            } else {
+                let has_merge_head = repo.find_reference("MERGE_HEAD").is_ok();
+                let commit_oid =
+                    repo.commit(Some("HEAD"), &sig, &sig, &message, &tree, &parent_refs)?;
+
+                if has_merge_head {
+                    let _ = repo.cleanup_state();
+                }
+                commit_oid
+            }
         };
 
         Ok(commit_id.to_string())
