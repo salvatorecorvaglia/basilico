@@ -9,7 +9,7 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
 ## ✨ Features
 
 - **🛠 Core Git Operations**: 
-  - Effortless staging, committing, pushing, pulling, merging, and tagging.
+  - Effortless staging, committing, pushing, pulling, merging, tagging, cherry-picking, and reverting commits.
   - Interactive stashing capabilities, complete with a dedicated `StashInspector` UI supporting untracked file diffs.
   - Soft, mixed, and hard modes for `git reset` via a custom `ResetModal` UI.
   - Client-side branch name validation matching standard `git check-ref-format` specifications.
@@ -18,6 +18,9 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
   - **Revision Compare**: Select and compare revisions, explore file trees, and view side-by-side or inline diffs.
   - **Git Blame**: An integrated blame view with detailed modification history tracking for individual lines.
   - **Conflict Resolver**: Interactive merge conflict resolution interface to handle conflicts quickly and safely.
+  - **Git Bisect**: Interactive Git Bisect wizard to isolate bug-introducing commits with mark options (`good`/`bad`/`skip`).
+  - **GPG Commit Signatures**: Verify commit signatures, displaying signer identity, key ID, and validation status (Verified, Bad Signature, Unknown Key, etc.).
+  - **History & Code Search**: Filter repository commit history by message or author, and run fast codebase text searches via integrated `git grep`.
 - **📂 Workspace & Collaboration**:
   - Submodule and worktree management with built-in path traversal security checks.
   - Secure SSH key generation options with comment sanitization.
