@@ -55,6 +55,7 @@ export interface RepoState {
   // Tabs
   tabs: RepoTab[];
   activeTabId: string | null;
+  hasRestored: boolean;
 
   // Active repo data
   repoInfo: RepoInfo | null;
@@ -117,6 +118,10 @@ export interface RepoState {
   openRepository: (path: string) => Promise<void>;
   closeTab: (tabId: string) => void;
   switchTab: (tabId: string) => void;
+  restoreRepositories: (
+    paths: string[],
+    activePath: string | null,
+  ) => Promise<void>;
   refreshStatus: () => Promise<void>;
   refreshCommitsAndStatus: () => Promise<void>;
   refreshBranches: () => Promise<void>;

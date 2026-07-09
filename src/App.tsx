@@ -196,9 +196,26 @@ function App() {
     addNotification,
   } = useUIStore();
 
-  // Load settings on mount
+  // Load settings and restore tabs on mount
   useEffect(() => {
-    loadSettings();
+    const init = async () => {
+      await loadSettings();
+
+      const savedRepos = localStorage.getItem("basilico-open-repos");
+      const savedActive = localStorage.getItem("basilico-active-repo");
+      if (savedRepos) {
+        try {
+          const paths = JSON.parse(savedRepos) as string[];
+          if (paths.length > 0) {
+            const { restoreRepositories } = useRepoStore.getState();
+            await restoreRepositories(paths, savedActive);
+          }
+        } catch (e) {
+          console.error("Failed to parse saved repositories:", e);
+        }
+      }
+    };
+    init();
   }, [loadSettings]);
 
   // Listen to file system changes from Rust watcher
