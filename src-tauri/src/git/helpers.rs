@@ -5,9 +5,12 @@ use git2::{Commit, Repository, Signature};
 
 /// Get the repository signature, falling back to a default "Basilico User" if not configured.
 pub fn get_or_fallback_signature(repo: &Repository) -> Result<Signature<'static>, AppError> {
-    repo.signature()
-        .or_else(|_| Signature::now("Basilico User", "user@basilico.app"))
-        .map_err(|e| AppError::git(format!("Failed to create signature: {}", e)))
+    repo.signature().map_err(|_| {
+        AppError::invalid_state(
+            "Git author name and email are not configured. \
+             Please set them in Settings or via 'git config user.name' and 'git config user.email'.",
+        )
+    })
 }
 
 /// Create a merge commit pointing HEAD to the merge of `head_commit` and `remote_commit`.

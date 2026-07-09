@@ -55,9 +55,12 @@ pub async fn save_stash(
         let mut repo = Repository::open(&path)?;
 
         // Find default signature
-        let sig = repo
-            .signature()
-            .or_else(|_| git2::Signature::now("Basilico", "basilico@example.com"))?;
+        let sig = repo.signature().map_err(|_| {
+            AppError::invalid_state(
+                "Git author name and email are not configured. \
+                 Please set them in Settings or via 'git config user.name' and 'git config user.email'.",
+            )
+        })?;
 
         let mut flags = StashFlags::DEFAULT;
         if include_untracked {

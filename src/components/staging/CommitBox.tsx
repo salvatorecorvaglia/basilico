@@ -48,9 +48,23 @@ export function CommitBox() {
         setDescription(body);
       }
     } else {
-      // Restore user text
-      setSummary(userSummaryBackup);
-      setDescription(userDescriptionBackup);
+      // Check if user edited the amend message
+      const lastCommit = commits[0];
+      let hasEdited = false;
+      if (lastCommit) {
+        const lines = lastCommit.message.split("\n");
+        const title = lines[0] || "";
+        const body = lines.slice(1).join("\n").trim();
+        if (summary !== title || description !== body) {
+          hasEdited = true;
+        }
+      }
+
+      if (!hasEdited) {
+        // Restore user text only if the amend message was not modified
+        setSummary(userSummaryBackup);
+        setDescription(userDescriptionBackup);
+      }
     }
   };
 

@@ -175,6 +175,8 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
     }
 
     // Now walk the diff to populate hunks and lines
+    let mut line_counts = vec![0usize; num_deltas];
+
     diff.print(DiffFormat::Patch, |delta, hunk, line| {
         let file_path = delta
             .new_file()
@@ -189,7 +191,7 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
 
         if let Some(idx) = file_idx {
             // Truncate parsing if diff is too large
-            let total_lines: usize = files[idx].hunks.iter().map(|h| h.lines.len()).sum();
+            let total_lines = line_counts[idx];
             if total_lines > 5000 {
                 let already_truncated = files[idx]
                     .hunks
@@ -210,6 +212,7 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
                             new_lineno: None,
                         }],
                     });
+                    line_counts[idx] += 1;
                 }
                 return true;
             }
@@ -266,6 +269,7 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
                         old_lineno: line.old_lineno(),
                         new_lineno: line.new_lineno(),
                     });
+                    line_counts[idx] += 1;
                 }
             }
         }

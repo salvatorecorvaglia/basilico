@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import type { GraphCommit } from "../../lib/git-types";
+import { useRepoStore } from "../../store/repo-store";
 
 const NODE_RADIUS = 4;
 const LANE_WIDTH = 16;
@@ -28,6 +29,7 @@ export function CommitGraph({
   maxLane,
 }: CommitGraphProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const theme = useRepoStore((s) => s.settings?.theme);
 
   // Cache commit indices for O(1) lookup during drawing
   const commitIndices = useMemo(() => {
@@ -38,14 +40,9 @@ export function CommitGraph({
     return map;
   }, [commits]);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    // Fetch theme colors dynamically from CSS variables
+  // Fetch theme colors dynamically from CSS variables only when theme changes
+  const laneColors = useMemo(() => {
+    if (typeof window === "undefined") return [];
     const docStyle = getComputedStyle(document.documentElement);
     const fallbackColors = [
       "#58a6ff",
@@ -59,11 +56,19 @@ export function CommitGraph({
       "#ff7b72",
       "#79c0ff",
     ];
-    const laneColors = Array.from({ length: 10 }, (_, i) => {
+    return Array.from({ length: 10 }, (_, i) => {
       return (
         docStyle.getPropertyValue(`--lane-${i}`).trim() || fallbackColors[i]
       );
     });
+  }, [theme]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
     let animationFrameId: number;
 
@@ -178,6 +183,7 @@ export function CommitGraph({
   }, [
     commits,
     commitIndices,
+    laneColors,
     rowHeight,
     graphWidth,
     scrollOffset,

@@ -186,13 +186,20 @@ export const createStagingSlice: StateCreator<
   },
 
   commit: async (message, amend = false) => {
-    const { activeTabId } = get();
+    const { activeTabId, settings } = get();
     if (!activeTabId) return;
 
     await withLoading(get, set, "staging", "Failed to commit", async () => {
-      await commands.createCommit(activeTabId, message, null, null, amend, {
-        errorPrefix: "Failed to commit",
-      });
+      await commands.createCommit(
+        activeTabId,
+        message,
+        settings?.gitAuthorName || null,
+        settings?.gitAuthorEmail || null,
+        amend,
+        {
+          errorPrefix: "Failed to commit",
+        },
+      );
       set({ selectedFilePath: null, localDiff: null });
       // Targeted refresh: commits + status after commit
       await get().refreshCommitsAndStatus();
@@ -222,6 +229,7 @@ export const createStagingSlice: StateCreator<
       });
       // Targeted refresh: commits + status after stash save
       await get().refreshCommitsAndStatus();
+      await get().loadStashes();
     });
   },
 
@@ -240,6 +248,7 @@ export const createStagingSlice: StateCreator<
         });
         // Targeted refresh: commits + status after stash apply
         await get().refreshCommitsAndStatus();
+        await get().loadStashes();
       },
     );
   },
@@ -254,6 +263,7 @@ export const createStagingSlice: StateCreator<
       });
       // Targeted refresh: commits + status after stash pop
       await get().refreshCommitsAndStatus();
+      await get().loadStashes();
     });
   },
 
@@ -267,6 +277,7 @@ export const createStagingSlice: StateCreator<
       });
       // Targeted refresh: commits + status after stash drop
       await get().refreshCommitsAndStatus();
+      await get().loadStashes();
     });
   },
 

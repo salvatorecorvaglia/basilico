@@ -471,7 +471,7 @@ export function CommitList() {
     );
   }
 
-  const maxLane = Math.max(...commits.map((c) => c.lane), 0);
+  const maxLane = commits.reduce((max, c) => Math.max(max, c.lane), 0);
 
   return (
     <div className="commit-list-container">

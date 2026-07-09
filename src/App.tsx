@@ -21,6 +21,7 @@ import { RepoSearch } from "./components/search/RepoSearch";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import { StagingArea } from "./components/staging/StagingArea";
 import { WelcomeScreen } from "./components/WelcomeScreen";
+import { PanelErrorBoundary } from "./components/layout/PanelErrorBoundary";
 
 // Lazy load Monaco Editor components to reduce initial bundle footprint
 const DiffView = lazy(() =>
@@ -125,14 +126,24 @@ const ViewRouter = React.memo(function ViewRouter({
 
           {/* Diff viewer */}
           <Panel id="diff-panel" defaultSize="70%" minSize="45%">
-            <DiffView />
+            <PanelErrorBoundary>
+              <DiffView />
+            </PanelErrorBoundary>
           </Panel>
         </Group>
       );
     case "blame":
-      return <BlameView />;
+      return (
+        <PanelErrorBoundary>
+          <BlameView />
+        </PanelErrorBoundary>
+      );
     case "history":
-      return <FileHistory />;
+      return (
+        <PanelErrorBoundary>
+          <FileHistory />
+        </PanelErrorBoundary>
+      );
     case "search":
       return <RepoSearch />;
     case "rebase":
@@ -140,11 +151,23 @@ const ViewRouter = React.memo(function ViewRouter({
     case "bisect":
       return <BisectWizard />;
     case "compare":
-      return <CompareView />;
+      return (
+        <PanelErrorBoundary>
+          <CompareView />
+        </PanelErrorBoundary>
+      );
     case "conflict-resolver":
-      return <MergeEditor />;
+      return (
+        <PanelErrorBoundary>
+          <MergeEditor />
+        </PanelErrorBoundary>
+      );
     case "stash-inspector":
-      return <StashInspector />;
+      return (
+        <PanelErrorBoundary>
+          <StashInspector />
+        </PanelErrorBoundary>
+      );
     default:
       return (
         <div className="view-fallback">
@@ -352,7 +375,9 @@ function App() {
 
       {/* File Viewer Modal */}
       <Suspense fallback={null}>
-        <FileViewerModal />
+        <PanelErrorBoundary>
+          <FileViewerModal />
+        </PanelErrorBoundary>
       </Suspense>
 
       {hasOpenRepo ? (
