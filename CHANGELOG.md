@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-09
+
+### Added
+
+- **Repository Session Persistence**: Persist the list of open repositories and the active repository path across application sessions using `localStorage`, automatically restoring them on application startup.
+- **Tauri Installation Notes**: Added macOS Gatekeeper and Windows installation/troubleshooting notes to the `README.md`.
+
+### Changed
+
+- **CI/CD Workflows**: Updated CI/CD testing and release configurations in `.github/workflows/ci.yml` and `.github/workflows/release.yml`.
+- **Git Ignore**: Updated `.gitignore` rules to keep workspace files clean.
+
+### Fixed
+
+- **Tauri Startup Crash**: Resolved application startup crash in release builds when signed keys are absent by disabling the updater plugin instead of deleting its config.
+
 ## [0.7.1] - 2026-07-06
 
 ### Added

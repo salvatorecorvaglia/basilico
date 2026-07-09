@@ -22,6 +22,7 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
   - Submodule and worktree management with built-in path traversal security checks.
   - Secure SSH key generation options with comment sanitization.
   - Automated Git author configuration check before commit creation.
+  - **Repository Session Persistence**: Persist open repository tabs and the active repository path across application sessions using `localStorage`, restoring them automatically on startup.
 - **🎨 Premium Aesthetics & UI**:
   - Unified design system utilizing **Tailwind CSS v4** and modern CSS custom variables.
   - Curated, dynamic accent theme presets (Sage Green, Royal Blue, Amethyst Purple, Amber Gold, Crimson Red, Ocean Teal) with dark/light variants.
@@ -36,6 +37,7 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
   - **Watcher**: A live repository file system watcher recursively tracking root changes using `notify` to automatically refresh application state on local edits.
   - **Error Mapping**: Automated translation of raw Git/Rust CLI error outputs to user-friendly actionable feedback notifications.
   - **Auto-Updater**: Seamless integration with Tauri's native updater and process relaunch plugins to automatically check for updates in production builds, displaying interactive progress percentages in custom toast notifications and supporting one-click application restarts.
+  - **Windows Git Credential Helper**: Custom credential helper resolution and execution logic in the Rust backend on Windows, allowing secure retrieval of HTTPS credentials without flashing terminal windows.
 
 ---
 
@@ -72,22 +74,22 @@ Ensure you have the following installed:
    git clone https://github.com/salvatorecorvaglia/basilico.git
    cd basilico
    ```
-2. Install NPM dependencies:
+2. Install pnpm dependencies:
    ```bash
-   npm install
+   pnpm install
    ```
 
 ### Running the App
 
 To start the Vite dev server and launch the Tauri native application window simultaneously:
 ```bash
-npm run tauri dev
+pnpm tauri dev
 ```
 
 Alternatively, you can run the frontend and native wrapper in separate terminals:
 - **Terminal 1 (Vite Dev Server)**:
   ```bash
-  npm run dev
+  pnpm dev
   ```
 - **Terminal 2 (Tauri Wrapper)**:
   ```bash
@@ -104,27 +106,27 @@ To ensure code quality and stability, run the local verification suite:
 ### Frontend
 Run the Biome linter check:
 ```bash
-npm run lint
+pnpm run lint
 ```
 
 Auto-apply safe lint fixes and formatting:
 ```bash
-npm run lint:fix
+pnpm run lint:fix
 ```
 
 Auto-format all source files:
 ```bash
-npm run format
+pnpm run format
 ```
 
 Run frontend unit tests:
 ```bash
-npx vitest run
+pnpm vitest run
 ```
 
 Verify that the React frontend builds and typechecks without errors:
 ```bash
-npm run build
+pnpm run build
 ```
 
 ### Backend (Rust)

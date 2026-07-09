@@ -80,20 +80,20 @@ Ensure you have the following installed on your local machine:
    ```
 2. Install dependencies:
    ```bash
-   npm install
+   pnpm install
    ```
 
 ### Running the App
 
 To launch the unified frontend and native container (Vite + Tauri dev server):
 ```bash
-npm run tauri dev
+pnpm tauri dev
 ```
 
 For advanced frontend debugging or split setups:
 1. Start the Vite server (Terminal 1):
    ```bash
-   npm run dev
+   pnpm dev
    ```
 2. Start the Tauri app wrapper (Terminal 2):
    ```bash
@@ -125,7 +125,7 @@ Familiarize yourself with the layout before modifying code:
 ## Coding Guidelines
 
 ### 🎨 Frontend & UI Style
-* **Formatting & Linting**: We use **Biome** for code formatting, linting, and import sorting. Before committing, run `npm run lint:fix` or set up the Biome VS Code extension to automatically format your files on save.
+* **Formatting & Linting**: We use **Biome** for code formatting, linting, and import sorting. Before committing, run `pnpm run lint:fix` or set up the Biome VS Code extension to automatically format your files on save.
 * **Premium Aesthetics**: Basilico prioritizes visually stunning, premium dark-mode styling. Stick to the curated color palette and layout tokens defined in [theme.css](src/styles/theme.css).
 * **Styling**: We use **Tailwind CSS v4** utility classes alongside standard CSS/Vanilla CSS custom variables for layout and visual styling. Maintain component purity and ensure component styling adheres strictly to our design tokens.
 * **TypeScript & React**: Maintain strict type safety. Avoid using `any`. Write modern React functional components with hooks. Wrap error-prone visual component mounts in the custom React `ErrorBoundary` component to provide a fallback recovery UI instead of crashing the entire application.
@@ -152,19 +152,19 @@ Before submitting a Pull Request, please run these local checks to ensure they p
 2. **Frontend Quality & Formatting**:
    Ensure all files are formatted and linted properly using Biome:
    ```bash
-   npm run lint
+   pnpm run lint
    ```
    To automatically format and apply safe fixes:
    ```bash
-   npm run lint:fix
+   pnpm run lint:fix
    ```
    Verify frontend unit tests pass successfully:
    ```bash
-   npx vitest run
+   pnpm vitest run
    ```
    Verify the frontend builds and typechecks without errors:
    ```bash
-   npm run build
+   pnpm run build
    ```
 3. **Rust Code Quality & Formatting**:
    Ensure Rust formatting is consistent:
