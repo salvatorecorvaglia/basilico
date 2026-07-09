@@ -64,7 +64,7 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://releases.basilico.dev/update/{{target}}/{{current_version}}"
+        "https://github.com/salvatorecorvaglia/basilico/releases/latest/download/latest.json"
       ],
       "pubkey": "dW51c2VkX2R1bW15X3B1YmtleV9mb3JfZGV2ZWxvcG1lbnRfcGhhc2U=",
       "dialog": false
