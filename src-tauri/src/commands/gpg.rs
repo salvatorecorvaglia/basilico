@@ -46,10 +46,16 @@ pub async fn get_commit_signature(
 
                 // Attempt to verify with local gpg CLI
                 if fs::create_dir_all(&temp_dir).is_ok() {
-                    if fs::write(&sig_path, &*sig_buf).is_ok() && fs::write(&payload_path, &*payload_buf).is_ok() {
+                    if fs::write(&sig_path, &*sig_buf).is_ok()
+                        && fs::write(&payload_path, &*payload_buf).is_ok()
+                    {
                         let mut cmd = Command::new("gpg");
-                        cmd.arg("--status-fd").arg("1").arg("--verify").arg(&sig_path).arg(&payload_path);
-                        
+                        cmd.arg("--status-fd")
+                            .arg("1")
+                            .arg("--verify")
+                            .arg(&sig_path)
+                            .arg(&payload_path);
+
                         #[cfg(target_os = "windows")]
                         {
                             use std::os::windows::process::CommandExt;
@@ -59,34 +65,38 @@ pub async fn get_commit_signature(
                         if let Ok(output) = cmd.output() {
                             let stdout_str = String::from_utf8_lossy(&output.stdout);
                             let mut resolved_good = false;
-                            
+
                             for line in stdout_str.lines() {
-                                if line.starts_with("[GNUPG:] GOODSIG ") {
+                                if let Some(content) = line.strip_prefix("[GNUPG:] GOODSIG ") {
                                     status = "Verified".to_string();
-                                    let content = &line["[GNUPG:] GOODSIG ".len()..];
                                     let parts: Vec<&str> = content.splitn(2, ' ').collect();
                                     if parts.len() >= 2 {
                                         key_id = parts[0].to_string();
                                         signer = parts[1].to_string();
                                     }
                                     resolved_good = true;
-                                } else if line.starts_with("[GNUPG:] BADSIG ") {
+                                } else if let Some(content) = line.strip_prefix("[GNUPG:] BADSIG ")
+                                {
                                     status = "BadSignature".to_string();
-                                    let content = &line["[GNUPG:] BADSIG ".len()..];
                                     let parts: Vec<&str> = content.splitn(2, ' ').collect();
-                                    if parts.len() >= 1 {
+                                    if !parts.is_empty() {
                                         key_id = parts[0].to_string();
                                     }
-                                } else if line.starts_with("[GNUPG:] ERRSIG ") || line.starts_with("[GNUPG:] NO_PUBKEY ") {
+                                } else if line.starts_with("[GNUPG:] ERRSIG ")
+                                    || line.starts_with("[GNUPG:] NO_PUBKEY ")
+                                {
                                     if !resolved_good {
                                         status = "UnknownKey".to_string();
-                                        if line.starts_with("[GNUPG:] NO_PUBKEY ") {
-                                            key_id = line["[GNUPG:] NO_PUBKEY ".len()..].trim().to_string();
+                                        if let Some(stripped) =
+                                            line.strip_prefix("[GNUPG:] NO_PUBKEY ")
+                                        {
+                                            key_id = stripped.trim().to_string();
                                         }
                                     }
-                                } else if line.starts_with("[GNUPG:] EXPKEYSIG ") {
+                                } else if let Some(content) =
+                                    line.strip_prefix("[GNUPG:] EXPKEYSIG ")
+                                {
                                     status = "ExpiredKey".to_string();
-                                    let content = &line["[GNUPG:] EXPKEYSIG ".len()..];
                                     let parts: Vec<&str> = content.splitn(2, ' ').collect();
                                     if parts.len() >= 2 {
                                         key_id = parts[0].to_string();

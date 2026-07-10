@@ -87,4 +87,3 @@ pub async fn init_repo(path: String) -> Result<(), AppError> {
     .await
     .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
-

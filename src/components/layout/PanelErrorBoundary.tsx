@@ -55,7 +55,8 @@ export class PanelErrorBoundary extends React.Component<Props, State> {
           <div
             style={{
               color: "var(--color-danger)",
-              background: "color-mix(in srgb, var(--color-danger) 10%, transparent)",
+              background:
+                "color-mix(in srgb, var(--color-danger) 10%, transparent)",
               padding: "var(--space-2)",
               borderRadius: "var(--radius-full)",
             }}
@@ -74,7 +75,8 @@ export class PanelErrorBoundary extends React.Component<Props, State> {
               lineHeight: "var(--leading-normal)",
             }}
           >
-            {this.state.error?.message || "An unexpected error occurred in this view."}
+            {this.state.error?.message ||
+              "An unexpected error occurred in this view."}
           </p>
           <button
             type="button"

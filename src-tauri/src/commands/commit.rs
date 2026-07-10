@@ -89,17 +89,17 @@ pub async fn create_commit(
 
             cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
             let mut child = cmd.spawn().map_err(|e| AppError::command(format!("Failed to spawn gpg: {}", e)))?;
-            
+
             if let Some(mut stdin) = child.stdin.take() {
                 stdin.write_all(commit_content.as_bytes())?;
             }
-            
+
             let output = child.wait_with_output().map_err(|e| AppError::command(format!("Failed to wait for gpg: {}", e)))?;
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr).to_string();
                 return Err(AppError::gpg(format!("GPG signing failed: {}", stderr)));
             }
-            
+
             let signature = String::from_utf8_lossy(&output.stdout).to_string();
             let commit_oid = repo.commit_signed(commit_content, &signature, Some("gpgsig"))?;
 

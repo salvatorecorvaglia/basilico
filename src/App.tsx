@@ -12,6 +12,7 @@ import { CommandPalette } from "./components/command-palette/CommandPalette";
 import { CommitDetail } from "./components/graph/CommitDetail";
 import { CommitList } from "./components/graph/CommitList";
 import { ResetModal } from "./components/graph/ResetModal";
+import { PanelErrorBoundary } from "./components/layout/PanelErrorBoundary";
 import { Sidebar } from "./components/layout/Sidebar";
 import { StatusBar } from "./components/layout/StatusBar";
 import { TabBar } from "./components/layout/TabBar";
@@ -21,7 +22,6 @@ import { RepoSearch } from "./components/search/RepoSearch";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import { StagingArea } from "./components/staging/StagingArea";
 import { WelcomeScreen } from "./components/WelcomeScreen";
-import { PanelErrorBoundary } from "./components/layout/PanelErrorBoundary";
 
 // Lazy load Monaco Editor components to reduce initial bundle footprint
 const DiffView = lazy(() =>

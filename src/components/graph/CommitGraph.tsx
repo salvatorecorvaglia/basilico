@@ -42,7 +42,7 @@ export function CommitGraph({
 
   // Fetch theme colors dynamically from CSS variables only when theme changes
   const laneColors = useMemo(() => {
-    if (typeof window === "undefined") return [];
+    if (typeof window === "undefined" || !theme) return [];
     const docStyle = getComputedStyle(document.documentElement);
     const fallbackColors = [
       "#58a6ff",
