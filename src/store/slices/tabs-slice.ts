@@ -1,5 +1,5 @@
 import type { StateCreator } from "zustand";
-import type { RepoTab } from "../../lib/git-types";
+import type { RecentRepo, RepoInfo, RepoTab } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
 import { INITIAL_LOADING_STATES, type RepoState } from "../types";
 
@@ -7,6 +7,7 @@ export interface TabsSlice {
   tabs: RepoTab[];
   activeTabId: string | null;
   hasRestored: boolean;
+  recentRepos: RecentRepo[];
   openRepository: (path: string) => Promise<void>;
   cloneRepository: (url: string, path: string) => Promise<void>;
   initializeRepository: (path: string) => Promise<void>;
@@ -16,6 +17,9 @@ export interface TabsSlice {
     paths: string[],
     activePath: string | null,
   ) => Promise<void>;
+  pinRecentRepo: (path: string, isPinned: boolean) => void;
+  removeRecentRepo: (path: string) => void;
+  loadRecentRepos: () => void;
 }
 
 /** Tracks in-flight openRepository calls to prevent duplicate concurrent opens */
@@ -24,128 +28,237 @@ const pendingOpens = new Set<string>();
 export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
   set,
   get,
-) => ({
-  tabs: [],
-  activeTabId: null,
-  hasRestored: false,
+) => {
+  const addRepoToRecent = (info: RepoInfo) => {
+    const recentStr = localStorage.getItem("basilico-recent-repos");
+    let currentRecents: RecentRepo[] = [];
+    if (recentStr) {
+      try {
+        currentRecents = JSON.parse(recentStr) as RecentRepo[];
+      } catch (e) {
+        console.error("Failed to parse recent repos:", e);
+      }
+    }
 
-  openRepository: async (path: string) => {
-    // Deduplicate concurrent calls for the same path
-    if (pendingOpens.has(path)) return;
-    pendingOpens.add(path);
+    const existing = currentRecents.find((r) => r.path === info.path);
+    const isPinned = existing ? existing.isPinned : false;
+    const filtered = currentRecents.filter((r) => r.path !== info.path);
 
-    set({
-      loadingStates: { ...get().loadingStates, global: true },
-      error: null,
+    const newRecent: RecentRepo = {
+      path: info.path,
+      name: info.name,
+      lastOpened: Date.now(),
+      isPinned,
+      headBranch: info.headBranch,
+      state: info.state,
+    };
+
+    const nextRecents = [newRecent, ...filtered].slice(0, 50);
+    nextRecents.sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return b.lastOpened - a.lastOpened;
     });
 
-    try {
-      const info = await commands.openRepo(path, {
-        errorPrefix: "Failed to open repository",
+    set({ recentRepos: nextRecents });
+    localStorage.setItem("basilico-recent-repos", JSON.stringify(nextRecents));
+  };
+
+  return {
+    tabs: [],
+    activeTabId: null,
+    hasRestored: false,
+    recentRepos: [],
+
+    openRepository: async (path: string) => {
+      // Deduplicate concurrent calls for the same path
+      if (pendingOpens.has(path)) return;
+      pendingOpens.add(path);
+
+      set({
+        loadingStates: { ...get().loadingStates, global: true },
+        error: null,
       });
-      const tabId = info.path;
-      const existingTab = get().tabs.find((t) => t.id === tabId);
 
-      if (existingTab) {
-        // Switch to existing tab
-        set({ activeTabId: tabId });
-        localStorage.setItem("basilico-active-repo", tabId);
-        await get().refreshAll();
-      } else {
-        // Create new tab
-        const newTab: RepoTab = {
-          id: tabId,
-          path: info.path,
-          name: info.name,
-          isActive: true,
-        };
+      try {
+        const info = await commands.openRepo(path, {
+          errorPrefix: "Failed to open repository",
+        });
+        const tabId = info.path;
 
-        set((state) => ({
-          tabs: [...state.tabs.map((t) => ({ ...t, isActive: false })), newTab],
-          activeTabId: tabId,
-          repoInfo: info,
-        }));
+        // Add to recent repositories
+        addRepoToRecent(info);
+
+        const existingTab = get().tabs.find((t) => t.id === tabId);
+
+        if (existingTab) {
+          // Switch to existing tab
+          set({ activeTabId: tabId });
+          localStorage.setItem("basilico-active-repo", tabId);
+          await get().refreshAll();
+        } else {
+          // Create new tab
+          const newTab: RepoTab = {
+            id: tabId,
+            path: info.path,
+            name: info.name,
+            isActive: true,
+          };
+
+          set((state) => ({
+            tabs: [
+              ...state.tabs.map((t) => ({ ...t, isActive: false })),
+              newTab,
+            ],
+            activeTabId: tabId,
+            repoInfo: info,
+          }));
+
+          localStorage.setItem(
+            "basilico-open-repos",
+            JSON.stringify(get().tabs.map((t) => t.path)),
+          );
+          localStorage.setItem("basilico-active-repo", tabId);
+
+          // Load all data
+          await get().refreshAll();
+        }
+      } catch (err) {
+        set({ error: String(err) });
+        throw err;
+      } finally {
+        set({ loadingStates: { ...get().loadingStates, global: false } });
+        pendingOpens.delete(path);
+      }
+    },
+
+    cloneRepository: async (url: string, path: string) => {
+      set({
+        loadingStates: { ...get().loadingStates, global: true },
+        error: null,
+      });
+      try {
+        const info = await commands.cloneRepo(url, path, {
+          errorPrefix: "Failed to clone repository",
+        });
+        // Automatically open the cloned repo
+        await get().openRepository(info.path);
+      } catch (err) {
+        set({ error: String(err) });
+        throw err;
+      } finally {
+        set({ loadingStates: { ...get().loadingStates, global: false } });
+      }
+    },
+
+    initializeRepository: async (path: string) => {
+      set({
+        loadingStates: { ...get().loadingStates, global: true },
+        error: null,
+      });
+      try {
+        await commands.initRepo(path, {
+          errorPrefix: "Failed to initialize repository",
+        });
+        // Automatically open the initialized repo
+        await get().openRepository(path);
+      } catch (err) {
+        set({ error: String(err) });
+        throw err;
+      } finally {
+        set({ loadingStates: { ...get().loadingStates, global: false } });
+      }
+    },
+
+    closeTab: (tabId: string) => {
+      const { tabs, activeTabId } = get();
+      const filtered = tabs.filter((t) => t.id !== tabId);
+
+      if (activeTabId === tabId) {
+        const newActive =
+          filtered.length > 0 ? filtered[filtered.length - 1].id : null;
+        set({
+          tabs: filtered,
+          activeTabId: newActive,
+          // Reset all per-tab state to prevent stale data
+          repoInfo: null,
+          status: null,
+          branches: [],
+          tags: [],
+          remotes: [],
+          commits: [],
+          selectedCommitOid: null,
+          commitDiff: [],
+          blameLines: [],
+          fileHistory: [],
+          stashes: [],
+          worktrees: [],
+          submodules: [],
+          commitTree: [],
+          compareDiff: [],
+          compareBase: null,
+          compareTarget: null,
+          selectedCompareFile: null,
+          compareFileDiff: null,
+          conflictStages: null,
+          activeConflictedPath: null,
+          selectedStashIndex: null,
+          stashDiff: [],
+          selectedStashFile: null,
+          selectedStashFileDiff: null,
+          selectedFilePath: null,
+          selectedFileIsStaged: false,
+          localDiff: null,
+          loadingStates: { ...INITIAL_LOADING_STATES },
+          isLoading: false,
+          error: null,
+          errors: {},
+          // Increment generation to invalidate in-flight async responses from old tab
+          refreshGeneration: get().refreshGeneration + 1,
+        });
 
         localStorage.setItem(
           "basilico-open-repos",
-          JSON.stringify(get().tabs.map((t) => t.path)),
+          JSON.stringify(filtered.map((t) => t.path)),
         );
-        localStorage.setItem("basilico-active-repo", tabId);
+        if (newActive) {
+          localStorage.setItem("basilico-active-repo", newActive);
+        } else {
+          localStorage.removeItem("basilico-active-repo");
+        }
 
-        // Load all data
-        await get().refreshAll();
+        // If there's a new active tab, reload its data
+        // Surface errors to user instead of swallowing them silently
+        if (newActive) {
+          get()
+            .refreshAll()
+            .catch((err) => {
+              console.error("Failed to refresh after tab close:", err);
+              set({ error: String(err) });
+            });
+        }
+      } else {
+        set({ tabs: filtered });
+        localStorage.setItem(
+          "basilico-open-repos",
+          JSON.stringify(filtered.map((t) => t.path)),
+        );
       }
-    } catch (err) {
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      set({ loadingStates: { ...get().loadingStates, global: false } });
-      pendingOpens.delete(path);
-    }
-  },
 
-  cloneRepository: async (url: string, path: string) => {
-    set({
-      loadingStates: { ...get().loadingStates, global: true },
-      error: null,
-    });
-    try {
-      const info = await commands.cloneRepo(url, path, {
-        errorPrefix: "Failed to clone repository",
-      });
-      // Automatically open the cloned repo
-      await get().openRepository(info.path);
-    } catch (err) {
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      set({ loadingStates: { ...get().loadingStates, global: false } });
-    }
-  },
+      // Tell Rust to clean up
+      commands.closeRepo(tabId, { silent: true }).catch(() => {});
+    },
 
-  initializeRepository: async (path: string) => {
-    set({
-      loadingStates: { ...get().loadingStates, global: true },
-      error: null,
-    });
-    try {
-      await commands.initRepo(path, {
-        errorPrefix: "Failed to initialize repository",
-      });
-      // Automatically open the initialized repo
-      await get().openRepository(path);
-    } catch (err) {
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      set({ loadingStates: { ...get().loadingStates, global: false } });
-    }
-  },
-
-  closeTab: (tabId: string) => {
-    const { tabs, activeTabId } = get();
-    const filtered = tabs.filter((t) => t.id !== tabId);
-
-    if (activeTabId === tabId) {
-      const newActive =
-        filtered.length > 0 ? filtered[filtered.length - 1].id : null;
-      set({
-        tabs: filtered,
-        activeTabId: newActive,
-        // Reset all per-tab state to prevent stale data
-        repoInfo: null,
-        status: null,
-        branches: [],
-        tags: [],
-        remotes: [],
-        commits: [],
+    switchTab: (tabId: string) => {
+      set((state) => ({
+        tabs: state.tabs.map((t) => ({ ...t, isActive: t.id === tabId })),
+        activeTabId: tabId,
+        // Reset per-tab state to prevent stale data from previous tab
         selectedCommitOid: null,
         commitDiff: [],
         blameLines: [],
         fileHistory: [],
         stashes: [],
-        worktrees: [],
-        submodules: [],
         commitTree: [],
         compareDiff: [],
         compareBase: null,
@@ -161,178 +274,154 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
         selectedFilePath: null,
         selectedFileIsStaged: false,
         localDiff: null,
-        loadingStates: { ...INITIAL_LOADING_STATES },
-        isLoading: false,
         error: null,
         errors: {},
         // Increment generation to invalidate in-flight async responses from old tab
-        refreshGeneration: get().refreshGeneration + 1,
-      });
+        refreshGeneration: state.refreshGeneration + 1,
+      }));
 
-      localStorage.setItem(
-        "basilico-open-repos",
-        JSON.stringify(filtered.map((t) => t.path)),
-      );
-      if (newActive) {
-        localStorage.setItem("basilico-active-repo", newActive);
-      } else {
-        localStorage.removeItem("basilico-active-repo");
-      }
+      localStorage.setItem("basilico-active-repo", tabId);
 
-      // If there's a new active tab, reload its data
+      // Reload data for the new active tab
       // Surface errors to user instead of swallowing them silently
-      if (newActive) {
-        get()
-          .refreshAll()
-          .catch((err) => {
-            console.error("Failed to refresh after tab close:", err);
-            set({ error: String(err) });
-          });
-      }
-    } else {
-      set({ tabs: filtered });
-      localStorage.setItem(
-        "basilico-open-repos",
-        JSON.stringify(filtered.map((t) => t.path)),
-      );
-    }
+      get()
+        .refreshAll()
+        .catch((err) => {
+          console.error("Failed to refresh after tab switch:", err);
+          set({ error: String(err) });
+        });
+    },
 
-    // Tell Rust to clean up
-    commands.closeRepo(tabId, { silent: true }).catch(() => {});
-  },
+    restoreRepositories: async (paths: string[], activePath: string | null) => {
+      if (get().hasRestored) return;
+      set({ hasRestored: true });
 
-  switchTab: (tabId: string) => {
-    set((state) => ({
-      tabs: state.tabs.map((t) => ({ ...t, isActive: t.id === tabId })),
-      activeTabId: tabId,
-      // Reset per-tab state to prevent stale data from previous tab
-      selectedCommitOid: null,
-      commitDiff: [],
-      blameLines: [],
-      fileHistory: [],
-      stashes: [],
-      commitTree: [],
-      compareDiff: [],
-      compareBase: null,
-      compareTarget: null,
-      selectedCompareFile: null,
-      compareFileDiff: null,
-      conflictStages: null,
-      activeConflictedPath: null,
-      selectedStashIndex: null,
-      stashDiff: [],
-      selectedStashFile: null,
-      selectedStashFileDiff: null,
-      selectedFilePath: null,
-      selectedFileIsStaged: false,
-      localDiff: null,
-      error: null,
-      errors: {},
-      // Increment generation to invalidate in-flight async responses from old tab
-      refreshGeneration: state.refreshGeneration + 1,
-    }));
+      if (!paths || paths.length === 0) return;
 
-    localStorage.setItem("basilico-active-repo", tabId);
-
-    // Reload data for the new active tab
-    // Surface errors to user instead of swallowing them silently
-    get()
-      .refreshAll()
-      .catch((err) => {
-        console.error("Failed to refresh after tab switch:", err);
-        set({ error: String(err) });
+      set({
+        loadingStates: { ...get().loadingStates, global: true },
+        error: null,
       });
-  },
 
-  restoreRepositories: async (paths: string[], activePath: string | null) => {
-    if (get().hasRestored) return;
-    set({ hasRestored: true });
+      const openedTabs: RepoTab[] = [];
+      let lastActiveInfo = null;
+      let finalActiveTabId = activePath;
 
-    if (!paths || paths.length === 0) return;
-
-    set({
-      loadingStates: { ...get().loadingStates, global: true },
-      error: null,
-    });
-
-    const openedTabs: RepoTab[] = [];
-    let lastActiveInfo = null;
-    let finalActiveTabId = activePath;
-
-    for (const path of paths) {
-      try {
-        const info = await commands.openRepo(path, {
-          silent: true,
-        });
-        const tabId = info.path;
-        openedTabs.push({
-          id: tabId,
-          path: info.path,
-          name: info.name,
-          isActive: false,
-        });
-        if (tabId === activePath) {
-          lastActiveInfo = info;
-        }
-      } catch (err) {
-        console.error(`Failed to restore repository at ${path}:`, err);
-      }
-    }
-
-    if (openedTabs.length === 0) {
-      set({ loadingStates: { ...get().loadingStates, global: false } });
-      localStorage.removeItem("basilico-open-repos");
-      localStorage.removeItem("basilico-active-repo");
-      return;
-    }
-
-    // Determine the active tab
-    const hasActive = openedTabs.some((t) => t.id === finalActiveTabId);
-    if (!hasActive) {
-      finalActiveTabId = openedTabs[0].id;
-    }
-
-    const finalTabs = openedTabs.map((t) => ({
-      ...t,
-      isActive: t.id === finalActiveTabId,
-    }));
-
-    let activeInfo = lastActiveInfo;
-    if (!activeInfo) {
-      const activeTab = finalTabs.find((t) => t.isActive);
-      if (activeTab) {
+      for (const path of paths) {
         try {
-          activeInfo = await commands.getRepoInfo(activeTab.path, {
+          const info = await commands.openRepo(path, {
             silent: true,
           });
-        } catch (e) {
-          console.error("Failed to get repo info for active tab:", e);
+          const tabId = info.path;
+
+          // Add to recent repositories
+          addRepoToRecent(info);
+
+          openedTabs.push({
+            id: tabId,
+            path: info.path,
+            name: info.name,
+            isActive: false,
+          });
+          if (tabId === activePath) {
+            lastActiveInfo = info;
+          }
+        } catch (err) {
+          console.error(`Failed to restore repository at ${path}:`, err);
         }
       }
-    }
 
-    set({
-      tabs: finalTabs,
-      activeTabId: finalActiveTabId,
-      repoInfo: activeInfo,
-      loadingStates: { ...get().loadingStates, global: false },
-    });
+      if (openedTabs.length === 0) {
+        set({ loadingStates: { ...get().loadingStates, global: false } });
+        localStorage.removeItem("basilico-open-repos");
+        localStorage.removeItem("basilico-active-repo");
+        return;
+      }
 
-    // Save the list of successfully opened tabs back to localStorage (cleaning up any invalid/missing ones)
-    localStorage.setItem(
-      "basilico-open-repos",
-      JSON.stringify(finalTabs.map((t) => t.path)),
-    );
-    if (finalActiveTabId) {
-      localStorage.setItem("basilico-active-repo", finalActiveTabId);
-    }
+      // Determine the active tab
+      const hasActive = openedTabs.some((t) => t.id === finalActiveTabId);
+      if (!hasActive) {
+        finalActiveTabId = openedTabs[0].id;
+      }
 
-    // Refresh all data
-    try {
-      await get().refreshAll();
-    } catch (err) {
-      console.error("Failed to refresh repositories after restoration:", err);
-      set({ error: String(err) });
-    }
-  },
-});
+      const finalTabs = openedTabs.map((t) => ({
+        ...t,
+        isActive: t.id === finalActiveTabId,
+      }));
+
+      let activeInfo = lastActiveInfo;
+      if (!activeInfo) {
+        const activeTab = finalTabs.find((t) => t.isActive);
+        if (activeTab) {
+          try {
+            activeInfo = await commands.getRepoInfo(activeTab.path, {
+              silent: true,
+            });
+          } catch (e) {
+            console.error("Failed to get repo info for active tab:", e);
+          }
+        }
+      }
+
+      set({
+        tabs: finalTabs,
+        activeTabId: finalActiveTabId,
+        repoInfo: activeInfo,
+        loadingStates: { ...get().loadingStates, global: false },
+      });
+
+      // Save the list of successfully opened tabs back to localStorage (cleaning up any invalid/missing ones)
+      localStorage.setItem(
+        "basilico-open-repos",
+        JSON.stringify(finalTabs.map((t) => t.path)),
+      );
+      if (finalActiveTabId) {
+        localStorage.setItem("basilico-active-repo", finalActiveTabId);
+      }
+
+      // Refresh all data
+      try {
+        await get().refreshAll();
+      } catch (err) {
+        console.error("Failed to refresh repositories after restoration:", err);
+        set({ error: String(err) });
+      }
+    },
+
+    pinRecentRepo: (path: string, isPinned: boolean) => {
+      const updated = get().recentRepos.map((r) =>
+        r.path === path ? { ...r, isPinned } : r,
+      );
+      updated.sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return b.lastOpened - a.lastOpened;
+      });
+      set({ recentRepos: updated });
+      localStorage.setItem("basilico-recent-repos", JSON.stringify(updated));
+    },
+
+    removeRecentRepo: (path: string) => {
+      const updated = get().recentRepos.filter((r) => r.path !== path);
+      set({ recentRepos: updated });
+      localStorage.setItem("basilico-recent-repos", JSON.stringify(updated));
+    },
+
+    loadRecentRepos: () => {
+      const recentStr = localStorage.getItem("basilico-recent-repos");
+      if (recentStr) {
+        try {
+          const recents = JSON.parse(recentStr) as RecentRepo[];
+          recents.sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return b.lastOpened - a.lastOpened;
+          });
+          set({ recentRepos: recents });
+        } catch (e) {
+          console.error("Failed to parse recent repos:", e);
+        }
+      }
+    },
+  };
+};

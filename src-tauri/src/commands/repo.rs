@@ -86,3 +86,135 @@ pub async fn init_repo(path: String) -> Result<(), AppError> {
     .await
     .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
+
+#[tauri::command]
+pub async fn open_external_tool(path: String, tool: String) -> Result<(), AppError> {
+    tokio::task::spawn_blocking(move || {
+        let path_buf = std::path::PathBuf::from(&path);
+        if !path_buf.exists() {
+            return Err(AppError::not_found(format!("Directory path does not exist: {}", path)));
+        }
+
+        let mut cmd = match tool.as_str() {
+            "vscode" => {
+                #[cfg(target_os = "macos")]
+                {
+                    // Try launching via open -a first (highly robust on macOS)
+                    let mut c = crate::commands::new_command("open");
+                    c.args(["-a", "Visual Studio Code", &path]);
+                    if c.status().map(|s| s.success()).unwrap_or(false) {
+                        return Ok(());
+                    }
+                }
+                let mut c = crate::commands::new_command("code");
+                c.arg(&path);
+                c
+            }
+            "cursor" => {
+                #[cfg(target_os = "macos")]
+                {
+                    // Try launching via open -a first (highly robust on macOS)
+                    let mut c = crate::commands::new_command("open");
+                    c.args(["-a", "Cursor", &path]);
+                    if c.status().map(|s| s.success()).unwrap_or(false) {
+                        return Ok(());
+                    }
+                }
+                let mut c = crate::commands::new_command("cursor");
+                c.arg(&path);
+                c
+            }
+            "terminal" => {
+                #[cfg(target_os = "macos")]
+                {
+                    // Try iTerm2 first, fallback to macOS Terminal
+                    let mut c = crate::commands::new_command("open");
+                    c.args(["-a", "iTerm", &path]);
+                    if c.status().map(|s| s.success()).unwrap_or(false) {
+                        return Ok(());
+                    }
+
+                    let mut c = crate::commands::new_command("open");
+                    c.args(["-a", "Terminal", &path]);
+                    c
+                }
+                #[cfg(target_os = "windows")]
+                {
+                    // Try Windows Terminal (wt.exe) first, fallback to cmd.exe
+                    let mut c = crate::commands::new_command("wt");
+                    c.args(["-d", &path]);
+                    if c.status().map(|s| s.success()).unwrap_or(false) {
+                        return Ok(());
+                    }
+
+                    let mut c = crate::commands::new_command("cmd");
+                    c.args(["/c", "start", "cmd", "/K", "cd", "/d", &path]);
+                    c
+                }
+                #[cfg(target_os = "linux")]
+                {
+                    let terminals = [
+                        ("gnome-terminal", vec!["--working-directory"]),
+                        ("xfce4-terminal", vec!["--working-directory"]),
+                        ("konsole", vec!["--workdir"]),
+                        ("alacritty", vec!["--working-directory"]),
+                        ("kitty", vec!["--directory"]),
+                    ];
+
+                    let mut spawned = false;
+                    for (term, args) in terminals {
+                        let mut check = crate::commands::new_command("which");
+                        check.arg(term);
+                        if check.output().map(|o| o.status.success()).unwrap_or(false) {
+                            let mut c = crate::commands::new_command(term);
+                            for arg in args {
+                                c.arg(arg);
+                            }
+                            c.arg(&path);
+                            if c.spawn().is_ok() {
+                                spawned = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if !spawned {
+                        // Fallback to xdg-open if no terminal emulator was matched
+                        let mut c = crate::commands::new_command("xdg-open");
+                        c.arg(&path);
+                        c
+                    } else {
+                        return Ok(());
+                    }
+                }
+            }
+            _ => {
+                return Err(AppError::invalid_state(format!("Unsupported external tool: {}", tool)));
+            }
+        };
+
+        let run_result = cmd.output();
+        match run_result {
+            Ok(output) => {
+                if !output.status.success() {
+                    log::warn!("Command finished with status: {:?}", output.status);
+                }
+                Ok(())
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                let friendly_error = match tool.as_str() {
+                    "vscode" => "Visual Studio Code command 'code' or application was not found. Please ensure VS Code is installed. If it is installed, open the VS Code Command Palette (Cmd+Shift+P) and run 'Shell Command: Install \'code\' command in PATH'.",
+                    "cursor" => "Cursor command 'cursor' or application was not found. Please ensure Cursor is installed. If it is installed, open the Cursor Command Palette (Cmd+Shift+P) and run 'Shell Command: Install \'cursor\' command in PATH'.",
+                    "terminal" => "Could not locate a suitable terminal application on your system.",
+                    _ => "The requested external tool was not found on your system."
+                };
+                Err(AppError::not_found(friendly_error))
+            }
+            Err(e) => {
+                Err(AppError::command(format!("Failed to launch {}: {}", tool, e)))
+            }
+        }
+    })
+    .await
+    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+}

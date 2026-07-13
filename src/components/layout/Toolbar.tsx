@@ -11,6 +11,7 @@ import {
   ArrowUpFromLine,
   Check,
   ChevronDown,
+  Code,
   Command,
   FolderGit2,
   FolderPlus,
@@ -20,8 +21,10 @@ import {
   Search,
   Settings,
   Sun,
+  Terminal,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { openExternalTool } from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./Toolbar.css";
@@ -58,6 +61,18 @@ export function Toolbar() {
   const [branchSearch, setBranchSearch] = useState("");
 
   const [isDarkMode, setIsDarkMode] = useState(true);
+
+  const handleLaunchTool = async (tool: string) => {
+    if (!activeTabId) return;
+    try {
+      await openExternalTool(activeTabId, tool);
+    } catch (err) {
+      addNotification({
+        type: "error",
+        message: `Failed to launch ${tool}: ${err}`,
+      });
+    }
+  };
 
   // Sync native color scheme with light-dark switcher
   useEffect(() => {
@@ -230,6 +245,27 @@ export function Toolbar() {
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
+
+        {activeTabId && (
+          <div className="toolbar-launcher-group">
+            <button
+              type="button"
+              className="toolbar-btn"
+              onClick={() => handleLaunchTool("vscode")}
+              title="Open in VS Code"
+            >
+              <Code size={13} />
+            </button>
+            <button
+              type="button"
+              className="toolbar-btn"
+              onClick={() => handleLaunchTool("terminal")}
+              title="Open in Terminal"
+            >
+              <Terminal size={13} />
+            </button>
+          </div>
+        )}
 
         {/* Branch Selector Popover */}
         <Popover.Root

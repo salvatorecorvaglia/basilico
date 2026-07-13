@@ -278,3 +278,12 @@ export interface AppError {
   message: string;
   kind: ErrorKind;
 }
+
+export interface RecentRepo {
+  path: string;
+  name: string;
+  lastOpened: number;
+  isPinned: boolean;
+  headBranch?: string | null;
+  state?: string | null;
+}

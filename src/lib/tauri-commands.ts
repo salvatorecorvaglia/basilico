@@ -110,6 +110,12 @@ export const cloneRepo = (url: string, path: string, options?: InvokeOptions) =>
 export const initRepo = (path: string, options?: InvokeOptions) =>
   invokeCommand<void>("init_repo", { path }, options);
 
+export const openExternalTool = (
+  path: string,
+  tool: string,
+  options?: InvokeOptions,
+) => invokeCommand<void>("open_external_tool", { path, tool }, options);
+
 // ── Log Commands ──
 
 export const getLog = (

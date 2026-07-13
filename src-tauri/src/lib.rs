@@ -29,6 +29,7 @@ pub fn run() {
             commands::repo::get_repo_info,
             commands::repo::clone_repo,
             commands::repo::init_repo,
+            commands::repo::open_external_tool,
             // Log commands
             commands::log::get_log,
             // Diff commands

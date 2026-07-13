@@ -209,6 +209,7 @@ function App() {
     settings,
     refreshAll,
     openRepository,
+    loadRecentRepos,
   } = useRepoStore();
   const {
     sidebarVisible,
@@ -223,6 +224,7 @@ function App() {
   useEffect(() => {
     const init = async () => {
       await loadSettings();
+      loadRecentRepos();
 
       const savedRepos = localStorage.getItem("basilico-open-repos");
       const savedActive = localStorage.getItem("basilico-active-repo");
@@ -239,7 +241,7 @@ function App() {
       }
     };
     init();
-  }, [loadSettings]);
+  }, [loadSettings, loadRecentRepos]);
 
   // Listen to file system changes from Rust watcher
   useEffect(() => {

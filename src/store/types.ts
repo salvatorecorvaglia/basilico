@@ -9,6 +9,7 @@ import type {
   GrepMatch,
   RebaseStatus,
   RebaseTodoItem,
+  RecentRepo,
   RemoteInfo,
   RepoInfo,
   RepoStatus,
@@ -56,6 +57,7 @@ export interface RepoState {
   tabs: RepoTab[];
   activeTabId: string | null;
   hasRestored: boolean;
+  recentRepos: RecentRepo[];
 
   // Active repo data
   repoInfo: RepoInfo | null;
@@ -124,6 +126,9 @@ export interface RepoState {
     paths: string[],
     activePath: string | null,
   ) => Promise<void>;
+  pinRecentRepo: (path: string, isPinned: boolean) => void;
+  removeRecentRepo: (path: string) => void;
+  loadRecentRepos: () => void;
   refreshStatus: () => Promise<void>;
   refreshCommitsAndStatus: () => Promise<void>;
   refreshBranches: () => Promise<void>;

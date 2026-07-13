@@ -37,8 +37,19 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
             .watcher()
             .watch(watch_path, RecursiveMode::Recursive)
         {
-            log::error!("Failed to watch root path {}: {}", repo_path, e);
-            return;
+            log::warn!(
+                "Failed to watch root path {} recursively: {}. Falling back to watching .git folder...",
+                repo_path,
+                e
+            );
+            let git_path = watch_path.join(".git");
+            if let Err(err) = debouncer
+                .watcher()
+                .watch(&git_path, RecursiveMode::Recursive)
+            {
+                log::error!("Failed to watch fallback .git path {}: {}", git_path.display(), err);
+                return;
+            }
         }
 
         log::info!(
