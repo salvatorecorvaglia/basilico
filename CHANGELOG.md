@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-13
+
 ### Added
 
 - **GPG Signature Verification**: Implemented GPG signature verification for commits, adding robust validation and error handling in the backend.
