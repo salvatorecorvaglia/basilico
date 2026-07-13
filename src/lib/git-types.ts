@@ -148,6 +148,7 @@ export type ActiveView =
   | "bisect"
   | "compare"
   | "conflict-resolver"
+  | "reflog"
   | "stash-inspector";
 
 // ── Phase 3: Blame, History, Reflog, Stash Types ──
@@ -236,6 +237,8 @@ export interface UserSettings {
   gitAuthorName: string | null;
   gitAuthorEmail: string | null;
   keyboardShortcuts: Record<string, string>;
+  diffTool?: string | null;
+  mergeTool?: string | null;
 }
 
 export interface TreeEntryInfo {
@@ -286,4 +289,14 @@ export interface RecentRepo {
   isPinned: boolean;
   headBranch?: string | null;
   state?: string | null;
+}
+
+export interface ReflogEntryInfo {
+  index: number;
+  oldOid: string;
+  newOid: string;
+  committerName: string;
+  committerEmail: string;
+  committerDate: number;
+  message: string;
 }

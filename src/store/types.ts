@@ -10,6 +10,7 @@ import type {
   RebaseStatus,
   RebaseTodoItem,
   RecentRepo,
+  ReflogEntryInfo,
   RemoteInfo,
   RepoInfo,
   RepoStatus,
@@ -75,6 +76,7 @@ export interface RepoState {
   blameLines: BlameLine[];
   fileHistory: FileHistoryEntry[];
   stashes: StashInfo[];
+  reflogEntries: ReflogEntryInfo[];
 
   // Phase 5 State
   worktrees: WorktreeInfo[];
@@ -169,6 +171,7 @@ export interface RepoState {
   // Phase 3 Actions
   loadFileBlame: (filePath: string, commitOid?: string | null) => Promise<void>;
   loadFileHistory: (filePath: string) => Promise<void>;
+  loadReflog: () => Promise<void>;
   loadStashes: () => Promise<void>;
   saveStash: (message: string, includeUntracked: boolean) => Promise<void>;
   applyStash: (index: number) => Promise<void>;

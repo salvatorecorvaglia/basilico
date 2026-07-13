@@ -209,43 +209,104 @@ export function SettingsModal() {
                 )}
 
                 {activeTab === "git" && (
-                  <div className="settings-section">
-                    <div className="settings-section-title">
-                      Git Author Defaults
+                  <>
+                    <div className="settings-section">
+                      <div className="settings-section-title">
+                        Git Author Defaults
+                      </div>
+                      <div className="settings-field">
+                        <label htmlFor="settings-git-name">Author Name</label>
+                        <input
+                          id="settings-git-name"
+                          className="settings-input"
+                          type="text"
+                          placeholder="e.g. Mario Rossi"
+                          value={draft.gitAuthorName || ""}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              gitAuthorName: e.target.value || null,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="settings-field">
+                        <label htmlFor="settings-git-email">Author Email</label>
+                        <input
+                          id="settings-git-email"
+                          className="settings-input"
+                          type="email"
+                          placeholder="e.g. mario.rossi@basilico.com"
+                          value={draft.gitAuthorEmail || ""}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              gitAuthorEmail: e.target.value || null,
+                            })
+                          }
+                        />
+                      </div>
                     </div>
-                    <div className="settings-field">
-                      <label htmlFor="settings-git-name">Author Name</label>
-                      <input
-                        id="settings-git-name"
-                        className="settings-input"
-                        type="text"
-                        placeholder="e.g. Mario Rossi"
-                        value={draft.gitAuthorName || ""}
-                        onChange={(e) =>
-                          setDraft({
-                            ...draft,
-                            gitAuthorName: e.target.value || null,
-                          })
-                        }
-                      />
+
+                    <div
+                      className="settings-section"
+                      style={{ marginTop: "var(--space-5)" }}
+                    >
+                      <div className="settings-section-title">
+                        External Compare Tools
+                      </div>
+                      <div className="settings-field">
+                        <label htmlFor="settings-diff-tool">
+                          Diff Tool Command / Preset
+                        </label>
+                        <input
+                          id="settings-diff-tool"
+                          className="settings-input"
+                          type="text"
+                          placeholder="e.g. meld, kdiff3, code, or custom command"
+                          value={draft.diffTool || ""}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              diffTool: e.target.value || null,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="settings-field">
+                        <label htmlFor="settings-merge-tool">
+                          Merge Tool Command / Preset
+                        </label>
+                        <input
+                          id="settings-merge-tool"
+                          className="settings-input"
+                          type="text"
+                          placeholder="e.g. meld, kdiff3, code, cursor or custom command"
+                          value={draft.mergeTool || ""}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              mergeTool: e.target.value || null,
+                            })
+                          }
+                        />
+                        <span
+                          className="settings-field-hint"
+                          style={{
+                            fontSize: "10px",
+                            color: "var(--text-tertiary)",
+                            marginTop: "4px",
+                            display: "block",
+                          }}
+                        >
+                          Presets: meld, kdiff3, p4merge, opendiff, code,
+                          cursor. Custom supports: <code>%BASE</code>,{" "}
+                          <code>%OURS</code>, <code>%THEIRS</code>,{" "}
+                          <code>%MERGED</code> placeholders.
+                        </span>
+                      </div>
                     </div>
-                    <div className="settings-field">
-                      <label htmlFor="settings-git-email">Author Email</label>
-                      <input
-                        id="settings-git-email"
-                        className="settings-input"
-                        type="email"
-                        placeholder="e.g. mario.rossi@basilico.com"
-                        value={draft.gitAuthorEmail || ""}
-                        onChange={(e) =>
-                          setDraft({
-                            ...draft,
-                            gitAuthorEmail: e.target.value || null,
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
+                  </>
                 )}
 
                 {activeTab === "ssh" && (

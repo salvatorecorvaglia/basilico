@@ -18,6 +18,7 @@ import { StatusBar } from "./components/layout/StatusBar";
 import { TabBar } from "./components/layout/TabBar";
 import { Toolbar } from "./components/layout/Toolbar";
 import { RebaseEditor } from "./components/rebase/RebaseEditor";
+import { ReflogInspector } from "./components/reflog/ReflogInspector";
 import { RepoSearch } from "./components/search/RepoSearch";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import { StagingArea } from "./components/staging/StagingArea";
@@ -166,6 +167,12 @@ const ViewRouter = React.memo(function ViewRouter({
       return (
         <PanelErrorBoundary>
           <StashInspector />
+        </PanelErrorBoundary>
+      );
+    case "reflog":
+      return (
+        <PanelErrorBoundary>
+          <ReflogInspector />
         </PanelErrorBoundary>
       );
     default:

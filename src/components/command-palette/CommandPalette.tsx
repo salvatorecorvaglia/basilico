@@ -69,6 +69,13 @@ export function CommandPalette() {
       action: () => setActiveView("search"),
     },
     {
+      id: "reflog",
+      name: "Switch View to Reflog Inspector",
+      category: "Navigation",
+      shortcut: "G R",
+      action: () => setActiveView("reflog"),
+    },
+    {
       id: "refresh",
       name: "Refresh Repository Data",
       category: "Repository",

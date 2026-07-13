@@ -5,6 +5,7 @@ import {
   CheckSquare,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -30,8 +31,13 @@ export function MergeEditor() {
     conflictStages,
     loadConflictStages,
     resolveConflictStages,
+    activeTabId,
+    refreshAll,
+    settings,
   } = useRepoStore();
   const { setActiveView, addNotification, openConfirm } = useUIStore();
+
+  const [launchingExternal, setLaunchingExternal] = useState(false);
 
   const [mergedValue, setMergedValue] = useState<string>("");
   const [oursValue, setOursValue] = useState<string>("");
@@ -185,6 +191,45 @@ export function MergeEditor() {
     }
   };
 
+  const handleLaunchExternalTool = async () => {
+    if (!activeTabId || !activeConflictedPath) return;
+    const configuredTool = settings?.mergeTool;
+    if (!configuredTool) {
+      addNotification({
+        type: "info",
+        message: "No external merge tool configured",
+        description:
+          "Configure your preferred tool (e.g. meld, kdiff3, code) in Settings -> Git tab.",
+      });
+      return;
+    }
+
+    setLaunchingExternal(true);
+    try {
+      await commands.launchExternalMergeTool(
+        activeTabId,
+        activeConflictedPath,
+        configuredTool,
+      );
+      addNotification({
+        type: "success",
+        message: "Merge tool completed successfully",
+        description: "Conflict resolution applied and changes staged.",
+      });
+      // Refresh git status and redirect to staging view
+      await refreshAll();
+      setActiveView("staging");
+    } catch (err) {
+      addNotification({
+        type: "error",
+        message: "Merge tool execution failed",
+        description: String(err),
+      });
+    } finally {
+      setLaunchingExternal(false);
+    }
+  };
+
   if (!activeConflictedPath) return null;
 
   return (
@@ -212,6 +257,16 @@ export function MergeEditor() {
               <Check size={12} /> All markers cleared
             </span>
           )}
+
+          <button
+            type="button"
+            className="merge-btn merge-btn-outline"
+            onClick={handleLaunchExternalTool}
+            disabled={launchingExternal}
+          >
+            <ExternalLink size={14} />
+            {launchingExternal ? "Running..." : "Resolve in External Tool"}
+          </button>
 
           <button
             className="merge-btn merge-btn-outline"

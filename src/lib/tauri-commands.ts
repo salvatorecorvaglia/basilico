@@ -17,6 +17,7 @@ import type {
   GrepMatch,
   RebaseStatus,
   RebaseTodoItem,
+  ReflogEntryInfo,
   RemoteInfo,
   RepoInfo,
   RepoStatus,
@@ -637,6 +638,18 @@ export const saveMergedResolution = (
     options,
   );
 
+export const launchExternalMergeTool = (
+  repoPath: string,
+  filePath: string,
+  toolName: string,
+  options?: InvokeOptions,
+) =>
+  invokeCommand<void>(
+    "launch_external_merge_tool",
+    { repoPath, filePath, toolName },
+    options,
+  );
+
 // ── Phase 10: GPG & Stash Inspector Commands ──
 
 export const getCommitSignature = (
@@ -656,3 +669,6 @@ export const getStashDiff = (
   options?: InvokeOptions,
 ) =>
   invokeCommand<FileDiff[]>("get_stash_diff", { repoPath, stashOid }, options);
+
+export const getReflog = (path: string, options?: InvokeOptions) =>
+  invokeCommand<ReflogEntryInfo[]>("get_reflog", { path }, options);

@@ -18,6 +18,8 @@ pub struct UserSettings {
     pub git_author_name: Option<String>,
     pub git_author_email: Option<String>,
     pub keyboard_shortcuts: HashMap<String, String>,
+    pub diff_tool: Option<String>,
+    pub merge_tool: Option<String>,
 }
 
 impl Default for UserSettings {
@@ -39,6 +41,8 @@ impl Default for UserSettings {
             git_author_name: None,
             git_author_email: None,
             keyboard_shortcuts: shortcuts,
+            diff_tool: None,
+            merge_tool: None,
         }
     }
 }
