@@ -10,6 +10,5 @@ pub async fn get_log(
         let max = max_commits.unwrap_or(1000);
         graph::build_graph(&path, max)
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }

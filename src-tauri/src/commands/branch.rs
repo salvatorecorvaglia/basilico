@@ -5,8 +5,7 @@ use git2::Repository;
 #[tauri::command]
 pub async fn list_branches(path: String) -> Result<Vec<repository::BranchInfo>, AppError> {
     tokio::task::spawn_blocking(move || repository::list_branches(&path))
-        .await
-        .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+        .await?
 }
 
 #[tauri::command]
@@ -33,8 +32,7 @@ pub async fn create_branch(
         repo.branch(&name, &target, false)?;
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -51,8 +49,7 @@ pub async fn delete_branch(path: String, name: String, is_remote: bool) -> Resul
         }
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -121,8 +118,7 @@ pub async fn checkout_branch(path: String, name: String) -> Result<(), AppError>
         repo.set_head(&ref_name)?;
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -137,8 +133,7 @@ pub async fn rename_branch(
         branch.rename(&new_name, false)?;
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[cfg(test)]

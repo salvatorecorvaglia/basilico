@@ -63,8 +63,7 @@ pub async fn merge_branch(path: String, branch_name: String) -> Result<String, A
             Ok("success".to_string())
         }
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -83,8 +82,7 @@ pub async fn abort_merge(path: String) -> Result<(), AppError> {
 
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -114,8 +112,7 @@ pub async fn get_conflicts(path: String) -> Result<Vec<String>, AppError> {
 
         Ok(conflicts)
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -129,8 +126,7 @@ pub async fn resolve_conflict(path: String, file_path: String) -> Result<(), App
         index.write()?;
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[cfg(test)]

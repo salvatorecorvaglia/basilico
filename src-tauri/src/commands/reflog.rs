@@ -52,6 +52,5 @@ pub async fn get_reflog(path: String) -> Result<Vec<ReflogEntryInfo>, AppError> 
         entries.reverse();
         Ok(entries)
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }

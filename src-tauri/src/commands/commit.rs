@@ -186,8 +186,7 @@ pub async fn create_commit(
 
         Ok(commit_id.to_string())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -219,8 +218,7 @@ pub async fn cherry_pick_commit(path: String, oid: String) -> Result<String, App
             }
         }
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -244,8 +242,7 @@ pub async fn cherry_pick_abort(path: String) -> Result<(), AppError> {
             )))
         }
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -275,8 +272,7 @@ pub async fn revert_commit(path: String, oid: String) -> Result<String, AppError
             }
         }
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -295,8 +291,7 @@ pub async fn revert_abort(path: String) -> Result<(), AppError> {
             Err(AppError::git(format!("Revert abort failed: {}", stderr)))
         }
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -323,8 +318,7 @@ pub async fn reset_to_commit(path: String, oid: String, mode: String) -> Result<
         repo.reset(commit.as_object(), reset_type, None)?;
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -378,8 +372,7 @@ pub async fn get_commit_tree(path: String, oid: String) -> Result<Vec<TreeEntryI
 
         Ok(entries)
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[cfg(test)]

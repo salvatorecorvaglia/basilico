@@ -110,6 +110,24 @@ impl From<notify::Error> for AppError {
     }
 }
 
+impl From<tokio::task::JoinError> for AppError {
+    fn from(err: tokio::task::JoinError) -> Self {
+        AppError {
+            message: format!("Task join error: {}", err),
+            kind: ErrorKind::Unknown,
+        }
+    }
+}
+
+impl From<serde_json::Error> for AppError {
+    fn from(err: serde_json::Error) -> Self {
+        AppError {
+            message: err.to_string(),
+            kind: ErrorKind::SettingsError,
+        }
+    }
+}
+
 // Tauri commands need Result<T, String> or impl Serialize for errors
 impl From<AppError> for String {
     fn from(err: AppError) -> Self {

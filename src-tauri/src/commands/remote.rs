@@ -16,8 +16,7 @@ pub async fn fetch(app: tauri::AppHandle, path: String, remote: String) -> Resul
 
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -46,8 +45,7 @@ pub async fn push(
 
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -123,6 +121,5 @@ pub async fn pull(
             Ok("success".to_string())
         }
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }

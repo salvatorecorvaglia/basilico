@@ -41,8 +41,7 @@ pub async fn list_stashes(path: String) -> Result<Vec<StashInfo>, AppError> {
 
         Ok(stashes)
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -70,8 +69,7 @@ pub async fn save_stash(
         repo.stash_save(&sig, &message, Some(flags))?;
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -81,8 +79,7 @@ pub async fn apply_stash(path: String, index: usize) -> Result<(), AppError> {
         repo.stash_apply(index, None)?;
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -92,8 +89,7 @@ pub async fn pop_stash(path: String, index: usize) -> Result<(), AppError> {
         repo.stash_pop(index, None)?;
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -103,6 +99,5 @@ pub async fn drop_stash(path: String, index: usize) -> Result<(), AppError> {
         repo.stash_drop(index)?;
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }

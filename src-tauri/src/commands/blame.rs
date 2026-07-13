@@ -138,6 +138,5 @@ pub async fn get_file_blame(
 
         Ok(blame_lines)
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }

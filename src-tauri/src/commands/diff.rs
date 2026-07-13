@@ -4,15 +4,13 @@ use crate::git::diff_parser;
 #[tauri::command]
 pub async fn get_workdir_diff(path: String) -> Result<Vec<diff_parser::FileDiff>, AppError> {
     tokio::task::spawn_blocking(move || diff_parser::get_workdir_diff(&path))
-        .await
-        .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+        .await?
 }
 
 #[tauri::command]
 pub async fn get_staged_diff(path: String) -> Result<Vec<diff_parser::FileDiff>, AppError> {
     tokio::task::spawn_blocking(move || diff_parser::get_staged_diff(&path))
-        .await
-        .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+        .await?
 }
 
 #[tauri::command]
@@ -21,8 +19,7 @@ pub async fn get_commit_diff(
     oid: String,
 ) -> Result<Vec<diff_parser::FileDiff>, AppError> {
     tokio::task::spawn_blocking(move || diff_parser::get_commit_diff(&path, &oid))
-        .await
-        .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+        .await?
 }
 
 #[tauri::command]
@@ -32,8 +29,7 @@ pub async fn get_file_diff(
     is_staged: bool,
 ) -> Result<diff_parser::FileDiff, AppError> {
     tokio::task::spawn_blocking(move || diff_parser::get_file_diff(&path, &file_path, is_staged))
-        .await
-        .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+        .await?
 }
 
 #[derive(serde::Serialize)]
@@ -118,8 +114,7 @@ pub async fn get_file_content_pair(
 
         Ok(FileContentPair { original, modified })
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -162,8 +157,7 @@ pub async fn get_file_content_at_revision(
 
         Ok(String::from_utf8_lossy(blob.content()).to_string())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -173,8 +167,7 @@ pub async fn get_compare_diff(
     target: String,
 ) -> Result<Vec<diff_parser::FileDiff>, AppError> {
     tokio::task::spawn_blocking(move || diff_parser::get_compare_diff(&path, &base, &target))
-        .await
-        .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+        .await?
 }
 
 #[tauri::command]
@@ -219,6 +212,5 @@ pub async fn get_file_content_pair_revisions(
 
         Ok(FileContentPair { original, modified })
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }

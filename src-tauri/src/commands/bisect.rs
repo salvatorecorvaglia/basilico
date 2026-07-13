@@ -80,8 +80,7 @@ pub async fn bisect_start(
         let output = run_git_cmd(&repo_path, &["bisect", "start", "--", &bad, &good])?;
         Ok(get_bisect_state(&repo_path, output))
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -96,8 +95,7 @@ pub async fn bisect_mark(
         let output = run_git_cmd(&repo_path, &["bisect", &status])?;
         Ok(get_bisect_state(&repo_path, output))
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -106,8 +104,7 @@ pub async fn bisect_reset(repo_path: String) -> Result<(), AppError> {
         run_git_cmd(&repo_path, &["bisect", "reset"])?;
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[cfg(test)]

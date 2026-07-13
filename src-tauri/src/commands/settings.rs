@@ -89,8 +89,7 @@ pub async fn get_settings(app: tauri::AppHandle) -> Result<UserSettings, AppErro
     let content = fs::read_to_string(&path)
         .map_err(|e| AppError::settings(format!("Failed to read settings: {}", e)))?;
 
-    serde_json::from_str(&content)
-        .map_err(|e| AppError::settings(format!("Failed to parse settings: {}", e)))
+    Ok(serde_json::from_str(&content)?)
 }
 
 #[tauri::command]
@@ -104,8 +103,7 @@ pub async fn save_settings(app: tauri::AppHandle, settings: UserSettings) -> Res
         })?;
     }
 
-    let content = serde_json::to_string_pretty(&settings)
-        .map_err(|e| AppError::settings(format!("Failed to serialize settings: {}", e)))?;
+    let content = serde_json::to_string_pretty(&settings)?;
 
     fs::write(&path, content)
         .map_err(|e| AppError::settings(format!("Failed to write settings: {}", e)))?;
@@ -180,8 +178,7 @@ pub async fn generate_ssh_key(comment: String) -> Result<String, AppError> {
             ))
         })
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -208,6 +205,5 @@ pub async fn list_ssh_keys() -> Result<Vec<String>, AppError> {
 
         Ok(found_keys)
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }

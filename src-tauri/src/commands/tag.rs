@@ -4,8 +4,7 @@ use crate::git::repository;
 #[tauri::command]
 pub async fn list_tags(path: String) -> Result<Vec<repository::TagInfo>, AppError> {
     tokio::task::spawn_blocking(move || repository::list_tags(&path))
-        .await
-        .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+        .await?
 }
 
 #[tauri::command]
@@ -15,8 +14,7 @@ pub async fn delete_tag(path: String, name: String) -> Result<(), AppError> {
         repo.tag_delete(&name)?;
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -42,8 +40,7 @@ pub async fn create_tag(
         }
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -67,6 +64,5 @@ pub async fn push_tag(
 
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }

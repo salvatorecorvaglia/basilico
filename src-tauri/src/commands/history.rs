@@ -132,8 +132,7 @@ pub async fn get_file_history(
 
         Ok(history)
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[cfg(test)]

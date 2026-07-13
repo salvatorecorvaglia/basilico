@@ -82,8 +82,7 @@ pub async fn list_worktrees(repo_path: String) -> Result<Vec<WorktreeInfo>, AppE
 
         Ok(worktrees)
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -133,8 +132,7 @@ pub async fn add_worktree(
 
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -164,8 +162,7 @@ pub async fn remove_worktree(
 
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -183,6 +180,5 @@ pub async fn prune_worktrees(repo_path: String) -> Result<(), AppError> {
 
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }

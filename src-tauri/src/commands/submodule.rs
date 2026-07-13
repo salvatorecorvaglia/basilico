@@ -59,8 +59,7 @@ pub async fn list_submodules(repo_path: String) -> Result<Vec<SubmoduleInfo>, Ap
 
         Ok(result)
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -85,8 +84,7 @@ pub async fn init_submodules(repo_path: String, paths: Vec<String>) -> Result<()
 
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -123,8 +121,7 @@ pub async fn update_submodules(
 
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -149,8 +146,7 @@ pub async fn sync_submodules(repo_path: String, paths: Vec<String>) -> Result<()
 
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -176,6 +172,5 @@ pub async fn add_submodule(repo_path: String, url: String, path: String) -> Resu
 
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }

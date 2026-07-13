@@ -31,6 +31,5 @@ pub async fn get_stash_diff(
 
         Ok(diffs)
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }

@@ -22,8 +22,7 @@ pub async fn stage_files(path: String, files: Vec<String>) -> Result<(), AppErro
         index.write()?;
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -53,8 +52,7 @@ pub async fn unstage_files(path: String, files: Vec<String>) -> Result<(), AppEr
         }
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -88,8 +86,7 @@ pub async fn apply_patch(path: String, patch: String, location: String) -> Resul
         repo.apply(&diff, apply_loc, Some(&mut apply_opts))?;
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -140,8 +137,7 @@ pub async fn discard_changes(path: String, files: Vec<String>) -> Result<(), App
 
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[cfg(test)]

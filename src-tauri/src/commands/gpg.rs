@@ -117,6 +117,5 @@ pub async fn get_commit_signature(
             Err(_) => Ok(None),
         }
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }

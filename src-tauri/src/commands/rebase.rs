@@ -72,8 +72,7 @@ pub async fn rebase_init(
 
         Ok(items)
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -98,8 +97,7 @@ pub async fn rebase_write_todo(
         fs::write(todo_path, content)?;
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 fn get_todo_action(repo: &Repository, idx: usize) -> Result<String, AppError> {
@@ -318,8 +316,7 @@ pub async fn rebase_step(
             }
         }
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[cfg(test)]

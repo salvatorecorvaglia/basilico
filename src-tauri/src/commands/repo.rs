@@ -9,8 +9,7 @@ pub async fn open_repo(
     state: tauri::State<'_, AppState>,
 ) -> Result<repository::RepoInfo, AppError> {
     let info = tokio::task::spawn_blocking(move || repository::open_repo(&path))
-        .await
-        .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))??;
+        .await??;
 
     // Only register and start watcher if it's not already tracked
     let watcher_id = uuid::Uuid::new_v4().to_string();
@@ -33,15 +32,13 @@ pub async fn close_repo(path: String, state: tauri::State<'_, AppState>) -> Resu
 #[tauri::command]
 pub async fn get_status(path: String) -> Result<repository::RepoStatus, AppError> {
     tokio::task::spawn_blocking(move || repository::get_status(&path))
-        .await
-        .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+        .await?
 }
 
 #[tauri::command]
 pub async fn list_remotes(path: String) -> Result<Vec<repository::RemoteInfo>, AppError> {
     tokio::task::spawn_blocking(move || repository::list_remotes(&path))
-        .await
-        .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+        .await?
 }
 
 /// Get repository info without registering a watcher.
@@ -49,8 +46,7 @@ pub async fn list_remotes(path: String) -> Result<Vec<repository::RemoteInfo>, A
 #[tauri::command]
 pub async fn get_repo_info(path: String) -> Result<repository::RepoInfo, AppError> {
     tokio::task::spawn_blocking(move || repository::open_repo(&path))
-        .await
-        .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+        .await?
 }
 
 #[tauri::command]
@@ -71,8 +67,7 @@ pub async fn clone_repo(
         builder.clone(&url, std::path::Path::new(&path))?;
         repository::open_repo(&path)
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))??;
+    .await??;
 
     Ok(info)
 }
@@ -83,8 +78,7 @@ pub async fn init_repo(path: String) -> Result<(), AppError> {
         git2::Repository::init(std::path::Path::new(&path))?;
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -215,6 +209,5 @@ pub async fn open_external_tool(path: String, tool: String) -> Result<(), AppErr
             }
         }
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }

@@ -61,8 +61,7 @@ pub async fn get_conflict_stages(
 
         Ok(ConflictStages { base, ours, theirs })
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -86,8 +85,7 @@ pub async fn save_merged_resolution(
 
         Ok(())
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
 
 #[tauri::command]
@@ -282,6 +280,5 @@ pub async fn launch_external_merge_tool(
             )))
         }
     })
-    .await
-    .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+    .await?
 }
