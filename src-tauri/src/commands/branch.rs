@@ -4,8 +4,7 @@ use git2::Repository;
 
 #[tauri::command]
 pub async fn list_branches(path: String) -> Result<Vec<repository::BranchInfo>, AppError> {
-    tokio::task::spawn_blocking(move || repository::list_branches(&path))
-        .await?
+    tokio::task::spawn_blocking(move || repository::list_branches(&path)).await?
 }
 
 #[tauri::command]

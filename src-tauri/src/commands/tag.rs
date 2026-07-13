@@ -3,8 +3,7 @@ use crate::git::repository;
 
 #[tauri::command]
 pub async fn list_tags(path: String) -> Result<Vec<repository::TagInfo>, AppError> {
-    tokio::task::spawn_blocking(move || repository::list_tags(&path))
-        .await?
+    tokio::task::spawn_blocking(move || repository::list_tags(&path)).await?
 }
 
 #[tauri::command]

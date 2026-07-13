@@ -3,14 +3,12 @@ use crate::git::diff_parser;
 
 #[tauri::command]
 pub async fn get_workdir_diff(path: String) -> Result<Vec<diff_parser::FileDiff>, AppError> {
-    tokio::task::spawn_blocking(move || diff_parser::get_workdir_diff(&path))
-        .await?
+    tokio::task::spawn_blocking(move || diff_parser::get_workdir_diff(&path)).await?
 }
 
 #[tauri::command]
 pub async fn get_staged_diff(path: String) -> Result<Vec<diff_parser::FileDiff>, AppError> {
-    tokio::task::spawn_blocking(move || diff_parser::get_staged_diff(&path))
-        .await?
+    tokio::task::spawn_blocking(move || diff_parser::get_staged_diff(&path)).await?
 }
 
 #[tauri::command]
@@ -18,8 +16,7 @@ pub async fn get_commit_diff(
     path: String,
     oid: String,
 ) -> Result<Vec<diff_parser::FileDiff>, AppError> {
-    tokio::task::spawn_blocking(move || diff_parser::get_commit_diff(&path, &oid))
-        .await?
+    tokio::task::spawn_blocking(move || diff_parser::get_commit_diff(&path, &oid)).await?
 }
 
 #[tauri::command]

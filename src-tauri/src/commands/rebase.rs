@@ -528,6 +528,9 @@ mod tests {
         let head_commit = repo.repo.head().unwrap().peel_to_commit().unwrap();
         assert_eq!(head_commit.parent_count(), 1);
         assert_eq!(head_commit.parent(0).unwrap().id(), base_oid);
-        assert_eq!(head_commit.message().unwrap().trim(), "combined message edited");
+        assert_eq!(
+            head_commit.message().unwrap().trim(),
+            "combined message edited"
+        );
     }
 }

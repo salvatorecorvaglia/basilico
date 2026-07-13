@@ -8,8 +8,7 @@ pub async fn open_repo(
     path: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<repository::RepoInfo, AppError> {
-    let info = tokio::task::spawn_blocking(move || repository::open_repo(&path))
-        .await??;
+    let info = tokio::task::spawn_blocking(move || repository::open_repo(&path)).await??;
 
     // Only register and start watcher if it's not already tracked
     let watcher_id = uuid::Uuid::new_v4().to_string();
@@ -31,22 +30,19 @@ pub async fn close_repo(path: String, state: tauri::State<'_, AppState>) -> Resu
 
 #[tauri::command]
 pub async fn get_status(path: String) -> Result<repository::RepoStatus, AppError> {
-    tokio::task::spawn_blocking(move || repository::get_status(&path))
-        .await?
+    tokio::task::spawn_blocking(move || repository::get_status(&path)).await?
 }
 
 #[tauri::command]
 pub async fn list_remotes(path: String) -> Result<Vec<repository::RemoteInfo>, AppError> {
-    tokio::task::spawn_blocking(move || repository::list_remotes(&path))
-        .await?
+    tokio::task::spawn_blocking(move || repository::list_remotes(&path)).await?
 }
 
 /// Get repository info without registering a watcher.
 /// Used by refreshAll to avoid the open_repo side-effect.
 #[tauri::command]
 pub async fn get_repo_info(path: String) -> Result<repository::RepoInfo, AppError> {
-    tokio::task::spawn_blocking(move || repository::open_repo(&path))
-        .await?
+    tokio::task::spawn_blocking(move || repository::open_repo(&path)).await?
 }
 
 #[tauri::command]
