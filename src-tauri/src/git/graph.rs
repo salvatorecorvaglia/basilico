@@ -60,7 +60,7 @@ pub fn build_graph(path: &str, max_commits: usize) -> Result<Vec<GraphCommit>, A
     // Walk commits
     let mut revwalk = repo.revwalk()?;
     revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
-    revwalk.push_head()?;
+    let _ = revwalk.push_head();
 
     // Also push all branches/tags so we see the full graph
     for r in repo.references()?.flatten() {
@@ -355,5 +355,14 @@ mod tests {
 
         assert_eq!(commits2[1].oid, "C4");
         assert_eq!(commits2[1].lane, 0);
+    }
+
+    #[test]
+    fn test_build_graph_empty_repo() {
+        let repo = crate::test_utils::TempRepo::new();
+        let result = build_graph(repo.path_str(), 100);
+        assert!(result.is_ok());
+        let commits = result.unwrap();
+        assert!(commits.is_empty());
     }
 }

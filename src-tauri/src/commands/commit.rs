@@ -193,6 +193,9 @@ pub async fn create_commit(
 #[tauri::command]
 pub async fn cherry_pick_commit(path: String, oid: String) -> Result<String, AppError> {
     tokio::task::spawn_blocking(move || {
+        // Validate OID format to prevent command line option/argument injection
+        let _ = git2::Oid::from_str(&oid)?;
+
         let output = crate::commands::new_command("git")
             .current_dir(&path)
             .args(["cherry-pick", &oid])
@@ -248,6 +251,9 @@ pub async fn cherry_pick_abort(path: String) -> Result<(), AppError> {
 #[tauri::command]
 pub async fn revert_commit(path: String, oid: String) -> Result<String, AppError> {
     tokio::task::spawn_blocking(move || {
+        // Validate OID format to prevent command line option/argument injection
+        let _ = git2::Oid::from_str(&oid)?;
+
         let output = crate::commands::new_command("git")
             .current_dir(&path)
             .args(["revert", "--no-edit", &oid])

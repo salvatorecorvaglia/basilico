@@ -19,10 +19,10 @@ pub async fn list_stashes(path: String) -> Result<Vec<StashInfo>, AppError> {
         let mut entries = Vec::new();
 
         // Iterate through stashes and collect fields to avoid borrow checker issues
-        let _ = repo.stash_foreach(|idx, name, oid| {
+        repo.stash_foreach(|idx, name, oid| {
             entries.push((idx, name.to_string(), *oid));
             true
-        });
+        })?;
 
         for (idx, name, oid) in entries {
             let msg = repo
