@@ -73,11 +73,14 @@ pub async fn bisect_start(
     bad: String,
     good: String,
 ) -> Result<BisectState, AppError> {
+    if bad.starts_with('-') || good.starts_with('-') {
+        return Err(AppError::invalid_state("Bisect revisions cannot start with a hyphen"));
+    }
     tokio::task::spawn_blocking(move || {
         // First run reset to clear any stale bisect state
         let _ = run_git_cmd(&repo_path, &["bisect", "reset"]);
 
-        let output = run_git_cmd(&repo_path, &["bisect", "start", "--", &bad, &good])?;
+        let output = run_git_cmd(&repo_path, &["bisect", "start", &bad, &good])?;
         Ok(get_bisect_state(&repo_path, output))
     })
     .await?

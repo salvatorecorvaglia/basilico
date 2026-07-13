@@ -94,6 +94,9 @@ pub async fn add_worktree(
 ) -> Result<(), AppError> {
     // Validate path traversal
     let path_obj = std::path::Path::new(&path);
+    if path_obj.is_absolute() {
+        return Err(AppError::invalid_state("Absolute paths are not allowed"));
+    }
     for component in path_obj.components() {
         if let std::path::Component::ParentDir = component {
             return Err(AppError::invalid_state("Path traversal is not allowed"));

@@ -172,45 +172,39 @@ pub async fn rebase_step(
             let current_idx = rebase.operation_current().unwrap_or(0);
             let action_name = get_todo_action(&repo, current_idx)?;
 
-            let commit_oid = rebase.commit(None, &signature, commit_message.as_deref())?;
-
-            if action_name == "fixup" || action_name == "f" {
-                let commit_c = repo.find_commit(commit_oid)?;
-                if let Ok(commit_b) = commit_c.parent(0) {
-                    let tree = commit_c.tree()?;
-                    let msg = commit_b.message().map(|m| m.to_string());
-                    let amended_oid = commit_b.amend(
-                        None,
+            if action_name == "squash" || action_name == "s" {
+                // The squash commit was already created and amended in the previous call.
+                // We just need to update its message with the user's final edited message.
+                let head_commit = repo.head()?.peel_to_commit()?;
+                if let Some(msg) = commit_message {
+                    let amended_oid = head_commit.amend(
+                        Some("HEAD"),
                         None,
                         Some(&signature),
                         None,
-                        msg.as_deref(),
-                        Some(&tree),
+                        Some(&msg),
+                        None,
                     )?;
                     repo.set_head_detached(amended_oid)?;
                 }
-            } else if action_name == "squash" || action_name == "s" {
-                let commit_c = repo.find_commit(commit_oid)?;
-                if let Ok(commit_b) = commit_c.parent(0) {
-                    let tree = commit_c.tree()?;
-                    let msg_b = commit_b.message().unwrap_or("");
-                    let msg_c = commit_c.message().unwrap_or("");
-                    let combined_msg = format!("{}\n\n{}", msg_b.trim(), msg_c.trim());
-                    let amended_oid = commit_b.amend(
-                        None,
-                        None,
-                        Some(&signature),
-                        None,
-                        Some(&combined_msg),
-                        Some(&tree),
-                    )?;
-                    repo.set_head_detached(amended_oid)?;
+            } else {
+                let commit_oid = rebase.commit(None, &signature, commit_message.as_deref())?;
 
-                    return Ok(RebaseStatus {
-                        status: "reword".to_string(),
-                        current_oid: Some(amended_oid.to_string()),
-                        message: Some(format!("Paused for squash message edit at commit {}", amended_oid)),
-                    });
+                if action_name == "fixup" || action_name == "f" {
+                    let commit_c = repo.find_commit(commit_oid)?;
+                    if let Ok(commit_b) = commit_c.parent(0) {
+                        let tree = commit_c.tree()?;
+                        let msg = commit_b.message().map(|m| m.to_string());
+                        let amended_oid = commit_b.amend(
+                            None,
+                            None,
+                            Some(&signature),
+                            None,
+                            msg.as_deref(),
+                            Some(&tree),
+                        )?;
+                        repo.set_head_detached(amended_oid)?;
+                    }
                 }
             }
         }
@@ -472,5 +466,68 @@ mod tests {
         // The content should be the combined content
         let content = std::fs::read_to_string(repo.path.join("test.txt")).unwrap();
         assert_eq!(content, "initial\ncommit 2\ncommit 3");
+    }
+
+    #[tokio::test]
+    async fn test_rebase_step_squash_continue() {
+        let repo = TempRepo::new();
+        repo.write_file("test.txt", "initial");
+        repo.commit("initial");
+
+        let base_oid = repo.repo.head().unwrap().target().unwrap();
+
+        crate::commands::branch::create_branch(
+            repo.path_str().to_string(),
+            "branch1".to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+        crate::commands::branch::checkout_branch(
+            repo.path_str().to_string(),
+            "branch1".to_string(),
+        )
+        .await
+        .unwrap();
+
+        repo.write_file("test.txt", "initial\ncommit 2");
+        repo.commit("commit 2");
+
+        repo.write_file("test.txt", "initial\ncommit 2\ncommit 3");
+        repo.commit("commit 3");
+
+        let todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
+            .await
+            .unwrap();
+        assert_eq!(todos.len(), 2);
+
+        let mut modified_todos = todos.clone();
+        modified_todos[1].action = "squash".to_string();
+
+        rebase_write_todo(repo.path_str().to_string(), modified_todos)
+            .await
+            .unwrap();
+
+        // Step 1: runs pick (commit 2), then squash (commit 3), and pauses for reword
+        let status = rebase_step(repo.path_str().to_string(), "none".to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(status.status, "reword");
+
+        // Step 2: continues by supplying the edited message, finishing the rebase
+        let status2 = rebase_step(
+            repo.path_str().to_string(),
+            "continue".to_string(),
+            Some("combined message edited".to_string()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(status2.status, "finished");
+
+        // Verify HEAD is pointing to the squashed commit with final message
+        let head_commit = repo.repo.head().unwrap().peel_to_commit().unwrap();
+        assert_eq!(head_commit.parent_count(), 1);
+        assert_eq!(head_commit.parent(0).unwrap().id(), base_oid);
+        assert_eq!(head_commit.message().unwrap().trim(), "combined message edited");
     }
 }

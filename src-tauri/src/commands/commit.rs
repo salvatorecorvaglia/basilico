@@ -22,30 +22,16 @@ pub async fn create_commit(
                 cmd.current_dir(&path);
                 cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-                let child = cmd.spawn();
-                match child {
-                    Ok(mut child_proc) => {
-                        let status = child_proc.wait().map_err(|e| AppError::command(format!("Failed to wait for pre-commit hook: {}", e)))?;
-                        if !status.success() {
-                            let mut output = String::new();
-                            if let Some(mut stdout) = child_proc.stdout {
-                                use std::io::Read;
-                                let mut s = String::new();
-                                if stdout.read_to_string(&mut s).is_ok() {
-                                    output.push_str(&s);
-                                }
-                            }
-                            if let Some(mut stderr) = child_proc.stderr {
-                                use std::io::Read;
-                                let mut s = String::new();
-                                if stderr.read_to_string(&mut s).is_ok() {
-                                    output.push_str(&s);
-                                }
-                            }
+                match cmd.output() {
+                    Ok(output) => {
+                        if !output.status.success() {
+                            let stdout_str = String::from_utf8_lossy(&output.stdout);
+                            let stderr_str = String::from_utf8_lossy(&output.stderr);
+                            let combined_output = format!("{}{}", stdout_str, stderr_str);
                             return Err(AppError::command(format!(
                                 "Pre-commit hook failed (exit code: {}):\n{}",
-                                status.code().unwrap_or(-1),
-                                output
+                                output.status.code().unwrap_or(-1),
+                                combined_output
                             )));
                         }
                     }

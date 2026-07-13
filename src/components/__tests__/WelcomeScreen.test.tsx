@@ -25,6 +25,9 @@ vi.mock("../../store/repo-store", () => ({
     cloneRepository: vi.fn(),
     initializeRepository: vi.fn(),
     isLoading: false,
+    recentRepos: [],
+    pinRecentRepo: vi.fn(),
+    removeRecentRepo: vi.fn(),
     loadingStates: {
       global: false,
       commits: false,
