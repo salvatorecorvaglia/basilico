@@ -39,7 +39,8 @@ pub async fn get_commit_signature(
                 let mut signer = author_name.clone();
 
                 // Check if gpg CLI is available
-                let temp_dir = std::env::temp_dir().join(format!("basilico_gpg_{}", uuid::Uuid::new_v4()));
+                let temp_dir =
+                    std::env::temp_dir().join(format!("basilico_gpg_{}", uuid::Uuid::new_v4()));
                 let sig_path = temp_dir.join("commit.sig");
                 let payload_path = temp_dir.join("commit.payload");
 

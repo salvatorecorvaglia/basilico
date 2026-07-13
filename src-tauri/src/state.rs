@@ -34,8 +34,6 @@ impl AppState {
         let repos = self.repos.lock();
         repos.get(path).cloned()
     }
-
-
 }
 
 impl Default for AppState {
