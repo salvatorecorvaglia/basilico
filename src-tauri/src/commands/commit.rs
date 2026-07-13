@@ -75,16 +75,10 @@ pub async fn create_commit(
             let commit_content = std::str::from_utf8(&commit_content_buf)
                 .map_err(|_| AppError::invalid_state("Commit buffer is not valid UTF-8"))?;
 
-            let mut cmd = std::process::Command::new("gpg");
+            let mut cmd = crate::commands::new_command("gpg");
             cmd.arg("--status-fd").arg("2").arg("-bsa");
             if let Some(ref key) = signing_key {
                 cmd.arg("-u").arg(key);
-            }
-
-            #[cfg(target_os = "windows")]
-            {
-                use std::os::windows::process::CommandExt;
-                cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
             }
 
             cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());

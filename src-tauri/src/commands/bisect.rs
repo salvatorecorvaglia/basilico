@@ -77,7 +77,7 @@ pub async fn bisect_start(
         // First run reset to clear any stale bisect state
         let _ = run_git_cmd(&repo_path, &["bisect", "reset"]);
 
-        let output = run_git_cmd(&repo_path, &["bisect", "start", &bad, &good])?;
+        let output = run_git_cmd(&repo_path, &["bisect", "start", "--", &bad, &good])?;
         Ok(get_bisect_state(&repo_path, output))
     })
     .await
@@ -89,6 +89,9 @@ pub async fn bisect_mark(
     repo_path: String,
     status: String, // "good", "bad", "skip"
 ) -> Result<BisectState, AppError> {
+    if status != "good" && status != "bad" && status != "skip" {
+        return Err(AppError::invalid_state("Invalid bisect status"));
+    }
     tokio::task::spawn_blocking(move || {
         let output = run_git_cmd(&repo_path, &["bisect", &status])?;
         Ok(get_bisect_state(&repo_path, output))
@@ -105,4 +108,22 @@ pub async fn bisect_reset(repo_path: String) -> Result<(), AppError> {
     })
     .await
     .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::TempRepo;
+
+    #[tokio::test]
+    async fn test_bisect_invalid_status() {
+        let repo = TempRepo::new();
+        let path = repo.path_str().to_string();
+
+        let result = bisect_mark(path, "invalid_status_here".to_string()).await;
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert_eq!(e.to_string(), "Invalid bisect status");
+        }
+    }
 }

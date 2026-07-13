@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GraphCommit, RefLabel } from "../../lib/git-types";
+import { validateTagName } from "../../lib/git-validation";
 import {
   formatRelativeTime,
   getInitials,
@@ -428,6 +429,11 @@ export function CommitList() {
       onSubmit: async (values) => {
         const name = values.name.trim();
         const message = values.message.trim();
+        const validationError = validateTagName(name);
+        if (validationError) {
+          addNotification({ type: "error", message: validationError });
+          return;
+        }
         try {
           await createTag(name, oid, message || null);
           addNotification({

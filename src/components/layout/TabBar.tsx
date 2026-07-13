@@ -39,16 +39,25 @@ export function TabBar() {
           return (
             <div
               key={tab.id}
-              role="tab"
-              tabIndex={0}
-              aria-selected={isActive}
               className={`tabbar-tab ${isActive ? "active" : ""}`}
               onClick={() => switchTab(tab.id)}
-              onKeyDown={handleKeyDown}
               title={tab.path}
             >
-              <FolderOpen size={14} className="tabbar-tab-icon" />
-              <span className="tabbar-tab-name truncate">{tab.name}</span>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                className="tabbar-tab-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  switchTab(tab.id);
+                }}
+                onKeyDown={handleKeyDown}
+                aria-label={tab.name}
+              >
+                <FolderOpen size={14} className="tabbar-tab-icon" />
+                <span className="tabbar-tab-name truncate">{tab.name}</span>
+              </button>
               <button
                 type="button"
                 className="tabbar-tab-close"

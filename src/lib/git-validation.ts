@@ -91,3 +91,80 @@ export function validateBranchName(name: string): string | null {
 
   return null;
 }
+
+/**
+ * Validates a tag name against Git's check-ref-format rules.
+ * @returns An error message string if invalid, or null if valid.
+ */
+export function validateTagName(name: string): string | null {
+  if (!name || name.trim().length === 0) {
+    return "Tag name cannot be empty.";
+  }
+
+  if (name !== name.trim()) {
+    return "Tag name cannot start or end with spaces.";
+  }
+
+  // Cannot begin or end with /
+  if (name.startsWith("/") || name.endsWith("/")) {
+    return 'Tag name cannot start or end with "/".';
+  }
+
+  // Cannot contain //
+  if (name.includes("//")) {
+    return 'Tag name cannot contain consecutive slashes "//".';
+  }
+
+  // Cannot have two consecutive dots
+  if (name.includes("..")) {
+    return 'Tag name cannot contain "..".';
+  }
+
+  // Cannot end with "."
+  if (name.endsWith(".")) {
+    return 'Tag name cannot end with ".".';
+  }
+
+  // Cannot end with ".lock"
+  if (name.endsWith(".lock")) {
+    return 'Tag name cannot end with ".lock".';
+  }
+
+  // Cannot contain @{
+  if (name.includes("@{")) {
+    return 'Tag name cannot contain "@{".';
+  }
+
+  // Cannot be the single character "@"
+  if (name === "@") {
+    return 'Tag name cannot be "@".';
+  }
+
+  // Cannot contain ASCII control characters, space, ~, ^, :, ?, [, \, *
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: we need to match control characters to validate git branch names
+  const invalidCharsRegex = /[\x00-\x1f\x7f ~^:?[\\*]/;
+  const match = name.match(invalidCharsRegex);
+  if (match) {
+    const char = match[0];
+    if (char === " ") {
+      return "Tag name cannot contain spaces.";
+    }
+    if (char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127) {
+      return "Tag name cannot contain control characters.";
+    }
+    return `Tag name cannot contain the character "${char}".`;
+  }
+
+  // Each path component cannot begin with "."
+  const components = name.split("/");
+  for (const component of components) {
+    if (component.startsWith(".")) {
+      return `Tag name component cannot start with "." (found in "${component}").`;
+    }
+    if (component.length === 0) {
+      return "Tag name contains an empty path component.";
+    }
+  }
+
+  return null;
+}

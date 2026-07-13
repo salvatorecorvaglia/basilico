@@ -13,9 +13,8 @@ pub async fn open_repo(
         .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))??;
 
     // Only register and start watcher if it's not already tracked
-    if !state.has_repo(&info.path) {
-        let watcher_id = uuid::Uuid::new_v4().to_string();
-        state.add_repo(info.path.clone(), watcher_id.clone());
+    let watcher_id = uuid::Uuid::new_v4().to_string();
+    if state.try_add_repo(info.path.clone(), watcher_id.clone()) {
         crate::watcher::start_watching(app, info.path.clone(), watcher_id);
     }
 

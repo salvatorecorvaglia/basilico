@@ -15,9 +15,14 @@ impl AppState {
         }
     }
 
-    pub fn add_repo(&self, path: String, watcher_id: String) {
+    pub fn try_add_repo(&self, path: String, watcher_id: String) -> bool {
         let mut repos = self.repos.lock();
-        repos.insert(path, watcher_id);
+        if repos.contains_key(&path) {
+            false
+        } else {
+            repos.insert(path, watcher_id);
+            true
+        }
     }
 
     pub fn remove_repo(&self, path: &str) {
@@ -30,10 +35,7 @@ impl AppState {
         repos.get(path).cloned()
     }
 
-    pub fn has_repo(&self, path: &str) -> bool {
-        let repos = self.repos.lock();
-        repos.contains_key(path)
-    }
+
 }
 
 impl Default for AppState {

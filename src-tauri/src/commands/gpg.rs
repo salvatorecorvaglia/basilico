@@ -2,7 +2,6 @@ use crate::error::AppError;
 use git2::{Oid, Repository};
 use serde::Serialize;
 use std::fs;
-use std::process::Command;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,27 +39,21 @@ pub async fn get_commit_signature(
                 let mut signer = author_name.clone();
 
                 // Check if gpg CLI is available
-                let temp_dir = repo.path().join("basilico_temp");
-                let sig_path = temp_dir.join(format!("{}.sig", oid_str));
-                let payload_path = temp_dir.join(format!("{}.payload", oid_str));
+                let temp_dir = std::env::temp_dir().join(format!("basilico_gpg_{}", uuid::Uuid::new_v4()));
+                let sig_path = temp_dir.join("commit.sig");
+                let payload_path = temp_dir.join("commit.payload");
 
                 // Attempt to verify with local gpg CLI
                 if fs::create_dir_all(&temp_dir).is_ok() {
                     if fs::write(&sig_path, &*sig_buf).is_ok()
                         && fs::write(&payload_path, &*payload_buf).is_ok()
                     {
-                        let mut cmd = Command::new("gpg");
+                        let mut cmd = crate::commands::new_command("gpg");
                         cmd.arg("--status-fd")
                             .arg("1")
                             .arg("--verify")
                             .arg(&sig_path)
                             .arg(&payload_path);
-
-                        #[cfg(target_os = "windows")]
-                        {
-                            use std::os::windows::process::CommandExt;
-                            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-                        }
 
                         if let Ok(output) = cmd.output() {
                             let stdout_str = String::from_utf8_lossy(&output.stdout);

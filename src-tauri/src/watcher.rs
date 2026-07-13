@@ -30,6 +30,8 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
         let watch_path = Path::new(&repo_path);
 
         // Watch root recursively so new top-level directories are automatically covered.
+        // NOTE: On Linux systems, massive repositories with huge unignored folders (like target/ or node_modules/)
+        // may exceed fs.inotify.max_user_watches limits. Users should configure their system limits accordingly.
         // The event filter below handles ignoring node_modules/target/etc.
         if let Err(e) = debouncer
             .watcher()

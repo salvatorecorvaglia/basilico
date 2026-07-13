@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateBranchName } from "../git-validation";
+import { validateBranchName, validateTagName } from "../git-validation";
 
 describe("validateBranchName", () => {
   describe("valid branch names", () => {
@@ -90,6 +90,38 @@ describe("validateBranchName", () => {
 
     it("should reject component starting with .", () => {
       expect(validateBranchName("feature/.hidden")).not.toBeNull();
+    });
+  });
+});
+
+describe("validateTagName", () => {
+  describe("valid tag names", () => {
+    it.each([
+      "v1.0.0",
+      "release-v1",
+      "v2.0.0-beta.1",
+      "latest",
+      "tags/v1.0",
+    ])('should accept "%s"', (name) => {
+      expect(validateTagName(name)).toBeNull();
+    });
+  });
+
+  describe("invalid tag names", () => {
+    it("should reject empty string", () => {
+      expect(validateTagName("")).not.toBeNull();
+    });
+
+    it("should reject names containing spaces", () => {
+      expect(validateTagName("v1.0 0")).not.toBeNull();
+    });
+
+    it('should reject names containing ".."', () => {
+      expect(validateTagName("v1..0")).not.toBeNull();
+    });
+
+    it("should reject names ending with .lock", () => {
+      expect(validateTagName("v1.lock")).not.toBeNull();
     });
   });
 });

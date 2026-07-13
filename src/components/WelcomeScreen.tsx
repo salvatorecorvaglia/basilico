@@ -145,7 +145,13 @@ export function WelcomeScreen() {
 
         {/* Keyboard shortcut hint */}
         <div className="welcome-hint">
-          <kbd>⌘</kbd> + <kbd>O</kbd> to open a repository
+          <kbd>
+            {typeof window !== "undefined" &&
+            navigator.userAgent.includes("Mac")
+              ? "⌘"
+              : "Ctrl"}
+          </kbd>{" "}
+          + <kbd>O</kbd> to open a repository
         </div>
       </div>
 

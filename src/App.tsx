@@ -243,13 +243,15 @@ function App() {
 
   // Listen to file system changes from Rust watcher
   useEffect(() => {
+    let active = true;
     let unsubscribe: (() => void) | undefined;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const setupListener = async () => {
-      unsubscribe = await listen<{ repoPath: string }>(
+      const unsub = await listen<{ repoPath: string }>(
         "repo:changed",
         (event) => {
+          if (!active) return;
           const currentActive = useRepoStore.getState().activeTabId;
           if (currentActive === event.payload.repoPath) {
             // Debounce watcher refreshes on the frontend
@@ -262,11 +264,17 @@ function App() {
           }
         },
       );
+      if (!active) {
+        unsub();
+      } else {
+        unsubscribe = unsub;
+      }
     };
 
     setupListener();
 
     return () => {
+      active = false;
       if (unsubscribe) unsubscribe();
       if (timeoutId) clearTimeout(timeoutId);
     };
