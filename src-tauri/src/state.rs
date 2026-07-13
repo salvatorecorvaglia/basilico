@@ -17,11 +17,11 @@ impl AppState {
 
     pub fn try_add_repo(&self, path: String, watcher_id: String) -> bool {
         let mut repos = self.repos.lock();
-        if repos.contains_key(&path) {
-            false
-        } else {
-            repos.insert(path, watcher_id);
+        if let std::collections::hash_map::Entry::Vacant(e) = repos.entry(path) {
+            e.insert(watcher_id);
             true
+        } else {
+            false
         }
     }
 

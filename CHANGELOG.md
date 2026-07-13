@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **GPG Signature Verification**: Implemented GPG signature verification for commits, adding robust validation and error handling in the backend.
+- **Interactive Rebase**: Added advanced interactive rebase support including squash, fixup, and drop operations in the UI and Rust backend.
+- **Repository Initialization & Cloning**: Added commands and UI elements on the Welcome Screen to initialize new repositories or clone existing remote repositories.
+- **Diff View Line Numbers**: Integrated line number displays within the side-by-side and unified diff views.
+- **Theme Loader**: Added an early-loading script (`theme-loader.js`) to apply user theme preferences immediately on app startup, eliminating visual flashes.
+- **Git Reference/Tag Validation**: Implemented client-side validation and sanitization checks for git tags and reference names before creation.
+
+### Changed
+
+- **Theme-Aware Commit Graph**: Enhanced `CommitGraph` rendering to be fully theme-aware with dynamic styling and added a theme guard layout wrapper.
+- **Tab Accessibility**: Improved keyboard navigation, tab indexing, roles, and focus styling on tab elements (`TabBar`).
+- **Layout Robustness**: Added a `PanelErrorBoundary` wrapper component to gracefully catch layout and panel-level runtime errors.
+- **CI/CD & Autoupdater**: Updated release workflows and switched the auto-updater endpoint to point to GitHub releases JSON.
+- **Dependency Clean-up**: Removed `package-lock.json` to resolve dependency conflicts.
+
+### Fixed
+
+- **Subprocess Hardening**: Hardened command-line subprocess execution and error safety in the Rust backend for `bisect` and `gpg` operations.
+
 ## [0.8.0] - 2026-07-09
 
 ### Added

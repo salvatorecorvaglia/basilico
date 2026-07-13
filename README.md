@@ -10,12 +10,13 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
 
 - **🛠 Core Git Operations**: 
   - Effortless staging, committing, pushing, pulling, merging, tagging, cherry-picking, and reverting commits.
+  - **Repository Initialization & Cloning**: Directly initialize new git repositories or clone remote repositories from the Welcome Screen.
   - Interactive stashing capabilities, complete with a dedicated `StashInspector` UI supporting untracked file diffs.
   - Soft, mixed, and hard modes for `git reset` via a custom `ResetModal` UI.
-  - Client-side branch name validation matching standard `git check-ref-format` specifications.
-  - Automated multi-step Git rebase operation execution loop.
+  - Client-side branch, tag, and reference validation/sanitization matching standard Git specifications before creation.
+  - **Advanced Interactive Rebase**: Interactive rebase support including squash, fixup, and drop operations in both the UI and Rust backend, running in an automated multi-step execution loop.
 - **🔍 Advanced Inspection & Comparison**:
-  - **Revision Compare**: Select and compare revisions, explore file trees, and view side-by-side or inline diffs.
+  - **Revision Compare**: Select and compare revisions, explore file trees, and view side-by-side or inline diffs with integrated line number displays.
   - **Git Blame**: An integrated blame view with detailed modification history tracking for individual lines.
   - **Conflict Resolver**: Interactive merge conflict resolution interface to handle conflicts quickly and safely.
   - **Git Bisect**: Interactive Git Bisect wizard to isolate bug-introducing commits with mark options (`good`/`bad`/`skip`).
@@ -28,18 +29,21 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
   - **Repository Session Persistence**: Persist open repository tabs and the active repository path across application sessions using `localStorage`, restoring them automatically on startup.
 - **🎨 Premium Aesthetics & UI**:
   - Unified design system utilizing **Tailwind CSS v4** and modern CSS custom variables.
+  - **Early Theme Loader**: An early-loading script (`theme-loader.js`) that reads and applies user theme preferences immediately on app startup, eliminating visual flashes.
   - Curated, dynamic accent theme presets (Sage Green, Royal Blue, Amethyst Purple, Amber Gold, Crimson Red, Ocean Teal) with dark/light variants.
+  - **Theme-Aware Commit Graph**: Beautiful commit graph rendering that automatically updates to match the current accent theme and light/dark modes.
   - Modular sidebar navigation trees (`BranchTree`, `RemoteTree`, `TagTree`, `StashTree`, `SubmoduleTree`, `WorktreeTree`) with rich custom context actions.
-  - **Radix UI** accessible overlay components (Dialogs, Popovers, Dropdowns, Context Menus, and Accordions).
+  - **Radix UI Accessibility**: Fully accessible overlays, context menus, and navigation tabs with robust keyboard navigation, ARIA roles, and focus styling.
   - Raycast/Cursor inspired Command Palette for keyboard-driven navigation.
   - Dynamic dark/light Monaco Diff Editor integrations syncing with active theme presets and system color schemes in real-time.
-  - **Fault Tolerance**: Dedicated React `ErrorBoundary` component that catches client-side runtime errors and displays a premium recovery UI to ensure smooth user recovery.
+  - **Fault Tolerance**: Dedicated panel-level error boundaries (`PanelErrorBoundary`) and a root React `ErrorBoundary` that gracefully handle runtime exceptions with a recovery UI.
 - **🚀 Underlying Architecture**:
   - **Rust Backend**: Multithreaded command runner leveraging Rust `git2` bindings for maximum performance, with heavy or blocking Git operations offloaded to asynchronous Tokio tasks (`tokio::task::spawn_blocking`) to keep the UI thread completely stall-free.
   - **State Management**: Highly optimized Zustand `repo-store` split into modular slices (`collaboration`, `git-data`, `settings`, `staging`, `tabs`) using a granular, domain-specific `loadingStates` tracker to handle loading status individually per domain and avoid race conditions.
   - **Watcher**: A live repository file system watcher recursively tracking root changes using `notify` to automatically refresh application state on local edits.
   - **Error Mapping**: Automated translation of raw Git/Rust CLI error outputs to user-friendly actionable feedback notifications.
-  - **Auto-Updater**: Seamless integration with Tauri's native updater and process relaunch plugins to automatically check for updates in production builds, displaying interactive progress percentages in custom toast notifications and supporting one-click application restarts.
+  - **Auto-Updater**: Seamless integration with Tauri's native updater, pointing to GitHub releases JSON to check for production updates with custom progress toast notifications and application restart support.
+  - **Subprocess Hardening**: Thread-safe, hardened command-line subprocess execution with robust error isolation for Git helper operations (such as `bisect` and `gpg`).
   - **Windows Git Credential Helper**: Custom credential helper resolution and execution logic in the Rust backend on Windows, allowing secure retrieval of HTTPS credentials without flashing terminal windows.
 
 ---

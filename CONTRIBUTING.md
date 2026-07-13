@@ -119,6 +119,8 @@ Familiarize yourself with the layout before modifying code:
   * [lib/](src/lib): Shared utilities, helper constants, type definitions, and Tauri command bindings.
   * [styles](src/styles): Contains [theme.css](src/styles/theme.css) and [index.css](src/styles/index.css) defining design system variables and premium dark-mode styles.
   * [store](src/store): Zustand global state management stores.
+* **`public/`**: Static assets.
+  * [theme-loader.js](public/theme-loader.js): Early-loading JavaScript script that retrieves the user's theme preference from local storage and sets it as an HTML attribute immediately to prevent flashes on app startup.
 
 ---
 
@@ -126,18 +128,25 @@ Familiarize yourself with the layout before modifying code:
 
 ### 🎨 Frontend & UI Style
 * **Formatting & Linting**: We use **Biome** for code formatting, linting, and import sorting. Before committing, run `pnpm run lint:fix` or set up the Biome VS Code extension to automatically format your files on save.
-* **Premium Aesthetics**: Basilico prioritizes visually stunning, premium dark-mode styling. Stick to the curated color palette and layout tokens defined in [theme.css](src/styles/theme.css).
+* **Premium Aesthetics**: Basilico prioritizes visually stunning, premium dark-mode styling. Stick to the curated color palette and layout tokens defined in [theme.css](src/styles/theme.css). Make sure any new UI components support responsive dynamic accent theme presets and light/dark modes seamlessly.
 * **Styling**: We use **Tailwind CSS v4** utility classes alongside standard CSS/Vanilla CSS custom variables for layout and visual styling. Maintain component purity and ensure component styling adheres strictly to our design tokens.
-* **TypeScript & React**: Maintain strict type safety. Avoid using `any`. Write modern React functional components with hooks. Wrap error-prone visual component mounts in the custom React `ErrorBoundary` component to provide a fallback recovery UI instead of crashing the entire application.
+* **Theme Preference & Early Loading**: Theme loading uses a dedicated `theme-loader.js` script in the `public` folder to set the document's `data-theme` attribute at startup. Ensure any theme-changing or theme-dependent logic coordinates correctly with this property and Zustand `repo-store`'s theme settings.
+* **TypeScript & React**: Maintain strict type safety. Avoid using `any`. Write modern React functional components with hooks.
+* **Accessibility**: Build elements with full keyboard navigation and ARIA role compliance (following Radix UI patterns). Ensure tabs (like `TabBar`), list/tree structures, and overlay prompts are fully focusable and styled using visible outline focus rings.
 * **State Management**: Use domain-specific loading states (`loadingStates`) defined in the Zustand `repo-store` rather than a global `isLoading` flag to prevent concurrent operations from clobbering each other.
-* **Error Handling & Validation**: Use `validateBranchName` for branch creation input validation, and wrap Tauri command error results in `friendlyErrorMessage` before showing them to the user.
+* **Error Handling & Validation**:
+  - Input Validation: Validate Git references and tag formats using validation helpers (`validateBranchName`, etc.) before calling backend functions.
+  - Fault Tolerance: Wrap panel-level view modules in custom `PanelErrorBoundary` containers, and critical layout roots in `ErrorBoundary` components to catch runtime errors gracefully and present a premium recovery UI instead of crashing the app.
+  - Error Presentation: Wrap Tauri command error results in `friendlyErrorMessage` to provide user-actionable feedback.
 
 ### 🦀 Rust Backend Style
 * Follow standard idiomatic Rust styling guidelines.
 * Avoid using `.unwrap()` on `Option` or `Result` types. Properly propagate errors using Tauri-compatible error structures (such as [error.rs](src-tauri/src/error.rs)).
 * Use `parking_lot` primitives for synchronization instead of standard library mutexes when appropriate to avoid blocking async contexts.
 * **Non-Blocking Operations**: Never execute synchronous, CPU-intensive, or blocking IO/Git actions (like heavy `git2` revision walks or diff parses) directly inside the main async Tauri commands. Always offload them using `tokio::task::spawn_blocking` to avoid stalling the async executor and the client UI thread.
-* **Security & Path Validation**: Always perform path validation via `crate::git::utils::validate_path` on user-provided file paths or patch deltas in commands (such as submodules, worktrees, or patch applications) to prevent directory traversal vulnerabilities.
+* **Security & Subprocess Hardening**: 
+  - Subprocess Execution: When spawning shell commands or running external binaries (e.g. for `gpg`, `bisect`, or credential helpers), use hardened wrapper abstractions that properly isolate execution, prevent command injection, and bubble up structured, thread-safe errors.
+  - Path Validation: Always perform path validation via `crate::git::utils::validate_path` on user-provided file paths or patch deltas in commands (such as submodules, worktrees, or patch applications) to prevent directory traversal vulnerabilities.
 
 ---
 
