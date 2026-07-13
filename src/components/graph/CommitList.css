@@ -146,6 +146,12 @@
   border-bottom-color: var(--border-accent);
 }
 
+.commit-row.drag-hover {
+  background: var(--bg-hover) !important;
+  outline: 2px dashed var(--accent-primary) !important;
+  outline-offset: -2px;
+}
+
 .commit-row.selected:focus-visible {
   outline: 2px solid var(--accent-primary);
   outline-offset: -2px;

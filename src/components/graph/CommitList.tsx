@@ -79,14 +79,39 @@ export function CommitList() {
     isLoading,
   } = useRepoStore();
 
-  const { openResetModal, addNotification, setActiveView, openPrompt } =
-    useUIStore();
+  const {
+    openResetModal,
+    addNotification,
+    setActiveView,
+    openPrompt,
+    openConfirm,
+  } = useUIStore();
 
   const parentRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(600);
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
+
+  const handleDropOnCommit = (draggedBranch: string, targetOid: string) => {
+    openConfirm({
+      title: "Reset Branch to Commit",
+      message: `Would you like to checkout branch "${draggedBranch}" and reset it to commit ${targetOid.slice(0, 7)}?`,
+      confirmLabel: "Reset Branch",
+      cancelLabel: "Cancel",
+      onConfirm: async () => {
+        try {
+          await checkoutBranch(draggedBranch);
+          openResetModal(targetOid);
+        } catch (err) {
+          addNotification({
+            type: "error",
+            message: `Action failed: ${err}`,
+          });
+        }
+      },
+    });
+  };
 
   useEffect(() => {
     const el = parentRef.current;
@@ -586,6 +611,24 @@ export function CommitList() {
                       transform: `translateY(${virtualRow.start}px)`,
                     }}
                     onClick={() => selectCommit(commit.oid)}
+                    onDragOver={(e) => {
+                      if (e.dataTransfer.types.includes("text/plain")) {
+                        e.preventDefault();
+                        e.currentTarget.classList.add("drag-hover");
+                      }
+                    }}
+                    onDragLeave={(e) => {
+                      e.currentTarget.classList.remove("drag-hover");
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.remove("drag-hover");
+                      const draggedBranch =
+                        e.dataTransfer.getData("text/plain");
+                      if (draggedBranch) {
+                        handleDropOnCommit(draggedBranch, commit.oid);
+                      }
+                    }}
                   >
                     <div
                       className="commit-col-graph"

@@ -37,6 +37,39 @@ export function BranchTree({ branches }: BranchTreeProps) {
 
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
 
+  const handleBranchDrop = (dragged: string, target: string) => {
+    openConfirm({
+      title: "Merge Branches",
+      message: `Would you like to merge branch "${dragged}" into "${target}"?`,
+      confirmLabel: `Merge ${dragged}`,
+      cancelLabel: "Cancel",
+      onConfirm: async () => {
+        try {
+          if (branches.find((b) => b.name === target)?.isHead === false) {
+            await handleCheckout(target);
+          }
+          const result = await mergeBranch(dragged);
+          if (result === "conflicts") {
+            addNotification({
+              type: "warning",
+              message: `Merge conflict in workspace! Please resolve conflicts in the staging area.`,
+            });
+          } else {
+            addNotification({
+              type: "success",
+              message: `Merged branch "${dragged}" into "${target}" successfully`,
+            });
+          }
+        } catch (err) {
+          addNotification({
+            type: "error",
+            message: `Merge failed: ${err}`,
+          });
+        }
+      },
+    });
+  };
+
   // Memoize branch filtering
   const localBranches = useMemo(
     () => branches.filter((b) => !b.isRemote),
@@ -208,6 +241,28 @@ export function BranchTree({ branches }: BranchTreeProps) {
             onClick={() => setSelectedBranch(branch.name)}
             onDoubleClick={() => handleCheckout(branch.name)}
             title={branch.name}
+            draggable={true}
+            onDragStart={(e) =>
+              e.dataTransfer.setData("text/plain", branch.name)
+            }
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes("text/plain")) {
+                e.preventDefault();
+                e.currentTarget.classList.add("drag-hover");
+              }
+            }}
+            onDragLeave={(e) => {
+              e.currentTarget.classList.remove("drag-hover");
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.currentTarget.classList.remove("drag-hover");
+              const draggedBranch = e.dataTransfer.getData("text/plain");
+              const targetBranch = branch.name;
+              if (draggedBranch && draggedBranch !== targetBranch) {
+                handleBranchDrop(draggedBranch, targetBranch);
+              }
+            }}
           >
             <CircleDot
               size={11}

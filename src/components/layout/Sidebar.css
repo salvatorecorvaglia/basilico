@@ -140,6 +140,12 @@
   box-shadow: inset 0 0 0 1px var(--border-default);
 }
 
+.sidebar-item.drag-hover {
+  background: var(--bg-hover) !important;
+  outline: 2px dashed var(--accent-primary) !important;
+  outline-offset: -2px;
+}
+
 .sidebar-item-nested {
   padding-left: var(--space-10);
 }

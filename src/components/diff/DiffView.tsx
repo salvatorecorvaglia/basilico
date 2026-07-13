@@ -3,10 +3,10 @@
    Monaco Diff Editor + Granular Hunk/Line Staging
    ═══════════════════════════════════════════════════════ */
 
-import { DiffEditor } from "@monaco-editor/react";
+import { DiffEditor, type Monaco } from "@monaco-editor/react";
 import { Check, Eye, FileCode, Minus, Plus, Trash2 } from "lucide-react";
 import type { editor } from "monaco-editor";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DiffHunkInfo } from "../../lib/git-types";
 import {
   type FileContentPair,
@@ -38,10 +38,149 @@ export function DiffView() {
   const [contents, setContents] = useState<FileContentPair | null>(null);
   const [loadingContents, setLoadingContents] = useState(false);
 
+  const [editorInstance, setEditorInstance] =
+    useState<editor.IStandaloneDiffEditor | null>(null);
+  const [monacoInstance, setMonacoInstance] = useState<Monaco | null>(null);
+  const callbackRef = useRef<{
+    handleGutterClick: (
+      lineNumber: number,
+      isOriginal: boolean,
+    ) => Promise<void>;
+  } | null>(null);
+
   // Track checked line indices per hunk: key is hunkIndex, value is Set of lineIndices
   const [selectedLines, setSelectedLines] = useState<
     Record<number, Set<number>>
   >({});
+
+  const handleGutterClick = async (lineNumber: number, isOriginal: boolean) => {
+    if (!localDiff || !selectedFilePath) return;
+
+    // Find the hunk and line that correspond to this click
+    let foundHunk: DiffHunkInfo | null = null;
+    let foundHunkIdx = -1;
+    let foundLineIdx = -1;
+
+    for (let hIdx = 0; hIdx < localDiff.hunks.length; hIdx++) {
+      const hunk = localDiff.hunks[hIdx];
+      for (let lIdx = 0; lIdx < hunk.lines.length; lIdx++) {
+        const line = hunk.lines[lIdx];
+        if (isOriginal) {
+          if (line.origin === "-" && line.oldLineno === lineNumber) {
+            foundHunk = hunk;
+            foundHunkIdx = hIdx;
+            foundLineIdx = lIdx;
+            break;
+          }
+        } else {
+          if (line.origin === "+" && line.newLineno === lineNumber) {
+            foundHunk = hunk;
+            foundHunkIdx = hIdx;
+            foundLineIdx = lIdx;
+            break;
+          }
+        }
+      }
+      if (foundHunk) break;
+    }
+
+    if (!foundHunk || foundHunkIdx === -1 || foundLineIdx === -1) {
+      return;
+    }
+
+    // Stage/Unstage only this single clicked line!
+    const lineIndices = new Set<number>([foundLineIdx]);
+    const patch = constructHunkPatch(
+      selectedFilePath,
+      foundHunk,
+      lineIndices,
+      selectedFileIsStaged,
+    );
+
+    try {
+      await applyPatch(patch, "index");
+      addNotification({
+        type: "success",
+        message: `${selectedFileIsStaged ? "Unstaged" : "Staged"} line ${lineNumber} in ${selectedFilePath.split("/").pop()}`,
+      });
+    } catch (err) {
+      addNotification({
+        type: "error",
+        message: `Failed to stage line: ${err}`,
+      });
+    }
+  };
+
+  // Sync callback ref to prevent stale closures
+  useEffect(() => {
+    callbackRef.current = { handleGutterClick };
+  });
+
+  // Update Monaco decorations for gutter glyphs
+  useEffect(() => {
+    if (!editorInstance || !monacoInstance || !localDiff) return;
+
+    const originalEditor = editorInstance.getOriginalEditor();
+    const modifiedEditor = editorInstance.getModifiedEditor();
+
+    // Clear old decorations
+    const originalDecs: editor.IModelDeltaDecoration[] = [];
+    const modifiedDecs: editor.IModelDeltaDecoration[] = [];
+
+    localDiff.hunks.forEach((hunk) => {
+      hunk.lines.forEach((line) => {
+        if (line.origin === "-" && line.oldLineno !== null) {
+          originalDecs.push({
+            range: new monacoInstance.Range(
+              line.oldLineno,
+              1,
+              line.oldLineno,
+              1,
+            ),
+            options: {
+              glyphMarginClassName: selectedFileIsStaged
+                ? "monaco-gutter-unstage"
+                : "monaco-gutter-stage",
+              glyphMarginHoverMessage: {
+                value: selectedFileIsStaged
+                  ? "Click to unstage line"
+                  : "Click to stage line",
+              },
+            },
+          });
+        } else if (line.origin === "+" && line.newLineno !== null) {
+          modifiedDecs.push({
+            range: new monacoInstance.Range(
+              line.newLineno,
+              1,
+              line.newLineno,
+              1,
+            ),
+            options: {
+              glyphMarginClassName: selectedFileIsStaged
+                ? "monaco-gutter-unstage"
+                : "monaco-gutter-stage",
+              glyphMarginHoverMessage: {
+                value: selectedFileIsStaged
+                  ? "Click to unstage line"
+                  : "Click to stage line",
+              },
+            },
+          });
+        }
+      });
+    });
+
+    const origCollection =
+      originalEditor.createDecorationsCollection(originalDecs);
+    const modCollection =
+      modifiedEditor.createDecorationsCollection(modifiedDecs);
+
+    return () => {
+      origCollection.clear();
+      modCollection.clear();
+    };
+  }, [editorInstance, monacoInstance, localDiff, selectedFileIsStaged]);
 
   // Fetch full contents for Monaco editor when selected file changes
   useEffect(() => {
@@ -327,6 +466,8 @@ export function DiffView() {
               options={{
                 renderSideBySide: splitView,
                 readOnly: true,
+                glyphMargin: true,
+                lineNumbersMinChars: 3,
                 minimap: { enabled: false },
                 scrollbar: {
                   vertical: "visible",
@@ -338,7 +479,40 @@ export function DiffView() {
                 scrollBeyondLastLine: false,
                 diffWordWrap: "off",
               }}
-              onMount={(editor: editor.IStandaloneDiffEditor) => {
+              onMount={(
+                editor: editor.IStandaloneDiffEditor,
+                monaco: Monaco,
+              ) => {
+                setEditorInstance(editor);
+                setMonacoInstance(monaco);
+
+                const originalEditor = editor.getOriginalEditor();
+                const modifiedEditor = editor.getModifiedEditor();
+
+                originalEditor.onMouseDown((e) => {
+                  if (
+                    (e.target.type === 2 || e.target.type === 3) &&
+                    callbackRef.current
+                  ) {
+                    const line = e.target.position?.lineNumber;
+                    if (line) {
+                      callbackRef.current.handleGutterClick(line, true);
+                    }
+                  }
+                });
+
+                modifiedEditor.onMouseDown((e) => {
+                  if (
+                    (e.target.type === 2 || e.target.type === 3) &&
+                    callbackRef.current
+                  ) {
+                    const line = e.target.position?.lineNumber;
+                    if (line) {
+                      callbackRef.current.handleGutterClick(line, false);
+                    }
+                  }
+                });
+
                 const originalDispose = editor.dispose;
                 editor.dispose = () => {
                   try {
