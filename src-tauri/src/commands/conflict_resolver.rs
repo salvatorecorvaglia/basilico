@@ -142,7 +142,10 @@ pub async fn launch_external_merge_tool(
         }
 
         if !found {
-            return Err(AppError::invalid_state(format!("No conflicts found for file: {}", file_path)));
+            return Err(AppError::invalid_state(format!(
+                "No conflicts found for file: {}",
+                file_path
+            )));
         }
 
         let temp_dir = std::env::temp_dir();
@@ -165,7 +168,8 @@ pub async fn launch_external_merge_tool(
         let workdir = repo
             .workdir()
             .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
-        let merged_path = crate::git::utils::validate_path(workdir, std::path::Path::new(&file_path))?;
+        let merged_path =
+            crate::git::utils::validate_path(workdir, std::path::Path::new(&file_path))?;
 
         let tool_lower = tool_name.to_lowercase();
         let (program, args) = if tool_lower == "meld" {
@@ -236,7 +240,9 @@ pub async fn launch_external_merge_tool(
             // Assume it's a custom command configuration with placeholders
             let parts: Vec<&str> = tool_name.split_whitespace().collect();
             if parts.is_empty() {
-                return Err(AppError::invalid_state("Merge tool command configuration is empty"));
+                return Err(AppError::invalid_state(
+                    "Merge tool command configuration is empty",
+                ));
             }
             let prog = parts[0].to_string();
             let mut arg_list = Vec::new();
@@ -270,10 +276,12 @@ pub async fn launch_external_merge_tool(
             index.write()?;
             Ok(())
         } else {
-            Err(AppError::command(format!("Merge tool exited with non-zero status: {:?}", status.code())))
+            Err(AppError::command(format!(
+                "Merge tool exited with non-zero status: {:?}",
+                status.code()
+            )))
         }
     })
     .await
     .map_err(|e| AppError::unknown(format!("Task join error: {}", e)))?
 }
-

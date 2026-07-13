@@ -9,6 +9,7 @@ pub mod history;
 pub mod log;
 pub mod merge;
 pub mod rebase;
+pub mod reflog;
 pub mod remote;
 pub mod repo;
 pub mod search;
@@ -19,7 +20,6 @@ pub mod stash_inspector;
 pub mod submodule;
 pub mod tag;
 pub mod worktree;
-pub mod reflog;
 
 /// Helper function to create a Command configured with standard search paths.
 /// On macOS, this ensures Homebrew and standard system binary directories are included in PATH

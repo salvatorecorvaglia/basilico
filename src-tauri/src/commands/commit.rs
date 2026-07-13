@@ -21,7 +21,7 @@ pub async fn create_commit(
                 let mut cmd = crate::commands::new_command(&hooks_path.to_string_lossy());
                 cmd.current_dir(&path);
                 cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-                
+
                 let child = cmd.spawn();
                 match child {
                     Ok(mut child_proc) => {
@@ -400,6 +400,7 @@ mod tests {
             Some("Test Author".to_string()),
             Some("author@example.com".to_string()),
             false,
+            true,
         )
         .await
         .unwrap();
@@ -425,6 +426,7 @@ mod tests {
             "Amended Commit".to_string(),
             Some("Test Author".to_string()),
             Some("author@example.com".to_string()),
+            true,
             true,
         )
         .await
@@ -514,6 +516,7 @@ mod tests {
             Some("Test".to_string()),
             Some("test@test.com".to_string()),
             false,
+            true,
         )
         .await;
         assert!(result.is_ok(), "Expected success with explicit author info");
