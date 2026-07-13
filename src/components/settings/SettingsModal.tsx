@@ -306,6 +306,134 @@ export function SettingsModal() {
                         </span>
                       </div>
                     </div>
+
+                    <div
+                      className="settings-section"
+                      style={{ marginTop: "var(--space-5)" }}
+                    >
+                      <div className="settings-section-title">
+                        AI & GitHub Integrations
+                      </div>
+                      <div className="settings-field">
+                        <label htmlFor="settings-github-pat">
+                          GitHub Personal Access Token (PAT)
+                        </label>
+                        <input
+                          id="settings-github-pat"
+                          className="settings-input"
+                          type="password"
+                          placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                          value={draft.githubPat || ""}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              githubPat: e.target.value || null,
+                            })
+                          }
+                        />
+                      </div>
+                      <div
+                        className="settings-field"
+                        style={{ marginTop: "var(--space-3)" }}
+                      >
+                        <label htmlFor="settings-gemini-key">
+                          Google Gemini API Key
+                        </label>
+                        <input
+                          id="settings-gemini-key"
+                          className="settings-input"
+                          type="password"
+                          placeholder="AIzaSyxxxxxxxxxxxxxxxxxxxx"
+                          value={draft.geminiApiKey || ""}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              geminiApiKey: e.target.value || null,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      className="settings-section"
+                      style={{ marginTop: "var(--space-5)" }}
+                    >
+                      <div className="settings-section-title">
+                        Issue Autolinks
+                      </div>
+                      <div className="settings-field">
+                        <label htmlFor="settings-autolink-pattern">
+                          Autolink Regex Pattern
+                        </label>
+                        <input
+                          id="settings-autolink-pattern"
+                          className="settings-input"
+                          type="text"
+                          placeholder="e.g. (#\d+) or (JIRA-\d+)"
+                          value={draft.autolinkPattern || ""}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              autolinkPattern: e.target.value || null,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="settings-field">
+                        <label htmlFor="settings-autolink-url">
+                          Autolink Target URL
+                        </label>
+                        <input
+                          id="settings-autolink-url"
+                          className="settings-input"
+                          type="text"
+                          placeholder="e.g. https://github.com/owner/repo/issues/$1"
+                          value={draft.autolinkUrl || ""}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              autolinkUrl: e.target.value || null,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      className="settings-section"
+                      style={{ marginTop: "var(--space-5)" }}
+                    >
+                      <div className="settings-section-title">
+                        Git Commit Options
+                      </div>
+                      <div
+                        className="settings-field-row"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                        }}
+                      >
+                        <input
+                          id="settings-bypass-hooks"
+                          type="checkbox"
+                          checked={!!draft.bypassHooks}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              bypassHooks: e.target.checked,
+                            })
+                          }
+                        />
+                        <label
+                          htmlFor="settings-bypass-hooks"
+                          style={{ cursor: "pointer" }}
+                        >
+                          Bypass Git Hooks (--no-verify)
+                        </label>
+                      </div>
+                    </div>
                   </>
                 )}
 

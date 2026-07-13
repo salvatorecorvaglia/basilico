@@ -11,8 +11,53 @@ pub async fn create_commit(
     author_name: Option<String>,
     author_email: Option<String>,
     amend: bool,
+    bypass_hooks: bool,
 ) -> Result<String, AppError> {
     tokio::task::spawn_blocking(move || {
+        // Run pre-commit hooks if not bypassed
+        if !bypass_hooks {
+            let hooks_path = std::path::Path::new(&path).join(".git").join("hooks").join("pre-commit");
+            if hooks_path.exists() {
+                let mut cmd = crate::commands::new_command(&hooks_path.to_string_lossy());
+                cmd.current_dir(&path);
+                cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+                
+                let child = cmd.spawn();
+                match child {
+                    Ok(mut child_proc) => {
+                        let status = child_proc.wait().map_err(|e| AppError::command(format!("Failed to wait for pre-commit hook: {}", e)))?;
+                        if !status.success() {
+                            let mut output = String::new();
+                            if let Some(mut stdout) = child_proc.stdout {
+                                use std::io::Read;
+                                let mut s = String::new();
+                                if stdout.read_to_string(&mut s).is_ok() {
+                                    output.push_str(&s);
+                                }
+                            }
+                            if let Some(mut stderr) = child_proc.stderr {
+                                use std::io::Read;
+                                let mut s = String::new();
+                                if stderr.read_to_string(&mut s).is_ok() {
+                                    output.push_str(&s);
+                                }
+                            }
+                            return Err(AppError::command(format!(
+                                "Pre-commit hook failed (exit code: {}):\n{}",
+                                status.code().unwrap_or(-1),
+                                output
+                            )));
+                        }
+                    }
+                    Err(e) => {
+                        if e.kind() != std::io::ErrorKind::PermissionDenied {
+                            return Err(AppError::command(format!("Failed to run pre-commit hook: {}", e)));
+                        }
+                    }
+                }
+            }
+        }
+
         let repo = Repository::open(&path)?;
         let mut index = repo.index()?;
         let tree_id = index.write_tree()?;

@@ -77,6 +77,7 @@ export function CommitList() {
     revertCommit,
     startComparison,
     isLoading,
+    settings,
   } = useRepoStore();
 
   const {
@@ -140,9 +141,75 @@ export function CommitList() {
       columnHelper.accessor("message", {
         id: "message",
         header: "Message",
-        cell: (info) => (
-          <span className="commit-message truncate">{info.getValue()}</span>
-        ),
+        cell: (info) => {
+          const message = info.getValue();
+          const pattern = settings?.autolinkPattern;
+          const urlTemplate = settings?.autolinkUrl;
+
+          if (!pattern || !urlTemplate) {
+            return <span className="commit-message truncate">{message}</span>;
+          }
+
+          try {
+            const regex = new RegExp(pattern, "g");
+            if (!regex.test(message)) {
+              return <span className="commit-message truncate">{message}</span>;
+            }
+
+            regex.lastIndex = 0;
+            const parts: React.ReactNode[] = [];
+            let lastIndex = 0;
+            let match = regex.exec(message);
+
+            while (match !== null) {
+              const matchText = match[0];
+              const matchIndex = match.index;
+
+              if (matchIndex > lastIndex) {
+                parts.push(message.substring(lastIndex, matchIndex));
+              }
+
+              let targetUrl = urlTemplate;
+              if (match[1]) {
+                targetUrl = urlTemplate.replace("$1", match[1]);
+                for (let i = 2; i < match.length; i++) {
+                  targetUrl = targetUrl.replace(`$${i}`, match[i] || "");
+                }
+              } else {
+                targetUrl = urlTemplate.replace("$1", matchText);
+              }
+
+              parts.push(
+                <a
+                  key={matchIndex}
+                  href={targetUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="autolink"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    color: "var(--accent-primary)",
+                    textDecoration: "underline",
+                  }}
+                >
+                  {matchText}
+                </a>,
+              );
+
+              lastIndex = regex.lastIndex;
+              match = regex.exec(message);
+            }
+
+            if (lastIndex < message.length) {
+              parts.push(message.substring(lastIndex));
+            }
+
+            return <span className="commit-message truncate">{parts}</span>;
+          } catch (e) {
+            console.error("Invalid autolink pattern regex:", e);
+            return <span className="commit-message truncate">{message}</span>;
+          }
+        },
         size: 280,
       }),
       columnHelper.display({
@@ -211,7 +278,7 @@ export function CommitList() {
         size: 95,
       }),
     ],
-    [],
+    [settings?.autolinkPattern, settings?.autolinkUrl],
   );
 
   const table = useReactTable({

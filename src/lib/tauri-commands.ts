@@ -231,11 +231,12 @@ export const createCommit = (
   authorName?: string | null,
   authorEmail?: string | null,
   amend?: boolean,
+  bypassHooks?: boolean,
   options?: InvokeOptions,
 ) =>
   invokeCommand<string>(
     "create_commit",
-    { path, message, authorName, authorEmail, amend },
+    { path, message, authorName, authorEmail, amend, bypassHooks },
     options,
   );
 

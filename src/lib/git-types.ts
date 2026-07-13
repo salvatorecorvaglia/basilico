@@ -239,6 +239,11 @@ export interface UserSettings {
   keyboardShortcuts: Record<string, string>;
   diffTool?: string | null;
   mergeTool?: string | null;
+  githubPat?: string | null;
+  autolinkPattern?: string | null;
+  autolinkUrl?: string | null;
+  bypassHooks?: boolean;
+  geminiApiKey?: string | null;
 }
 
 export interface TreeEntryInfo {

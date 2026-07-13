@@ -20,6 +20,11 @@ pub struct UserSettings {
     pub keyboard_shortcuts: HashMap<String, String>,
     pub diff_tool: Option<String>,
     pub merge_tool: Option<String>,
+    pub github_pat: Option<String>,
+    pub autolink_pattern: Option<String>,
+    pub autolink_url: Option<String>,
+    pub bypass_hooks: Option<bool>,
+    pub gemini_api_key: Option<String>,
 }
 
 impl Default for UserSettings {
@@ -43,6 +48,11 @@ impl Default for UserSettings {
             keyboard_shortcuts: shortcuts,
             diff_tool: None,
             merge_tool: None,
+            github_pat: None,
+            autolink_pattern: None,
+            autolink_url: None,
+            bypass_hooks: Some(false),
+            gemini_api_key: None,
         }
     }
 }

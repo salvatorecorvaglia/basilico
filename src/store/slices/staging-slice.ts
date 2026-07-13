@@ -196,6 +196,7 @@ export const createStagingSlice: StateCreator<
         settings?.gitAuthorName || null,
         settings?.gitAuthorEmail || null,
         amend,
+        settings?.bypassHooks || false,
         {
           errorPrefix: "Failed to commit",
         },
