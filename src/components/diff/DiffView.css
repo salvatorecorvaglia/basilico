@@ -419,7 +419,7 @@
   justify-content: center;
   width: 14px;
   height: 14px;
-  background: var(--accent-green);
+  background: var(--color-success);
   color: white;
   border-radius: 50%;
   font-size: 11px;
@@ -439,7 +439,7 @@
   justify-content: center;
   width: 14px;
   height: 14px;
-  background: var(--accent-red);
+  background: var(--color-danger);
   color: white;
   border-radius: 50%;
   font-size: 11px;

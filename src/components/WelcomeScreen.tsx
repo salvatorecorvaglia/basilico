@@ -419,7 +419,6 @@ export function WelcomeScreen() {
                     onChange={(e) => setCloneUrl(e.target.value)}
                     required
                     disabled={isLoading}
-                    autoFocus
                   />
                 </div>
                 <div className="welcome-field">

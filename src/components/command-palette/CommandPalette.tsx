@@ -359,7 +359,6 @@ export function CommandPalette() {
               placeholder="Type a command or action to run..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              autoFocus
             />
             <span className="palette-esc-badge">ESC</span>
           </div>

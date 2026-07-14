@@ -88,6 +88,16 @@ pub async fn save_merged_resolution(
     .await?
 }
 
+struct TempDirGuard {
+    path: std::path::PathBuf,
+}
+
+impl Drop for TempDirGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.path);
+    }
+}
+
 #[tauri::command]
 pub async fn launch_external_merge_tool(
     repo_path: String,
@@ -146,8 +156,17 @@ pub async fn launch_external_merge_tool(
             )));
         }
 
-        let temp_dir = std::env::temp_dir();
-        let timestamp = chrono::Utc::now().timestamp_millis();
+        let temp_dir = std::env::temp_dir().join(format!("basilico_merge_{}", uuid::Uuid::new_v4()));
+        let mut builder = std::fs::DirBuilder::new();
+        builder.recursive(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        builder.create(&temp_dir)?;
+
+        let _guard = TempDirGuard { path: temp_dir.clone() };
 
         // Get extension to support syntax highlighting in merge tools
         let file_ext = std::path::Path::new(&file_path)
@@ -155,9 +174,9 @@ pub async fn launch_external_merge_tool(
             .and_then(|ext| ext.to_str())
             .unwrap_or("txt");
 
-        let base_path = temp_dir.join(format!("basilico_base_{}.{}", timestamp, file_ext));
-        let ours_path = temp_dir.join(format!("basilico_ours_{}.{}", timestamp, file_ext));
-        let theirs_path = temp_dir.join(format!("basilico_theirs_{}.{}", timestamp, file_ext));
+        let base_path = temp_dir.join(format!("base.{}", file_ext));
+        let ours_path = temp_dir.join(format!("ours.{}", file_ext));
+        let theirs_path = temp_dir.join(format!("theirs.{}", file_ext));
 
         std::fs::write(&base_path, &base_content)?;
         std::fs::write(&ours_path, &ours_content)?;
@@ -261,11 +280,6 @@ pub async fn launch_external_merge_tool(
         let status = cmd.status().map_err(|e| {
             AppError::command(format!("Failed to start merge tool '{}': {}", program, e))
         })?;
-
-        // Clean up temp files
-        let _ = std::fs::remove_file(&base_path);
-        let _ = std::fs::remove_file(&ours_path);
-        let _ = std::fs::remove_file(&theirs_path);
 
         if status.success() {
             // Automatically stage the resolved file in Git if exit status is success

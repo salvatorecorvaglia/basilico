@@ -297,7 +297,6 @@ export function Toolbar() {
                   placeholder="Search branches..."
                   value={branchSearch}
                   onChange={(e) => setBranchSearch(e.target.value)}
-                  autoFocus
                 />
               </div>
 

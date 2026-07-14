@@ -234,8 +234,8 @@ export const createGitDataSlice: StateCreator<
   },
 
   loadMoreCommits: async (count: number) => {
-    const { activeTabId, commits } = get();
-    if (!activeTabId) return;
+    const { activeTabId, commits, loadingStates } = get();
+    if (!activeTabId || loadingStates.commits) return;
 
     setLoading(get, set, "commits", true);
     set({ error: null });

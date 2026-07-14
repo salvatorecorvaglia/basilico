@@ -639,7 +639,6 @@ export function CommitList() {
         ref={parentRef}
         className="commit-list-scroll"
         onScroll={handleScroll}
-        tabIndex={0}
       >
         <div
           style={{

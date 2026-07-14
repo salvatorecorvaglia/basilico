@@ -173,19 +173,46 @@ pub async fn rebase_step(
             let action_name = get_todo_action(&repo, current_idx)?;
 
             if action_name == "squash" || action_name == "s" {
-                // The squash commit was already created and amended in the previous call.
-                // We just need to update its message with the user's final edited message.
-                let head_commit = repo.head()?.peel_to_commit()?;
-                if let Some(msg) = commit_message {
-                    let amended_oid = head_commit.amend(
-                        Some("HEAD"),
-                        None,
-                        Some(&signature),
-                        None,
-                        Some(&msg),
-                        None,
-                    )?;
-                    repo.set_head_detached(amended_oid)?;
+                if commit_message.is_none() {
+                    // Continuing after conflict: commit the index, perform the squash amend, and pause for rewording!
+                    let commit_oid = rebase.commit(None, &signature, None)?;
+                    let commit_c = repo.find_commit(commit_oid)?;
+                    if let Ok(commit_b) = commit_c.parent(0) {
+                        let tree = commit_c.tree()?;
+                        let msg_b = commit_b.message().unwrap_or("");
+                        let msg_c = commit_c.message().unwrap_or("");
+                        let combined_msg = format!("{}\n\n{}", msg_b.trim(), msg_c.trim());
+                        let amended_oid = commit_b.amend(
+                            None,
+                            None,
+                            Some(&signature),
+                            None,
+                            Some(&combined_msg),
+                            Some(&tree),
+                        )?;
+                        repo.set_head_detached(amended_oid)?;
+
+                        return Ok(RebaseStatus {
+                            status: "reword".to_string(),
+                            current_oid: Some(amended_oid.to_string()),
+                            message: Some(format!("Paused for squash message edit at commit {}", amended_oid)),
+                        });
+                    }
+                } else {
+                    // The squash commit was already created and amended in the previous call.
+                    // We just need to update its message with the user's final edited message.
+                    let head_commit = repo.head()?.peel_to_commit()?;
+                    if let Some(msg) = commit_message {
+                        let amended_oid = head_commit.amend(
+                            Some("HEAD"),
+                            None,
+                            Some(&signature),
+                            None,
+                            Some(&msg),
+                            None,
+                        )?;
+                        repo.set_head_detached(amended_oid)?;
+                    }
                 }
             } else {
                 let commit_oid = rebase.commit(None, &signature, commit_message.as_deref())?;

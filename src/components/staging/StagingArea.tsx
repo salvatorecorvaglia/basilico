@@ -316,7 +316,6 @@ export function StagingArea() {
                     <div
                       className={`staging-file-row ${selectedFilePath === file ? "selected" : ""}`}
                       onClick={() => handleFileClick(file, false, true)}
-                      tabIndex={0}
                       onKeyDown={createKeyDownHandler(file, false, true)}
                     >
                       <span
@@ -391,7 +390,6 @@ export function StagingArea() {
                       <div
                         className={`staging-file-row ${selectedFilePath === file.path ? "selected" : ""}`}
                         onClick={() => handleFileClick(file.path, true)}
-                        tabIndex={0}
                         onKeyDown={createKeyDownHandler(file.path, true, false)}
                       >
                         <input
@@ -466,7 +464,6 @@ export function StagingArea() {
                         <div
                           className={`staging-file-row ${selectedFilePath === file.path ? "selected" : ""}`}
                           onClick={() => handleFileClick(file.path, false)}
-                          tabIndex={0}
                           onKeyDown={createKeyDownHandler(
                             file.path,
                             false,
@@ -525,7 +522,6 @@ export function StagingArea() {
                         <div
                           className={`staging-file-row ${selectedFilePath === file ? "selected" : ""}`}
                           onClick={() => handleFileClick(file, false)}
-                          tabIndex={0}
                           onKeyDown={createKeyDownHandler(file, false, false)}
                         >
                           <input
