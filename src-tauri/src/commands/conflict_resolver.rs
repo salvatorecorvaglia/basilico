@@ -156,7 +156,8 @@ pub async fn launch_external_merge_tool(
             )));
         }
 
-        let temp_dir = std::env::temp_dir().join(format!("basilico_merge_{}", uuid::Uuid::new_v4()));
+        let temp_dir =
+            std::env::temp_dir().join(format!("basilico_merge_{}", uuid::Uuid::new_v4()));
         let mut builder = std::fs::DirBuilder::new();
         builder.recursive(true);
         #[cfg(unix)]
@@ -166,7 +167,9 @@ pub async fn launch_external_merge_tool(
         }
         builder.create(&temp_dir)?;
 
-        let _guard = TempDirGuard { path: temp_dir.clone() };
+        let _guard = TempDirGuard {
+            path: temp_dir.clone(),
+        };
 
         // Get extension to support syntax highlighting in merge tools
         let file_ext = std::path::Path::new(&file_path)

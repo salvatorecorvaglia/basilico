@@ -35,13 +35,8 @@ pub fn create_merge_commit(
 
     let oid = if gpg_sign {
         // GPG sign merge commit
-        let commit_content_buf = repo.commit_create_buffer(
-            &sig,
-            &sig,
-            message,
-            &tree,
-            &[head_commit, remote_commit],
-        )?;
+        let commit_content_buf =
+            repo.commit_create_buffer(&sig, &sig, message, &tree, &[head_commit, remote_commit])?;
         let commit_content = std::str::from_utf8(&commit_content_buf)
             .map_err(|_| AppError::invalid_state("Commit buffer is not valid UTF-8"))?;
 
@@ -51,14 +46,20 @@ pub fn create_merge_commit(
             cmd.arg("-u").arg(key);
         }
 
-        cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-        let mut child = cmd.spawn().map_err(|e| AppError::command(format!("Failed to spawn gpg: {}", e)))?;
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| AppError::command(format!("Failed to spawn gpg: {}", e)))?;
 
         if let Some(mut stdin) = child.stdin.take() {
             stdin.write_all(commit_content.as_bytes())?;
         }
 
-        let output = child.wait_with_output().map_err(|e| AppError::command(format!("Failed to wait for gpg: {}", e)))?;
+        let output = child
+            .wait_with_output()
+            .map_err(|e| AppError::command(format!("Failed to wait for gpg: {}", e)))?;
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
             return Err(AppError::gpg(format!("GPG signing failed: {}", stderr)));
