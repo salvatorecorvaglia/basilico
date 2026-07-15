@@ -47,6 +47,21 @@ export function DiffView() {
       isOriginal: boolean,
     ) => Promise<void>;
   } | null>(null);
+  const disposablesRef = useRef<any[]>([]);
+
+  // Cleanup event listeners on unmount
+  useEffect(() => {
+    return () => {
+      disposablesRef.current.forEach((d) => {
+        try {
+          d.dispose();
+        } catch (err) {
+          // Ignore
+        }
+      });
+      disposablesRef.current = [];
+    };
+  }, []);
 
   // Track checked line indices per hunk: key is hunkIndex, value is Set of lineIndices
   const [selectedLines, setSelectedLines] = useState<
@@ -489,7 +504,17 @@ export function DiffView() {
                 const originalEditor = editor.getOriginalEditor();
                 const modifiedEditor = editor.getModifiedEditor();
 
-                originalEditor.onMouseDown((e) => {
+                // Clear previous subscriptions to avoid duplicate event handlers and memory leaks
+                disposablesRef.current.forEach((d) => {
+                  try {
+                    d.dispose();
+                  } catch (err) {
+                    // Ignore
+                  }
+                });
+                disposablesRef.current = [];
+
+                const origSub = originalEditor.onMouseDown((e) => {
                   if (
                     (e.target.type === 2 || e.target.type === 3) &&
                     callbackRef.current
@@ -501,7 +526,7 @@ export function DiffView() {
                   }
                 });
 
-                modifiedEditor.onMouseDown((e) => {
+                const modSub = modifiedEditor.onMouseDown((e) => {
                   if (
                     (e.target.type === 2 || e.target.type === 3) &&
                     callbackRef.current
@@ -512,6 +537,8 @@ export function DiffView() {
                     }
                   }
                 });
+
+                disposablesRef.current = [origSub, modSub];
 
                 const originalDispose = editor.dispose;
                 editor.dispose = () => {

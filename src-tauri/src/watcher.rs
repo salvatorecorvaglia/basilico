@@ -78,14 +78,7 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
 
                     // Filter out .git/index.lock, transient files, and massive ignored directories
                     let significant = events.iter().any(|e| {
-                        let path_str = e.path.to_string_lossy();
-                        !path_str.contains(".git/index.lock")
-                            && !path_str.contains(".git/FETCH_HEAD")
-                            && !path_str.contains(".git/objects/")
-                            && !path_str.contains("node_modules/")
-                            && !path_str.contains("target/")
-                            && !path_str.ends_with(".swp")
-                            && !path_str.ends_with("~")
+                        is_significant_path(&e.path.to_string_lossy())
                     });
 
                     if significant {
@@ -117,4 +110,31 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
             }
         }
     });
+}
+
+/// Returns true if the changed file path is significant (not ignored or transient).
+pub fn is_significant_path(path_str: &str) -> bool {
+    !path_str.contains(".git/index.lock")
+        && !path_str.contains(".git/FETCH_HEAD")
+        && !path_str.contains(".git/objects/")
+        && !path_str.contains("node_modules/")
+        && !path_str.contains("target/")
+        && !path_str.ends_with(".swp")
+        && !path_str.ends_with("~")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_significant_path() {
+        assert!(is_significant_path("src/main.rs"));
+        assert!(is_significant_path("Cargo.toml"));
+        assert!(!is_significant_path(".git/index.lock"));
+        assert!(!is_significant_path("node_modules/lodash/index.js"));
+        assert!(!is_significant_path("target/debug/basilico"));
+        assert!(!is_significant_path("src/main.rs.swp"));
+        assert!(!is_significant_path("src/main.rs~"));
+    }
 }

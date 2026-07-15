@@ -238,6 +238,7 @@ pub async fn launch_external_merge_tool(
             (
                 "code".to_string(),
                 vec![
+                    "--wait".to_string(),
                     "--merge".to_string(),
                     ours_path.to_string_lossy().into_owned(),
                     theirs_path.to_string_lossy().into_owned(),
@@ -249,6 +250,7 @@ pub async fn launch_external_merge_tool(
             (
                 "cursor".to_string(),
                 vec![
+                    "--wait".to_string(),
                     "--merge".to_string(),
                     ours_path.to_string_lossy().into_owned(),
                     theirs_path.to_string_lossy().into_owned(),

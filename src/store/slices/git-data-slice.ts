@@ -139,14 +139,23 @@ export const createGitDataSlice: StateCreator<
 
     set({ isRefreshing: true, error: null });
     try {
+      const safeCall = async <T>(promise: Promise<T>, fallback: T): Promise<T> => {
+        try {
+          return await promise;
+        } catch (e) {
+          console.warn("Secondary refresh call failed:", e);
+          return fallback;
+        }
+      };
+
       const [status, branches, tags, remotes, commits, stashes, repoInfo] =
         await Promise.all([
           commands.getStatus(activeTabId, { silent: true }),
           commands.listBranches(activeTabId, { silent: true }),
-          commands.listTags(activeTabId, { silent: true }),
-          commands.listRemotes(activeTabId, { silent: true }),
+          safeCall(commands.listTags(activeTabId, { silent: true }), []),
+          safeCall(commands.listRemotes(activeTabId, { silent: true }), []),
           commands.getLog(activeTabId, 500, { silent: true }),
-          commands.listStashes(activeTabId, { silent: true }),
+          safeCall(commands.listStashes(activeTabId, { silent: true }), []),
           commands.getRepoInfo(activeTabId, { silent: true }),
         ]);
 

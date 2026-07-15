@@ -148,9 +148,9 @@ fn build_ref_map(repo: &Repository) -> Result<HashMap<String, Vec<RefLabel>>, Ap
             .trim_start_matches("refs/tags/")
             .to_string();
 
-        // Resolve annotated tags to their target commit
-        let target_oid = match repo.find_tag(oid) {
-            Ok(tag) => tag.target_id().to_string(),
+        // Resolve tags (lightweight or annotated) to their target commit
+        let target_oid = match repo.find_object(oid, None).and_then(|obj| obj.peel(git2::ObjectType::Commit)) {
+            Ok(peeled) => peeled.id().to_string(),
             Err(_) => oid.to_string(),
         };
 
@@ -172,9 +172,9 @@ fn compute_lanes(commits: &mut [GraphCommit]) {
         return;
     }
 
-    // Gather all walked commit OIDs to identify boundary commits
-    let walked_oids: std::collections::HashSet<String> =
-        commits.iter().map(|c| c.oid.clone()).collect();
+    // Gather all walked commit OIDs to identify boundary commits without heap allocations
+    let walked_oids: std::collections::HashSet<git2::Oid> =
+        commits.iter().filter_map(|c| git2::Oid::from_str(&c.oid).ok()).collect();
 
     // Active lanes: each lane tracks which oid it's expecting next
     let mut active_lanes: Vec<Option<String>> = Vec::new();
@@ -212,7 +212,8 @@ fn compute_lanes(commits: &mut [GraphCommit]) {
         let mut edges = Vec::new();
 
         for (p_idx, parent_oid) in parent_oids.iter().enumerate() {
-            let is_boundary = !walked_oids.contains(parent_oid);
+            let parent_git_oid = git2::Oid::from_str(parent_oid).unwrap_or_else(|_| git2::Oid::zero());
+            let is_boundary = !walked_oids.contains(&parent_git_oid);
 
             let target_lane = if p_idx == 0 {
                 // First parent takes current lane
