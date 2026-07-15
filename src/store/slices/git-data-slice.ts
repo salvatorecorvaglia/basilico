@@ -139,7 +139,10 @@ export const createGitDataSlice: StateCreator<
 
     set({ isRefreshing: true, error: null });
     try {
-      const safeCall = async <T>(promise: Promise<T>, fallback: T): Promise<T> => {
+      const safeCall = async <T>(
+        promise: Promise<T>,
+        fallback: T,
+      ): Promise<T> => {
         try {
           return await promise;
         } catch (e) {

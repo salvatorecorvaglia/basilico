@@ -77,9 +77,9 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
                     }
 
                     // Filter out .git/index.lock, transient files, and massive ignored directories
-                    let significant = events.iter().any(|e| {
-                        is_significant_path(&e.path.to_string_lossy())
-                    });
+                    let significant = events
+                        .iter()
+                        .any(|e| is_significant_path(&e.path.to_string_lossy()));
 
                     if significant {
                         let _ = app.emit(

@@ -5,7 +5,7 @@
 
 import { DiffEditor, type Monaco } from "@monaco-editor/react";
 import { Check, Eye, FileCode, Minus, Plus, Trash2 } from "lucide-react";
-import type { editor } from "monaco-editor";
+import type { editor, IDisposable } from "monaco-editor";
 import { useEffect, useRef, useState } from "react";
 import type { DiffHunkInfo } from "../../lib/git-types";
 import {
@@ -47,7 +47,7 @@ export function DiffView() {
       isOriginal: boolean,
     ) => Promise<void>;
   } | null>(null);
-  const disposablesRef = useRef<any[]>([]);
+  const disposablesRef = useRef<IDisposable[]>([]);
 
   // Cleanup event listeners on unmount
   useEffect(() => {
@@ -55,7 +55,7 @@ export function DiffView() {
       disposablesRef.current.forEach((d) => {
         try {
           d.dispose();
-        } catch (err) {
+        } catch {
           // Ignore
         }
       });
@@ -508,7 +508,7 @@ export function DiffView() {
                 disposablesRef.current.forEach((d) => {
                   try {
                     d.dispose();
-                  } catch (err) {
+                  } catch {
                     // Ignore
                   }
                 });
