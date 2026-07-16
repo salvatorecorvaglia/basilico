@@ -10,12 +10,15 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
 
 - **🛠 Core Git Operations**: 
   - Effortless staging, committing, pushing, pulling, merging, tagging, cherry-picking, and reverting commits.
+  - **Granular Line Staging**: Line-level staging and unstaging directly from the side-by-side or unified diff views.
+  - **Drag-and-Drop Branch Resetting**: Drag-and-drop actions on the commit graph timeline to reset the current branch to a target commit.
   - **Repository Initialization & Cloning**: Directly initialize new git repositories or clone remote repositories from the Welcome Screen.
   - Interactive stashing capabilities, complete with a dedicated `StashInspector` UI supporting untracked file diffs.
   - Soft, mixed, and hard modes for `git reset` via a custom `ResetModal` UI.
   - Client-side branch, tag, and reference validation/sanitization matching standard Git specifications before creation.
   - **Advanced Interactive Rebase**: Interactive rebase support including squash, fixup, and drop operations in both the UI and Rust backend, running in an automated multi-step execution loop.
 - **🔍 Advanced Inspection & Comparison**:
+  - **Reflog Inspector**: A complete reflog inspector view with terminal-like output to view Git ref updates and commit/checkout history.
   - **Revision Compare**: Select and compare revisions, explore file trees, and view side-by-side or inline diffs with integrated line number displays.
   - **Git Blame**: An integrated blame view with detailed modification history tracking for individual lines.
   - **Conflict Resolver**: Interactive merge conflict resolution interface to handle conflicts quickly and safely.
@@ -23,6 +26,9 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
   - **GPG Commit Signatures**: Verify commit signatures, displaying signer identity, key ID, and validation status (Verified, Bad Signature, Unknown Key, etc.).
   - **History & Code Search**: Filter repository commit history by message or author, and run fast codebase text searches via integrated `git grep`.
 - **📂 Workspace & Collaboration**:
+  - **Recent Repositories Dashboard**: A dashboard of recently opened repositories with timestamps on a modernized welcome screen layout.
+  - **External Tools Integration**: Settings and execution integration for external merge and diff tools.
+  - **Extended User Settings**: Added configurations for GitHub Personal Access Tokens (PAT), Gemini API keys, issue autolink patterns, and git hook bypasses.
   - Submodule and worktree management with built-in path traversal security checks.
   - Secure SSH key generation options with comment sanitization.
   - Automated Git author configuration check before commit creation.
@@ -40,7 +46,7 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
 - **🚀 Underlying Architecture**:
   - **Rust Backend**: Multithreaded command runner leveraging Rust `git2` bindings for maximum performance, with heavy or blocking Git operations offloaded to asynchronous Tokio tasks (`tokio::task::spawn_blocking`) to keep the UI thread completely stall-free.
   - **State Management**: Highly optimized Zustand `repo-store` split into modular slices (`collaboration`, `git-data`, `settings`, `staging`, `tabs`) using a granular, domain-specific `loadingStates` tracker to handle loading status individually per domain and avoid race conditions.
-  - **Watcher**: A live repository file system watcher recursively tracking root changes using `notify` to automatically refresh application state on local edits.
+  - **Watcher**: A live repository file system watcher recursively tracking root changes using `notify` to automatically refresh application state on local edits, with a robust fallback mechanism when standard fs-polling fails or lacks file system permissions.
   - **Error Mapping**: Automated translation of raw Git/Rust CLI error outputs to user-friendly actionable feedback notifications.
   - **Auto-Updater**: Seamless integration with Tauri's native updater, pointing to GitHub releases JSON to check for production updates with custom progress toast notifications and application restart support.
   - **Subprocess Hardening**: Thread-safe, hardened command-line subprocess execution with robust error isolation for Git helper operations (such as `bisect` and `gpg`).

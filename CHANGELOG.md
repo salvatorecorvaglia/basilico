@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-16
+
+### Added
+
+- **Recent Repositories Dashboard**: Added a dashboard of recently opened repositories with timestamps on a modernized welcome screen layout.
+- **Reflog Inspector**: Integrated a complete reflog inspector view with terminal-like output to view Git ref updates and commit/checkout history.
+- **External Tools Integration**: Added settings and execution integration for external merge and diff tools.
+- **Extended User Settings**: Added configurations for GitHub Personal Access Tokens (PAT), Gemini API keys, issue autolink patterns, and git hook bypasses.
+- **Granular Line Staging**: Implemented line-level staging and unstaging directly from the side-by-side or unified diff views.
+- **Drag-and-Drop Branch Resetting**: Supported drag-and-drop actions on the commit graph timeline to reset the current branch to a target commit.
+
+### Changed
+
+- **Safer Command Invocations**: Refactored Tauri command handlers to propagate Tokio task join errors via standard `From` traits, simplifying async error handling and cleaning up Rust code structure.
+- **Robust File Watcher Fallback**: Re-engineered the recursive directory watcher with a fallback mechanism when standard fs-polling fails or lacks file system permissions.
+- **Git Reference/Tag Validation**: Refactored git-validation utilities to support cleaner branch/tag formatting checks.
+
+### Fixed
+
+- **Git Merge Temp Directory Handling**: Resolved file cleanup issues with temporary merge directories during conflicts.
+- **Rebase Squash & Hook Logic**: Fixed rebase squash handling and rebase auto-stepping loops, and refactored pre-commit/post-commit hook execution.
+- **Argument Injection Protection**: Hardened Git commands (including worktree and bisect paths) and validated Git OID inputs to prevent potential command/argument injections.
+- **Stability & Performance**: Prevented editor memory leaks by adding event listener cleanups on unmount, and resolved potential UI/graph rendering stalls on broken repository history structures.
+
 ## [0.9.0] - 2026-07-13
 
 ### Added
