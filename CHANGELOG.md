@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-07-17
+
+### Added
+
+- **Glib Dependency**: Added optional `glib` dependency in `Cargo.toml`.
+
+### Changed
+
+- **Dependency Updates**:
+  - Upgraded `dompurify` override in `pnpm-workspace.yaml` to `^3.4.12` and updated lockfiles.
+  - Updated Rust crate dependencies in `Cargo.lock`.
+
 ## [0.10.0] - 2026-07-16
 
 ### Added
