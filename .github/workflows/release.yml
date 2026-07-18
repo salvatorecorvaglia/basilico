@@ -42,9 +42,13 @@ jobs:
           # Read tauri.conf.json version
           TAURI_VERSION=$(jq -r .version src-tauri/tauri.conf.json)
           
+          # Read Cargo.toml version
+          CARGO_VERSION=$(grep -m 1 '^version = ' src-tauri/Cargo.toml | cut -d '"' -f 2)
+          
           echo "Tag version: $TAG_VERSION"
           echo "package.json version: $PKG_VERSION"
           echo "tauri.conf.json version: $TAURI_VERSION"
+          echo "Cargo.toml version: $CARGO_VERSION"
           
           if [[ "$TAG_VERSION" != "$PKG_VERSION" ]]; then
             echo "::error::Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
@@ -53,6 +57,11 @@ jobs:
           
           if [[ "$TAG_VERSION" != "$TAURI_VERSION" ]]; then
             echo "::error::Tag version ($TAG_VERSION) does not match tauri.conf.json version ($TAURI_VERSION)"
+            exit 1
+          fi
+
+          if [[ "$TAG_VERSION" != "$CARGO_VERSION" ]]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match src-tauri/Cargo.toml version ($CARGO_VERSION)"
             exit 1
           fi
 
@@ -99,6 +108,9 @@ jobs:
 
       - name: Run linting (Biome)
         run: pnpm run lint
+
+      - name: Run frontend tests
+        run: pnpm run test
 
       - name: Typecheck & Build
         run: pnpm run build
