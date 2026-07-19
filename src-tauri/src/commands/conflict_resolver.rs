@@ -88,7 +88,6 @@ pub async fn save_merged_resolution(
     .await?
 }
 
-
 #[tauri::command]
 pub async fn launch_external_merge_tool(
     repo_path: String,

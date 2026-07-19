@@ -234,9 +234,14 @@ mod tests {
             .is_some());
 
         // 3. Delete branch
-        delete_branch(app, path.clone(), "feature/renamed-branch".to_string(), false)
-            .await
-            .unwrap();
+        delete_branch(
+            app,
+            path.clone(),
+            "feature/renamed-branch".to_string(),
+            false,
+        )
+        .await
+        .unwrap();
 
         let branches = list_branches(path.clone()).await.unwrap();
         assert!(branches

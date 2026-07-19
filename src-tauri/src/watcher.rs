@@ -56,9 +56,7 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
                             && name != ".turbo"
                             && name != "out"
                         {
-                            let _ = debouncer
-                                .watcher()
-                                .watch(&path, RecursiveMode::Recursive);
+                            let _ = debouncer.watcher().watch(&path, RecursiveMode::Recursive);
                         }
                     }
                 }

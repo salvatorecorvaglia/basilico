@@ -65,7 +65,9 @@ fn settings_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf
     Ok(config_dir.join("settings.json"))
 }
 
-fn load_settings_from_disk<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<UserSettings, AppError> {
+fn load_settings_from_disk<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<UserSettings, AppError> {
     let path = settings_path(app)?;
     if !path.exists() {
         return Ok(UserSettings::default());
