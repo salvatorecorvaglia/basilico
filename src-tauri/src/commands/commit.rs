@@ -18,8 +18,9 @@ pub async fn create_commit(
         if !bypass_hooks {
             let hooks_path = std::path::Path::new(&path).join(".git").join("hooks").join("pre-commit");
             if hooks_path.exists() {
-                let mut cmd = crate::commands::new_command(&hooks_path.to_string_lossy());
+                let mut cmd = crate::commands::new_command("git");
                 cmd.current_dir(&path);
+                cmd.args(["hook", "run", "pre-commit"]);
                 cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
                 match cmd.output() {
@@ -36,9 +37,7 @@ pub async fn create_commit(
                         }
                     }
                     Err(e) => {
-                        if e.kind() != std::io::ErrorKind::PermissionDenied {
-                            return Err(AppError::command(format!("Failed to run pre-commit hook: {}", e)));
-                        }
+                        return Err(AppError::command(format!("Failed to run pre-commit hook: {}", e)));
                     }
                 }
             }
@@ -129,15 +128,39 @@ pub async fn create_commit(
             let commit_oid = repo.commit_signed(commit_content, &signature, Some("gpgsig"))?;
 
             // Update HEAD
-            let head_ref = repo.head()?;
-            if head_ref.is_branch() {
-                if let Some(refname) = head_ref.name() {
-                    let mut r = repo.find_reference(refname)?;
-                    r.set_target(commit_oid, &format!("commit (signed): {}", message))?;
-                    repo.set_head(refname)?;
+            let head_ref = repo.head();
+            match head_ref {
+                Ok(head) => {
+                    if head.is_branch() {
+                        if let Some(refname) = head.name() {
+                            let mut r = repo.find_reference(refname)?;
+                            r.set_target(commit_oid, &format!("commit (signed): {}", message))?;
+                            repo.set_head(refname)?;
+                        }
+                    } else {
+                        repo.set_head_detached(commit_oid)?;
+                    }
                 }
-            } else {
-                repo.set_head_detached(commit_oid)?;
+                Err(_) => {
+                    // This might be the initial commit in an empty repo.
+                    // Resolve where HEAD points symbolically (e.g. refs/heads/main)
+                    if let Ok(head_sym) = repo.find_reference("HEAD") {
+                        if let Some(target) = head_sym.symbolic_target() {
+                            // Create the target reference pointing to the new commit
+                            repo.reference(
+                                target,
+                                commit_oid,
+                                true,
+                                &format!("commit (signed): {}", message),
+                            )?;
+                            repo.set_head(target)?;
+                        } else {
+                            repo.set_head_detached(commit_oid)?;
+                        }
+                    } else {
+                        repo.set_head_detached(commit_oid)?;
+                    }
+                }
             }
 
             if !amend && repo.find_reference("MERGE_HEAD").is_ok() {
@@ -336,15 +359,7 @@ pub async fn get_commit_tree(path: String, oid: String) -> Result<Vec<TreeEntryI
             };
 
             let is_dir = entry.kind() == Some(git2::ObjectType::Tree);
-            let size = if !is_dir {
-                if let Ok(obj) = entry.to_object(&repo) {
-                    obj.as_blob().map(|b| b.size() as u64)
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
+            let size = None;
 
             entries.push(TreeEntryInfo {
                 path: rel_path,

@@ -29,30 +29,39 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
 
         let watch_path = Path::new(&repo_path);
 
-        // Watch root recursively so new top-level directories are automatically covered.
-        // NOTE: On Linux systems, massive repositories with huge unignored folders (like target/ or node_modules/)
-        // may exceed fs.inotify.max_user_watches limits. Users should configure their system limits accordingly.
-        // The event filter below handles ignoring node_modules/target/etc.
-        if let Err(e) = debouncer
+        // 1. Watch root non-recursively to detect root file edits
+        let _ = debouncer
             .watcher()
-            .watch(watch_path, RecursiveMode::Recursive)
-        {
-            log::warn!(
-                "Failed to watch root path {} recursively: {}. Falling back to watching .git folder...",
-                repo_path,
-                e
-            );
-            let git_path = watch_path.join(".git");
-            if let Err(err) = debouncer
-                .watcher()
-                .watch(&git_path, RecursiveMode::Recursive)
-            {
-                log::error!(
-                    "Failed to watch fallback .git path {}: {}",
-                    git_path.display(),
-                    err
-                );
-                return;
+            .watch(watch_path, RecursiveMode::NonRecursive);
+
+        // 2. Watch .git recursively to detect ref changes, branch changes, commits
+        let git_path = watch_path.join(".git");
+        let _ = debouncer
+            .watcher()
+            .watch(&git_path, RecursiveMode::Recursive);
+
+        // 3. Watch non-ignored top-level directories recursively
+        if let Ok(entries) = std::fs::read_dir(watch_path) {
+            for entry in entries.flatten() {
+                if let Ok(file_type) = entry.file_type() {
+                    if file_type.is_dir() {
+                        let path = entry.path();
+                        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                        if name != ".git"
+                            && name != "node_modules"
+                            && name != "target"
+                            && name != "dist"
+                            && name != "build"
+                            && name != ".next"
+                            && name != ".turbo"
+                            && name != "out"
+                        {
+                            let _ = debouncer
+                                .watcher()
+                                .watch(&path, RecursiveMode::Recursive);
+                        }
+                    }
+                }
             }
         }
 

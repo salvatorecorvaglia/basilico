@@ -1,17 +1,20 @@
 use parking_lot::Mutex;
 use std::collections::HashMap;
 
-/// Holds open repository paths and their active watcher session IDs.
+/// Holds open repository paths and their active watcher session IDs, plus cached settings.
 /// Wrapped in Mutex for thread-safe access from Tauri commands.
 pub struct AppState {
     /// Map of active repository paths to their unique watcher session ID
     pub repos: Mutex<HashMap<String, String>>,
+    /// Cached user settings to avoid disk reads on every git command
+    pub settings: Mutex<Option<crate::commands::settings::UserSettings>>,
 }
 
 impl AppState {
     pub fn new() -> Self {
         Self {
             repos: Mutex::new(HashMap::new()),
+            settings: Mutex::new(None),
         }
     }
 
@@ -41,3 +44,4 @@ impl Default for AppState {
         Self::new()
     }
 }
+

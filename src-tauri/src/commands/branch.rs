@@ -35,13 +35,37 @@ pub async fn create_branch(
 }
 
 #[tauri::command]
-pub async fn delete_branch(path: String, name: String, is_remote: bool) -> Result<(), AppError> {
+pub async fn delete_branch<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    path: String,
+    name: String,
+    is_remote: bool,
+) -> Result<(), AppError> {
+    let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
         if is_remote {
+            // name is formatted as "remote_name/branch_name" (e.g. "origin/my-feature")
+            let parts: Vec<&str> = name.splitn(2, '/').collect();
+            if parts.len() == 2 {
+                let remote_name = parts[0];
+                let branch_name = parts[1];
+
+                // 1. Push deletion spec to remote repository
+                let mut remote_obj = repo.find_remote(remote_name)?;
+                let refspec = format!(":refs/heads/{}", branch_name);
+
+                let mut push_opts = git2::PushOptions::new();
+                push_opts.remote_callbacks(crate::git::credentials::make_callbacks(ssh_key_path));
+
+                remote_obj.push(&[refspec.as_str()], Some(&mut push_opts))?;
+            }
+
+            // 2. Delete the local remote-tracking reference
             let ref_name = format!("refs/remotes/{}", name);
-            let mut reference = repo.find_reference(&ref_name)?;
-            reference.delete()?;
+            if let Ok(mut reference) = repo.find_reference(&ref_name) {
+                reference.delete()?;
+            }
         } else {
             let mut branch = repo.find_branch(&name, git2::BranchType::Local)?;
             branch.delete()?;
@@ -175,6 +199,11 @@ mod tests {
         repo.commit("initial commit");
 
         let path = repo.path_str().to_string();
+        let app = tauri::test::mock_builder()
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap()
+            .handle()
+            .clone();
 
         // 1. Create branch
         create_branch(path.clone(), "feature/new-branch".to_string(), None)
@@ -205,7 +234,7 @@ mod tests {
             .is_some());
 
         // 3. Delete branch
-        delete_branch(path.clone(), "feature/renamed-branch".to_string(), false)
+        delete_branch(app, path.clone(), "feature/renamed-branch".to_string(), false)
             .await
             .unwrap();
 

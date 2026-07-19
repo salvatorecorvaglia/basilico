@@ -57,7 +57,7 @@ impl Default for UserSettings {
     }
 }
 
-fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, AppError> {
+fn settings_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, AppError> {
     let config_dir = app
         .path()
         .app_config_dir()
@@ -65,35 +65,48 @@ fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, AppError> {
     Ok(config_dir.join("settings.json"))
 }
 
-pub fn get_custom_ssh_path(app: &tauri::AppHandle) -> Option<String> {
-    let path = settings_path(app).ok()?;
-    if !path.exists() {
-        return None;
-    }
-    let content = fs::read_to_string(path).ok()?;
-    let settings: serde_json::Value = serde_json::from_str(&content).ok()?;
-    settings
-        .get("sshKeyPath")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-}
-
-#[tauri::command]
-pub async fn get_settings(app: tauri::AppHandle) -> Result<UserSettings, AppError> {
-    let path = settings_path(&app)?;
-
+fn load_settings_from_disk<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<UserSettings, AppError> {
+    let path = settings_path(app)?;
     if !path.exists() {
         return Ok(UserSettings::default());
     }
-
     let content = fs::read_to_string(&path)
         .map_err(|e| AppError::settings(format!("Failed to read settings: {}", e)))?;
-
     Ok(serde_json::from_str(&content)?)
 }
 
+pub fn get_custom_ssh_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Option<String> {
+    let state = app.try_state::<crate::state::AppState>()?;
+    let mut cached = state.settings.lock();
+    if cached.is_none() {
+        if let Ok(settings) = load_settings_from_disk(app) {
+            *cached = Some(settings);
+        }
+    }
+    cached.as_ref().and_then(|s| s.ssh_key_path.clone())
+}
+
 #[tauri::command]
-pub async fn save_settings(app: tauri::AppHandle, settings: UserSettings) -> Result<(), AppError> {
+pub async fn get_settings<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<UserSettings, AppError> {
+    let mut cached = state.settings.lock();
+    if let Some(ref settings) = *cached {
+        return Ok(settings.clone());
+    }
+
+    let settings = load_settings_from_disk(&app)?;
+    *cached = Some(settings.clone());
+    Ok(settings)
+}
+
+#[tauri::command]
+pub async fn save_settings<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, crate::state::AppState>,
+    settings: UserSettings,
+) -> Result<(), AppError> {
     let path = settings_path(&app)?;
 
     // Create parent directory if it doesn't exist
@@ -107,6 +120,10 @@ pub async fn save_settings(app: tauri::AppHandle, settings: UserSettings) -> Res
 
     fs::write(&path, content)
         .map_err(|e| AppError::settings(format!("Failed to write settings: {}", e)))?;
+
+    // Update cache
+    let mut cached = state.settings.lock();
+    *cached = Some(settings);
 
     Ok(())
 }

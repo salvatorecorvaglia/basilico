@@ -214,6 +214,15 @@ pub async fn rebase_step(
                         repo.set_head_detached(amended_oid)?;
                     }
                 }
+            } else if action_name == "drop" || action_name == "d" {
+                let commit_oid = rebase.commit(None, &signature, None)?;
+                let commit_c = repo.find_commit(commit_oid)?;
+                if let Ok(commit_b) = commit_c.parent(0) {
+                    repo.set_head_detached(commit_b.id())?;
+                    let mut opts = git2::build::CheckoutBuilder::new();
+                    opts.force();
+                    repo.checkout_tree(&commit_b.into_object(), Some(&mut opts))?;
+                }
             } else {
                 let commit_oid = rebase.commit(None, &signature, commit_message.as_deref())?;
 

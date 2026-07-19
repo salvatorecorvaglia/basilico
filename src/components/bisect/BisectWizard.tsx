@@ -86,6 +86,18 @@ export function BisectWizard() {
     });
   };
 
+  const handleExitDirectly = async () => {
+    try {
+      await resetBisect();
+      addNotification({ type: "success", message: "Bisect session closed" });
+    } catch (err) {
+      addNotification({
+        type: "error",
+        message: `Failed to exit bisect: ${err}`,
+      });
+    }
+  };
+
   // Find commit message for current checked out commit
   const currentCommitDetails = commits.find(
     (c) => c.oid === bisectState?.currentOid,
@@ -159,12 +171,12 @@ export function BisectWizard() {
           </span>
         </div>
         <button
-          className="bisect-abort-btn"
-          onClick={handleReset}
-          title="Abort Bisect"
+          className={isFinished ? "bisect-exit-btn" : "bisect-abort-btn"}
+          onClick={isFinished ? handleExitDirectly : handleReset}
+          title={isFinished ? "Exit Bisect" : "Abort Bisect"}
         >
           <RotateCcw size={12} />
-          <span>Abort Bisect</span>
+          <span>{isFinished ? "Exit Bisect" : "Abort Bisect"}</span>
         </button>
       </div>
 
