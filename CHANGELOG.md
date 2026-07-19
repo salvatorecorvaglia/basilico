@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-19
+
+### Added
+
+- **Remote Branch Deletion**: Implemented remote branch deletion support in the `delete_branch` command, which now pushes a deletion spec (`:refs/heads/<branch>`) to the remote repository.
+- **Rebase Drop Action**: Supported the `drop`/`d` action in the `rebase_step` command, setting a detached `HEAD` and checking out the parent commit tree.
+- **Direct Bisect Exit**: Added direct exit functionality (with a new "Exit Bisect" button) to the `BisectWizard` UI and integrated backend state reset.
+
+### Changed
+
+- **Optimized File Watcher**: Refactored the file watcher to watch the root directory non-recursively, `.git` recursively, and top-level subdirectories selectively (ignoring build artifacts and dependencies) to avoid reaching file watch limits.
+- **Settings Caching**: Implemented in-memory settings caching in `AppState` to eliminate redundant disk reads on Git command invocations.
+- **Git Hook Execution**: Updated the `create_commit` command to run pre-commit hooks via `git hook run pre-commit` rather than invoking the script file directly, improving error propagation.
+- **Initial Commit Support for Signed Commits**: Improved `create_commit` signature flow to resolve the symbolic target of `HEAD` and initialize empty repositories with a signed commit.
+- **Commit Tree Performance**: Optimized `get_commit_tree` by skipping blob size checks when listing directory contents.
+- **Merge Tool Cleanup Delay**: Delayed external merge tool temporary directory cleanup by 10 minutes (via a background thread) to keep staging files alive for processes that delegate execution and exit immediately.
+- **CI and Release Validation**: Integrated Cargo.toml version validation in CI and release workflows, and added Vitest testing executions to CI/CD gates.
+- **Tauri Runtime Generics**: Refactored settings command handlers and helpers to be generic over Tauri runtime types.
+
 ## [0.10.1] - 2026-07-17
 
 ### Added

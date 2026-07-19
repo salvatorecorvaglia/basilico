@@ -144,6 +144,7 @@ Familiarize yourself with the layout before modifying code:
 * Follow standard idiomatic Rust styling guidelines.
 * Avoid using `.unwrap()` on `Option` or `Result` types. Properly propagate errors using Tauri-compatible error structures (such as [error.rs](src-tauri/src/error.rs)).
 * Use `parking_lot` primitives for synchronization instead of standard library mutexes when appropriate to avoid blocking async contexts.
+* **Tauri Runtime Generics**: Write settings command handlers and helpers generic over the Tauri runtime type (`R: tauri::Runtime`) to maintain clean abstractions and decouple logic from specific runtime backends.
 * **Non-Blocking Operations**: Never execute synchronous, CPU-intensive, or blocking IO/Git actions (like heavy `git2` revision walks or diff parses) directly inside the main async Tauri commands. Always offload them using `tokio::task::spawn_blocking` to avoid stalling the async executor and the client UI thread.
 * **Security & Subprocess Hardening**: 
   - Subprocess Execution: When spawning shell commands or running external binaries (e.g. for `gpg`, `bisect`, or credential helpers), use hardened wrapper abstractions that properly isolate execution, prevent command injection, and bubble up structured, thread-safe errors.
@@ -158,7 +159,7 @@ Before submitting a Pull Request, please run these local checks to ensure they p
 ### Pre-submission Checklist
 
 1. **Version Consistency Check**:
-   Ensure that the `version` field in [package.json](package.json) matches the `version` field in [tauri.conf.json](src-tauri/tauri.conf.json).
+   Ensure that the `version` field in [package.json](package.json), [tauri.conf.json](src-tauri/tauri.conf.json), and [Cargo.toml](src-tauri/Cargo.toml) all match. CI workflows automatically validate this consistency.
 2. **Frontend Quality & Formatting**:
    Ensure all files are formatted and linted properly using Biome:
    ```bash
@@ -168,7 +169,7 @@ Before submitting a Pull Request, please run these local checks to ensure they p
    ```bash
    pnpm run lint:fix
    ```
-   Verify frontend unit tests pass successfully:
+   Verify frontend unit tests pass successfully (CI/CD gates will run Vitest tests):
    ```bash
    pnpm vitest run
    ```

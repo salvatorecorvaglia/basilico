@@ -16,13 +16,15 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
   - Interactive stashing capabilities, complete with a dedicated `StashInspector` UI supporting untracked file diffs.
   - Soft, mixed, and hard modes for `git reset` via a custom `ResetModal` UI.
   - Client-side branch, tag, and reference validation/sanitization matching standard Git specifications before creation.
+  - **Remote Branch Deletion**: Delete remote branches by pushing specs directly to the remote repository.
   - **Advanced Interactive Rebase**: Interactive rebase support including squash, fixup, and drop operations in both the UI and Rust backend, running in an automated multi-step execution loop.
+  - **Initial Commit Support for Signed Commits**: Resolve the symbolic target of `HEAD` and initialize empty repositories with a signed commit.
 - **🔍 Advanced Inspection & Comparison**:
   - **Reflog Inspector**: A complete reflog inspector view with terminal-like output to view Git ref updates and commit/checkout history.
   - **Revision Compare**: Select and compare revisions, explore file trees, and view side-by-side or inline diffs with integrated line number displays.
   - **Git Blame**: An integrated blame view with detailed modification history tracking for individual lines.
   - **Conflict Resolver**: Interactive merge conflict resolution interface to handle conflicts quickly and safely.
-  - **Git Bisect**: Interactive Git Bisect wizard to isolate bug-introducing commits with mark options (`good`/`bad`/`skip`).
+  - **Git Bisect**: Interactive Git Bisect wizard to isolate bug-introducing commits with mark options (`good`/`bad`/`skip`), featuring a dedicated "Exit Bisect" button to reset the backend state.
   - **GPG Commit Signatures**: Verify commit signatures, displaying signer identity, key ID, and validation status (Verified, Bad Signature, Unknown Key, etc.).
   - **History & Code Search**: Filter repository commit history by message or author, and run fast codebase text searches via integrated `git grep`.
 - **📂 Workspace & Collaboration**:
@@ -45,11 +47,12 @@ Basilico is designed to provide a premium, visually stunning desktop experience 
   - **Fault Tolerance**: Dedicated panel-level error boundaries (`PanelErrorBoundary`) and a root React `ErrorBoundary` that gracefully handle runtime exceptions with a recovery UI.
 - **🚀 Underlying Architecture**:
   - **Rust Backend**: Multithreaded command runner leveraging Rust `git2` bindings for maximum performance, with heavy or blocking Git operations offloaded to asynchronous Tokio tasks (`tokio::task::spawn_blocking`) to keep the UI thread completely stall-free.
-  - **State Management**: Highly optimized Zustand `repo-store` split into modular slices (`collaboration`, `git-data`, `settings`, `staging`, `tabs`) using a granular, domain-specific `loadingStates` tracker to handle loading status individually per domain and avoid race conditions.
-  - **Watcher**: A live repository file system watcher recursively tracking root changes using `notify` to automatically refresh application state on local edits, with a robust fallback mechanism when standard fs-polling fails or lacks file system permissions.
+  - **State Management & Caching**: Highly optimized Zustand `repo-store` split into modular slices (`collaboration`, `git-data`, `settings`, `staging`, `tabs`) using a granular, domain-specific `loadingStates` tracker. Application settings are cached in-memory in the Rust `AppState` to eliminate redundant disk reads on Git command invocations.
+  - **Optimized File Watcher**: A live repository file system watcher that watches the root directory non-recursively, `.git` recursively, and top-level subdirectories selectively (ignoring build artifacts and dependencies) to avoid reaching file watch limits.
+  - **Commit Tree & Merge Tool Performance**: Optimized `get_commit_tree` by skipping blob size checks when listing directory contents, and implemented a delayed external merge tool temporary directory cleanup to keep staging files alive.
   - **Error Mapping**: Automated translation of raw Git/Rust CLI error outputs to user-friendly actionable feedback notifications.
   - **Auto-Updater**: Seamless integration with Tauri's native updater, pointing to GitHub releases JSON to check for production updates with custom progress toast notifications and application restart support.
-  - **Subprocess Hardening**: Thread-safe, hardened command-line subprocess execution with robust error isolation for Git helper operations (such as `bisect` and `gpg`).
+  - **Subprocess Hardening**: Thread-safe, hardened command-line subprocess execution with robust error isolation for Git helper operations (such as `bisect` and `gpg`), running pre-commit hooks via `git hook run pre-commit` for improved error propagation.
   - **Windows Git Credential Helper**: Custom credential helper resolution and execution logic in the Rust backend on Windows, allowing secure retrieval of HTTPS credentials without flashing terminal windows.
 
 ---
