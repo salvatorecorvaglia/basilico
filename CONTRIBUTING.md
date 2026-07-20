@@ -1,202 +1,128 @@
 # Contributing to Basilico 🌿
 
-Thank you for your interest in contributing to **Basilico**! Basilico is a fast, modern, and beautiful Git GUI client built using **Tauri 2**, **Rust**, **React**, and **TypeScript**. 
+Thank you for your interest in contributing to **Basilico**! We are excited to build a fast, modern, and beautiful Git GUI client, and we welcome contributions of all kinds: bug fixes, new features, documentation improvements, design suggestions, and bug reports.
 
-By contributing, you help make Git GUI workflows faster, more elegant, and more accessible for developers worldwide.
-
----
-
-## Table of Contents
-
-1. [Code of Conduct](#code-of-conduct)
-2. [How Can I Contribute?](#how-can-i-contribute)
-3. [Branching Strategy](#branching-strategy)
-4. [Development Setup](#development-setup)
-5. [Project Architecture](#project-architecture)
-6. [Coding Guidelines](#coding-guidelines)
-7. [Submitting a Pull Request](#submitting-a-pull-request)
-8. [License](#license)
-
----
-
-## Code of Conduct
-
-We are committed to providing a welcoming, safe, and friendly environment for all contributors. We expect all participants to behave professionally, treat others with respect, and collaborate constructively.
+This document provides guidelines and instructions to help you get started with contributing to this repository.
 
 ---
 
 ## How Can I Contribute?
 
-### 🐛 Reporting Bugs
-Before creating a bug report, check the open issues to see if the problem has already been reported. If not, open a new issue using the [🐛-bug-report.md](.github/ISSUE_TEMPLATE/🐛-bug-report.md) template and include:
-* A clear and descriptive title.
-* Steps to reproduce the behavior.
-* Expected vs. actual behavior.
-* Screenshots or screen recordings, if applicable.
-* Your operating system and environment details.
+### Reporting Bugs
 
-### ✨ Suggesting Features & Enhancements
-If you have ideas to improve Basilico, check the existing requests first. If it's a new idea, open a feature request using the [✨-feature-request.md](.github/ISSUE_TEMPLATE/✨-feature-request.md) template describing:
-* The problem your feature solves.
-* How the proposed solution works.
-* Mockups, designs, or examples of similar features.
+If you find a bug or unexpected behavior, please check open issues first to see if it has already been reported. If not, open a new issue and include:
+- A clear, descriptive title.
+- Steps to reproduce the issue.
+- Expected vs. actual behavior.
+- Details about your environment (OS version, Basilico version, Git version).
+- Relevant screenshots, logs, or error messages.
 
-### 🛠 Tasks & Improvements
-For general performance optimization, documentation edits, or refactoring, use the [🛠-task---improvement.md](.github/ISSUE_TEMPLATE/🛠-task---improvement.md) template.
+### Suggesting Enhancements
 
----
+We are always looking for ways to improve Basilico. If you have an idea for a new feature or design enhancement:
+- Check existing issues to see if the feature has been proposed.
+- Open an issue describing the proposed feature, why it is useful, and how it should work or look.
 
-## Branching Strategy
+### Submitting Pull Requests
 
-* **`develop`**: This is the main development branch. All feature branches and bug fixes should target `develop` in their Pull Requests.
-* **`main`**: This branch represents the stable production-ready releases. Merges into `main` are handled by maintainers during the release cycle and will trigger auto-tagging and packaging workflows.
-
-When creating a branch:
-```bash
-git checkout develop
-git pull origin develop
-git checkout -b feature/your-feature-name
-# or for bug fixes:
-git checkout -b fix/your-bugfix-name
-```
+If you are ready to write code or update documentation:
+1. Find an existing issue to work on or create one to discuss your proposed changes first.
+2. Fork the repository and set up your development environment.
+3. Submit a pull request (PR) with your changes.
 
 ---
 
 ## Development Setup
 
-### Prerequisites
+To run and build Basilico locally, make sure you have installed the [Prerequisites](README.md#prerequisites). Then follow these steps:
 
-Ensure you have the following installed on your local machine:
-* **Node.js** (v22 or higher recommended; v18 minimum)
-* **Rust Toolchain** (via [rustup](https://rustup.rs/))
-* **System dependencies** required for Tauri development (see the [Tauri Prerequisites Guide](https://v2.tauri.app/start/prerequisites/)).
-
-### Local Installation
-
-1. Fork the repository and clone your fork:
+1. **Fork the repository** on GitHub.
+2. **Clone your fork** to your local machine:
    ```bash
-   git clone https://github.com/YOUR-USERNAME/basilico.git
+   git clone https://github.com/your-username/basilico.git
    cd basilico
    ```
-2. Install dependencies:
+3. **Install dependencies**:
    ```bash
    pnpm install
    ```
-
-### Running the App
-
-To launch the unified frontend and native container (Vite + Tauri dev server):
-```bash
-pnpm tauri dev
-```
-
-For advanced frontend debugging or split setups:
-1. Start the Vite server (Terminal 1):
+4. **Start the development server**:
    ```bash
-   pnpm dev
+   pnpm tauri dev
    ```
-2. Start the Tauri app wrapper (Terminal 2):
-   ```bash
-   cd src-tauri
-   cargo run
-   ```
-
----
-
-## Project Architecture
-
-Familiarize yourself with the layout before modifying code:
-* **`src-tauri/`**: Rust backend.
-  * [Cargo.toml](src-tauri/Cargo.toml): Dependency manifest.
-  * [main.rs](src-tauri/src/main.rs): Minimal application entrypoint.
-  * [lib.rs](src-tauri/src/lib.rs): Native commands, setup configurations, and window layout initialization.
-  * [commands/](src-tauri/src/commands): Tauri commands representing operations such as staging, commit, branch management, reset, merge, stash, blame, rebase, bisect, gpg, search, submodule, worktree, reflog, and settings.
-  * [git/](src-tauri/src/git): Underlying wrapper utilities interacting with `git2`/`libgit2` bindings.
-  * Commands and logic are backed by `git2`/`libgit2` bindings for git operations, `tokio` for async runtime, `notify` for filesystem changes, and Tauri's updater plugin.
-* **`src/`**: React frontend.
-  * [main.tsx](src/main.tsx): React entrypoint.
-  * [components](src/components): Shared visual components and views.
-  * [hooks](src/hooks): Custom React hooks (e.g. for handling application updates).
-  * [lib/](src/lib): Shared utilities, helper constants, type definitions, and Tauri command bindings.
-  * [styles](src/styles): Contains [theme.css](src/styles/theme.css) and [index.css](src/styles/index.css) defining design system variables and premium dark-mode styles.
-  * [store](src/store): Zustand global state management stores.
-* **`public/`**: Static assets.
-  * [theme-loader.js](public/theme-loader.js): Early-loading JavaScript script that retrieves the user's theme preference from local storage and sets it as an HTML attribute immediately to prevent flashes on app startup.
+   *Note: While you can run `pnpm dev` to run the frontend in a standard browser tab, many features rely on native Rust/Tauri APIs (such as file system access and git operations) and will only function properly when run inside the Tauri container via `pnpm tauri dev`.*
 
 ---
 
 ## Coding Guidelines
 
-### 🎨 Frontend & UI Style
-* **Formatting & Linting**: We use **Biome** for code formatting, linting, and import sorting. Before committing, run `pnpm run lint:fix` or set up the Biome VS Code extension to automatically format your files on save.
-* **Premium Aesthetics**: Basilico prioritizes visually stunning, premium dark-mode styling. Stick to the curated color palette and layout tokens defined in [theme.css](src/styles/theme.css). Make sure any new UI components support responsive dynamic accent theme presets and light/dark modes seamlessly.
-* **Styling**: We use **Tailwind CSS v4** utility classes alongside standard CSS/Vanilla CSS custom variables for layout and visual styling. Maintain component purity and ensure component styling adheres strictly to our design tokens.
-* **Theme Preference & Early Loading**: Theme loading uses a dedicated `theme-loader.js` script in the `public` folder to set the document's `data-theme` attribute at startup. Ensure any theme-changing or theme-dependent logic coordinates correctly with this property and Zustand `repo-store`'s theme settings.
-* **TypeScript & React**: Maintain strict type safety. Avoid using `any`. Write modern React functional components with hooks.
-* **Accessibility**: Build elements with full keyboard navigation and ARIA role compliance (following Radix UI patterns). Ensure tabs (like `TabBar`), list/tree structures, and overlay prompts are fully focusable and styled using visible outline focus rings.
-* **State Management**: Use domain-specific loading states (`loadingStates`) defined in the Zustand `repo-store` rather than a global `isLoading` flag to prevent concurrent operations from clobbering each other.
-* **Error Handling & Validation**:
-  - Input Validation: Validate Git references and tag formats using validation helpers (`validateBranchName`, etc.) before calling backend functions.
-  - Fault Tolerance: Wrap panel-level view modules in custom `PanelErrorBoundary` containers, and critical layout roots in `ErrorBoundary` components to catch runtime errors gracefully and present a premium recovery UI instead of crashing the app.
-  - Error Presentation: Wrap Tauri command error results in `friendlyErrorMessage` to provide user-actionable feedback.
+### Frontend Standards
+We use **Biome** to format and lint our TypeScript, React, and CSS code. Ensure your code passes all Biome checks before submitting a PR.
 
-### 🦀 Rust Backend Style
-* Follow standard idiomatic Rust styling guidelines.
-* Avoid using `.unwrap()` on `Option` or `Result` types. Properly propagate errors using Tauri-compatible error structures (such as [error.rs](src-tauri/src/error.rs)).
-* Use `parking_lot` primitives for synchronization instead of standard library mutexes when appropriate to avoid blocking async contexts.
-* **Tauri Runtime Generics**: Write settings command handlers and helpers generic over the Tauri runtime type (`R: tauri::Runtime`) to maintain clean abstractions and decouple logic from specific runtime backends.
-* **Non-Blocking Operations**: Never execute synchronous, CPU-intensive, or blocking IO/Git actions (like heavy `git2` revision walks or diff parses) directly inside the main async Tauri commands. Always offload them using `tokio::task::spawn_blocking` to avoid stalling the async executor and the client UI thread.
-* **Security & Subprocess Hardening**: 
-  - Subprocess Execution: When spawning shell commands or running external binaries (e.g. for `gpg`, `bisect`, or credential helpers), use hardened wrapper abstractions that properly isolate execution, prevent command injection, and bubble up structured, thread-safe errors.
-  - Path Validation: Always perform path validation via `crate::git::utils::validate_path` on user-provided file paths or patch deltas in commands (such as submodules, worktrees, or patch applications) to prevent directory traversal vulnerabilities.
+- **Check Linting**: `pnpm lint`
+- **Format Code**: `pnpm format`
+- **Fix Linting Errors**: `pnpm lint:fix`
+
+- Use **React 19** best practices (e.g., hooks, functional components, concurrent rendering features).
+- Write type-safe TypeScript code. Avoid `any` types wherever possible.
+- Use Tailwind CSS v4 class naming patterns, maintaining consistent layouts with our flexbox, grid, and spacing utilities.
+
+### Rust Backend Standards
+- Format your Rust code with `cargo fmt`.
+- Ensure there are no warnings or errors reported by `cargo clippy`.
+- Follow idiomatic Rust guidelines (explicit error handling, proper ownership and borrowing, avoidance of `unwrap()` in production-ready command handlers).
+- Errors should be propagated to the frontend via the custom `Error` wrapper in `src-tauri/src/error.rs`.
 
 ---
 
-## Submitting a Pull Request
+## Testing Guidelines
 
-Before submitting a Pull Request, please run these local checks to ensure they pass CI:
+Always verify that your changes do not break existing functionality:
 
-### Pre-submission Checklist
+- **Run Frontend Tests**:
+  ```bash
+  pnpm test
+  ```
+  We use **Vitest** and **React Testing Library** for frontend testing. If you are fixing a bug or adding a new feature, please add corresponding unit or integration tests under the relevant `__tests__` directory.
 
-1. **Version Consistency Check**:
-   Ensure that the `version` field in [package.json](package.json), [tauri.conf.json](src-tauri/tauri.conf.json), and [Cargo.toml](src-tauri/Cargo.toml) all match. CI workflows automatically validate this consistency.
-2. **Frontend Quality & Formatting**:
-   Ensure all files are formatted and linted properly using Biome:
-   ```bash
-   pnpm run lint
-   ```
-   To automatically format and apply safe fixes:
-   ```bash
-   pnpm run lint:fix
-   ```
-   Verify frontend unit tests pass successfully (CI/CD gates will run Vitest tests):
-   ```bash
-   pnpm vitest run
-   ```
-   Verify the frontend builds and typechecks without errors:
-   ```bash
-   pnpm run build
-   ```
-3. **Rust Code Quality & Formatting**:
-   Ensure Rust formatting is consistent:
-   ```bash
-   cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
-   ```
-   Run clippy lints to catch potential errors:
-   ```bash
-   cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets
-   ```
-4. **Rust Tests**:
-   Ensure all unit tests pass:
-   ```bash
-   cargo test --manifest-path src-tauri/Cargo.toml
-   ```
+- **Run Backend Tests**:
+  If you modify Rust files in `src-tauri`, run backend tests using:
+  ```bash
+  cd src-tauri
+  cargo test
+  ```
 
-### Creating the PR
+---
 
-* Keep your PR focused on a single concern/issue.
-* Write a clear description of the changes using the template in [PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE/PULL_REQUEST_TEMPLATE.md).
-* Link any relevant issues (e.g. `Fixes #123`).
+## Commit Message Guidelines
+
+We recommend using clear, structured, and descriptive commit messages (preferably following [Conventional Commits](https://www.conventionalcommits.org/)):
+
+- **Format**: `<type>(<scope>): <description>`
+- **Types**:
+  - `feat`: A new user-facing feature.
+  - `fix`: A bug fix.
+  - `docs`: Documentation-only changes.
+  - `style`: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc.).
+  - `refactor`: A code change that neither fixes a bug nor adds a feature.
+  - `perf`: A code change that improves performance.
+  - `test`: Adding missing tests or correcting existing tests.
+  - `chore`: Changes to the build process, auxiliary tools, or libraries.
+
+*Example:* `feat(staging): support line-level staging in diff view`
+
+---
+
+## Pull Request Process
+
+1. Create a descriptive branch name from the `main` branch (e.g., `feature/line-staging` or `bugfix/issue-watcher-limit`).
+2. Make your code changes, and add corresponding tests if applicable.
+3. Ensure formatting and linting pass (`pnpm format` and `pnpm lint`).
+4. Ensure all unit tests pass (`pnpm test` and `cargo test`).
+5. Push your branch to your fork on GitHub.
+6. Open a Pull Request against the `main` branch of the original repository.
+7. Provide a detailed summary of the changes in the PR description, referencing any relevant issues (e.g., `Closes #123`).
+8. Respond to review comments and feedback in a timely manner.
 
 ---
 
