@@ -125,13 +125,7 @@ export function WelcomeScreen() {
           {/* Left Column: Actions */}
           <div className="welcome-dashboard-left">
             <div className="welcome-logo">
-              <div className="welcome-logo-icon">
-                <img
-                  src="/logo.png"
-                  alt="Basilico Logo"
-                  className="welcome-logo-img"
-                />
-              </div>
+              <div className="welcome-logo-icon">🌿</div>
               <h1 className="welcome-title">Basilico</h1>
               <p className="welcome-subtitle">Modern Git, at your fingertips</p>
             </div>
@@ -316,13 +310,7 @@ export function WelcomeScreen() {
         <div className="welcome-content animate-fade-in">
           {/* Logo */}
           <div className="welcome-logo">
-            <div className="welcome-logo-icon">
-              <img
-                src="/logo.png"
-                alt="Basilico Logo"
-                className="welcome-logo-img"
-              />
-            </div>
+            <div className="welcome-logo-icon">🌿</div>
             <h1 className="welcome-title">Basilico</h1>
             <p className="welcome-subtitle">Modern Git, at your fingertips</p>
           </div>
