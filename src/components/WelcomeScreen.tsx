@@ -191,7 +191,7 @@ export function WelcomeScreen() {
             <div className="welcome-hint">
               <kbd>
                 {typeof window !== "undefined" &&
-                navigator.userAgent.includes("Mac")
+                  navigator.userAgent.includes("Mac")
                   ? "⌘"
                   : "Ctrl"}
               </kbd>{" "}
@@ -378,7 +378,7 @@ export function WelcomeScreen() {
           <div className="welcome-hint">
             <kbd>
               {typeof window !== "undefined" &&
-              navigator.userAgent.includes("Mac")
+                navigator.userAgent.includes("Mac")
                 ? "⌘"
                 : "Ctrl"}
             </kbd>{" "}
