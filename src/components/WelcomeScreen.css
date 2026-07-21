@@ -24,11 +24,21 @@
 }
 
 .welcome-logo-icon {
-  font-size: 64px;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   filter: drop-shadow(
     0 0 30px color-mix(in srgb, var(--accent-primary) 30%, transparent)
   );
   animation: float 3s ease-in-out infinite;
+}
+
+.welcome-logo-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 @keyframes float {
@@ -400,7 +410,8 @@
 }
 
 .welcome-dashboard-left .welcome-logo-icon {
-  font-size: 48px;
+  width: 56px;
+  height: 56px;
 }
 
 .welcome-dashboard-left .welcome-actions {
