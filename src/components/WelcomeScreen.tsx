@@ -126,7 +126,10 @@ export function WelcomeScreen() {
           <div className="welcome-dashboard-left">
             <div className="welcome-logo">
               <div className="welcome-logo-icon">
-                <img src="/basilico-logo-icon-transparent.svg" alt="Basilico Logo" />
+                <img
+                  src="/basilico-logo-icon-transparent.svg"
+                  alt="Basilico Logo"
+                />
               </div>
               <h1 className="welcome-title">Basilico</h1>
               <p className="welcome-subtitle">Modern Git, at your fingertips</p>
@@ -191,7 +194,7 @@ export function WelcomeScreen() {
             <div className="welcome-hint">
               <kbd>
                 {typeof window !== "undefined" &&
-                  navigator.userAgent.includes("Mac")
+                navigator.userAgent.includes("Mac")
                   ? "⌘"
                   : "Ctrl"}
               </kbd>{" "}
@@ -313,7 +316,10 @@ export function WelcomeScreen() {
           {/* Logo */}
           <div className="welcome-logo">
             <div className="welcome-logo-icon">
-              <img src="/basilico-logo-icon-transparent.svg" alt="Basilico Logo" />
+              <img
+                src="/basilico-logo-icon-transparent.svg"
+                alt="Basilico Logo"
+              />
             </div>
             <h1 className="welcome-title">Basilico</h1>
             <p className="welcome-subtitle">Modern Git, at your fingertips</p>
@@ -378,7 +384,7 @@ export function WelcomeScreen() {
           <div className="welcome-hint">
             <kbd>
               {typeof window !== "undefined" &&
-                navigator.userAgent.includes("Mac")
+              navigator.userAgent.includes("Mac")
                 ? "⌘"
                 : "Ctrl"}
             </kbd>{" "}
