@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Validate tag format and version match
         run: |
@@ -66,42 +66,27 @@ jobs:
           fi
 
   # ──────────────────────────────────────────────
-  # Quality Gate – run before building any artifact
+  # Quality Gates – run in parallel before building artifacts
   # ──────────────────────────────────────────────
-  quality:
-    name: Quality Gate
+  quality-frontend:
+    name: Quality Gate (Frontend)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: validate
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@v4
         with:
           version: 10
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-
-      - name: Cache Rust dependencies
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
@@ -115,8 +100,46 @@ jobs:
       - name: Typecheck & Build
         run: pnpm run build
 
+  quality-rust-fmt:
+    name: Quality Gate (Rust Format)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: validate
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
       - name: Format check
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+  quality-rust-clippy-test:
+    name: Quality Gate (Rust Clippy & Test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: validate
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Clippy linting
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
@@ -131,7 +154,7 @@ jobs:
     name: Release (${{ matrix.platform }})
     permissions:
       contents: write
-    needs: quality
+    needs: [quality-frontend, quality-rust-fmt, quality-rust-clippy-test]
     strategy:
       fail-fast: false
       matrix:
@@ -139,36 +162,31 @@ jobs:
           - platform: 'macos-15'
             target: 'aarch64-apple-darwin'
             args: '--target aarch64-apple-darwin'
-            makeflags: '-j1'
           - platform: 'macos-15'
             target: 'x86_64-apple-darwin'
             args: '--target x86_64-apple-darwin'
-            makeflags: '-j1'
           - platform: 'ubuntu-22.04'
             target: ''
             args: ''
-            makeflags: ''
           - platform: 'windows-latest'
             target: ''
             args: ''
-            makeflags: ''
 
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 40
     env:
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      MAKEFLAGS: ${{ matrix.makeflags }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@v4
         with:
           version: 10
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
@@ -187,7 +205,7 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
@@ -221,14 +239,20 @@ jobs:
     needs: publish-tauri
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Extract Release Notes
         id: extract_notes
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
-          NOTES=$(sed -e "1,/## \[$VERSION\]/d" -e '/## \[/,$d' CHANGELOG.md)
+          NOTES=""
+          if [ -f CHANGELOG.md ]; then
+            NOTES=$(sed -e "1,/## \[$VERSION\]/d" -e '/## \[/,$d' CHANGELOG.md 2>/dev/null || true)
+          fi
+          if [ -z "$(echo "$NOTES" | tr -d '[:space:]')" ]; then
+            NOTES="Basilico release $TAG"
+          fi
           {
             echo 'notes<<EOF'
             echo "$NOTES"
