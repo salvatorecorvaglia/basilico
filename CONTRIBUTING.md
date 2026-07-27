@@ -83,7 +83,7 @@ Always verify that your changes do not break existing functionality:
   ```bash
   pnpm test
   ```
-  We use **Vitest** and **React Testing Library** for frontend testing. If you are fixing a bug or adding a new feature, please add corresponding unit or integration tests under the relevant `__tests__` directory.
+  We use **Vitest** and **React Testing Library** for frontend testing. When adding features or fixing bugs (in UI components or Zustand state stores under `src/store/`), add or update unit tests under the corresponding `__tests__` directory.
 
 - **Run Backend Tests**:
   If you modify Rust files in `src-tauri`, run backend tests using:
@@ -91,6 +91,8 @@ Always verify that your changes do not break existing functionality:
   cd src-tauri
   cargo test
   ```
+
+*Note: GitHub Actions enforces quality gates in parallel (linting, formatting, Vitest frontend tests, Rust compilation, and tests).*
 
 ---
 
@@ -116,7 +118,7 @@ We recommend using clear, structured, and descriptive commit messages (preferabl
 ## Pull Request Process
 
 1. Create a descriptive branch name from the `main` branch (e.g., `feature/line-staging` or `bugfix/issue-watcher-limit`).
-2. Make your code changes, and add corresponding tests if applicable.
+2. Make your code changes, and add corresponding unit tests if applicable.
 3. Ensure formatting and linting pass (`pnpm format` and `pnpm lint`).
 4. Ensure all unit tests pass (`pnpm test` and `cargo test`).
 5. Push your branch to your fork on GitHub.

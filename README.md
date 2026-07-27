@@ -53,9 +53,14 @@ To build Basilico from source, you will need the following tools installed on yo
 
 ### Testing
 
-Run frontend unit tests using Vitest:
+Run frontend unit tests (components & Zustand stores) using Vitest:
 ```bash
 pnpm test
+```
+
+Run backend Rust unit tests:
+```bash
+cd src-tauri && cargo test
 ```
 
 ### Formatting & Linting
@@ -85,10 +90,22 @@ The compiled binaries will be outputted to `src-tauri/target/release/` or wrappe
 ## 💻 Platform-Specific Installation Notes
 
 ### macOS
-If you run into Gatekeeper warnings when launching the built app (since the release binary might not be code-signed locally):
-1. Locate the app in `Finder`.
-2. Right-click (or Control-click) the application icon and choose **Open**.
-3. Click **Open** in the confirmation dialog.
+
+Since pre-built release binaries may not be notarized with an Apple Developer certificate, macOS Gatekeeper may block the app or display a warning saying **`"Basilico" is damaged and can't be opened`** (*`"Basilico" è danneggiato e non può essere aperto`*).
+
+To resolve this and allow Basilico to open:
+
+1. **Remove Quarantine Attribute** (Recommended):
+   Open Terminal and run:
+   ```bash
+   xattr -cr /Applications/Basilico.app
+   ```
+   *(If the app is in your Downloads folder, use `xattr -cr ~/Downloads/Basilico.app` instead).*
+
+2. **Alternative (First Launch via Finder)**:
+   - Locate `Basilico.app` in `Finder`.
+   - Right-click (or Control-click) the application icon and choose **Open**.
+   - Click **Open** in the confirmation dialog.
 
 ### Windows
 If Windows SmartScreen blocks execution of unsigned binaries, click **More info** and then choose **Run anyway**.

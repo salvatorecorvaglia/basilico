@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-07-27
+
+### Added
+
+- **Staging Store & UI Component Unit Tests**: Added unit test suites for `useStagingStore`, `CommitList`, and `StagingArea` components using Vitest and React Testing Library.
+- **Application Branding & Platform Icons**: Updated logo assets and platform icons across the user interface and Tauri desktop app configurations.
+
+### Changed
+
+- **File Watcher & Path Normalization**: Enhanced file watcher ignore patterns to reduce OS event overhead and refined path normalization logic across conflict resolution and staging commands.
+- **CI/CD Parallel Quality Gates**: Upgraded GitHub Actions workflow configurations across CI and release pipelines, splitting quality checks (linting, formatting, testing, and builds) into parallel jobs for faster execution.
+- **Dependency Upgrades**: Upgraded frontend packages and Rust dependencies to latest compatible versions.
+
+### Removed
+
+- **Unused Glib Dependency**: Removed unused `glib` dependency from Rust backend dependencies in `Cargo.toml`.
+
 ## [0.11.0] - 2026-07-19
 
 ### Added
