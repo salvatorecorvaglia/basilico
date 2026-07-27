@@ -106,7 +106,9 @@ pub async fn discard_changes(path: String, files: Vec<String>) -> Result<(), App
             // Validate path to prevent directory traversal
             let _validated_full_path = crate::git::utils::validate_path(workdir, file_path)?;
 
-            if index.get_path(file_path, 0).is_some() {
+            let normalized_str = crate::commands::conflict_resolver::normalize_git_path(file);
+            let normalized_path = Path::new(&normalized_str);
+            if index.get_path(normalized_path, 0).is_some() || index.get_path(file_path, 0).is_some() {
                 tracked_files.push(file);
             } else {
                 untracked_files.push(file);

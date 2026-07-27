@@ -4,11 +4,66 @@ use serde::Serialize;
 use std::fs;
 use std::path::Path;
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct ConflictStages {
     pub base: Option<String>,
     pub ours: Option<String>,
     pub theirs: Option<String>,
+}
+
+/// Helper to normalize paths to POSIX slash format for Git index comparison
+pub fn normalize_git_path(path: &str) -> String {
+    path.replace('\\', "/")
+}
+
+/// Extracts conflict stages (base, ours, theirs) for a given file path from a repository.
+pub fn extract_conflict_stages(
+    repo: &Repository,
+    file_path: &str,
+) -> Result<ConflictStages, AppError> {
+    let index = repo.index()?;
+    let normalized_target = normalize_git_path(file_path);
+
+    let mut base = None;
+    let mut ours = None;
+    let mut theirs = None;
+
+    let conflicts = index.conflicts()?;
+    for conflict_res in conflicts {
+        let conflict = conflict_res?;
+
+        let path_matched = match &conflict.our {
+            Some(entry) => normalize_git_path(&String::from_utf8_lossy(&entry.path)) == normalized_target,
+            None => match &conflict.their {
+                Some(entry) => normalize_git_path(&String::from_utf8_lossy(&entry.path)) == normalized_target,
+                None => match &conflict.ancestor {
+                    Some(entry) => normalize_git_path(&String::from_utf8_lossy(&entry.path)) == normalized_target,
+                    None => false,
+                },
+            },
+        };
+
+        if path_matched {
+            if let Some(entry) = conflict.ancestor {
+                if let Ok(blob) = repo.find_blob(entry.id) {
+                    base = Some(String::from_utf8_lossy(blob.content()).into_owned());
+                }
+            }
+            if let Some(entry) = conflict.our {
+                if let Ok(blob) = repo.find_blob(entry.id) {
+                    ours = Some(String::from_utf8_lossy(blob.content()).into_owned());
+                }
+            }
+            if let Some(entry) = conflict.their {
+                if let Ok(blob) = repo.find_blob(entry.id) {
+                    theirs = Some(String::from_utf8_lossy(blob.content()).into_owned());
+                }
+            }
+            break;
+        }
+    }
+
+    Ok(ConflictStages { base, ours, theirs })
 }
 
 #[tauri::command]
@@ -18,48 +73,7 @@ pub async fn get_conflict_stages(
 ) -> Result<ConflictStages, AppError> {
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
-        let index = repo.index()?;
-
-        let mut base = None;
-        let mut ours = None;
-        let mut theirs = None;
-
-        let conflicts = index.conflicts()?;
-        for conflict_res in conflicts {
-            let conflict = conflict_res?;
-
-            let path_matched = match &conflict.our {
-                Some(entry) => String::from_utf8_lossy(&entry.path) == file_path,
-                None => match &conflict.their {
-                    Some(entry) => String::from_utf8_lossy(&entry.path) == file_path,
-                    None => match &conflict.ancestor {
-                        Some(entry) => String::from_utf8_lossy(&entry.path) == file_path,
-                        None => false,
-                    },
-                },
-            };
-
-            if path_matched {
-                if let Some(entry) = conflict.ancestor {
-                    if let Ok(blob) = repo.find_blob(entry.id) {
-                        base = Some(String::from_utf8_lossy(blob.content()).into_owned());
-                    }
-                }
-                if let Some(entry) = conflict.our {
-                    if let Ok(blob) = repo.find_blob(entry.id) {
-                        ours = Some(String::from_utf8_lossy(blob.content()).into_owned());
-                    }
-                }
-                if let Some(entry) = conflict.their {
-                    if let Ok(blob) = repo.find_blob(entry.id) {
-                        theirs = Some(String::from_utf8_lossy(blob.content()).into_owned());
-                    }
-                }
-                break;
-            }
-        }
-
-        Ok(ConflictStages { base, ours, theirs })
+        extract_conflict_stages(&repo, &file_path)
     })
     .await?
 }
@@ -96,50 +110,13 @@ pub async fn launch_external_merge_tool(
 ) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
-        let index = repo.index()?;
+        let stages = extract_conflict_stages(&repo, &file_path)?;
 
-        let mut base_content = String::new();
-        let mut ours_content = String::new();
-        let mut theirs_content = String::new();
+        let base_content = stages.base.unwrap_or_default();
+        let ours_content = stages.ours.unwrap_or_default();
+        let theirs_content = stages.theirs.unwrap_or_default();
 
-        // Find conflict stages
-        let conflicts = index.conflicts()?;
-        let mut found = false;
-        for conflict_res in conflicts {
-            let conflict = conflict_res?;
-            let path_matched = match &conflict.our {
-                Some(entry) => String::from_utf8_lossy(&entry.path) == file_path,
-                None => match &conflict.their {
-                    Some(entry) => String::from_utf8_lossy(&entry.path) == file_path,
-                    None => match &conflict.ancestor {
-                        Some(entry) => String::from_utf8_lossy(&entry.path) == file_path,
-                        None => false,
-                    },
-                },
-            };
-
-            if path_matched {
-                found = true;
-                if let Some(entry) = conflict.ancestor {
-                    if let Ok(blob) = repo.find_blob(entry.id) {
-                        base_content = String::from_utf8_lossy(blob.content()).into_owned();
-                    }
-                }
-                if let Some(entry) = conflict.our {
-                    if let Ok(blob) = repo.find_blob(entry.id) {
-                        ours_content = String::from_utf8_lossy(blob.content()).into_owned();
-                    }
-                }
-                if let Some(entry) = conflict.their {
-                    if let Ok(blob) = repo.find_blob(entry.id) {
-                        theirs_content = String::from_utf8_lossy(blob.content()).into_owned();
-                    }
-                }
-                break;
-            }
-        }
-
-        if !found {
+        if base_content.is_empty() && ours_content.is_empty() && theirs_content.is_empty() {
             return Err(AppError::invalid_state(format!(
                 "No conflicts found for file: {}",
                 file_path
@@ -295,4 +272,16 @@ pub async fn launch_external_merge_tool(
         }
     })
     .await?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_git_path() {
+        assert_eq!(normalize_git_path("src\\main.rs"), "src/main.rs");
+        assert_eq!(normalize_git_path("src/main.rs"), "src/main.rs");
+        assert_eq!(normalize_git_path("a\\b\\c.txt"), "a/b/c.txt");
+    }
 }

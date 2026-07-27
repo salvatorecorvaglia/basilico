@@ -177,6 +177,9 @@ pub async fn rebase_step(
                     // Continuing after conflict: commit the index, perform the squash amend, and pause for rewording!
                     let commit_oid = rebase.commit(None, &signature, None)?;
                     let commit_c = repo.find_commit(commit_oid)?;
+                    if commit_c.parent_count() == 0 {
+                        return Err(AppError::invalid_state("Cannot squash the initial root commit of a repository"));
+                    }
                     if let Ok(commit_b) = commit_c.parent(0) {
                         let tree = commit_c.tree()?;
                         let msg_b = commit_b.message().unwrap_or("");
@@ -307,6 +310,9 @@ pub async fn rebase_step(
                 "squash" | "s" => {
                     let commit_oid = rebase.commit(None, &signature, None)?;
                     let commit_c = repo.find_commit(commit_oid)?;
+                    if commit_c.parent_count() == 0 {
+                        return Err(AppError::invalid_state("Cannot squash the initial root commit of a repository"));
+                    }
                     if let Ok(commit_b) = commit_c.parent(0) {
                         let tree = commit_c.tree()?;
                         let msg_b = commit_b.message().unwrap_or("");

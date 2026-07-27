@@ -121,13 +121,24 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
 
 /// Returns true if the changed file path is significant (not ignored or transient).
 pub fn is_significant_path(path_str: &str) -> bool {
-    !path_str.contains(".git/index.lock")
-        && !path_str.contains(".git/FETCH_HEAD")
-        && !path_str.contains(".git/objects/")
-        && !path_str.contains("node_modules/")
-        && !path_str.contains("target/")
-        && !path_str.ends_with(".swp")
-        && !path_str.ends_with("~")
+    let normalized = path_str.replace('\\', "/");
+    !normalized.contains(".git/index.lock")
+        && !normalized.contains(".git/FETCH_HEAD")
+        && !normalized.contains(".git/objects/")
+        && !normalized.contains("node_modules/")
+        && !normalized.contains("/target/")
+        && !normalized.starts_with("target/")
+        && !normalized.contains("/.next/")
+        && !normalized.starts_with(".next/")
+        && !normalized.contains("/.turbo/")
+        && !normalized.starts_with(".turbo/")
+        && !normalized.contains("/dist/")
+        && !normalized.starts_with("dist/")
+        && !normalized.contains("/build/")
+        && !normalized.starts_with("build/")
+        && !normalized.ends_with(".DS_Store")
+        && !normalized.ends_with(".swp")
+        && !normalized.ends_with("~")
 }
 
 #[cfg(test)]
@@ -140,8 +151,11 @@ mod tests {
         assert!(is_significant_path("Cargo.toml"));
         assert!(!is_significant_path(".git/index.lock"));
         assert!(!is_significant_path("node_modules/lodash/index.js"));
+        assert!(!is_significant_path("packages/app/node_modules/react/index.js"));
         assert!(!is_significant_path("target/debug/basilico"));
+        assert!(!is_significant_path("apps/web/.next/cache/data.json"));
         assert!(!is_significant_path("src/main.rs.swp"));
         assert!(!is_significant_path("src/main.rs~"));
+        assert!(!is_significant_path(".DS_Store"));
     }
 }
