@@ -33,11 +33,18 @@ pub fn extract_conflict_stages(
         let conflict = conflict_res?;
 
         let path_matched = match &conflict.our {
-            Some(entry) => normalize_git_path(&String::from_utf8_lossy(&entry.path)) == normalized_target,
+            Some(entry) => {
+                normalize_git_path(&String::from_utf8_lossy(&entry.path)) == normalized_target
+            }
             None => match &conflict.their {
-                Some(entry) => normalize_git_path(&String::from_utf8_lossy(&entry.path)) == normalized_target,
+                Some(entry) => {
+                    normalize_git_path(&String::from_utf8_lossy(&entry.path)) == normalized_target
+                }
                 None => match &conflict.ancestor {
-                    Some(entry) => normalize_git_path(&String::from_utf8_lossy(&entry.path)) == normalized_target,
+                    Some(entry) => {
+                        normalize_git_path(&String::from_utf8_lossy(&entry.path))
+                            == normalized_target
+                    }
                     None => false,
                 },
             },
