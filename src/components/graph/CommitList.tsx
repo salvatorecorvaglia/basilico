@@ -19,12 +19,16 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  EyeOff,
+  Filter,
   FolderSync,
   GitBranch,
+  GitMerge,
   RotateCcw,
   Scissors,
   Search,
   Tag,
+  Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GraphCommit, RefLabel } from "../../lib/git-types";
@@ -36,6 +40,7 @@ import {
 } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
+import { MergedBranchSweeperModal } from "../sidebar/MergedBranchSweeperModal";
 import { CommitGraph } from "./CommitGraph";
 import "./CommitList.css";
 
@@ -78,6 +83,10 @@ export function CommitList() {
     startComparison,
     isLoading,
     settings,
+    firstParentOnly,
+    hideRemoteBranches,
+    pathFilter,
+    setGraphFilters,
   } = useRepoStore();
 
   const {
@@ -93,6 +102,7 @@ export function CommitList() {
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
+  const [sweeperOpen, setSweeperOpen] = useState(false);
 
   const handleDropOnCommit = (draggedBranch: string, targetOid: string) => {
     openConfirm({
@@ -598,8 +608,19 @@ export function CommitList() {
   return (
     <div className="commit-list-container">
       {/* Controls */}
-      <div className="commit-list-controls">
-        <div className="commit-list-search-wrapper">
+      <div
+        className="commit-list-controls"
+        style={{
+          display: "flex",
+          gap: "var(--space-2)",
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
+        <div
+          className="commit-list-search-wrapper"
+          style={{ flex: 1, minWidth: "160px" }}
+        >
           <Search size={13} className="commit-list-search-icon" />
           <input
             type="text"
@@ -609,7 +630,60 @@ export function CommitList() {
             onChange={(e) => setGlobalFilter(e.target.value)}
           />
         </div>
+
+        {/* Path Filter */}
+        <div className="commit-list-search-wrapper" style={{ width: "160px" }}>
+          <Filter size={12} className="commit-list-search-icon" />
+          <input
+            type="text"
+            className="commit-list-search-input"
+            placeholder="Filter by path..."
+            value={pathFilter}
+            onChange={(e) => setGraphFilters({ pathFilter: e.target.value })}
+          />
+        </div>
+
+        {/* Topology Toggles */}
+        <button
+          type="button"
+          className={`hunk-btn ${firstParentOnly ? "hunk-btn-primary" : "hunk-btn-secondary"}`}
+          onClick={() => setGraphFilters({ firstParentOnly: !firstParentOnly })}
+          title="First Parent Only (--first-parent)"
+          style={{ height: "26px", fontSize: "11px" }}
+        >
+          <GitMerge size={12} />
+          <span>First-Parent</span>
+        </button>
+
+        <button
+          type="button"
+          className={`hunk-btn ${hideRemoteBranches ? "hunk-btn-primary" : "hunk-btn-secondary"}`}
+          onClick={() =>
+            setGraphFilters({ hideRemoteBranches: !hideRemoteBranches })
+          }
+          title="Hide Remote Branches"
+          style={{ height: "26px", fontSize: "11px" }}
+        >
+          <EyeOff size={12} />
+          <span>Local Only</span>
+        </button>
+
+        <button
+          type="button"
+          className="hunk-btn hunk-btn-secondary"
+          onClick={() => setSweeperOpen(true)}
+          title="Detect and prune merged branches"
+          style={{ height: "26px", fontSize: "11px" }}
+        >
+          <Trash2 size={12} />
+          <span>Sweep Merged</span>
+        </button>
       </div>
+
+      <MergedBranchSweeperModal
+        open={sweeperOpen}
+        onOpenChange={setSweeperOpen}
+      />
 
       {/* Header */}
       <div className="commit-list-header">

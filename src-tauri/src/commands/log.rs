@@ -5,10 +5,15 @@ use crate::git::graph;
 pub async fn get_log(
     path: String,
     max_commits: Option<usize>,
+    first_parent: Option<bool>,
+    hide_remotes: Option<bool>,
+    path_filter: Option<String>,
 ) -> Result<Vec<graph::GraphCommit>, AppError> {
     tokio::task::spawn_blocking(move || {
         let max = max_commits.unwrap_or(1000);
-        graph::build_graph(&path, max)
+        let fp = first_parent.unwrap_or(false);
+        let hr = hide_remotes.unwrap_or(false);
+        graph::build_graph(&path, max, fp, hr, path_filter.as_deref())
     })
     .await?
 }

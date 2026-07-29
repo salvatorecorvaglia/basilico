@@ -122,8 +122,16 @@ export const openExternalTool = (
 export const getLog = (
   path: string,
   maxCommits?: number,
+  firstParent?: boolean,
+  hideRemotes?: boolean,
+  pathFilter?: string,
   options?: InvokeOptions,
-) => invokeCommand<GraphCommit[]>("get_log", { path, maxCommits }, options);
+) =>
+  invokeCommand<GraphCommit[]>(
+    "get_log",
+    { path, maxCommits, firstParent, hideRemotes, pathFilter },
+    options,
+  );
 
 // ── Diff Commands ──
 
@@ -184,6 +192,17 @@ export const getFileContentAtRevision = (
 
 export const listBranches = (path: string, options?: InvokeOptions) =>
   invokeCommand<BranchInfo[]>("list_branches", { path }, options);
+
+export const listMergedBranches = (
+  path: string,
+  targetBranch?: string,
+  options?: InvokeOptions,
+) =>
+  invokeCommand<BranchInfo[]>(
+    "list_merged_branches",
+    { path, targetBranch },
+    options,
+  );
 
 // ── Tag Commands ──
 

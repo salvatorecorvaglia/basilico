@@ -68,6 +68,11 @@ export interface RepoState {
   remotes: RemoteInfo[];
   commits: GraphCommit[];
 
+  // Graph topology filters
+  firstParentOnly: boolean;
+  hideRemoteBranches: boolean;
+  pathFilter: string;
+
   // Selected commit
   selectedCommitOid: string | null;
   commitDiff: FileDiff[];
@@ -138,6 +143,11 @@ export interface RepoState {
   refreshOnFileSystemChange: () => Promise<void>;
   selectCommit: (oid: string | null) => Promise<void>;
   loadMoreCommits: (count: number) => Promise<void>;
+  setGraphFilters: (filters: {
+    firstParentOnly?: boolean;
+    hideRemoteBranches?: boolean;
+    pathFilter?: string;
+  }) => Promise<void>;
 
   // Staging & Local Diff Actions
   selectLocalFile: (path: string | null, isStaged: boolean) => Promise<void>;
@@ -157,6 +167,7 @@ export interface RepoState {
   createBranch: (name: string, startPoint?: string | null) => Promise<void>;
   deleteBranch: (name: string, isRemote: boolean) => Promise<void>;
   renameBranch: (currentName: string, newName: string) => Promise<void>;
+  listMergedBranches: (targetBranch?: string) => Promise<BranchInfo[]>;
 
   // Tag Actions
   deleteTag: (name: string) => Promise<void>;

@@ -159,6 +159,51 @@ pub async fn rename_branch(
     .await?
 }
 
+#[tauri::command]
+pub async fn list_merged_branches(
+    path: String,
+    target_branch: Option<String>,
+) -> Result<Vec<repository::BranchInfo>, AppError> {
+    tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&path)?;
+
+        let target_name = target_branch.unwrap_or_else(|| "HEAD".to_string());
+        let target_obj = repo.revparse_single(&target_name)?;
+        let target_commit = target_obj.peel_to_commit()?;
+        let target_oid = target_commit.id();
+
+        let all_branches = repository::list_branches(&path)?;
+        let mut merged_branches = Vec::new();
+
+        for b in all_branches {
+            // Skip HEAD or current branch if it matches target
+            if b.is_head {
+                continue;
+            }
+            if b.name == target_name {
+                continue;
+            }
+
+            let branch_oid_res = git2::Oid::from_str(&b.oid);
+            if let Ok(b_oid) = branch_oid_res {
+                if b_oid == target_oid {
+                    merged_branches.push(b);
+                    continue;
+                }
+                // Check if target_oid is descendant of b_oid (b_oid is ancestor of target_oid)
+                if let Ok(is_descendant) = repo.graph_descendant_of(target_oid, b_oid) {
+                    if is_descendant {
+                        merged_branches.push(b);
+                    }
+                }
+            }
+        }
+
+        Ok(merged_branches)
+    })
+    .await?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,5 +293,25 @@ mod tests {
             .iter()
             .find(|b| b.name == "feature/renamed-branch")
             .is_none());
+    }
+
+    #[tokio::test]
+    async fn test_list_merged_branches() {
+        let repo = TempRepo::new();
+        repo.write_file("test.txt", "hello");
+        repo.commit("initial commit");
+
+        let path = repo.path_str().to_string();
+        create_branch(path.clone(), "merged-feature".to_string(), None)
+            .await
+            .unwrap();
+
+        // Advance main commit
+        repo.write_file("test.txt", "hello world");
+        repo.commit("second commit");
+
+        let merged = list_merged_branches(path, None).await.unwrap();
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].name, "merged-feature");
     }
 }

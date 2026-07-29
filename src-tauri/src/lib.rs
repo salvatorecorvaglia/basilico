@@ -47,6 +47,7 @@ pub fn run() {
             commands::branch::delete_branch,
             commands::branch::checkout_branch,
             commands::branch::rename_branch,
+            commands::branch::list_merged_branches,
             // Tag commands
             commands::tag::list_tags,
             commands::tag::delete_tag,

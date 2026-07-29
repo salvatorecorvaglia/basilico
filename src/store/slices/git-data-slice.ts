@@ -23,6 +23,9 @@ export interface GitDataSlice {
   tags: TagInfo[];
   remotes: RemoteInfo[];
   commits: GraphCommit[];
+  firstParentOnly: boolean;
+  hideRemoteBranches: boolean;
+  pathFilter: string;
   selectedCommitOid: string | null;
   commitDiff: FileDiff[];
   blameLines: BlameLine[];
@@ -40,6 +43,12 @@ export interface GitDataSlice {
   refreshOnFileSystemChange: () => Promise<void>;
   selectCommit: (oid: string | null) => Promise<void>;
   loadMoreCommits: (count: number) => Promise<void>;
+  setGraphFilters: (filters: {
+    firstParentOnly?: boolean;
+    hideRemoteBranches?: boolean;
+    pathFilter?: string;
+  }) => Promise<void>;
+  listMergedBranches: (targetBranch?: string) => Promise<BranchInfo[]>;
   loadFileBlame: (filePath: string, commitOid?: string | null) => Promise<void>;
   loadFileHistory: (filePath: string) => Promise<void>;
   loadReflog: () => Promise<void>;
@@ -59,6 +68,9 @@ export const createGitDataSlice: StateCreator<
   tags: [],
   remotes: [],
   commits: [],
+  firstParentOnly: false,
+  hideRemoteBranches: false,
+  pathFilter: "",
   selectedCommitOid: null,
   commitDiff: [],
   blameLines: [],
@@ -90,14 +102,27 @@ export const createGitDataSlice: StateCreator<
   },
 
   refreshCommitsAndStatus: async () => {
-    const { activeTabId, refreshGeneration } = get();
+    const {
+      activeTabId,
+      refreshGeneration,
+      firstParentOnly,
+      hideRemoteBranches,
+      pathFilter,
+    } = get();
     if (!activeTabId) return;
 
     set({ isRefreshing: true, error: null });
     try {
       const [status, commits] = await Promise.all([
         commands.getStatus(activeTabId, { silent: true }),
-        commands.getLog(activeTabId, 500, { silent: true }),
+        commands.getLog(
+          activeTabId,
+          500,
+          firstParentOnly,
+          hideRemoteBranches,
+          pathFilter,
+          { silent: true },
+        ),
       ]);
       // Guard: only apply if still the same tab
       if (get().refreshGeneration === refreshGeneration) {
@@ -134,7 +159,13 @@ export const createGitDataSlice: StateCreator<
   },
 
   refreshAll: async () => {
-    const { activeTabId, refreshGeneration } = get();
+    const {
+      activeTabId,
+      refreshGeneration,
+      firstParentOnly,
+      hideRemoteBranches,
+      pathFilter,
+    } = get();
     if (!activeTabId) return;
 
     set({ isRefreshing: true, error: null });
@@ -157,7 +188,14 @@ export const createGitDataSlice: StateCreator<
           commands.listBranches(activeTabId, { silent: true }),
           safeCall(commands.listTags(activeTabId, { silent: true }), []),
           safeCall(commands.listRemotes(activeTabId, { silent: true }), []),
-          commands.getLog(activeTabId, 500, { silent: true }),
+          commands.getLog(
+            activeTabId,
+            500,
+            firstParentOnly,
+            hideRemoteBranches,
+            pathFilter,
+            { silent: true },
+          ),
           safeCall(commands.listStashes(activeTabId, { silent: true }), []),
           commands.getRepoInfo(activeTabId, { silent: true }),
         ]);
@@ -246,7 +284,14 @@ export const createGitDataSlice: StateCreator<
   },
 
   loadMoreCommits: async (count: number) => {
-    const { activeTabId, commits, loadingStates } = get();
+    const {
+      activeTabId,
+      commits,
+      loadingStates,
+      firstParentOnly,
+      hideRemoteBranches,
+      pathFilter,
+    } = get();
     if (!activeTabId || loadingStates.commits) return;
 
     setLoading(get, set, "commits", true);
@@ -255,6 +300,9 @@ export const createGitDataSlice: StateCreator<
       const moreCommits = await commands.getLog(
         activeTabId,
         commits.length + count,
+        firstParentOnly,
+        hideRemoteBranches,
+        pathFilter,
         { silent: true },
       );
       set({ commits: moreCommits });
@@ -264,6 +312,30 @@ export const createGitDataSlice: StateCreator<
       throw err;
     } finally {
       setLoading(get, set, "commits", false);
+    }
+  },
+
+  setGraphFilters: async (filters) => {
+    set({
+      firstParentOnly: filters.firstParentOnly ?? get().firstParentOnly,
+      hideRemoteBranches:
+        filters.hideRemoteBranches ?? get().hideRemoteBranches,
+      pathFilter: filters.pathFilter ?? get().pathFilter,
+    });
+    await get().refreshCommitsAndStatus();
+  },
+
+  listMergedBranches: async (targetBranch) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return [];
+    try {
+      return await commands.listMergedBranches(activeTabId, targetBranch, {
+        errorPrefix: "Failed to detect merged branches",
+      });
+    } catch (err) {
+      console.error("Failed to list merged branches:", err);
+      set({ error: String(err) });
+      return [];
     }
   },
 

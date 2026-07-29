@@ -51,33 +51,58 @@ pub struct GraphEdge {
 }
 
 /// Build the commit graph with lane assignments for rendering.
-pub fn build_graph(path: &str, max_commits: usize) -> Result<Vec<GraphCommit>, AppError> {
+pub fn build_graph(
+    path: &str,
+    max_commits: usize,
+    first_parent: bool,
+    hide_remotes: bool,
+    path_filter: Option<&str>,
+) -> Result<Vec<GraphCommit>, AppError> {
     let repo = Repository::open(path)?;
 
     // Collect refs for labeling
-    let ref_map = build_ref_map(&repo)?;
+    let ref_map = build_ref_map(&repo, hide_remotes)?;
 
     // Walk commits
     let mut revwalk = repo.revwalk()?;
     revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
+
+    if first_parent {
+        let _ = revwalk.simplify_first_parent();
+    }
+
     let _ = revwalk.push_head();
 
     // Also push all branches/tags so we see the full graph
     for r in repo.references()?.flatten() {
+        let is_remote = r
+            .name()
+            .map(|n| n.starts_with("refs/remotes/"))
+            .unwrap_or(false);
+        if hide_remotes && is_remote {
+            continue;
+        }
         if let Ok(commit_ref) = r.peel(git2::ObjectType::Commit) {
             let _ = revwalk.push(commit_ref.id());
         }
     }
 
     let mut commits: Vec<GraphCommit> = Vec::new();
+    let clean_path = path_filter.map(|s| s.trim()).filter(|s| !s.is_empty());
 
-    for (i, oid_result) in revwalk.enumerate() {
-        if i >= max_commits {
+    for oid_result in revwalk {
+        if commits.len() >= max_commits {
             break;
         }
 
         let oid = oid_result?;
         let commit = repo.find_commit(oid)?;
+
+        if let Some(target_path) = clean_path {
+            if !commit_touches_path(&repo, &commit, target_path)? {
+                continue;
+            }
+        }
 
         let parent_oids: Vec<String> = commit.parent_ids().map(|p| p.to_string()).collect();
         let refs = ref_map.get(&oid.to_string()).cloned().unwrap_or_default();
@@ -113,8 +138,29 @@ pub fn build_graph(path: &str, max_commits: usize) -> Result<Vec<GraphCommit>, A
     Ok(commits)
 }
 
+fn commit_touches_path(
+    repo: &Repository,
+    commit: &git2::Commit,
+    target_path: &str,
+) -> Result<bool, AppError> {
+    let tree = commit.tree()?;
+    let parent_tree = match commit.parent(0) {
+        Ok(p) => Some(p.tree()?),
+        Err(_) => None,
+    };
+
+    let mut opts = git2::DiffOptions::new();
+    opts.pathspec(target_path);
+
+    let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut opts))?;
+    Ok(diff.deltas().len() > 0)
+}
+
 /// Build a map of oid -> ref labels.
-fn build_ref_map(repo: &Repository) -> Result<HashMap<String, Vec<RefLabel>>, AppError> {
+fn build_ref_map(
+    repo: &Repository,
+    hide_remotes: bool,
+) -> Result<HashMap<String, Vec<RefLabel>>, AppError> {
     let mut map: HashMap<String, Vec<RefLabel>> = HashMap::new();
 
     // HEAD
@@ -130,6 +176,9 @@ fn build_ref_map(repo: &Repository) -> Result<HashMap<String, Vec<RefLabel>>, Ap
     // Branches
     for branch_result in repo.branches(None)? {
         let (branch, branch_type) = branch_result?;
+        if hide_remotes && branch_type == git2::BranchType::Remote {
+            continue;
+        }
         let name = branch.name()?.unwrap_or("").to_string();
         if let Some(oid) = branch.get().target() {
             let kind = match branch_type {
@@ -367,7 +416,7 @@ mod tests {
     #[test]
     fn test_build_graph_empty_repo() {
         let repo = crate::test_utils::TempRepo::new();
-        let result = build_graph(repo.path_str(), 100);
+        let result = build_graph(repo.path_str(), 100, false, false, None);
         assert!(result.is_ok());
         let commits = result.unwrap();
         assert!(commits.is_empty());

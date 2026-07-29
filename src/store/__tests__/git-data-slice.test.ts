@@ -178,9 +178,16 @@ describe("git-data-slice", () => {
 
       await useRepoStore.getState().loadMoreCommits(10);
 
-      expect(commands.getLog).toHaveBeenCalledWith("/test/repo", 11, {
-        silent: true,
-      });
+      expect(commands.getLog).toHaveBeenCalledWith(
+        "/test/repo",
+        11,
+        false,
+        false,
+        "",
+        {
+          silent: true,
+        },
+      );
       expect(useRepoStore.getState().commits.length).toBe(2);
     });
   });
