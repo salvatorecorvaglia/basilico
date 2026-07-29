@@ -19,6 +19,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
   EyeOff,
   Filter,
   FolderSync,
@@ -31,6 +32,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getCommitUrl } from "../../lib/forge-links";
 import type { GraphCommit, RefLabel } from "../../lib/git-types";
 import { validateTagName } from "../../lib/git-validation";
 import {
@@ -83,6 +85,7 @@ export function CommitList() {
     startComparison,
     isLoading,
     settings,
+    remotes,
     firstParentOnly,
     hideRemoteBranches,
     pathFilter,
@@ -843,6 +846,22 @@ export function CommitList() {
                       <FolderSync size={12} />
                       <span>Reset current branch here...</span>
                     </ContextMenu.Item>
+                    {remotes?.[0]?.url &&
+                      getCommitUrl(remotes[0].url, commit.oid) && (
+                        <ContextMenu.Item
+                          className="context-menu-item"
+                          onSelect={() => {
+                            const url = getCommitUrl(
+                              remotes[0].url,
+                              commit.oid,
+                            );
+                            if (url) window.open(url, "_blank");
+                          }}
+                        >
+                          <ExternalLink size={12} />
+                          <span>Open Commit on Web</span>
+                        </ContextMenu.Item>
+                      )}
                     <ContextMenu.Separator className="context-menu-divider" />
                     <ContextMenu.Item
                       className="context-menu-item"

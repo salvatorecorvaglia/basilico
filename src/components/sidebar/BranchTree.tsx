@@ -8,12 +8,14 @@ import {
   ArrowLeftRight,
   CircleDot,
   Edit,
+  ExternalLink,
   GitBranch,
   GitMerge,
   Plus,
   Trash,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { getCreatePrUrl } from "../../lib/forge-links";
 import type { BranchInfo } from "../../lib/git-types";
 import { validateBranchName } from "../../lib/git-validation";
 import { useRepoStore } from "../../store/repo-store";
@@ -31,6 +33,7 @@ export function BranchTree({ branches }: BranchTreeProps) {
     renameBranch,
     mergeBranch,
     startComparison,
+    remotes,
   } = useRepoStore();
   const { addNotification, setActiveView, openPrompt, openConfirm } =
     useUIStore();
@@ -317,6 +320,19 @@ export function BranchTree({ branches }: BranchTreeProps) {
               <Edit size={12} />
               <span>Rename Branch...</span>
             </ContextMenu.Item>
+            {remotes?.[0]?.url &&
+              getCreatePrUrl(remotes[0].url, branch.name) && (
+                <ContextMenu.Item
+                  className="context-menu-item"
+                  onSelect={() => {
+                    const url = getCreatePrUrl(remotes[0].url, branch.name);
+                    if (url) window.open(url, "_blank");
+                  }}
+                >
+                  <ExternalLink size={12} />
+                  <span>Create Pull / Merge Request</span>
+                </ContextMenu.Item>
+              )}
             <ContextMenu.Separator className="context-menu-divider" />
             <ContextMenu.Item
               className="context-menu-item danger"
