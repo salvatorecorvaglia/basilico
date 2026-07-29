@@ -11,6 +11,8 @@ import type {
   BlameLine,
   BranchInfo,
   ConflictStages,
+  DanglingCommitInfo,
+  DoctorReport,
   FileDiff,
   FileHistoryEntry,
   GraphCommit,
@@ -699,3 +701,21 @@ export const openInIde = (
   editor?: string | null,
   options?: InvokeOptions,
 ) => invokeCommand<void>("open_in_ide", { path, line, editor }, options);
+
+// ── Git Doctor & Lost Work Recovery Commands ──
+
+export const getRepoHealth = (path: string, options?: InvokeOptions) =>
+  invokeCommand<DoctorReport>("get_repo_health", { path }, options);
+
+export const runGitGc = (path: string, options?: InvokeOptions) =>
+  invokeCommand<string>("run_git_gc", { path }, options);
+
+export const runGitFsck = (path: string, options?: InvokeOptions) =>
+  invokeCommand<string>("run_git_fsck", { path }, options);
+
+export const findDanglingCommits = (path: string, options?: InvokeOptions) =>
+  invokeCommand<DanglingCommitInfo[]>(
+    "find_dangling_commits",
+    { path },
+    options,
+  );

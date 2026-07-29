@@ -4,6 +4,7 @@ pub mod branch;
 pub mod commit;
 pub mod conflict_resolver;
 pub mod diff;
+pub mod doctor;
 pub mod gpg;
 pub mod history;
 pub mod ide;

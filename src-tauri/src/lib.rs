@@ -122,6 +122,11 @@ pub fn run() {
             commands::stash_inspector::get_stash_diff,
             // IDE commands
             commands::ide::open_in_ide,
+            // Doctor & Lost Work Recovery commands
+            commands::doctor::get_repo_health,
+            commands::doctor::run_git_gc,
+            commands::doctor::run_git_fsck,
+            commands::doctor::find_dangling_commits,
             // Reflog commands
             commands::reflog::get_reflog,
         ])

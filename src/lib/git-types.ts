@@ -247,6 +247,23 @@ export interface UserSettings {
   vimModeEnabled?: boolean;
 }
 
+export interface DoctorReport {
+  totalSizeBytes: number;
+  gitSizeBytes: number;
+  looseObjectsCount: number;
+  packfilesCount: number;
+  lfsObjectsCount: number;
+}
+
+export interface DanglingCommitInfo {
+  oid: string;
+  shortOid: string;
+  message: string;
+  authorName: string;
+  date: number;
+  reflogSubject: string;
+}
+
 export interface TreeEntryInfo {
   path: string;
   name: string;
