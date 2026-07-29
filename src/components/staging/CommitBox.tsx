@@ -21,8 +21,7 @@ const CONVENTIONAL_TYPES = [
 ];
 
 export function CommitBox() {
-  const { commits, status, commit, isLoading } =
-    useRepoStore();
+  const { commits, status, commit, isLoading } = useRepoStore();
   const { addNotification } = useUIStore();
   const [summary, setSummary] = useState("");
   const [description, setDescription] = useState("");

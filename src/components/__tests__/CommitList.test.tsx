@@ -1,10 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useRepoStore } from "../../store/repo-store";
+import type { RepoState } from "../../store/types";
 import { CommitList } from "../graph/CommitList";
 
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
-  const actual = await importOriginal<any>();
+  const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
     useVirtualizer: ({ count }: { count: number }) => ({
@@ -48,7 +49,7 @@ describe("CommitList", () => {
       createBranch: vi.fn(),
       createTag: vi.fn(),
       checkoutBranch: vi.fn(),
-    } as any);
+    } as unknown as RepoState);
 
     render(<CommitList />);
     expect(screen.getByText("No commits yet")).toBeDefined();
@@ -79,7 +80,7 @@ describe("CommitList", () => {
       createBranch: vi.fn(),
       createTag: vi.fn(),
       checkoutBranch: vi.fn(),
-    } as any);
+    } as unknown as RepoState);
 
     render(<CommitList />);
     expect(screen.getByText("Initial commit")).toBeDefined();

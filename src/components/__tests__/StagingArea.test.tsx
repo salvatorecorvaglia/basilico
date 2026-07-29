@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useRepoStore } from "../../store/repo-store";
+import type { RepoState } from "../../store/types";
 import { StagingArea } from "../staging/StagingArea";
 
 vi.mock("../../store/repo-store", () => ({
@@ -29,7 +30,7 @@ describe("StagingArea", () => {
       saveStash: vi.fn(),
       cherryPickAbort: vi.fn(),
       revertAbort: vi.fn(),
-    } as any);
+    } as unknown as RepoState);
 
     render(<StagingArea />);
     expect(screen.getByText("No repository status available")).toBeDefined();
@@ -58,7 +59,7 @@ describe("StagingArea", () => {
       saveStash: vi.fn(),
       cherryPickAbort: vi.fn(),
       revertAbort: vi.fn(),
-    } as any);
+    } as unknown as RepoState);
 
     render(<StagingArea />);
 

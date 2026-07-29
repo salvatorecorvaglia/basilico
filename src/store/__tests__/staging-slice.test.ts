@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
+import type { FileDiff } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
+import type { useRepoStore } from "../repo-store";
 import { createStagingSlice } from "../slices/staging-slice";
 import type { RepoState } from "../types";
 
@@ -18,7 +20,7 @@ vi.mock("../../lib/tauri-commands", () => ({
 }));
 
 describe("staging-slice", () => {
-  let useTestStore: any;
+  let useTestStore: typeof useRepoStore;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -49,7 +51,7 @@ describe("staging-slice", () => {
           refreshGeneration: 0,
           refreshStatus: vi.fn().mockResolvedValue(undefined),
           refreshCommitsAndStatus: vi.fn().mockResolvedValue(undefined),
-        }) as any,
+        }) as unknown as RepoState,
     );
   });
 
@@ -61,7 +63,9 @@ describe("staging-slice", () => {
       hunks: [],
       isBinary: false,
     };
-    vi.mocked(commands.getFileDiff).mockResolvedValue(mockDiff as any);
+    vi.mocked(commands.getFileDiff).mockResolvedValue(
+      mockDiff as unknown as FileDiff,
+    );
 
     await useTestStore.getState().selectLocalFile("src/App.tsx", false);
 
@@ -77,7 +81,7 @@ describe("staging-slice", () => {
   });
 
   it("stages files and refreshes status", async () => {
-    vi.mocked(commands.stageFiles).mockResolvedValue(undefined as any);
+    vi.mocked(commands.stageFiles).mockResolvedValue(undefined);
 
     await useTestStore.getState().stageFiles(["src/App.tsx"]);
 
@@ -90,7 +94,7 @@ describe("staging-slice", () => {
   });
 
   it("unstages files and refreshes status", async () => {
-    vi.mocked(commands.unstageFiles).mockResolvedValue(undefined as any);
+    vi.mocked(commands.unstageFiles).mockResolvedValue(undefined);
 
     await useTestStore.getState().unstageFiles(["src/App.tsx"]);
 
@@ -104,7 +108,7 @@ describe("staging-slice", () => {
 
   it("discards changes and clears selectedFilePath if matched", async () => {
     useTestStore.setState({ selectedFilePath: "src/App.tsx" });
-    vi.mocked(commands.discardChanges).mockResolvedValue(undefined as any);
+    vi.mocked(commands.discardChanges).mockResolvedValue(undefined);
 
     await useTestStore.getState().discardChanges(["src/App.tsx"]);
 
