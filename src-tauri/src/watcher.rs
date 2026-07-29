@@ -121,24 +121,35 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
 
 /// Returns true if the changed file path is significant (not ignored or transient).
 pub fn is_significant_path(path_str: &str) -> bool {
+    let path = Path::new(path_str);
+
+    if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+        if file_name == ".DS_Store"
+            || file_name == "index.lock"
+            || file_name == "FETCH_HEAD"
+            || file_name.ends_with(".swp")
+            || file_name.ends_with('~')
+        {
+            return false;
+        }
+    }
+
+    for comp in path.components() {
+        let name = comp.as_os_str().to_string_lossy();
+        if name == "node_modules"
+            || name == "target"
+            || name == ".next"
+            || name == ".turbo"
+            || name == "dist"
+            || name == "build"
+            || name == "out"
+        {
+            return false;
+        }
+    }
+
     let normalized = path_str.replace('\\', "/");
-    !normalized.contains(".git/index.lock")
-        && !normalized.contains(".git/FETCH_HEAD")
-        && !normalized.contains(".git/objects/")
-        && !normalized.contains("node_modules/")
-        && !normalized.contains("/target/")
-        && !normalized.starts_with("target/")
-        && !normalized.contains("/.next/")
-        && !normalized.starts_with(".next/")
-        && !normalized.contains("/.turbo/")
-        && !normalized.starts_with(".turbo/")
-        && !normalized.contains("/dist/")
-        && !normalized.starts_with("dist/")
-        && !normalized.contains("/build/")
-        && !normalized.starts_with("build/")
-        && !normalized.ends_with(".DS_Store")
-        && !normalized.ends_with(".swp")
-        && !normalized.ends_with("~")
+    !normalized.contains(".git/objects/")
 }
 
 #[cfg(test)]
@@ -155,6 +166,7 @@ mod tests {
             "packages/app/node_modules/react/index.js"
         ));
         assert!(!is_significant_path("target/debug/basilico"));
+        assert!(!is_significant_path("/Users/dev/project/target/debug/basilico"));
         assert!(!is_significant_path("apps/web/.next/cache/data.json"));
         assert!(!is_significant_path("src/main.rs.swp"));
         assert!(!is_significant_path("src/main.rs~"));

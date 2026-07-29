@@ -77,6 +77,13 @@ pub async fn init_repo(path: String) -> Result<(), AppError> {
     .await?
 }
 
+#[cfg(target_os = "macos")]
+fn try_open_mac_app(app_name: &str, path: &str) -> bool {
+    let mut c = crate::commands::new_command("open");
+    c.args(["-a", app_name, path]);
+    c.status().map(|s| s.success()).unwrap_or(false)
+}
+
 #[tauri::command]
 pub async fn open_external_tool(path: String, tool: String) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
@@ -89,10 +96,7 @@ pub async fn open_external_tool(path: String, tool: String) -> Result<(), AppErr
             "vscode" => {
                 #[cfg(target_os = "macos")]
                 {
-                    // Try launching via open -a first (highly robust on macOS)
-                    let mut c = crate::commands::new_command("open");
-                    c.args(["-a", "Visual Studio Code", &path]);
-                    if c.status().map(|s| s.success()).unwrap_or(false) {
+                    if try_open_mac_app("Visual Studio Code", &path) {
                         return Ok(());
                     }
                 }
@@ -103,10 +107,7 @@ pub async fn open_external_tool(path: String, tool: String) -> Result<(), AppErr
             "cursor" => {
                 #[cfg(target_os = "macos")]
                 {
-                    // Try launching via open -a first (highly robust on macOS)
-                    let mut c = crate::commands::new_command("open");
-                    c.args(["-a", "Cursor", &path]);
-                    if c.status().map(|s| s.success()).unwrap_or(false) {
+                    if try_open_mac_app("Cursor", &path) {
                         return Ok(());
                     }
                 }
