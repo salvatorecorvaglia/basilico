@@ -243,7 +243,6 @@ export interface UserSettings {
   autolinkPattern?: string | null;
   autolinkUrl?: string | null;
   bypassHooks?: boolean;
-  geminiApiKey?: string | null;
 }
 
 export interface TreeEntryInfo {

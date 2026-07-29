@@ -15,7 +15,7 @@
 - **🧭 Git Bisect Wizard**: Quickly find buggy commits with an intuitive step-by-step bisect flow.
 - **📂 Multi-Repository Management**: Quickly switch between open repositories, or clone/initialize repositories straight from the modernized dashboard.
 - **⚡ Fast Directory Watching**: Highly optimized file watcher handles large repositories gracefully without exceeding OS watch limits.
-- **⚙️ Integrated Settings & Tools**: Generate and manage SSH keys, configure GitHub Personal Access Tokens (PATs), configure your Gemini API keys for AI tasks, and launch external merge/diff tools.
+- **⚙️ Integrated Settings & Tools**: Generate and manage SSH keys, configure GitHub Personal Access Tokens (PATs), and launch external merge/diff tools.
 - **🌳 Worktrees & Submodules**: Full support for listing, adding, and pruning Git worktrees and submodules.
 - **📦 Stash Inspector**: Create, list, apply, pop, and inspect stashes with line-by-line diff support.
 

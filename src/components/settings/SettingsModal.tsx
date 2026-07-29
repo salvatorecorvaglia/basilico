@@ -312,7 +312,7 @@ export function SettingsModal() {
                       style={{ marginTop: "var(--space-5)" }}
                     >
                       <div className="settings-section-title">
-                        AI & GitHub Integrations
+                        GitHub Integration
                       </div>
                       <div className="settings-field">
                         <label htmlFor="settings-github-pat">
@@ -328,27 +328,6 @@ export function SettingsModal() {
                             setDraft({
                               ...draft,
                               githubPat: e.target.value || null,
-                            })
-                          }
-                        />
-                      </div>
-                      <div
-                        className="settings-field"
-                        style={{ marginTop: "var(--space-3)" }}
-                      >
-                        <label htmlFor="settings-gemini-key">
-                          Google Gemini API Key
-                        </label>
-                        <input
-                          id="settings-gemini-key"
-                          className="settings-input"
-                          type="password"
-                          placeholder="AIzaSyxxxxxxxxxxxxxxxxxxxx"
-                          value={draft.geminiApiKey || ""}
-                          onChange={(e) =>
-                            setDraft({
-                              ...draft,
-                              geminiApiKey: e.target.value || null,
                             })
                           }
                         />

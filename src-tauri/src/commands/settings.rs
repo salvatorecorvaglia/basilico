@@ -24,7 +24,6 @@ pub struct UserSettings {
     pub autolink_pattern: Option<String>,
     pub autolink_url: Option<String>,
     pub bypass_hooks: Option<bool>,
-    pub gemini_api_key: Option<String>,
 }
 
 impl Default for UserSettings {
@@ -52,7 +51,6 @@ impl Default for UserSettings {
             autolink_pattern: None,
             autolink_url: None,
             bypass_hooks: Some(false),
-            gemini_api_key: None,
         }
     }
 }
