@@ -367,8 +367,8 @@ mod tests {
         repo.commit("initial commit");
 
         let info = open_repo(repo.path_str()).expect("open_repo failed");
-        assert_eq!(info.is_bare, false);
-        assert_eq!(info.is_empty, false);
+        assert!(!info.is_bare);
+        assert!(!info.is_empty);
 
         let status = get_status(repo.path_str()).expect("get_status failed");
         assert!(status.staged.is_empty());
@@ -388,4 +388,3 @@ mod tests {
         assert!(head_branch.is_some());
     }
 }
-

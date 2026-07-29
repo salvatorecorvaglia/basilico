@@ -166,7 +166,9 @@ mod tests {
             "packages/app/node_modules/react/index.js"
         ));
         assert!(!is_significant_path("target/debug/basilico"));
-        assert!(!is_significant_path("/Users/dev/project/target/debug/basilico"));
+        assert!(!is_significant_path(
+            "/Users/dev/project/target/debug/basilico"
+        ));
         assert!(!is_significant_path("apps/web/.next/cache/data.json"));
         assert!(!is_significant_path("src/main.rs.swp"));
         assert!(!is_significant_path("src/main.rs~"));
