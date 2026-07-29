@@ -9,11 +9,11 @@ import { useRepoStore } from "../../store/repo-store";
 import { BranchTree } from "../sidebar/BranchTree";
 import { RemoteTree } from "../sidebar/RemoteTree";
 import { StashTree } from "../sidebar/StashTree";
+import { SubmoduleModal } from "../sidebar/SubmoduleModal";
 import { SubmoduleTree } from "../sidebar/SubmoduleTree";
 import { TagTree } from "../sidebar/TagTree";
+import { WorktreeModal } from "../sidebar/WorktreeModal";
 import { WorktreeTree } from "../sidebar/WorktreeTree";
-import { SubmoduleModal } from "../submodule/SubmoduleModal";
-import { WorktreeModal } from "../worktree/WorktreeModal";
 import "./Sidebar.css";
 
 interface TreeSectionProps {
