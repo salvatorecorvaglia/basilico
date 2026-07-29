@@ -7,19 +7,20 @@ import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
+  Edit2,
   HelpCircle,
   Info,
   Menu,
   Play,
+  Sparkles,
   Trash2,
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
-import type { RebaseStatus } from "../../lib/git-types";
+import type { RebaseStatus, RebaseTodoItem } from "../../lib/git-types";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./RebaseEditor.css";
-import type { RebaseTodoItem } from "../../lib/git-types";
 
 export function RebaseEditor() {
   const { rebaseTodoItems, rebaseStatus, writeRebaseTodo, stepRebase } =
@@ -49,6 +50,68 @@ export function RebaseEditor() {
     const updated = [...rebaseTodoItems];
     updated[index] = { ...updated[index], action };
     writeRebaseTodo(updated);
+  };
+
+  const handleSummaryChange = (index: number, summary: string) => {
+    const updated = [...rebaseTodoItems];
+    updated[index] = { ...updated[index], summary };
+    writeRebaseTodo(updated);
+  };
+
+  // Auto-squashing assistant (--autosquash)
+  const handleAutosquash = () => {
+    if (rebaseTodoItems.length === 0) return;
+
+    const items = [...rebaseTodoItems];
+    let count = 0;
+
+    // Scan backwards to safely move items
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      const lower = item.summary.toLowerCase();
+      let targetQuery = "";
+      let isFixup = false;
+
+      if (lower.startsWith("fixup! ")) {
+        targetQuery = item.summary.slice(7).trim();
+        isFixup = true;
+      } else if (lower.startsWith("squash! ")) {
+        targetQuery = item.summary.slice(8).trim();
+        isFixup = false;
+      }
+
+      if (targetQuery) {
+        // Find matching target commit earlier in the list
+        const targetIdx = items.findIndex(
+          (cand, idx) =>
+            idx < i &&
+            (cand.summary.toLowerCase().includes(targetQuery.toLowerCase()) ||
+              cand.oid.startsWith(targetQuery)),
+        );
+
+        if (targetIdx !== -1) {
+          // Remove fixup/squash item from position i
+          const [removed] = items.splice(i, 1);
+          removed.action = isFixup ? "fixup" : "squash";
+          // Insert directly after targetIdx
+          items.splice(targetIdx + 1, 0, removed);
+          count++;
+        }
+      }
+    }
+
+    if (count > 0) {
+      writeRebaseTodo(items);
+      addNotification({
+        type: "success",
+        message: `Autosquash reordered ${count} commit(s)`,
+      });
+    } else {
+      addNotification({
+        type: "info",
+        message: "No fixup! or squash! commits found to reorder",
+      });
+    }
   };
 
   // Reordering functions
@@ -180,6 +243,16 @@ export function RebaseEditor() {
             </div>
           )}
           <button
+            type="button"
+            className="rebase-btn btn-skip"
+            onClick={handleAutosquash}
+            title="Autosquash fixup! and squash! commits"
+          >
+            <Sparkles size={12} />
+            <span>Autosquash</span>
+          </button>
+          <button
+            type="button"
             className="rebase-btn btn-continue"
             onClick={() => handleStep("continue")}
             title="Apply next commit or continue after conflict resolution"
@@ -188,6 +261,7 @@ export function RebaseEditor() {
             <span>Continue</span>
           </button>
           <button
+            type="button"
             className="rebase-btn btn-skip"
             onClick={() => handleStep("skip")}
             title="Skip current commit and continue"
@@ -196,6 +270,7 @@ export function RebaseEditor() {
             <span>Skip</span>
           </button>
           <button
+            type="button"
             className="rebase-btn btn-abort"
             onClick={() => handleStep("abort")}
             title="Abort rebase and return to original HEAD"
@@ -218,6 +293,9 @@ export function RebaseEditor() {
         <div className="rebase-list-body">
           {rebaseTodoItems.map((item, index) => {
             const isCurrent = rebaseStatus.currentOid === item.oid;
+            const canEditInline =
+              item.action === "reword" || item.action === "squash";
+
             return (
               <div
                 key={item.oid}
@@ -258,19 +336,41 @@ export function RebaseEditor() {
                   {isCurrent && (
                     <span className="current-marker">Applying ▸</span>
                   )}
-                  <span
-                    className={
-                      item.action === "drop"
-                        ? "text-strike text-tertiary"
-                        : "text-primary"
-                    }
-                  >
-                    {item.summary}
-                  </span>
+                  {canEditInline ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      <Edit2 size={12} className="text-secondary" />
+                      <input
+                        type="text"
+                        className="settings-input"
+                        style={{ height: "24px", fontSize: "12px", flex: 1 }}
+                        value={item.summary}
+                        onChange={(e) =>
+                          handleSummaryChange(index, e.target.value)
+                        }
+                      />
+                    </div>
+                  ) : (
+                    <span
+                      className={
+                        item.action === "drop"
+                          ? "text-strike text-tertiary"
+                          : "text-primary"
+                      }
+                    >
+                      {item.summary}
+                    </span>
+                  )}
                 </div>
 
                 <div className="col-reorder">
                   <button
+                    type="button"
                     disabled={index === 0}
                     onClick={() => moveUp(index)}
                     title="Move Up"
@@ -278,6 +378,7 @@ export function RebaseEditor() {
                     <ArrowUp size={12} />
                   </button>
                   <button
+                    type="button"
                     disabled={index === rebaseTodoItems.length - 1}
                     onClick={() => moveDown(index)}
                     title="Move Down"
