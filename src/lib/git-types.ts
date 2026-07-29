@@ -243,6 +243,8 @@ export interface UserSettings {
   autolinkPattern?: string | null;
   autolinkUrl?: string | null;
   bypassHooks?: boolean;
+  externalEditor?: string | null;
+  vimModeEnabled?: boolean;
 }
 
 export interface TreeEntryInfo {

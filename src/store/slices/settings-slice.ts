@@ -9,6 +9,7 @@ export interface SettingsSlice {
   loadSettings: () => Promise<void>;
   saveSettings: (settings: UserSettings) => Promise<void>;
   generateSshKey: (comment: string) => Promise<string>;
+  openInIde: (filePath: string, line?: number | null) => Promise<void>;
 }
 
 export const createSettingsSlice: StateCreator<
@@ -16,7 +17,7 @@ export const createSettingsSlice: StateCreator<
   [],
   [],
   SettingsSlice
-> = (set) => ({
+> = (set, get) => ({
   settings: null,
 
   loadSettings: async () => {
@@ -58,5 +59,13 @@ export const createSettingsSlice: StateCreator<
       set({ error: String(err) });
       throw err;
     }
+  },
+
+  openInIde: async (filePath, line) => {
+    const currentSettings = get().settings;
+    const editor = currentSettings?.externalEditor || "code";
+    await commands.openInIde(filePath, line, editor, {
+      errorPrefix: `Failed to open file in ${editor}`,
+    });
   },
 });

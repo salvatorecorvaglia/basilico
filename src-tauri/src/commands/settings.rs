@@ -24,6 +24,8 @@ pub struct UserSettings {
     pub autolink_pattern: Option<String>,
     pub autolink_url: Option<String>,
     pub bypass_hooks: Option<bool>,
+    pub external_editor: Option<String>,
+    pub vim_mode_enabled: Option<bool>,
 }
 
 impl Default for UserSettings {
@@ -51,6 +53,8 @@ impl Default for UserSettings {
             autolink_pattern: None,
             autolink_url: None,
             bypass_hooks: Some(false),
+            external_editor: Some("code".to_string()),
+            vim_mode_enabled: Some(false),
         }
     }
 }

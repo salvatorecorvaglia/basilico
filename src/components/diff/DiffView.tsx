@@ -4,7 +4,15 @@
    ═══════════════════════════════════════════════════════ */
 
 import { DiffEditor, type Monaco } from "@monaco-editor/react";
-import { Check, Eye, FileCode, Minus, Plus, Trash2 } from "lucide-react";
+import {
+  Check,
+  ExternalLink,
+  Eye,
+  FileCode,
+  Minus,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import type { editor, IDisposable } from "monaco-editor";
 import { useEffect, useRef, useState } from "react";
 import type { DiffHunkInfo } from "../../lib/git-types";
@@ -29,6 +37,9 @@ export function DiffView() {
     unstageFiles,
     discardChanges,
     applyPatch,
+    openInIde,
+    repoInfo,
+    settings,
   } = useRepoStore();
 
   const { openConfirm, addNotification } = useUIStore();
@@ -434,6 +445,24 @@ export function DiffView() {
                 <span>Unified</span>
               </button>
             </div>
+          )}
+
+          {/* Open in External IDE */}
+          {selectedFilePath && (
+            <button
+              type="button"
+              className="diff-btn diff-btn-secondary"
+              onClick={() => {
+                const fullPath = repoInfo?.path
+                  ? `${repoInfo.path}/${selectedFilePath}`
+                  : selectedFilePath;
+                openInIde(fullPath);
+              }}
+              title={`Open file in ${settings?.externalEditor || "code"}`}
+            >
+              <ExternalLink size={13} />
+              <span>Open in {settings?.externalEditor || "Code"}</span>
+            </button>
           )}
 
           {/* Stage / Unstage / Discard File */}

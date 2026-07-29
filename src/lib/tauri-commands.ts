@@ -673,3 +673,10 @@ export const getStashDiff = (
 
 export const getReflog = (path: string, options?: InvokeOptions) =>
   invokeCommand<ReflogEntryInfo[]>("get_reflog", { path }, options);
+
+export const openInIde = (
+  path: string,
+  line?: number | null,
+  editor?: string | null,
+  options?: InvokeOptions,
+) => invokeCommand<void>("open_in_ide", { path, line, editor }, options);

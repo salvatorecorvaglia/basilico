@@ -6,6 +6,7 @@ pub mod conflict_resolver;
 pub mod diff;
 pub mod gpg;
 pub mod history;
+pub mod ide;
 pub mod log;
 pub mod merge;
 pub mod rebase;

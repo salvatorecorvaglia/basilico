@@ -14,7 +14,7 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   getDirectory,
   getFileName,
@@ -37,6 +37,7 @@ export function StagingArea() {
     saveStash,
     cherryPickAbort,
     revertAbort,
+    settings,
   } = useRepoStore();
 
   const { setActiveView, addNotification, openPrompt, openConfirm } =
@@ -83,6 +84,77 @@ export function StagingArea() {
       },
     });
   };
+
+  useEffect(() => {
+    const handleVimKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable ||
+          target.closest(".monaco-editor"));
+      if (isInput || !settings?.vimModeEnabled || !status) return;
+
+      const { staged: st, unstaged: un, untracked: ut } = status;
+      const allFiles = [
+        ...un.map((f) => ({ path: f.path, isStaged: false })),
+        ...ut.map((p) => ({ path: p, isStaged: false })),
+        ...st.map((f) => ({ path: f.path, isStaged: true })),
+      ];
+      if (allFiles.length === 0) return;
+
+      const currIdx = allFiles.findIndex((f) => f.path === selectedFilePath);
+
+      if (e.key === "j") {
+        e.preventDefault();
+        const nextIdx = currIdx < allFiles.length - 1 ? currIdx + 1 : 0;
+        selectLocalFile(allFiles[nextIdx].path, allFiles[nextIdx].isStaged);
+      } else if (e.key === "k") {
+        e.preventDefault();
+        const prevIdx = currIdx > 0 ? currIdx - 1 : allFiles.length - 1;
+        selectLocalFile(allFiles[prevIdx].path, allFiles[prevIdx].isStaged);
+      } else if (e.key === "s") {
+        e.preventDefault();
+        if (selectedFilePath) {
+          const fileObj = allFiles.find((f) => f.path === selectedFilePath);
+          if (fileObj && !fileObj.isStaged) {
+            stageFiles([selectedFilePath]);
+          }
+        }
+      } else if (e.key === "u") {
+        e.preventDefault();
+        if (selectedFilePath) {
+          const fileObj = allFiles.find((f) => f.path === selectedFilePath);
+          if (fileObj?.isStaged) {
+            unstageFiles([selectedFilePath]);
+          }
+        }
+      } else if (e.key === "c") {
+        e.preventDefault();
+        const msgBox = document.querySelector(
+          ".commit-box-textarea",
+        ) as HTMLTextAreaElement | null;
+        if (msgBox) {
+          msgBox.focus();
+        }
+      } else if (e.key === "g") {
+        e.preventDefault();
+        setActiveView("graph");
+      }
+    };
+
+    window.addEventListener("keydown", handleVimKey);
+    return () => window.removeEventListener("keydown", handleVimKey);
+  }, [
+    settings?.vimModeEnabled,
+    status,
+    selectedFilePath,
+    selectLocalFile,
+    stageFiles,
+    unstageFiles,
+    setActiveView,
+  ]);
 
   if (!status) {
     return (

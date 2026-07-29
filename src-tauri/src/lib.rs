@@ -119,6 +119,8 @@ pub fn run() {
             commands::gpg::get_commit_signature,
             // Stash inspector commands
             commands::stash_inspector::get_stash_diff,
+            // IDE commands
+            commands::ide::open_in_ide,
             // Reflog commands
             commands::reflog::get_reflog,
         ])

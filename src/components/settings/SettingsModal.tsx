@@ -253,6 +253,39 @@ export function SettingsModal() {
                       style={{ marginTop: "var(--space-5)" }}
                     >
                       <div className="settings-section-title">
+                        External Code Editor (1-Click Launcher)
+                      </div>
+                      <div className="settings-field">
+                        <label htmlFor="settings-external-editor">
+                          Default IDE for Opening Files & Lines
+                        </label>
+                        <select
+                          id="settings-external-editor"
+                          className="settings-input"
+                          value={draft.externalEditor || "code"}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              externalEditor: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="code">
+                            Visual Studio Code (code)
+                          </option>
+                          <option value="cursor">Cursor (cursor)</option>
+                          <option value="webstorm">WebStorm (webstorm)</option>
+                          <option value="sublime">Sublime Text (subl)</option>
+                          <option value="xcode">Xcode (macOS)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div
+                      className="settings-section"
+                      style={{ marginTop: "var(--space-5)" }}
+                    >
+                      <div className="settings-section-title">
                         External Compare Tools
                       </div>
                       <div className="settings-field">
@@ -487,29 +520,78 @@ export function SettingsModal() {
                 )}
 
                 {activeTab === "shortcuts" && (
-                  <div className="settings-section">
-                    <div className="settings-section-title">
-                      Keyboard Shortcuts
+                  <>
+                    <div className="settings-section">
+                      <div className="settings-section-title">
+                        Vim Modal Navigation Mode
+                      </div>
+                      <div
+                        className="settings-field-row"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          marginBottom: "var(--space-4)",
+                        }}
+                      >
+                        <input
+                          id="settings-vim-mode"
+                          type="checkbox"
+                          checked={!!draft.vimModeEnabled}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              vimModeEnabled: e.target.checked,
+                            })
+                          }
+                        />
+                        <label
+                          htmlFor="settings-vim-mode"
+                          style={{ cursor: "pointer", fontWeight: 500 }}
+                        >
+                          Enable Vim Keyboard Navigation (j/k, s/u, c, /)
+                        </label>
+                      </div>
+                      <span
+                        className="settings-field-hint"
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--text-tertiary)",
+                          display: "block",
+                          marginBottom: "var(--space-4)",
+                        }}
+                      >
+                        Use <code>j</code> / <code>k</code> to navigate commits
+                        or files, <code>s</code> / <code>u</code> to
+                        stage/unstage, <code>c</code> to jump to commit message,
+                        and <code>/</code> to search.
+                      </span>
                     </div>
-                    <div className="shortcut-list">
-                      {Object.entries(draft.keyboardShortcuts).map(
-                        ([action, shortcut]) => (
-                          <div key={action} className="shortcut-row">
-                            <span className="shortcut-label">
-                              {SHORTCUT_LABELS[action] || action}
-                            </span>
-                            <div className="shortcut-keys">
-                              {formatShortcutKeys(shortcut).map((key, i) => (
-                                <span key={i} className="shortcut-key">
-                                  {key}
-                                </span>
-                              ))}
+
+                    <div className="settings-section">
+                      <div className="settings-section-title">
+                        Keyboard Shortcuts
+                      </div>
+                      <div className="shortcut-list">
+                        {Object.entries(draft.keyboardShortcuts).map(
+                          ([action, shortcut]) => (
+                            <div key={action} className="shortcut-row">
+                              <span className="shortcut-label">
+                                {SHORTCUT_LABELS[action] || action}
+                              </span>
+                              <div className="shortcut-keys">
+                                {formatShortcutKeys(shortcut).map((key, i) => (
+                                  <span key={i} className="shortcut-key">
+                                    {key}
+                                  </span>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        ),
-                      )}
+                          ),
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
 

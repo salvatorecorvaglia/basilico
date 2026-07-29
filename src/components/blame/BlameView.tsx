@@ -1,4 +1,4 @@
-import { ArrowLeft, Clock, RefreshCw } from "lucide-react";
+import { ArrowLeft, Clock, ExternalLink, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
@@ -12,6 +12,9 @@ export function BlameView() {
     selectCommit,
     selectedCommitOid,
     isLoading,
+    openInIde,
+    repoInfo,
+    settings,
   } = useRepoStore();
   const { setActiveView } = useUIStore();
   const [currentCommitOid, setCurrentCommitOid] = useState<string | null>(
@@ -49,6 +52,14 @@ export function BlameView() {
     setCurrentCommitOid(parentSpec);
   };
 
+  const handleOpenInIde = (lineNo?: number) => {
+    if (!selectedFilePath) return;
+    const fullPath = repoInfo?.path
+      ? `${repoInfo.path}/${selectedFilePath}`
+      : selectedFilePath;
+    openInIde(fullPath, lineNo);
+  };
+
   return (
     <div className="blame-view animate-fade-in">
       <div className="blame-header">
@@ -72,6 +83,27 @@ export function BlameView() {
             </span>
           )}
         </div>
+        <button
+          className="blame-btn-editor"
+          onClick={() => handleOpenInIde()}
+          title={`Open file in ${settings?.externalEditor || "code"}`}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px",
+            padding: "4px 8px",
+            fontSize: "12px",
+            background: "var(--bg-tertiary)",
+            border: "1px solid var(--border-color)",
+            borderRadius: "var(--radius-sm)",
+            color: "var(--text-primary)",
+            cursor: "pointer",
+            marginRight: "8px",
+          }}
+        >
+          <ExternalLink size={12} />
+          <span>Open in {settings?.externalEditor || "Code"}</span>
+        </button>
         {currentCommitOid && (
           <button
             className="blame-reset-btn"
@@ -132,9 +164,19 @@ export function BlameView() {
                   </div>
 
                   {/* Line Number */}
-                  <div className="blame-line-number text-tertiary">
+                  <button
+                    type="button"
+                    className="blame-line-number text-tertiary"
+                    onClick={() => handleOpenInIde(line.lineNo)}
+                    title={`Open line ${line.lineNo} in external editor`}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
                     {line.lineNo}
-                  </div>
+                  </button>
 
                   {/* Line Content */}
                   <pre className="blame-line-content">

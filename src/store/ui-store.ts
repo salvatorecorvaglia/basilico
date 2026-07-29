@@ -75,6 +75,9 @@ interface UIState {
   promptOptions: PromptOptions | null;
   confirmOptions: ConfirmOptions | null;
 
+  // Vim mode navigation area
+  vimModeActiveArea: "graph" | "staging" | "diff" | null;
+
   // Notifications
   notifications: Notification[];
 
@@ -84,6 +87,7 @@ interface UIState {
   toggleDetailPanel: () => void;
   setDetailPanelHeight: (height: number) => void;
   setActiveView: (view: ActiveView) => void;
+  setVimModeActiveArea: (area: "graph" | "staging" | "diff" | null) => void;
   toggleCommandPalette: () => void;
   toggleSettings: () => void;
   openResetModal: (oid: string) => void;
@@ -113,6 +117,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   fileViewerOid: null,
   promptOptions: null,
   confirmOptions: null,
+  vimModeActiveArea: "graph",
   notifications: [],
 
   toggleSidebar: () =>
@@ -126,6 +131,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   setDetailPanelHeight: (height: number) => set({ detailPanelHeight: height }),
 
   setActiveView: (view: ActiveView) => set({ activeView: view }),
+
+  setVimModeActiveArea: (area) => set({ vimModeActiveArea: area }),
 
   toggleCommandPalette: () =>
     set((state) => ({ commandPaletteOpen: !state.commandPaletteOpen })),

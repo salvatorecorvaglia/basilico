@@ -326,16 +326,22 @@ export function CommitList() {
           target.closest(".monaco-editor"));
       if (isInput) return;
 
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      const isVim = !!settings?.vimModeEnabled;
+
+      if (
+        e.key === "ArrowDown" ||
+        e.key === "ArrowUp" ||
+        (isVim && (e.key === "j" || e.key === "k"))
+      ) {
         e.preventDefault();
         const currentIndex = rows.findIndex(
           (r) => r.original.oid === selectedCommitOid,
         );
         let nextIndex = currentIndex;
-        if (e.key === "ArrowDown") {
+        if (e.key === "ArrowDown" || (isVim && e.key === "j")) {
           nextIndex =
             currentIndex < rows.length - 1 ? currentIndex + 1 : currentIndex;
-        } else if (e.key === "ArrowUp") {
+        } else if (e.key === "ArrowUp" || (isVim && e.key === "k")) {
           nextIndex = currentIndex > 0 ? currentIndex - 1 : currentIndex;
         }
 
@@ -344,11 +350,29 @@ export function CommitList() {
           selectCommit(nextRow.original.oid);
           virtualizer.scrollToIndex(nextIndex);
         }
+      } else if (isVim && e.key === "s") {
+        e.preventDefault();
+        setActiveView("staging");
+      } else if (isVim && e.key === "/") {
+        e.preventDefault();
+        const searchInput = document.querySelector(
+          ".commit-list-search-input",
+        ) as HTMLInputElement | null;
+        if (searchInput) {
+          searchInput.focus();
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [rows, selectedCommitOid, selectCommit, virtualizer]);
+  }, [
+    rows,
+    selectedCommitOid,
+    selectCommit,
+    virtualizer,
+    settings?.vimModeEnabled,
+    setActiveView,
+  ]);
 
   // Render loading skeleton
   if (isLoading && commits.length === 0) {
