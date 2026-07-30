@@ -211,11 +211,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Disable updater if signing key is missing
-        if: ${{ env.TAURI_SIGNING_PRIVATE_KEY == '' }}
+        if: ${{ !env.TAURI_SIGNING_PRIVATE_KEY }}
         shell: bash
         run: |
           echo "TAURI_SIGNING_PRIVATE_KEY is not set. Disabling updater."
-          jq '.bundle.createUpdaterArtifacts = false | .plugins.updater.active = false' src-tauri/tauri.conf.json > temp.json && mv temp.json src-tauri/tauri.conf.json
+          jq '.bundle.createUpdaterArtifacts = false | del(.plugins.updater)' src-tauri/tauri.conf.json > temp.json && mv temp.json src-tauri/tauri.conf.json
 
       - name: Build and Publish Release
         uses: tauri-apps/tauri-action@v0
