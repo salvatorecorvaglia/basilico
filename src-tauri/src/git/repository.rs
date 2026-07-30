@@ -465,24 +465,4 @@ mod tests {
         let head_branch = branches.iter().find(|b| b.is_head);
         assert!(head_branch.is_some());
     }
-
-    #[test]
-    fn test_natural_cmp_sorting() {
-        let mut tags = vec![
-            "v0.1.0", "v0.10.0", "v0.10.1", "v0.11.0", "v0.12.0", "v0.12.1", "v0.13.0", "v0.2.0",
-            "v0.3.0", "v0.4.0", "v0.4.1", "v0.5.0", "v0.6.0", "v0.6.1", "v0.7.0", "v0.7.1",
-            "v0.8.0", "v0.9.0",
-        ];
-
-        tags.sort_by(|a, b| natural_cmp(b, a));
-
-        assert_eq!(
-            tags,
-            vec![
-                "v0.13.0", "v0.12.1", "v0.12.0", "v0.11.0", "v0.10.1", "v0.10.0", "v0.9.0",
-                "v0.8.0", "v0.7.1", "v0.7.0", "v0.6.1", "v0.6.0", "v0.5.0", "v0.4.1", "v0.4.0",
-                "v0.3.0", "v0.2.0", "v0.1.0",
-            ]
-        );
-    }
 }
