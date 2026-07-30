@@ -72,17 +72,12 @@ describe("validateBranchName", () => {
       expect(validateBranchName("@")).not.toBeNull();
     });
 
-    it.each([
-      "~",
-      "^",
-      ":",
-      "?",
-      "[",
-      "\\",
-      "*",
-    ])('should reject names containing "%s"', (char) => {
-      expect(validateBranchName(`feature${char}branch`)).not.toBeNull();
-    });
+    it.each(["~", "^", ":", "?", "[", "\\", "*"])(
+      'should reject names containing "%s"',
+      (char) => {
+        expect(validateBranchName(`feature${char}branch`)).not.toBeNull();
+      },
+    );
 
     it("should reject control characters", () => {
       expect(validateBranchName("feature\x01branch")).not.toBeNull();
@@ -96,15 +91,12 @@ describe("validateBranchName", () => {
 
 describe("validateTagName", () => {
   describe("valid tag names", () => {
-    it.each([
-      "v1.0.0",
-      "release-v1",
-      "v2.0.0-beta.1",
-      "latest",
-      "tags/v1.0",
-    ])('should accept "%s"', (name) => {
-      expect(validateTagName(name)).toBeNull();
-    });
+    it.each(["v1.0.0", "release-v1", "v2.0.0-beta.1", "latest", "tags/v1.0"])(
+      'should accept "%s"',
+      (name) => {
+        expect(validateTagName(name)).toBeNull();
+      },
+    );
   });
 
   describe("invalid tag names", () => {
