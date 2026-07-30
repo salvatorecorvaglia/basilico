@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-07-30
+
 ### Added
 
 - **Forge Deep Links & Autolink Parsing**: Integrated `forge-links` utility to parse autolinks and generate forge-specific deep links (GitHub, GitLab, Bitbucket, Azure DevOps, Codeberg) for commits, branches, lines, and issue references in `CommitList`, `StatusBar`, and `BranchTree`.

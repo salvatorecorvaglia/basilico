@@ -157,7 +157,7 @@ export function StatusBar() {
           )}
 
           <span className="statusbar-item statusbar-version">
-            Basilico v{version || "0.12.1"}
+            Basilico v{version || "0.13.0"}
           </span>
         </div>
       </div>
