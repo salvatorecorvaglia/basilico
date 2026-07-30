@@ -66,7 +66,7 @@
       "endpoints": [
         "https://github.com/salvatorecorvaglia/basilico/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJEODM5QzAzNzA0QjM1MzkKUldRNU5VdHdBNXlETGFuVW1XV2VXOUVMNjlOUUtaU250STNUdllMZXVQMnQ4N01vOUt5VThRTTkK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENGOEY3NzJDOEIwOUVDNzUKUldSMTdBbUxMSGVQejlrWnJPeCtqdXBRN2JJL1NvbWZKWENJOVdaUUgybW1hRzJrMG1YMXJqZU0K",
       "dialog": false
     }
   }
