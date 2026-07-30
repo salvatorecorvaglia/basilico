@@ -24,7 +24,7 @@ interface WorktreeModalProps {
 }
 
 export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
-  const { activeTabId, branches, openTab, refreshAll, openInIde } =
+  const { activeTabId, branches, openRepository, refreshAll, openInIde } =
     useRepoStore();
   const { addNotification } = useUIStore();
 
@@ -59,7 +59,7 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
 
   const handleSwitchTab = async (wtPath: string) => {
     try {
-      await openTab(wtPath);
+      await openRepository(wtPath);
       addNotification({
         type: "success",
         message: `Opened workspace tab for worktree "${wtPath}"`,

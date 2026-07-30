@@ -1,5 +1,5 @@
-import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import "@testing-library/jest-dom";
+import { vi } from "vitest";
 
 globalThis.ResizeObserver = class ResizeObserver {
   observe() {}
@@ -7,7 +7,7 @@ globalThis.ResizeObserver = class ResizeObserver {
   disconnect() {}
 };
 
-if (typeof HTMLCanvasElement !== 'undefined') {
+if (typeof HTMLCanvasElement !== "undefined") {
   HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
     fillRect: vi.fn(),
     clearRect: vi.fn(),
@@ -35,4 +35,3 @@ if (typeof HTMLCanvasElement !== 'undefined') {
     clip: vi.fn(),
   })) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 }
-

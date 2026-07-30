@@ -434,13 +434,6 @@ export function Toolbar() {
               <span className="toolbar-badge-count">{totalModifications}</span>
             )}
           </button>
-          <button
-            type="button"
-            className={`toolbar-segment-btn ${activeView === "reflog" ? "active" : ""}`}
-            onClick={() => setActiveView("reflog")}
-          >
-            Reflog
-          </button>
         </div>
       </div>
 

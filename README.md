@@ -8,16 +8,19 @@
 
 ## ✨ Features
 
-- **📊 Beautiful Commit Graph**: Visualize your project's commit history, branches, and tags with a fluid, theme-aware interactive timeline.
-- **🔄 Interactive Rebase**: Squash, fixup, drop, or reorder commits easily through a streamlined visual interface.
-- **📝 Granular Line-Level Staging**: Stage and unstage individual hunks or even specific lines of code directly from unified or side-by-side diff views.
+- **📊 Beautiful Commit Graph & Topology Filters**: Visualize your project's commit history, branches, and tags with a fluid, theme-aware interactive timeline and topology filters.
+- **🔄 Visual Interactive Rebase & Autosquash**: Squash, fixup, drop, reorder commits, or perform autosquashes (`fixup!`/`squash!`) with inline summary editing.
+- **🩺 Git Doctor Diagnostics**: Perform full health checks on repository status, SSH setup, OS watch limits, submodules, and environment configurations.
+- **🔗 Forge Deep Links & Autolink Parsing**: Open commits, branches, lines, and issue references directly in GitHub, GitLab, Bitbucket, Azure DevOps, or Codeberg.
+- **⚡ External IDE Integration & Vim Navigation**: Open repositories and files in external editors (VS Code, Cursor, Zed, etc.) and navigate commit lists using Vim keybindings (`j`/`k`).
+- **🧹 Merged Branch Sweeper**: Detect and safely clean up merged branches across your local and remote repositories.
+- **📝 Granular Line-Level Staging**: Stage and unstage individual hunks or specific lines of code directly from unified or side-by-side diff views.
 - **🔏 GPG Signature Verification**: Seamlessly check commit authenticity and view signatures directly in the application.
-- **🧭 Git Bisect Wizard**: Quickly find buggy commits with an intuitive step-by-step bisect flow.
-- **📂 Multi-Repository Management**: Quickly switch between open repositories, or clone/initialize repositories straight from the modernized dashboard.
-- **⚡ Fast Directory Watching**: Highly optimized file watcher handles large repositories gracefully without exceeding OS watch limits.
-- **⚙️ Integrated Settings & Tools**: Generate and manage SSH keys, configure GitHub Personal Access Tokens (PATs), and launch external merge/diff tools.
-- **🌳 Worktrees & Submodules**: Full support for listing, adding, and pruning Git worktrees and submodules.
+- **🧭 Git Bisect Wizard**: Quickly locate buggy commits with an intuitive step-by-step bisect flow.
+- **🌳 Worktrees & Submodules Modals**: Full visual modals for listing, adding, removing, and inspecting Git worktrees and submodules.
 - **📦 Stash Inspector**: Create, list, apply, pop, and inspect stashes with line-by-line diff support.
+- **📂 Multi-Repository Management**: Quickly switch between open repositories, or clone/initialize repositories straight from the dashboard.
+- **⚙️ Integrated Settings & Tools**: Generate and manage SSH keys, configure GitHub Personal Access Tokens (PATs), and launch external merge/diff tools.
 
 ---
 

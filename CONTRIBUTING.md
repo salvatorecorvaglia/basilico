@@ -64,13 +64,14 @@ We use **Biome** to format and lint our TypeScript, React, and CSS code. Ensure 
 - **Fix Linting Errors**: `pnpm lint:fix`
 
 - Use **React 19** best practices (e.g., hooks, functional components, concurrent rendering features).
-- Write type-safe TypeScript code. Avoid `any` types wherever possible.
+- Write strictly type-safe TypeScript code. Avoid `any` types in both application code and test files, using concrete interfaces or union types.
 - Use Tailwind CSS v4 class naming patterns, maintaining consistent layouts with our flexbox, grid, and spacing utilities.
 
 ### Rust Backend Standards
 - Format your Rust code with `cargo fmt`.
 - Ensure there are no warnings or errors reported by `cargo clippy`.
 - Follow idiomatic Rust guidelines (explicit error handling, proper ownership and borrowing, avoidance of `unwrap()` in production-ready command handlers).
+- Modularize Tauri commands into domain-specific modules under `src-tauri/src/commands/` (e.g., `doctor.rs`, `ide.rs`, `branch.rs`, `rebase.rs`).
 - Errors should be propagated to the frontend via the custom `Error` wrapper in `src-tauri/src/error.rs`.
 
 ---

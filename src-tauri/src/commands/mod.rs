@@ -11,7 +11,6 @@ pub mod ide;
 pub mod log;
 pub mod merge;
 pub mod rebase;
-pub mod reflog;
 pub mod remote;
 pub mod repo;
 pub mod search;

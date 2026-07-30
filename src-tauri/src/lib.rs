@@ -127,8 +127,6 @@ pub fn run() {
             commands::doctor::run_git_gc,
             commands::doctor::run_git_fsck,
             commands::doctor::find_dangling_commits,
-            // Reflog commands
-            commands::reflog::get_reflog,
         ])
         .setup(|_app| {
             log::info!("Basilico starting...");

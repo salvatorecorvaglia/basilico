@@ -224,15 +224,15 @@ export function Sidebar() {
       {/* Worktree Modal */}
       {worktreeModalOpen && (
         <WorktreeModal
-          isOpen={worktreeModalOpen}
-          onClose={() => setWorktreeModalOpen(false)}
+          open={worktreeModalOpen}
+          onOpenChange={setWorktreeModalOpen}
         />
       )}
       {/* Submodule Modal */}
       {submoduleModalOpen && (
         <SubmoduleModal
-          isOpen={submoduleModalOpen}
-          onClose={() => setSubmoduleModalOpen(false)}
+          open={submoduleModalOpen}
+          onOpenChange={setSubmoduleModalOpen}
         />
       )}
     </div>

@@ -325,8 +325,10 @@ export function BranchTree({ branches }: BranchTreeProps) {
                 <ContextMenu.Item
                   className="context-menu-item"
                   onSelect={() => {
-                    const url = getCreatePrUrl(remotes[0].url, branch.name);
-                    if (url) window.open(url, "_blank");
+                    if (remotes[0]?.url) {
+                      const url = getCreatePrUrl(remotes[0].url, branch.name);
+                      if (url) window.open(url, "_blank");
+                    }
                   }}
                 >
                   <ExternalLink size={12} />

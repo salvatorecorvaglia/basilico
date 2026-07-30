@@ -148,10 +148,9 @@ export type ActiveView =
   | "bisect"
   | "compare"
   | "conflict-resolver"
-  | "reflog"
   | "stash-inspector";
 
-// ── Phase 3: Blame, History, Reflog, Stash Types ──
+// ── Phase 3: Blame, History, Stash Types ──
 
 export interface BlameLine {
   lineNo: number;
@@ -261,7 +260,7 @@ export interface DanglingCommitInfo {
   message: string;
   authorName: string;
   date: number;
-  reflogSubject: string;
+  actionSubject: string;
 }
 
 export interface TreeEntryInfo {
@@ -312,14 +311,4 @@ export interface RecentRepo {
   isPinned: boolean;
   headBranch?: string | null;
   state?: string | null;
-}
-
-export interface ReflogEntryInfo {
-  index: number;
-  oldOid: string;
-  newOid: string;
-  committerName: string;
-  committerEmail: string;
-  committerDate: number;
-  message: string;
 }

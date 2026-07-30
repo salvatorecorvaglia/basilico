@@ -851,11 +851,13 @@ export function CommitList() {
                         <ContextMenu.Item
                           className="context-menu-item"
                           onSelect={() => {
-                            const url = getCommitUrl(
-                              remotes[0].url,
-                              commit.oid,
-                            );
-                            if (url) window.open(url, "_blank");
+                            if (remotes[0]?.url) {
+                              const url = getCommitUrl(
+                                remotes[0].url,
+                                commit.oid,
+                              );
+                              if (url) window.open(url, "_blank");
+                            }
                           }}
                         >
                           <ExternalLink size={12} />

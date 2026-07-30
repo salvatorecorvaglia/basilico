@@ -6,7 +6,6 @@ import type {
   FileHistoryEntry,
   GraphCommit,
   GrepMatch,
-  ReflogEntryInfo,
   RemoteInfo,
   RepoInfo,
   RepoStatus,
@@ -32,7 +31,6 @@ export interface GitDataSlice {
   fileHistory: FileHistoryEntry[];
   commitSearchResults: GraphCommit[];
   grepSearchResults: GrepMatch[];
-  reflogEntries: ReflogEntryInfo[];
 
   refreshGeneration: number;
 
@@ -51,7 +49,6 @@ export interface GitDataSlice {
   listMergedBranches: (targetBranch?: string) => Promise<BranchInfo[]>;
   loadFileBlame: (filePath: string, commitOid?: string | null) => Promise<void>;
   loadFileHistory: (filePath: string) => Promise<void>;
-  loadReflog: () => Promise<void>;
   searchCommits: (query: string) => Promise<void>;
   grepCode: (query: string) => Promise<void>;
 }
@@ -77,7 +74,6 @@ export const createGitDataSlice: StateCreator<
   fileHistory: [],
   commitSearchResults: [],
   grepSearchResults: [],
-  reflogEntries: [],
 
   refreshGeneration: 0,
 
@@ -426,27 +422,6 @@ export const createGitDataSlice: StateCreator<
       throw err;
     } finally {
       setLoading(get, set, "search", false);
-    }
-  },
-
-  loadReflog: async () => {
-    const { activeTabId, refreshGeneration } = get();
-    if (!activeTabId) return;
-
-    setLoading(get, set, "history", true);
-    set({ error: null });
-    try {
-      const entries = await commands.getReflog(activeTabId, {
-        errorPrefix: "Failed to load reflog",
-      });
-      if (get().refreshGeneration === refreshGeneration) {
-        set({ reflogEntries: entries });
-      }
-    } catch (err) {
-      console.error("Failed to load reflog:", err);
-      set({ error: String(err) });
-    } finally {
-      setLoading(get, set, "history", false);
     }
   },
 });

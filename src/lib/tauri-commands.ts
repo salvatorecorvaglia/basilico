@@ -19,7 +19,6 @@ import type {
   GrepMatch,
   RebaseStatus,
   RebaseTodoItem,
-  ReflogEntryInfo,
   RemoteInfo,
   RepoInfo,
   RepoStatus,
@@ -691,9 +690,6 @@ export const getStashDiff = (
   options?: InvokeOptions,
 ) =>
   invokeCommand<FileDiff[]>("get_stash_diff", { repoPath, stashOid }, options);
-
-export const getReflog = (path: string, options?: InvokeOptions) =>
-  invokeCommand<ReflogEntryInfo[]>("get_reflog", { path }, options);
 
 export const openInIde = (
   path: string,

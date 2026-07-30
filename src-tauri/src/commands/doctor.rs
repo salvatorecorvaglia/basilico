@@ -28,7 +28,7 @@ pub struct DanglingCommitInfo {
     pub message: String,
     pub author_name: String,
     pub date: i64,
-    pub reflog_subject: String,
+    pub action_subject: String,
 }
 
 fn dir_size<P: AsRef<Path>>(path: P) -> u64 {
@@ -183,12 +183,12 @@ pub async fn find_dangling_commits(path: String) -> Result<Vec<DanglingCommitInf
             }
         }
 
-        // 2. Read reflog entries and check if any referenced commit is not in reachable_oids
+        // 2. Read HEAD reference log to check for unreachable dangling commits
         let mut dangling = Vec::new();
         let mut seen = HashSet::new();
 
-        if let Ok(reflog) = repo.reflog("HEAD") {
-            for entry in reflog.iter() {
+        if let Ok(head_log) = repo.reflog("HEAD") {
+            for entry in head_log.iter() {
                 let new_id = entry.id_new();
                 let old_id = entry.id_old();
 
@@ -214,7 +214,7 @@ pub async fn find_dangling_commits(path: String) -> Result<Vec<DanglingCommitInf
                             message,
                             author_name: author.name().unwrap_or("").to_string(),
                             date: author.when().seconds(),
-                            reflog_subject: entry.message().unwrap_or("").to_string(),
+                            action_subject: entry.message().unwrap_or("").to_string(),
                         });
                     }
                 }

@@ -311,7 +311,7 @@ export function GitDoctorModal({ open, onOpenChange }: GitDoctorModalProps) {
                           marginTop: "2px",
                         }}
                       >
-                        Available in Reflog
+                        Unreachable commits
                       </div>
                     </div>
                   </div>
@@ -392,7 +392,7 @@ export function GitDoctorModal({ open, onOpenChange }: GitDoctorModalProps) {
                 {/* Lost Work / Dangling Commits Section */}
                 <div className="settings-section">
                   <div className="settings-section-title">
-                    Lost Work Recovery (Unreachable Reflog Commits)
+                    Lost Work Recovery (Unreachable Commits)
                   </div>
 
                   {dangling.length === 0 ? (
@@ -411,8 +411,8 @@ export function GitDoctorModal({ open, onOpenChange }: GitDoctorModalProps) {
                           color: "var(--accent-primary)",
                         }}
                       />
-                      No orphaned commits found. All reflog entries are attached
-                      to active branches.
+                      No orphaned commits found. All commits are attached to
+                      active branches.
                     </div>
                   ) : (
                     <div
@@ -474,7 +474,7 @@ export function GitDoctorModal({ open, onOpenChange }: GitDoctorModalProps) {
                               }}
                               className="truncate"
                             >
-                              Action: {c.reflogSubject || "Reflog commit"} —{" "}
+                              Action: {c.actionSubject || "Dangling commit"} —{" "}
                               {c.authorName}
                             </div>
                           </div>

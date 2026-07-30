@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Forge Deep Links & Autolink Parsing**: Integrated `forge-links` utility to parse autolinks and generate forge-specific deep links (GitHub, GitLab, Bitbucket, Azure DevOps, Codeberg) for commits, branches, lines, and issue references in `CommitList`, `StatusBar`, and `BranchTree`.
+- **Git Doctor Diagnostic Utility**: Added `Git Doctor` UI modal (`GitDoctorModal`) and Tauri backend command (`commands/doctor.rs`) to perform diagnostic health checks on Git configuration, SSH keys, repository health, OS watch limits, submodules, and environment sanity.
+- **Interactive Rebase Autosquash & Summary Editing**: Added autosquash functionality (`fixup!`, `squash!`) and inline commit summary editing directly inside the `RebaseEditor`.
+- **Submodule & Worktree Management Modals**: Implemented dedicated `SubmoduleModal` and `WorktreeModal` UI components for listing, adding, removing, and managing submodules and Git worktrees.
+- **Merged Branch Sweeper & Graph Topology Filters**: Added `MergedBranchSweeperModal` to identify and safely delete merged branches, alongside backend and frontend graph topology filtering support.
+- **External IDE Integration**: Added external IDE integration (`commands/ide.rs`) supporting direct opening of repositories and files in external editors (VS Code, Cursor, WebStorm, Sublime Text, Nova, Zed).
+- **Vim-Style Navigation**: Supported Vim keybindings (`j`/`k`) for navigating the commit list (`CommitList`) and file lists.
+
+### Changed
+
+- **Type Safety & Test Suite Quality**: Refactored frontend test suites to replace `any` types with concrete type definitions across `CommitList`, `StagingArea`, `CommitBox`, and Zustand store tests.
+- **Path Filtering & Process Launching**: Abstracted macOS app launching utilities and refined path filtering logic in backend repository and watcher modules.
+- **Testing Infrastructure**: Added Vitest canvas and repository mocking setups in `vitest.setup.ts`.
+
+### Removed
+
+- **Reflog Inspector**: Removed Reflog inspector view (`ReflogInspector`), Reflog toolbar tab, Zustand store reflog state/actions, and associated `get_reflog` Tauri backend command (`commands/reflog.rs`).
+- **Google Gemini AI Integration**: Removed Google Gemini AI commit message generation and associated API settings from `CommitBox` and `SettingsModal`.
+
 ## [0.12.1] - 2026-07-27
 
 ### Changed
