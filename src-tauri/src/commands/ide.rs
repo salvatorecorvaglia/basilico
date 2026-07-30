@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════
-   Basilico — IDE Launcher Commands
-   Opens files and line numbers in external code editors
-   ═══════════════════════════════════════════════════════ */
+Basilico — IDE Launcher Commands
+Opens files and line numbers in external code editors
+═══════════════════════════════════════════════════════ */
 
 use crate::error::AppError;
 use std::process::Command;
@@ -13,9 +13,7 @@ pub async fn open_in_ide(
     editor: Option<String>,
 ) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
-        let editor_name = editor
-            .unwrap_or_else(|| "code".to_string())
-            .to_lowercase();
+        let editor_name = editor.unwrap_or_else(|| "code".to_string()).to_lowercase();
 
         let mut cmd: Command;
 
@@ -29,7 +27,11 @@ pub async fn open_in_ide(
                 }
             }
             "webstorm" | "idea" => {
-                let bin = if editor_name == "idea" { "idea" } else { "webstorm" };
+                let bin = if editor_name == "idea" {
+                    "idea"
+                } else {
+                    "webstorm"
+                };
                 cmd = crate::commands::new_command(bin);
                 if let Some(l) = line {
                     cmd.arg("--line").arg(l.to_string()).arg(&path);
@@ -56,7 +58,7 @@ pub async fn open_in_ide(
                     return Err(AppError::command("Xcode is only available on macOS"));
                 }
             }
-            "code" | _ => {
+            _ => {
                 // Default to VS Code
                 cmd = crate::commands::new_command("code");
                 if let Some(l) = line {

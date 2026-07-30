@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════
-   Basilico — Git Doctor & Lost Work Recovery Commands
-   Repository storage health, git gc/fsck, dangling commit recovery
-   ═══════════════════════════════════════════════════════ */
+Basilico — Git Doctor & Lost Work Recovery Commands
+Repository storage health, git gc/fsck, dangling commit recovery
+═══════════════════════════════════════════════════════ */
 
 use crate::error::AppError;
 use git2::Repository;
@@ -177,10 +177,8 @@ pub async fn find_dangling_commits(path: String) -> Result<Vec<DanglingCommitInf
                 let _ = revwalk.push(commit_ref.id());
             }
         }
-        for oid_res in revwalk {
-            if let Ok(oid) = oid_res {
-                reachable_oids.insert(oid);
-            }
+        for oid in revwalk.flatten() {
+            reachable_oids.insert(oid);
         }
 
         // 2. Read HEAD reference log to check for unreachable dangling commits
@@ -237,9 +235,7 @@ mod tests {
         repo.write_file("test.txt", "content");
         repo.commit("initial commit");
 
-        let report = get_repo_health(repo.path_str().to_string())
-            .await
-            .unwrap();
+        let report = get_repo_health(repo.path_str().to_string()).await.unwrap();
 
         assert!(report.total_size_bytes > 0);
         assert!(report.git_size_bytes > 0);
