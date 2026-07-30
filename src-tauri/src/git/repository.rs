@@ -293,7 +293,7 @@ pub fn list_branches(path: &str) -> Result<Vec<BranchInfo>, AppError> {
             _ => match (a.is_remote, b.is_remote) {
                 (false, true) => std::cmp::Ordering::Less,
                 (true, false) => std::cmp::Ordering::Greater,
-                _ => a.name.cmp(&b.name),
+                _ => natural_cmp(&a.name, &b.name),
             },
         }
     });
@@ -351,8 +351,86 @@ pub fn list_tags(path: &str) -> Result<Vec<TagInfo>, AppError> {
         true
     })?;
 
-    tags.sort_by(|a, b| a.name.cmp(&b.name));
+    tags.sort_by(|a, b| natural_cmp(&b.name, &a.name));
     Ok(tags)
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum Chunk<'a> {
+    Num(u64, &'a str),
+    Str(&'a str),
+}
+
+struct ChunkIterator<'a> {
+    s: &'a str,
+}
+
+impl<'a> ChunkIterator<'a> {
+    fn new(s: &'a str) -> Self {
+        Self { s }
+    }
+}
+
+impl<'a> Iterator for ChunkIterator<'a> {
+    type Item = Chunk<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.s.is_empty() {
+            return None;
+        }
+
+        let first_char = self.s.chars().next()?;
+        if first_char.is_ascii_digit() {
+            let end = self
+                .s
+                .find(|c: char| !c.is_ascii_digit())
+                .unwrap_or(self.s.len());
+            let num_str = &self.s[..end];
+            self.s = &self.s[end..];
+            let parsed = num_str.parse::<u64>().unwrap_or(u64::MAX);
+            Some(Chunk::Num(parsed, num_str))
+        } else {
+            let end = self
+                .s
+                .find(|c: char| c.is_ascii_digit())
+                .unwrap_or(self.s.len());
+            let text = &self.s[..end];
+            self.s = &self.s[end..];
+            Some(Chunk::Str(text))
+        }
+    }
+}
+
+pub fn natural_cmp(s1: &str, s2: &str) -> std::cmp::Ordering {
+    let mut c1 = ChunkIterator::new(s1);
+    let mut c2 = ChunkIterator::new(s2);
+
+    loop {
+        match (c1.next(), c2.next()) {
+            (None, None) => return std::cmp::Ordering::Equal,
+            (Some(_), None) => return std::cmp::Ordering::Greater,
+            (None, Some(_)) => return std::cmp::Ordering::Less,
+            (Some(Chunk::Num(n1, str1)), Some(Chunk::Num(n2, str2))) => match n1.cmp(&n2) {
+                std::cmp::Ordering::Equal => match str1.cmp(str2) {
+                    std::cmp::Ordering::Equal => continue,
+                    ord => return ord,
+                },
+                ord => return ord,
+            },
+            (Some(Chunk::Str(str1)), Some(Chunk::Str(str2))) => match str1.cmp(str2) {
+                std::cmp::Ordering::Equal => continue,
+                ord => return ord,
+            },
+            (Some(Chunk::Num(_, str1)), Some(Chunk::Str(str2))) => match str1.cmp(str2) {
+                std::cmp::Ordering::Equal => continue,
+                ord => return ord,
+            },
+            (Some(Chunk::Str(str1)), Some(Chunk::Num(_, str2))) => match str1.cmp(str2) {
+                std::cmp::Ordering::Equal => continue,
+                ord => return ord,
+            },
+        }
+    }
 }
 
 #[cfg(test)]
@@ -386,5 +464,55 @@ mod tests {
         assert!(!branches.is_empty());
         let head_branch = branches.iter().find(|b| b.is_head);
         assert!(head_branch.is_some());
+    }
+
+    #[test]
+    fn test_natural_cmp_sorting() {
+        let mut tags = vec![
+            "v0.1.0",
+            "v0.10.0",
+            "v0.10.1",
+            "v0.11.0",
+            "v0.12.0",
+            "v0.12.1",
+            "v0.13.0",
+            "v0.2.0",
+            "v0.3.0",
+            "v0.4.0",
+            "v0.4.1",
+            "v0.5.0",
+            "v0.6.0",
+            "v0.6.1",
+            "v0.7.0",
+            "v0.7.1",
+            "v0.8.0",
+            "v0.9.0",
+        ];
+
+        tags.sort_by(|a, b| natural_cmp(b, a));
+
+        assert_eq!(
+            tags,
+            vec![
+                "v0.13.0",
+                "v0.12.1",
+                "v0.12.0",
+                "v0.11.0",
+                "v0.10.1",
+                "v0.10.0",
+                "v0.9.0",
+                "v0.8.0",
+                "v0.7.1",
+                "v0.7.0",
+                "v0.6.1",
+                "v0.6.0",
+                "v0.5.0",
+                "v0.4.1",
+                "v0.4.0",
+                "v0.3.0",
+                "v0.2.0",
+                "v0.1.0",
+            ]
+        );
     }
 }
