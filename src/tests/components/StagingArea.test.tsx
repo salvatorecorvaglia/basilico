@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { StagingArea } from "../../components/staging/StagingArea";
 import { useRepoStore } from "../../store/repo-store";
 import type { RepoState } from "../../store/types";
-import { StagingArea } from "../staging/StagingArea";
 
 vi.mock("../../store/repo-store", () => ({
   useRepoStore: vi.fn(),

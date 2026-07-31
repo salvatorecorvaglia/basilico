@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { applyThemeToDOM } from "../theme-presets";
+import { applyThemeToDOM } from "../../lib/theme-presets";
 
 describe("theme-presets", () => {
   beforeEach(() => {

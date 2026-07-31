@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { describe, expect, it, vi } from "vitest";
-import { WelcomeScreen } from "../WelcomeScreen";
+import { WelcomeScreen } from "../../components/WelcomeScreen";
 
 // Mock Lucide icons to avoid rendering complexities
 vi.mock("lucide-react", () => ({

@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { CommitList } from "../../components/graph/CommitList";
 import { useRepoStore } from "../../store/repo-store";
 import type { RepoState } from "../../store/types";
-import { CommitList } from "../graph/CommitList";
 
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();

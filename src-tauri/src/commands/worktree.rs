@@ -185,3 +185,58 @@ pub async fn prune_worktrees(repo_path: String) -> Result<(), AppError> {
     })
     .await?
 }
+
+#[tauri::command]
+pub async fn lock_worktree(
+    repo_path: String,
+    worktree_name: String,
+    reason: Option<String>,
+) -> Result<(), AppError> {
+    tokio::task::spawn_blocking(move || {
+        let mut args = vec!["worktree".to_string(), "lock".to_string()];
+
+        if let Some(ref r) = reason {
+            args.push("--reason".to_string());
+            args.push(r.clone());
+        }
+
+        args.push(worktree_name);
+
+        let output = crate::commands::new_command("git")
+            .args(&args)
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| AppError::command(format!("Failed to lock worktree: {}", e)))?;
+
+        if !output.status.success() {
+            return Err(AppError::git(String::from_utf8_lossy(&output.stderr)));
+        }
+
+        Ok(())
+    })
+    .await?
+}
+
+#[tauri::command]
+pub async fn unlock_worktree(
+    repo_path: String,
+    worktree_name: String,
+) -> Result<(), AppError> {
+    tokio::task::spawn_blocking(move || {
+        let output = crate::commands::new_command("git")
+            .args(["worktree", "unlock", &worktree_name])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| AppError::command(format!("Failed to unlock worktree: {}", e)))?;
+
+        if !output.status.success() {
+            return Err(AppError::git(String::from_utf8_lossy(&output.stderr)));
+        }
+
+        Ok(())
+    })
+    .await?
+}
+
+
+

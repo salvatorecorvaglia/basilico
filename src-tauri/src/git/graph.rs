@@ -219,7 +219,7 @@ fn build_ref_map(
 
 /// Compute lane assignments for graph rendering.
 /// Uses a simple greedy lane allocation algorithm.
-fn compute_lanes(commits: &mut [GraphCommit]) {
+pub fn compute_lanes(commits: &mut [GraphCommit]) {
     if commits.is_empty() {
         return;
     }
@@ -314,111 +314,4 @@ fn compute_lanes(commits: &mut [GraphCommit]) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    fn create_mock_commit(oid: &str, parent_oids: Vec<&str>) -> GraphCommit {
-        GraphCommit {
-            oid: oid.to_string(),
-            short_oid: oid[..7.min(oid.len())].to_string(),
-            message: "Commit message".to_string(),
-            author_name: "Author".to_string(),
-            author_email: "author@example.com".to_string(),
-            author_date: 0,
-            committer_name: "Committer".to_string(),
-            committer_date: 0,
-            parent_oids: parent_oids.into_iter().map(|s| s.to_string()).collect(),
-            refs: Vec::new(),
-            lane: 0,
-            edges: Vec::new(),
-        }
-    }
-
-    #[test]
-    fn test_compute_lanes_single_line() {
-        let mut commits = vec![
-            create_mock_commit("C3", vec!["C2"]),
-            create_mock_commit("C2", vec!["C1"]),
-            create_mock_commit("C1", vec![]),
-        ];
-
-        compute_lanes(&mut commits);
-
-        assert_eq!(commits[0].lane, 0);
-        assert_eq!(commits[0].edges.len(), 1);
-        assert_eq!(commits[0].edges[0].from_lane, 0);
-        assert_eq!(commits[0].edges[0].to_lane, 0);
-        assert_eq!(commits[0].edges[0].to_oid, "C2");
-
-        assert_eq!(commits[1].lane, 0);
-        assert_eq!(commits[1].edges.len(), 1);
-        assert_eq!(commits[1].edges[0].from_lane, 0);
-        assert_eq!(commits[1].edges[0].to_lane, 0);
-        assert_eq!(commits[1].edges[0].to_oid, "C1");
-
-        assert_eq!(commits[2].lane, 0);
-        assert_eq!(commits[2].edges.len(), 0);
-    }
-
-    #[test]
-    fn test_compute_lanes_branching() {
-        let mut commits = vec![
-            create_mock_commit("C4", vec!["C2"]),
-            create_mock_commit("C3", vec!["C2"]),
-            create_mock_commit("C2", vec!["C1"]),
-            create_mock_commit("C1", vec![]),
-        ];
-
-        compute_lanes(&mut commits);
-
-        assert_eq!(commits[0].oid, "C4");
-        assert_eq!(commits[0].lane, 0);
-
-        assert_eq!(commits[1].oid, "C3");
-        assert_eq!(commits[1].lane, 1);
-
-        assert_eq!(commits[2].oid, "C2");
-        assert_eq!(commits[2].lane, 0);
-
-        assert_eq!(commits[3].oid, "C1");
-        assert_eq!(commits[3].lane, 0);
-    }
-
-    #[test]
-    fn test_compute_lanes_boundary_commits() {
-        // C2 has parent C1 which is not present in commits (boundary)
-        let mut commits = vec![create_mock_commit("C2", vec!["C1"])];
-
-        compute_lanes(&mut commits);
-
-        assert_eq!(commits[0].lane, 0);
-        assert_eq!(commits[0].edges.len(), 1);
-        assert_eq!(commits[0].edges[0].to_lane, 0);
-        assert_eq!(commits[0].edges[0].to_oid, "C1");
-
-        // With optimization, C1 is boundary so its lane is cleared.
-        // C4 (new branch) should be able to reuse lane 0 instead of allocating lane 1.
-        let mut commits2 = vec![
-            create_mock_commit("C2", vec!["C1"]),
-            create_mock_commit("C4", vec!["C3"]),
-        ];
-
-        compute_lanes(&mut commits2);
-
-        assert_eq!(commits2[0].oid, "C2");
-        assert_eq!(commits2[0].lane, 0);
-
-        assert_eq!(commits2[1].oid, "C4");
-        assert_eq!(commits2[1].lane, 0);
-    }
-
-    #[test]
-    fn test_build_graph_empty_repo() {
-        let repo = crate::test_utils::TempRepo::new();
-        let result = build_graph(repo.path_str(), 100, false, false, None);
-        assert!(result.is_ok());
-        let commits = result.unwrap();
-        assert!(commits.is_empty());
-    }
-}

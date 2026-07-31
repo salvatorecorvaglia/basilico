@@ -224,20 +224,4 @@ pub async fn find_dangling_commits(path: String) -> Result<Vec<DanglingCommitInf
     .await?
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_utils::TempRepo;
 
-    #[tokio::test]
-    async fn test_get_repo_health() {
-        let repo = TempRepo::new();
-        repo.write_file("test.txt", "content");
-        repo.commit("initial commit");
-
-        let report = get_repo_health(repo.path_str().to_string()).await.unwrap();
-
-        assert!(report.total_size_bytes > 0);
-        assert!(report.git_size_bytes > 0);
-    }
-}

@@ -433,36 +433,4 @@ pub fn natural_cmp(s1: &str, s2: &str) -> std::cmp::Ordering {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_utils::TempRepo;
 
-    #[test]
-    fn test_open_repo_and_status() {
-        let repo = TempRepo::new();
-        repo.write_file("hello.txt", "hello world");
-        repo.commit("initial commit");
-
-        let info = open_repo(repo.path_str()).expect("open_repo failed");
-        assert!(!info.is_bare);
-        assert!(!info.is_empty);
-
-        let status = get_status(repo.path_str()).expect("get_status failed");
-        assert!(status.staged.is_empty());
-        assert!(status.unstaged.is_empty());
-        assert!(status.untracked.is_empty());
-    }
-
-    #[test]
-    fn test_list_branches() {
-        let repo = TempRepo::new();
-        repo.write_file("main.rs", "fn main() {}");
-        repo.commit("first commit");
-
-        let branches = list_branches(repo.path_str()).expect("list_branches failed");
-        assert!(!branches.is_empty());
-        let head_branch = branches.iter().find(|b| b.is_head);
-        assert!(head_branch.is_some());
-    }
-}

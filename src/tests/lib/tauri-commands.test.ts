@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAppError } from "../tauri-commands";
+import { parseAppError } from "../../lib/tauri-commands";
 
 describe("parseAppError", () => {
   it("should return the original object if it matches AppError structure", () => {
@@ -28,5 +28,17 @@ describe("parseAppError", () => {
       message: "null",
       kind: "Unknown",
     });
+  });
+});
+
+describe("Command Function Exports", () => {
+  it("exports reflog, patch, and worktree locking functions", async () => {
+    const commands = await import("../../lib/tauri-commands");
+    expect(typeof commands.getReflog).toBe("function");
+    expect(typeof commands.restoreReflogEntry).toBe("function");
+    expect(typeof commands.createCommitPatch).toBe("function");
+    expect(typeof commands.createRangePatch).toBe("function");
+    expect(typeof commands.lockWorktree).toBe("function");
+    expect(typeof commands.unlockWorktree).toBe("function");
   });
 });

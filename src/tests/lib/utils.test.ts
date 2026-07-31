@@ -10,7 +10,7 @@ import {
   shortOid,
   stringToColor,
   truncate,
-} from "../utils";
+} from "../../lib/utils";
 
 describe("utils", () => {
   describe("formatRelativeTime", () => {

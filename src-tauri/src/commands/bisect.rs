@@ -112,20 +112,4 @@ pub async fn bisect_reset(repo_path: String) -> Result<(), AppError> {
     .await?
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_utils::TempRepo;
 
-    #[tokio::test]
-    async fn test_bisect_invalid_status() {
-        let repo = TempRepo::new();
-        let path = repo.path_str().to_string();
-
-        let result = bisect_mark(path, "invalid_status_here".to_string()).await;
-        assert!(result.is_err());
-        if let Err(e) = result {
-            assert_eq!(e.to_string(), "Invalid bisect status");
-        }
-    }
-}

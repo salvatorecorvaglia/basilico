@@ -1,10 +1,9 @@
-mod commands;
-mod error;
-mod git;
-mod state;
-mod watcher;
+pub mod commands;
+pub mod error;
+pub mod git;
+pub mod state;
+pub mod watcher;
 
-#[cfg(test)]
 pub mod test_utils;
 
 use state::AppState;
@@ -103,6 +102,14 @@ pub fn run() {
             commands::worktree::add_worktree,
             commands::worktree::remove_worktree,
             commands::worktree::prune_worktrees,
+            commands::worktree::lock_worktree,
+            commands::worktree::unlock_worktree,
+            // Reflog commands
+            commands::reflog::get_reflog,
+            commands::reflog::restore_reflog_entry,
+            // Patch commands
+            commands::patch::create_commit_patch,
+            commands::patch::create_range_patch,
             // Submodule commands
             commands::submodule::list_submodules,
             commands::submodule::init_submodules,

@@ -19,6 +19,7 @@ import type {
   GrepMatch,
   RebaseStatus,
   RebaseTodoItem,
+  ReflogEntry,
   RemoteInfo,
   RepoInfo,
   RepoStatus,
@@ -715,3 +716,80 @@ export const findDanglingCommits = (path: string, options?: InvokeOptions) =>
     { path },
     options,
   );
+
+// ── Reflog Commands ──
+
+export const getReflog = (
+  repoPath: string,
+  refName?: string | null,
+  maxCount?: number | null,
+  options?: InvokeOptions,
+) =>
+  invokeCommand<ReflogEntry[]>(
+    "get_reflog",
+    { repoPath, refName, maxCount },
+    options,
+  );
+
+export const restoreReflogEntry = (
+  repoPath: string,
+  oid: string,
+  mode: string,
+  options?: InvokeOptions,
+) =>
+  invokeCommand<void>(
+    "restore_reflog_entry",
+    { repoPath, oid, mode },
+    options,
+  );
+
+// ── Patch Commands ──
+
+export const createCommitPatch = (
+  repoPath: string,
+  commitOid: string,
+  options?: InvokeOptions,
+) =>
+  invokeCommand<string>(
+    "create_commit_patch",
+    { repoPath, commitOid },
+    options,
+  );
+
+export const createRangePatch = (
+  repoPath: string,
+  fromOid: string,
+  toOid: string,
+  options?: InvokeOptions,
+) =>
+  invokeCommand<string>(
+    "create_range_patch",
+    { repoPath, fromOid, toOid },
+    options,
+  );
+
+// ── Extended Worktree Commands ──
+
+export const lockWorktree = (
+  repoPath: string,
+  worktreeName: string,
+  reason?: string | null,
+  options?: InvokeOptions,
+) =>
+  invokeCommand<void>(
+    "lock_worktree",
+    { repoPath, worktreeName, reason },
+    options,
+  );
+
+export const unlockWorktree = (
+  repoPath: string,
+  worktreeName: string,
+  options?: InvokeOptions,
+) =>
+  invokeCommand<void>(
+    "unlock_worktree",
+    { repoPath, worktreeName },
+    options,
+  );
+

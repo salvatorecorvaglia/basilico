@@ -281,14 +281,4 @@ pub async fn launch_external_merge_tool(
     .await?
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn test_normalize_git_path() {
-        assert_eq!(normalize_git_path("src\\main.rs"), "src/main.rs");
-        assert_eq!(normalize_git_path("src/main.rs"), "src/main.rs");
-        assert_eq!(normalize_git_path("a\\b\\c.txt"), "a/b/c.txt");
-    }
-}

@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
 import type { FileDiff } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
-import type { useRepoStore } from "../repo-store";
-import { createStagingSlice } from "../slices/staging-slice";
-import type { RepoState } from "../types";
+import type { useRepoStore } from "../../store/repo-store";
+import { createStagingSlice } from "../../store/slices/staging-slice";
+import type { RepoState } from "../../store/types";
 
 vi.mock("../../lib/tauri-commands", () => ({
   stageFiles: vi.fn(),

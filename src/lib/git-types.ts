@@ -263,6 +263,16 @@ export interface DanglingCommitInfo {
   actionSubject: string;
 }
 
+export interface ReflogEntry {
+  index: number;
+  oldOid: string;
+  newOid: string;
+  committerName: string;
+  committerEmail: string;
+  date: number;
+  message: string;
+}
+
 export interface TreeEntryInfo {
   path: string;
   name: string;

@@ -4,8 +4,8 @@ import {
   setError,
   setLoading,
   withLoading,
-} from "../store-helpers";
-import type { RepoState } from "../types";
+} from "../../store/store-helpers";
+import type { RepoState } from "../../store/types";
 
 // Minimal mock for store state
 function createMockStore(overrides: Partial<RepoState> = {}) {

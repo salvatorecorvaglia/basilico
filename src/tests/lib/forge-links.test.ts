@@ -10,7 +10,7 @@ import {
   getFileBlameUrl,
   parseAutolinks,
   parseRemoteUrl,
-} from "../forge-links";
+} from "../../lib/forge-links";
 
 describe("parseRemoteUrl", () => {
   it("should parse GitHub HTTPS remote URL", () => {

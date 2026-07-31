@@ -31,7 +31,7 @@ import type {
   TagInfo,
 } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
-import { useRepoStore } from "../repo-store";
+import { useRepoStore } from "../../store/repo-store";
 
 describe("git-data-slice", () => {
   beforeEach(() => {

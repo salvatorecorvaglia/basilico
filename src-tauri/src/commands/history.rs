@@ -135,40 +135,4 @@ pub async fn get_file_history(
     .await?
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_utils::TempRepo;
 
-    #[tokio::test]
-    async fn test_file_history_deletions() {
-        let repo = TempRepo::new();
-
-        // 1. Create file and commit
-        repo.write_file("test.txt", "hello");
-        repo.commit("initial");
-
-        // 2. Modify and commit
-        repo.write_file("test.txt", "hello world");
-        repo.commit("modify");
-
-        // 3. Delete and commit
-        repo.remove_file("test.txt");
-        repo.commit("delete file");
-
-        // 4. Recreate and commit
-        repo.write_file("test.txt", "reborn file");
-        repo.commit("recreate");
-
-        let history = get_file_history(repo.path_str().to_string(), "test.txt".to_string(), None)
-            .await
-            .unwrap();
-
-        // Should contain all 4 stages: recreate, delete file, modify, initial
-        assert_eq!(history.len(), 4);
-        assert_eq!(history[0].commit_summary, "recreate");
-        assert_eq!(history[1].commit_summary, "delete file");
-        assert_eq!(history[2].commit_summary, "modify");
-        assert_eq!(history[3].commit_summary, "initial");
-    }
-}

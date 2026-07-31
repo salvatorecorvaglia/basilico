@@ -23,7 +23,7 @@ vi.mock("../../lib/tauri-commands", () => ({
 }));
 
 import * as commands from "../../lib/tauri-commands";
-import { useRepoStore } from "../repo-store";
+import { useRepoStore } from "../../store/repo-store";
 
 describe("collaboration-slice", () => {
   beforeEach(() => {
