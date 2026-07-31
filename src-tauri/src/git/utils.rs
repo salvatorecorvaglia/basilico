@@ -57,4 +57,3 @@ pub fn canonicalize_path(path: &str) -> String {
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| path.replace('\\', "/"))
 }
-

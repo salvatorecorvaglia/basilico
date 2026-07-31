@@ -12,12 +12,12 @@
 - **🔄 Visual Interactive Rebase & Autosquash**: Squash, fixup, drop, reorder commits, or perform autosquashes (`fixup!`/`squash!`) with inline summary editing.
 - **🩺 Git Doctor Diagnostics**: Perform full health checks on repository status, SSH setup, OS watch limits, submodules, and environment configurations.
 - **🔗 Forge Deep Links & Autolink Parsing**: Open commits, branches, lines, and issue references directly in GitHub, GitLab, Bitbucket, Azure DevOps, or Codeberg.
-- **⚡ External IDE Integration & Vim Navigation**: Open repositories and files in external editors (VS Code, Cursor, Zed, etc.) and navigate commit lists using Vim keybindings (`j`/`k`).
+- **⚡ External IDE Integration & Keyboard Shortcuts**: Open repositories and files in external editors (VS Code, Cursor, Zed, etc.), match modular keybindings (`CmdOrCtrl+K`, `CmdOrCtrl+Shift+P`), and navigate commit lists using Vim keybindings (`j`/`k`).
 - **🧹 Merged Branch Sweeper**: Detect and safely clean up merged branches across your local and remote repositories.
 - **📝 Granular Line-Level Staging**: Stage and unstage individual hunks or specific lines of code directly from unified or side-by-side diff views.
 - **🔏 GPG Signature Verification**: Seamlessly check commit authenticity and view signatures directly in the application.
 - **🧭 Git Bisect Wizard**: Quickly locate buggy commits with an intuitive step-by-step bisect flow.
-- **🌳 Worktrees & Submodules Modals**: Full visual modals for listing, adding, removing, locking/unlocking, and inspecting Git worktrees and submodules.
+- **🌳 Worktrees & Submodules Modals**: Full visual modals for listing, adding, removing, locking/unlocking with custom reasons, and inspecting Git worktrees and submodules.
 - **📦 Stash Inspector**: Create, list, apply, pop, and inspect stashes with line-by-line diff support.
 - **📂 Multi-Repository Management**: Quickly switch between open repositories, or clone/initialize repositories straight from the dashboard.
 - **⚙️ Integrated Settings & Tools**: Generate and manage SSH keys, configure GitHub Personal Access Tokens (PATs), and launch external merge/diff tools.
@@ -56,12 +56,12 @@ To build Basilico from source, you will need the following tools installed on yo
 
 ### Testing
 
-Run frontend unit tests (components, lib utilities, & Zustand stores under `src/tests/`) using Vitest:
+Run frontend unit tests (helper utilities, keyboard shortcuts, autolink parsing, and reference validation under `src/lib/tests/`) using Vitest:
 ```bash
 pnpm test
 ```
 
-Run backend Rust unit tests:
+Run backend Rust unit and integration test suites (`src-tauri/tests/`):
 ```bash
 cd src-tauri && cargo test
 ```

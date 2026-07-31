@@ -71,7 +71,7 @@ We use **Biome** to format and lint our TypeScript, React, and CSS code. Ensure 
 - Format your Rust code with `cargo fmt`.
 - Ensure there are no warnings or errors reported by `cargo clippy`.
 - Follow idiomatic Rust guidelines (explicit error handling, proper ownership and borrowing, avoidance of `unwrap()` in production-ready command handlers).
-- Modularize Tauri commands into domain-specific modules under `src-tauri/src/commands/` (e.g., `doctor.rs`, `ide.rs`, `branch.rs`, `rebase.rs`, `worktree.rs`, `patch.rs`).
+- Modularize Tauri commands into domain-specific modules under `src-tauri/src/commands/` (e.g., `doctor.rs`, `ide.rs`, `branch.rs`, `rebase.rs`, `worktree.rs`, `patch.rs`, `reflog.rs`).
 - Errors should be propagated to the frontend via the custom `Error` wrapper in `src-tauri/src/error.rs`.
 
 ---
@@ -84,7 +84,7 @@ Always verify that your changes do not break existing functionality:
   ```bash
   pnpm test
   ```
-  We use **Vitest** and **React Testing Library** for frontend testing. When adding features or fixing bugs (in UI components, lib utilities, or Zustand state stores), add or update unit tests under the corresponding subdirectories in `src/tests/` (e.g., `src/tests/components/`, `src/tests/lib/`, `src/tests/store/`).
+  We use **Vitest** and **React Testing Library** for frontend testing. When adding features or fixing bugs (in UI components, lib utilities, or Zustand state stores), add or update unit tests under `src/lib/tests/` (e.g., `shortcuts.test.ts`, `forge-links.test.ts`, `git-validation.test.ts`, `error-messages.test.ts`).
 
 - **Run Backend Tests**:
   If you modify Rust files in `src-tauri`, run backend tests using:
@@ -92,6 +92,7 @@ Always verify that your changes do not break existing functionality:
   cd src-tauri
   cargo test
   ```
+  Backend test suites are organized into dedicated test modules in `src-tauri/tests/` (`commands_tests.rs`, `git_tests.rs`, `watcher_tests.rs`, `backend_integration_test.rs`).
 
 *Note: GitHub Actions enforces quality gates in parallel (linting, formatting, Vitest frontend tests, Rust compilation, and tests).*
 
