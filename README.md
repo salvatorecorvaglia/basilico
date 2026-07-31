@@ -17,7 +17,7 @@
 - **📝 Granular Line-Level Staging**: Stage and unstage individual hunks or specific lines of code directly from unified or side-by-side diff views.
 - **🔏 GPG Signature Verification**: Seamlessly check commit authenticity and view signatures directly in the application.
 - **🧭 Git Bisect Wizard**: Quickly locate buggy commits with an intuitive step-by-step bisect flow.
-- **🌳 Worktrees & Submodules Modals**: Full visual modals for listing, adding, removing, and inspecting Git worktrees and submodules.
+- **🌳 Worktrees & Submodules Modals**: Full visual modals for listing, adding, removing, locking/unlocking, and inspecting Git worktrees and submodules.
 - **📦 Stash Inspector**: Create, list, apply, pop, and inspect stashes with line-by-line diff support.
 - **📂 Multi-Repository Management**: Quickly switch between open repositories, or clone/initialize repositories straight from the dashboard.
 - **⚙️ Integrated Settings & Tools**: Generate and manage SSH keys, configure GitHub Personal Access Tokens (PATs), and launch external merge/diff tools.
@@ -56,7 +56,7 @@ To build Basilico from source, you will need the following tools installed on yo
 
 ### Testing
 
-Run frontend unit tests (components & Zustand stores) using Vitest:
+Run frontend unit tests (components, lib utilities, & Zustand stores under `src/tests/`) using Vitest:
 ```bash
 pnpm test
 ```

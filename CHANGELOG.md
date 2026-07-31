@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Worktree Locking & Unlocking**: Added `lock_worktree` and `unlock_worktree` Tauri backend commands and frontend API wrappers to support locking and unlocking Git worktrees with optional lock reasons.
+- **Backend Patch & Reflog Commands**: Added `apply_patch` and `get_reflog` backend command handlers for managing Git patches and inspecting repository reflog entries.
+- **Dedicated Rust Test Suites**: Reorganized and expanded backend unit and integration tests into dedicated test modules (`src-tauri/tests/commands_tests.rs`, `src-tauri/tests/git_tests.rs`, `src-tauri/tests/watcher_tests.rs`, `src-tauri/tests/backend_integration_test.rs`).
+
+### Changed
+
+- **Test Suite Structure**: Reorganized frontend unit test suite structure by migrating tests from `__tests__` directories into a centralized `src/tests/` layout (`src/tests/components/`, `src/tests/lib/`, `src/tests/store/`).
+- **Code Formatting & Cleanup**: Applied uniform code formatting, cleaned up whitespace, and updated Tauri command registrations across backend modules.
+
 ## [0.13.1] - 2026-07-30
 
 ### Fixed

@@ -71,7 +71,7 @@ We use **Biome** to format and lint our TypeScript, React, and CSS code. Ensure 
 - Format your Rust code with `cargo fmt`.
 - Ensure there are no warnings or errors reported by `cargo clippy`.
 - Follow idiomatic Rust guidelines (explicit error handling, proper ownership and borrowing, avoidance of `unwrap()` in production-ready command handlers).
-- Modularize Tauri commands into domain-specific modules under `src-tauri/src/commands/` (e.g., `doctor.rs`, `ide.rs`, `branch.rs`, `rebase.rs`).
+- Modularize Tauri commands into domain-specific modules under `src-tauri/src/commands/` (e.g., `doctor.rs`, `ide.rs`, `branch.rs`, `rebase.rs`, `worktree.rs`, `patch.rs`).
 - Errors should be propagated to the frontend via the custom `Error` wrapper in `src-tauri/src/error.rs`.
 
 ---
@@ -84,7 +84,7 @@ Always verify that your changes do not break existing functionality:
   ```bash
   pnpm test
   ```
-  We use **Vitest** and **React Testing Library** for frontend testing. When adding features or fixing bugs (in UI components or Zustand state stores under `src/store/`), add or update unit tests under the corresponding `__tests__` directory.
+  We use **Vitest** and **React Testing Library** for frontend testing. When adding features or fixing bugs (in UI components, lib utilities, or Zustand state stores), add or update unit tests under the corresponding subdirectories in `src/tests/` (e.g., `src/tests/components/`, `src/tests/lib/`, `src/tests/store/`).
 
 - **Run Backend Tests**:
   If you modify Rust files in `src-tauri`, run backend tests using:
