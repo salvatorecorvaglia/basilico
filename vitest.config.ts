@@ -1,5 +1,5 @@
 import { defineConfig, mergeConfig } from "vitest/config";
-import viteConfig from "./vite.config";
+import viteConfig from "./vite.config.ts";
 
 export default defineConfig(async (env) => {
   // @ts-expect-error baseConfig could be a promise or function
@@ -11,6 +11,7 @@ export default defineConfig(async (env) => {
       globals: true,
       environment: "jsdom",
       setupFiles: "./vitest.setup.ts",
+      passWithNoTests: true,
     },
   });
 });

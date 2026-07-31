@@ -130,6 +130,18 @@ pub async fn launch_external_merge_tool(
             )));
         }
 
+        // Clean up any stale basilico merge temporary directories
+        if let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    if name.starts_with("basilico_merge_") {
+                        let _ = std::fs::remove_dir_all(&path);
+                    }
+                }
+            }
+        }
+
         let temp_dir =
             std::env::temp_dir().join(format!("basilico_merge_{}", uuid::Uuid::new_v4()));
         let mut builder = std::fs::DirBuilder::new();
@@ -140,15 +152,6 @@ pub async fn launch_external_merge_tool(
             builder.mode(0o700);
         }
         builder.create(&temp_dir)?;
-
-        // Spawns a background thread to delete the temp directory after 10 minutes (600 seconds).
-        // This keeps the temporary conflict stage files alive long enough even if the merge tool
-        // process returns immediately (e.g. VS Code or Meld forwarding to an existing instance).
-        let temp_dir_clone = temp_dir.clone();
-        std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_secs(600));
-            let _ = std::fs::remove_dir_all(temp_dir_clone);
-        });
 
         // Get extension to support syntax highlighting in merge tools
         let file_ext = std::path::Path::new(&file_path)

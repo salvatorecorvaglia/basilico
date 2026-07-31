@@ -50,3 +50,11 @@ pub fn validate_relative_path(path: &str) -> Result<&Path, AppError> {
     }
     Ok(p)
 }
+
+/// Canonicalizes a path string for consistent store tracking across platforms.
+pub fn canonicalize_path(path: &str) -> String {
+    std::fs::canonicalize(path)
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| path.replace('\\', "/"))
+}
+

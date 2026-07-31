@@ -33,7 +33,7 @@ const ERROR_MAPPINGS: ErrorMapping[] = [
       "Cannot fast-forward. The remote branch has diverged. Try pulling with merge or rebase.",
   },
   {
-    pattern: /merge conflict|conflicting files/i,
+    pattern: /merge conflict|conflicting files|automatic merge failed/i,
     message:
       "Merge conflicts detected. Please resolve the conflicts in the staging area before continuing.",
   },

@@ -63,32 +63,10 @@ import { ConfirmModal } from "./components/layout/ConfirmModal";
 import { NotificationToast } from "./components/layout/NotificationToast";
 import { PromptModal } from "./components/layout/PromptModal";
 import { useUpdater } from "./hooks/use-updater";
+import { matchesShortcut } from "./lib/shortcuts";
 import { useRepoStore } from "./store/repo-store";
 import { useUIStore } from "./store/ui-store";
 import "./App.css";
-
-function matchesShortcut(e: KeyboardEvent, shortcutStr: string): boolean {
-  const parts = shortcutStr.split("+");
-  let hasCmdOrCtrl = false;
-  let hasShift = false;
-  let key = "";
-  for (const part of parts) {
-    if (part === "CmdOrCtrl") {
-      hasCmdOrCtrl = true;
-    } else if (part === "Shift") {
-      hasShift = true;
-    } else {
-      key = part.toLowerCase();
-    }
-  }
-
-  const matchesMeta = (e.metaKey || e.ctrlKey) === hasCmdOrCtrl;
-  const matchesShift = e.shiftKey === hasShift;
-
-  if (key === "enter") return matchesMeta && matchesShift && e.key === "Enter";
-  if (key === ",") return matchesMeta && matchesShift && e.key === ",";
-  return matchesMeta && matchesShift && e.key.toLowerCase() === key;
-}
 
 interface ViewRouterProps {
   activeView: string;
