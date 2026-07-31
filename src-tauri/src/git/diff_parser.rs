@@ -279,5 +279,3 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
 
     Ok(files)
 }
-
-

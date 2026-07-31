@@ -280,5 +280,3 @@ pub async fn launch_external_merge_tool(
     })
     .await?
 }
-
-

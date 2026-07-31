@@ -432,5 +432,3 @@ pub fn natural_cmp(s1: &str, s2: &str) -> std::cmp::Ordering {
         }
     }
 }
-
-

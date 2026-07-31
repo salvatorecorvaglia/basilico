@@ -313,5 +313,3 @@ pub fn compute_lanes(commits: &mut [GraphCommit]) {
         commit.edges = edges;
     }
 }
-
-

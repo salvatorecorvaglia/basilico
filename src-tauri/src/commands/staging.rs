@@ -143,5 +143,3 @@ pub async fn discard_changes(path: String, files: Vec<String>) -> Result<(), App
     })
     .await?
 }
-
-

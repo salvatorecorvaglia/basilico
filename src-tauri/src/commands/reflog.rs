@@ -4,7 +4,7 @@ Inspection and state restoration via git reflog
 ═══════════════════════════════════════════════════════ */
 
 use crate::error::AppError;
-use git2::{ResetType, Repository};
+use git2::{Repository, ResetType};
 use serde::Serialize;
 
 #[derive(Debug, Serialize, Clone)]
@@ -67,7 +67,11 @@ pub async fn restore_reflog_entry(
             "soft" => ResetType::Soft,
             "mixed" => ResetType::Mixed,
             "hard" => ResetType::Hard,
-            _ => return Err(AppError::invalid_state("Invalid reset mode. Must be 'soft', 'mixed', or 'hard'")),
+            _ => {
+                return Err(AppError::invalid_state(
+                    "Invalid reset mode. Must be 'soft', 'mixed', or 'hard'",
+                ))
+            }
         };
 
         repo.reset(commit.as_object(), reset_type, None)?;
@@ -75,5 +79,3 @@ pub async fn restore_reflog_entry(
     })
     .await?
 }
-
-

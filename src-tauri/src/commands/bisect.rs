@@ -111,5 +111,3 @@ pub async fn bisect_reset(repo_path: String) -> Result<(), AppError> {
     })
     .await?
 }
-
-

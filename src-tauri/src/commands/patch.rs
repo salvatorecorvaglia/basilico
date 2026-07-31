@@ -43,12 +43,13 @@ pub async fn create_range_patch(
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(AppError::git(format!("format-patch range error: {}", stderr)));
+            return Err(AppError::git(format!(
+                "format-patch range error: {}",
+                stderr
+            )));
         }
 
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     })
     .await?
 }
-
-

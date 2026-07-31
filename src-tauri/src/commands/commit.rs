@@ -375,5 +375,3 @@ pub async fn get_commit_tree(path: String, oid: String) -> Result<Vec<TreeEntryI
     })
     .await?
 }
-
-

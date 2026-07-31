@@ -218,10 +218,7 @@ pub async fn lock_worktree(
 }
 
 #[tauri::command]
-pub async fn unlock_worktree(
-    repo_path: String,
-    worktree_name: String,
-) -> Result<(), AppError> {
+pub async fn unlock_worktree(repo_path: String, worktree_name: String) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
         let output = crate::commands::new_command("git")
             .args(["worktree", "unlock", &worktree_name])
@@ -237,6 +234,3 @@ pub async fn unlock_worktree(
     })
     .await?
 }
-
-
-

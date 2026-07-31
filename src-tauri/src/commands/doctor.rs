@@ -223,5 +223,3 @@ pub async fn find_dangling_commits(path: String) -> Result<Vec<DanglingCommitInf
     })
     .await?
 }
-
-

@@ -354,5 +354,3 @@ pub async fn rebase_step(
     })
     .await?
 }
-
-

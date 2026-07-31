@@ -311,21 +311,15 @@ async fn test_merge_branch_fast_forward() {
         .await
         .unwrap();
 
-    checkout_branch(
-        repo.path_str().to_string(),
-        "branch1".to_string(),
-    )
-    .await
-    .unwrap();
+    checkout_branch(repo.path_str().to_string(), "branch1".to_string())
+        .await
+        .unwrap();
     repo.write_file("test2.txt", "hello2");
     repo.commit("commit 2");
 
-    checkout_branch(
-        repo.path_str().to_string(),
-        main_branch_name.clone(),
-    )
-    .await
-    .unwrap();
+    checkout_branch(repo.path_str().to_string(), main_branch_name.clone())
+        .await
+        .unwrap();
 
     let result = merge_branch(repo.path_str().to_string(), "branch1".to_string())
         .await
@@ -347,21 +341,15 @@ async fn test_merge_branch_merge_commit() {
     create_branch(repo.path_str().to_string(), "branch1".to_string(), None)
         .await
         .unwrap();
-    checkout_branch(
-        repo.path_str().to_string(),
-        "branch1".to_string(),
-    )
-    .await
-    .unwrap();
+    checkout_branch(repo.path_str().to_string(), "branch1".to_string())
+        .await
+        .unwrap();
     repo.write_file("test1.txt", "hello branch 1");
     repo.commit("commit branch 1");
 
-    checkout_branch(
-        repo.path_str().to_string(),
-        main_branch_name.clone(),
-    )
-    .await
-    .unwrap();
+    checkout_branch(repo.path_str().to_string(), main_branch_name.clone())
+        .await
+        .unwrap();
     repo.write_file("test2.txt", "hello branch 2");
     repo.commit("commit branch 2");
 
@@ -386,21 +374,15 @@ async fn test_merge_branch_conflicts_and_abort() {
     create_branch(repo.path_str().to_string(), "branch1".to_string(), None)
         .await
         .unwrap();
-    checkout_branch(
-        repo.path_str().to_string(),
-        "branch1".to_string(),
-    )
-    .await
-    .unwrap();
+    checkout_branch(repo.path_str().to_string(), "branch1".to_string())
+        .await
+        .unwrap();
     repo.write_file("test.txt", "branch 1 content");
     repo.commit("commit branch 1");
 
-    checkout_branch(
-        repo.path_str().to_string(),
-        main_branch_name.clone(),
-    )
-    .await
-    .unwrap();
+    checkout_branch(repo.path_str().to_string(), main_branch_name.clone())
+        .await
+        .unwrap();
     repo.write_file("test.txt", "branch 2 content");
     repo.commit("commit branch 2");
 
@@ -448,13 +430,9 @@ async fn test_create_range_patch() {
     repo.commit("commit 2");
     let c2 = repo.repo.head().unwrap().peel_to_commit().unwrap().id();
 
-    let patch = create_range_patch(
-        repo.path_str().to_string(),
-        c1.to_string(),
-        c2.to_string(),
-    )
-    .await
-    .unwrap();
+    let patch = create_range_patch(repo.path_str().to_string(), c1.to_string(), c2.to_string())
+        .await
+        .unwrap();
 
     assert!(patch.contains("Subject: [PATCH] commit 2"));
 }
@@ -467,19 +445,12 @@ async fn test_rebase_init_and_write_todo() {
 
     let base_oid = repo.repo.head().unwrap().target().unwrap();
 
-    create_branch(
-        repo.path_str().to_string(),
-        "branch1".to_string(),
-        None,
-    )
-    .await
-    .unwrap();
-    checkout_branch(
-        repo.path_str().to_string(),
-        "branch1".to_string(),
-    )
-    .await
-    .unwrap();
+    create_branch(repo.path_str().to_string(), "branch1".to_string(), None)
+        .await
+        .unwrap();
+    checkout_branch(repo.path_str().to_string(), "branch1".to_string())
+        .await
+        .unwrap();
 
     repo.write_file("test2.txt", "hello 2");
     repo.commit("commit 2");
@@ -514,19 +485,12 @@ async fn test_rebase_step_loop() {
 
     let base_oid = repo.repo.head().unwrap().target().unwrap();
 
-    create_branch(
-        repo.path_str().to_string(),
-        "branch1".to_string(),
-        None,
-    )
-    .await
-    .unwrap();
-    checkout_branch(
-        repo.path_str().to_string(),
-        "branch1".to_string(),
-    )
-    .await
-    .unwrap();
+    create_branch(repo.path_str().to_string(), "branch1".to_string(), None)
+        .await
+        .unwrap();
+    checkout_branch(repo.path_str().to_string(), "branch1".to_string())
+        .await
+        .unwrap();
 
     repo.write_file("test2.txt", "hello 2");
     repo.commit("commit 2");
@@ -553,19 +517,12 @@ async fn test_rebase_step_squash_and_fixup() {
 
     let base_oid = repo.repo.head().unwrap().target().unwrap();
 
-    create_branch(
-        repo.path_str().to_string(),
-        "branch1".to_string(),
-        None,
-    )
-    .await
-    .unwrap();
-    checkout_branch(
-        repo.path_str().to_string(),
-        "branch1".to_string(),
-    )
-    .await
-    .unwrap();
+    create_branch(repo.path_str().to_string(), "branch1".to_string(), None)
+        .await
+        .unwrap();
+    checkout_branch(repo.path_str().to_string(), "branch1".to_string())
+        .await
+        .unwrap();
 
     repo.write_file("test.txt", "initial\ncommit 2");
     repo.commit("commit 2");
@@ -606,19 +563,12 @@ async fn test_rebase_step_squash_continue() {
 
     let base_oid = repo.repo.head().unwrap().target().unwrap();
 
-    create_branch(
-        repo.path_str().to_string(),
-        "branch1".to_string(),
-        None,
-    )
-    .await
-    .unwrap();
-    checkout_branch(
-        repo.path_str().to_string(),
-        "branch1".to_string(),
-    )
-    .await
-    .unwrap();
+    create_branch(repo.path_str().to_string(), "branch1".to_string(), None)
+        .await
+        .unwrap();
+    checkout_branch(repo.path_str().to_string(), "branch1".to_string())
+        .await
+        .unwrap();
 
     repo.write_file("test.txt", "initial\ncommit 2");
     repo.commit("commit 2");
@@ -671,7 +621,9 @@ async fn test_get_reflog_and_restore() {
     repo.write_file("file1.txt", "v2");
     repo.commit("second commit");
 
-    let entries = get_reflog(repo.path_str().to_string(), None, None).await.unwrap();
+    let entries = get_reflog(repo.path_str().to_string(), None, None)
+        .await
+        .unwrap();
     assert!(!entries.is_empty());
 
     let res = restore_reflog_entry(
@@ -696,7 +648,9 @@ async fn test_stage_files_new_and_modified() {
         .unwrap();
 
     let index = repo.repo.index().unwrap();
-    assert!(index.get_path(std::path::Path::new("file.txt"), 0).is_some());
+    assert!(index
+        .get_path(std::path::Path::new("file.txt"), 0)
+        .is_some());
 }
 
 #[tokio::test]
@@ -713,7 +667,9 @@ async fn test_stage_files_deleted() {
 
     let mut index = repo.repo.index().unwrap();
     index.read(true).unwrap();
-    assert!(index.get_path(std::path::Path::new("file.txt"), 0).is_none());
+    assert!(index
+        .get_path(std::path::Path::new("file.txt"), 0)
+        .is_none());
 }
 
 #[tokio::test]
@@ -730,7 +686,9 @@ async fn test_unstage_files() {
         .unwrap();
 
     let index = repo.repo.index().unwrap();
-    assert!(index.get_path(std::path::Path::new("file.txt"), 0).is_none());
+    assert!(index
+        .get_path(std::path::Path::new("file.txt"), 0)
+        .is_none());
 }
 
 #[tokio::test]
@@ -755,12 +713,17 @@ async fn test_unsafe_paths() {
 
     let err1 = stage_files(repo.path_str().to_string(), vec!["/etc/passwd".to_string()]).await;
     assert!(err1.is_err());
-    assert!(err1.unwrap_err().message.contains("Absolute paths are not allowed"));
+    assert!(err1
+        .unwrap_err()
+        .message
+        .contains("Absolute paths are not allowed"));
 
-    let err2 =
-        discard_changes(repo.path_str().to_string(), vec!["/etc/passwd".to_string()]).await;
+    let err2 = discard_changes(repo.path_str().to_string(), vec!["/etc/passwd".to_string()]).await;
     assert!(err2.is_err());
-    assert!(err2.unwrap_err().message.contains("Absolute paths are not allowed"));
+    assert!(err2
+        .unwrap_err()
+        .message
+        .contains("Absolute paths are not allowed"));
 
     let err3 = stage_files(
         repo.path_str().to_string(),
@@ -768,7 +731,10 @@ async fn test_unsafe_paths() {
     )
     .await;
     assert!(err3.is_err());
-    assert!(err3.unwrap_err().message.contains("Path traversal is not allowed"));
+    assert!(err3
+        .unwrap_err()
+        .message
+        .contains("Path traversal is not allowed"));
 
     let err4 = discard_changes(
         repo.path_str().to_string(),
@@ -776,7 +742,10 @@ async fn test_unsafe_paths() {
     )
     .await;
     assert!(err4.is_err());
-    assert!(err4.unwrap_err().message.contains("Path traversal is not allowed"));
+    assert!(err4
+        .unwrap_err()
+        .message
+        .contains("Path traversal is not allowed"));
 }
 
 #[tokio::test]
@@ -803,9 +772,7 @@ new file mode 100644
 
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert!(
-        err.message.contains("traversal") || err.message.contains("not allowed")
-    );
+    assert!(err.message.contains("traversal") || err.message.contains("not allowed"));
 }
 
 #[tokio::test]

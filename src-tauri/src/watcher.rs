@@ -151,5 +151,3 @@ pub fn is_significant_path(path_str: &str) -> bool {
     let normalized = path_str.replace('\\', "/");
     !normalized.contains(".git/objects/")
 }
-
-

@@ -203,5 +203,3 @@ pub async fn list_merged_branches(
     })
     .await?
 }
-
-

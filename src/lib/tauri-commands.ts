@@ -737,11 +737,7 @@ export const restoreReflogEntry = (
   mode: string,
   options?: InvokeOptions,
 ) =>
-  invokeCommand<void>(
-    "restore_reflog_entry",
-    { repoPath, oid, mode },
-    options,
-  );
+  invokeCommand<void>("restore_reflog_entry", { repoPath, oid, mode }, options);
 
 // ── Patch Commands ──
 
@@ -787,9 +783,4 @@ export const unlockWorktree = (
   worktreeName: string,
   options?: InvokeOptions,
 ) =>
-  invokeCommand<void>(
-    "unlock_worktree",
-    { repoPath, worktreeName },
-    options,
-  );
-
+  invokeCommand<void>("unlock_worktree", { repoPath, worktreeName }, options);

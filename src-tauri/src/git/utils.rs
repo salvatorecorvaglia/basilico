@@ -50,6 +50,3 @@ pub fn validate_relative_path(path: &str) -> Result<&Path, AppError> {
     }
     Ok(p)
 }
-
-
-

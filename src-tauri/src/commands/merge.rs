@@ -128,5 +128,3 @@ pub async fn resolve_conflict(path: String, file_path: String) -> Result<(), App
     })
     .await?
 }
-
-
