@@ -18,11 +18,11 @@ import { StatusBar } from "./components/layout/StatusBar";
 import { TabBar } from "./components/layout/TabBar";
 import { Toolbar } from "./components/layout/Toolbar";
 import { RebaseEditor } from "./components/rebase/RebaseEditor";
+import { ReflogInspector } from "./components/reflog/ReflogInspector";
 import { RepoSearch } from "./components/search/RepoSearch";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import { StagingArea } from "./components/staging/StagingArea";
 import { WelcomeScreen } from "./components/WelcomeScreen";
-import { ReflogInspector } from "./components/reflog/ReflogInspector";
 
 // Lazy load Monaco Editor components to reduce initial bundle footprint
 const DiffView = lazy(() =>

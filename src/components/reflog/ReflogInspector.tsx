@@ -14,20 +14,27 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ReflogEntry } from "../../lib/git-types";
+import type { ReflogEntry } from "../../lib/git-types";
 import { getReflog, restoreReflogEntry } from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./ReflogInspector.css";
 
-function getActionBadgeClass(message: string): { label: string; className: string } {
+function getActionBadgeClass(message: string): {
+  label: string;
+  className: string;
+} {
   const lower = message.toLowerCase();
-  if (lower.startsWith("checkout:")) return { label: "checkout", className: "action-checkout" };
+  if (lower.startsWith("checkout:"))
+    return { label: "checkout", className: "action-checkout" };
   if (lower.startsWith("commit:") || lower.startsWith("commit (amend):"))
     return { label: "commit", className: "action-commit" };
-  if (lower.startsWith("rebase")) return { label: "rebase", className: "action-rebase" };
-  if (lower.startsWith("reset:")) return { label: "reset", className: "action-reset" };
-  if (lower.startsWith("merge")) return { label: "merge", className: "action-merge" };
+  if (lower.startsWith("rebase"))
+    return { label: "rebase", className: "action-rebase" };
+  if (lower.startsWith("reset:"))
+    return { label: "reset", className: "action-reset" };
+  if (lower.startsWith("merge"))
+    return { label: "merge", className: "action-merge" };
   if (lower.startsWith("pull:") || lower.startsWith("fetch:"))
     return { label: "pull", className: "action-pull" };
   if (lower.startsWith("cherry-pick"))
@@ -59,8 +66,11 @@ export function ReflogInspector() {
   const [copiedOid, setCopiedOid] = useState<string | null>(null);
 
   // Restore Modal State
-  const [restoreModalEntry, setRestoreModalEntry] = useState<ReflogEntry | null>(null);
-  const [resetMode, setResetMode] = useState<"mixed" | "soft" | "hard">("mixed");
+  const [restoreModalEntry, setRestoreModalEntry] =
+    useState<ReflogEntry | null>(null);
+  const [resetMode, setResetMode] = useState<"mixed" | "soft" | "hard">(
+    "mixed",
+  );
   const [isRestoring, setIsRestoring] = useState(false);
 
   const fetchReflogEntries = useCallback(async () => {
@@ -87,7 +97,10 @@ export function ReflogInspector() {
   const handleCopyOid = (oid: string) => {
     navigator.clipboard.writeText(oid);
     setCopiedOid(oid);
-    addNotification({ type: "info", message: `Copied commit SHA ${oid.slice(0, 7)} to clipboard` });
+    addNotification({
+      type: "info",
+      message: `Copied commit SHA ${oid.slice(0, 7)} to clipboard`,
+    });
     setTimeout(() => setCopiedOid(null), 2000);
   };
 
@@ -95,7 +108,11 @@ export function ReflogInspector() {
     if (!activeTabId || !restoreModalEntry) return;
     setIsRestoring(true);
     try {
-      await restoreReflogEntry(activeTabId, restoreModalEntry.newOid, resetMode);
+      await restoreReflogEntry(
+        activeTabId,
+        restoreModalEntry.newOid,
+        resetMode,
+      );
       addNotification({
         type: "success",
         message: `Successfully reset HEAD (${resetMode}) to ${restoreModalEntry.newOid.slice(0, 7)}`,
@@ -137,7 +154,8 @@ export function ReflogInspector() {
             <h2 className="reflog-title">
               Reflog Inspector
               <span className="reflog-count-badge">
-                {filteredEntries.length} {filteredEntries.length === 1 ? "entry" : "entries"}
+                {filteredEntries.length}{" "}
+                {filteredEntries.length === 1 ? "entry" : "entries"}
               </span>
             </h2>
             <p className="reflog-subtitle">
@@ -234,13 +252,20 @@ export function ReflogInspector() {
                 const isCopied = copiedOid === entry.newOid;
 
                 return (
-                  <tr key={`${entry.index}-${entry.newOid}`} className="reflog-row">
+                  <tr
+                    key={`${entry.index}-${entry.newOid}`}
+                    className="reflog-row"
+                  >
                     {/* Index */}
-                    <td className="col-index">{refTarget}@{`{${entry.index}}`}</td>
+                    <td className="col-index">
+                      {refTarget}@{`{${entry.index}}`}
+                    </td>
 
                     {/* Action Badge */}
                     <td className="col-action">
-                      <span className={`reflog-action-badge ${actionBadge.className}`}>
+                      <span
+                        className={`reflog-action-badge ${actionBadge.className}`}
+                      >
                         {actionBadge.label}
                       </span>
                     </td>
@@ -267,7 +292,9 @@ export function ReflogInspector() {
                     </td>
 
                     {/* Relative Date */}
-                    <td className="col-date">{formatRelativeTime(entry.date)}</td>
+                    <td className="col-date">
+                      {formatRelativeTime(entry.date)}
+                    </td>
 
                     {/* Restore Action */}
                     <td className="col-actions">
@@ -311,9 +338,12 @@ export function ReflogInspector() {
             <div className="reflog-modal-body">
               <div className="reflog-entry-preview">
                 <div className="reflog-preview-label">
-                  Target Ref Entry ({refTarget}@{`{${restoreModalEntry.index}}`} - {restoreModalEntry.newOid.slice(0, 7)})
+                  Target Ref Entry ({refTarget}@{`{${restoreModalEntry.index}}`}{" "}
+                  - {restoreModalEntry.newOid.slice(0, 7)})
                 </div>
-                <div className="reflog-preview-msg">{restoreModalEntry.message}</div>
+                <div className="reflog-preview-msg">
+                  {restoreModalEntry.message}
+                </div>
               </div>
 
               <div className="reflog-mode-options">
@@ -330,9 +360,12 @@ export function ReflogInspector() {
                     className="reflog-mode-radio"
                   />
                   <div className="reflog-mode-info">
-                    <span className="reflog-mode-name">Mixed Reset (Recommended)</span>
+                    <span className="reflog-mode-name">
+                      Mixed Reset (Recommended)
+                    </span>
                     <span className="reflog-mode-desc">
-                      Resets HEAD and staging index. Keeps all your working directory files unchanged.
+                      Resets HEAD and staging index. Keeps all your working
+                      directory files unchanged.
                     </span>
                   </div>
                 </div>
@@ -352,7 +385,8 @@ export function ReflogInspector() {
                   <div className="reflog-mode-info">
                     <span className="reflog-mode-name">Soft Reset</span>
                     <span className="reflog-mode-desc">
-                      Resets HEAD only. Keeps all uncommitted changes staged in the index.
+                      Resets HEAD only. Keeps all uncommitted changes staged in
+                      the index.
                     </span>
                   </div>
                 </div>
@@ -370,11 +404,15 @@ export function ReflogInspector() {
                     className="reflog-mode-radio"
                   />
                   <div className="reflog-mode-info">
-                    <span className="reflog-mode-name" style={{ color: "#ef4444" }}>
+                    <span
+                      className="reflog-mode-name"
+                      style={{ color: "#ef4444" }}
+                    >
                       Hard Reset (Warning: Destructive)
                     </span>
                     <span className="reflog-mode-desc">
-                      Discards all uncommitted changes in your working directory to match the target commit exactly.
+                      Discards all uncommitted changes in your working directory
+                      to match the target commit exactly.
                     </span>
                   </div>
                 </div>
@@ -396,7 +434,9 @@ export function ReflogInspector() {
                 onClick={handleConfirmRestore}
                 disabled={isRestoring}
               >
-                {isRestoring ? "Restoring..." : `Reset HEAD to ${restoreModalEntry.newOid.slice(0, 7)}`}
+                {isRestoring
+                  ? "Restoring..."
+                  : `Reset HEAD to ${restoreModalEntry.newOid.slice(0, 7)}`}
               </button>
             </div>
           </div>
