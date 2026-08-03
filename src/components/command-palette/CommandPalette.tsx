@@ -60,6 +60,13 @@ export function CommandPalette() {
       shortcut: "G S",
       action: () => setActiveView("staging"),
     },
+    {
+      id: "reflog",
+      name: "Switch View to Reflog Inspector",
+      category: "Navigation",
+      shortcut: "G R",
+      action: () => setActiveView("reflog"),
+    },
 
     {
       id: "search",

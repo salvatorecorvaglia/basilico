@@ -148,7 +148,8 @@ export type ActiveView =
   | "bisect"
   | "compare"
   | "conflict-resolver"
-  | "stash-inspector";
+  | "stash-inspector"
+  | "reflog";
 
 // ── Phase 3: Blame, History, Stash Types ──
 

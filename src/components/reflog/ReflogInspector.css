@@ -1,0 +1,527 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — Reflog Inspector Styles
+   ═══════════════════════════════════════════════════════ */
+
+.reflog-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background-color: var(--bg-primary, #12141c);
+  color: var(--text-primary, #e2e8f0);
+  font-family: inherit;
+  overflow: hidden;
+}
+
+/* Header bar */
+.reflog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 20px;
+  background-color: var(--bg-secondary, #1a1d29);
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+}
+
+.reflog-title-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.reflog-title-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--accent-gradient, linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2)));
+  color: var(--accent-primary, #6366f1);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.reflog-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary, #f8fafc);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reflog-count-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted, #94a3b8);
+}
+
+.reflog-subtitle {
+  font-size: 12px;
+  color: var(--text-muted, #94a3b8);
+  margin: 2px 0 0 0;
+}
+
+.reflog-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Controls inputs */
+.reflog-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 240px;
+}
+
+.reflog-search-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--text-muted, #64748b);
+  pointer-events: none;
+}
+
+.reflog-search-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 12px 0 32px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  background-color: var(--bg-tertiary, #0f111a);
+  color: var(--text-primary, #f1f5f9);
+  transition: all 0.15s ease;
+}
+
+.reflog-search-input:focus {
+  outline: none;
+  border-color: var(--accent-primary, #6366f1);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.reflog-select {
+  height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  background-color: var(--bg-tertiary, #0f111a);
+  color: var(--text-primary, #f1f5f9);
+  cursor: pointer;
+  outline: none;
+}
+
+.reflog-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  background-color: var(--bg-tertiary, #1e2230);
+  color: var(--text-primary, #f1f5f9);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.reflog-btn:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.reflog-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Content Area */
+.reflog-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+  position: relative;
+}
+
+/* Table */
+.reflog-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.reflog-table th {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-secondary, #181b26);
+  color: var(--text-muted, #94a3b8);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  z-index: 2;
+}
+
+.reflog-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.04));
+  vertical-align: middle;
+  transition: background-color 0.1s ease;
+}
+
+.reflog-row:hover td {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* Columns */
+.col-index {
+  width: 90px;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-muted, #94a3b8);
+  font-weight: 500;
+}
+
+.col-action {
+  width: 110px;
+}
+
+.col-sha {
+  width: 110px;
+}
+
+.col-message {
+  min-width: 250px;
+  color: var(--text-primary, #f1f5f9);
+  word-break: break-word;
+}
+
+.col-author {
+  width: 160px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.col-date {
+  width: 120px;
+  color: var(--text-muted, #64748b);
+  font-size: 11px;
+}
+
+.col-actions {
+  width: 110px;
+  text-align: right;
+}
+
+/* Action Badges */
+.reflog-action-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.action-checkout {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.action-commit {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.action-rebase {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.action-reset {
+  background: rgba(249, 115, 22, 0.15);
+  color: #fb923c;
+  border: 1px solid rgba(249, 115, 22, 0.3);
+}
+
+.action-merge {
+  background: rgba(6, 182, 212, 0.15);
+  color: #22d3ee;
+  border: 1px solid rgba(6, 182, 212, 0.3);
+}
+
+.action-pull, .action-fetch {
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.action-cherry-pick {
+  background: rgba(234, 179, 8, 0.15);
+  color: #facc15;
+  border: 1px solid rgba(234, 179, 8, 0.3);
+}
+
+.action-default {
+  background: rgba(148, 163, 184, 0.15);
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+/* SHA badge */
+.reflog-sha-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: var(--bg-tertiary, #0f111a);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  color: var(--accent-primary, #818cf8);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.reflog-sha-btn:hover {
+  background-color: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+/* Table row actions */
+.reflog-row-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 4px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  background-color: transparent;
+  color: var(--text-primary, #e2e8f0);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.reflog-row-btn:hover {
+  background-color: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+/* Empty / Loading States */
+.reflog-empty-state, .reflog-loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: var(--text-muted, #94a3b8);
+  gap: 12px;
+  text-align: center;
+}
+
+.reflog-empty-icon {
+  opacity: 0.4;
+}
+
+/* Modal styling */
+.reflog-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: reflogFadeIn 0.15s ease-out;
+}
+
+.reflog-modal {
+  width: 440px;
+  background-color: var(--bg-secondary, #1a1d29);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  animation: reflogSlideUp 0.15s ease-out;
+}
+
+.reflog-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+}
+
+.reflog-modal-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reflog-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reflog-modal-close:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary, #fff);
+}
+
+.reflog-modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.reflog-entry-preview {
+  padding: 12px;
+  border-radius: 8px;
+  background-color: var(--bg-tertiary, #0f111a);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.reflog-preview-label {
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+  margin-bottom: 4px;
+}
+
+.reflog-preview-msg {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #f8fafc);
+}
+
+.reflog-mode-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reflog-mode-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  background-color: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.reflog-mode-card:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  background-color: rgba(99, 102, 241, 0.05);
+}
+
+.reflog-mode-card.selected {
+  border-color: var(--accent-primary, #6366f1);
+  background-color: rgba(99, 102, 241, 0.1);
+}
+
+.reflog-mode-radio {
+  margin-top: 2px;
+}
+
+.reflog-mode-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.reflog-mode-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+}
+
+.reflog-mode-desc {
+  font-size: 11.5px;
+  color: var(--text-muted, #94a3b8);
+  margin-top: 2px;
+}
+
+.reflog-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+}
+
+.btn-secondary {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  background: transparent;
+  color: var(--text-primary, #e2e8f0);
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.btn-danger {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: none;
+  background-color: #ef4444;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn-danger:hover {
+  background-color: #dc2626;
+}
+
+@keyframes reflogFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes reflogSlideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}

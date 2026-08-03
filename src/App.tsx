@@ -22,6 +22,7 @@ import { RepoSearch } from "./components/search/RepoSearch";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import { StagingArea } from "./components/staging/StagingArea";
 import { WelcomeScreen } from "./components/WelcomeScreen";
+import { ReflogInspector } from "./components/reflog/ReflogInspector";
 
 // Lazy load Monaco Editor components to reduce initial bundle footprint
 const DiffView = lazy(() =>
@@ -144,6 +145,12 @@ const ViewRouter = React.memo(function ViewRouter({
       return (
         <PanelErrorBoundary>
           <StashInspector />
+        </PanelErrorBoundary>
+      );
+    case "reflog":
+      return (
+        <PanelErrorBoundary>
+          <ReflogInspector />
         </PanelErrorBoundary>
       );
     default:
