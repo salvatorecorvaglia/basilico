@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-08-01
+### Added
+
+- **Conflict Resolution Workflow & Banner**: Added `ConflictBanner` component and expanded Zustand store slice actions to handle merge/rebase conflict workflows smoothly with conflict state detection and resolution controls.
+- **Reflog Inspector UI**: Added `ReflogInspector` view component and integrated reflog inspection UI tab and command palette action for viewing and navigating repository reflog histories.
+
 
 ### Added
 
