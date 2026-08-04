@@ -1,0 +1,88 @@
+.conflict-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(
+    90deg,
+    rgba(239, 68, 68, 0.15),
+    rgba(245, 158, 11, 0.15)
+  );
+  border-bottom: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 8px 16px;
+  color: var(--text-primary, #f3f4f6);
+  font-size: 13px;
+  animation: slideDown 0.2s ease-out;
+  z-index: 40;
+}
+
+.conflict-banner-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.conflict-banner-icon {
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.conflict-banner-title {
+  font-weight: 600;
+  color: #f87171;
+}
+
+.conflict-banner-desc {
+  color: var(--text-secondary, #9ca3af);
+  font-size: 12px;
+}
+
+.conflict-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.conflict-banner-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.conflict-banner-btn-primary {
+  background-color: #ef4444;
+  color: #ffffff;
+}
+
+.conflict-banner-btn-primary:hover {
+  background-color: #dc2626;
+}
+
+.conflict-banner-btn-secondary {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary, #f3f4f6);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.conflict-banner-btn-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -6,9 +6,12 @@
 import { create } from "zustand";
 import { createCollaborationSlice } from "./slices/collaboration-slice";
 import { createGitDataSlice } from "./slices/git-data-slice";
+import { createRebaseBisectSlice } from "./slices/rebase-bisect-slice";
+import { createSearchSlice } from "./slices/search-slice";
 import { createSettingsSlice } from "./slices/settings-slice";
 import { createStagingSlice } from "./slices/staging-slice";
 import { createTabsSlice } from "./slices/tabs-slice";
+import { createWorktreeSubmoduleSlice } from "./slices/worktree-submodule-slice";
 import { INITIAL_LOADING_STATES, type RepoState } from "./types";
 
 export const useRepoStore = create<RepoState>((set, get, store) => ({
@@ -24,5 +27,8 @@ export const useRepoStore = create<RepoState>((set, get, store) => ({
   ...createGitDataSlice(set, get, store),
   ...createStagingSlice(set, get, store),
   ...createCollaborationSlice(set, get, store),
+  ...createRebaseBisectSlice(set, get, store),
+  ...createWorktreeSubmoduleSlice(set, get, store),
+  ...createSearchSlice(set, get, store),
   ...createSettingsSlice(set, get, store),
 }));

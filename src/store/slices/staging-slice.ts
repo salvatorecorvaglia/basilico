@@ -38,6 +38,10 @@ export interface StagingSlice {
     filePath: string,
     mergedContent: string,
   ) => Promise<void>;
+  resolveConflictWithSide: (
+    filePath: string,
+    side: "ours" | "theirs",
+  ) => Promise<void>;
 }
 
 export const createStagingSlice: StateCreator<
@@ -405,6 +409,33 @@ export const createStagingSlice: StateCreator<
           mergedContent,
           { errorPrefix: "Failed to resolve conflict" },
         );
+        set({ conflictStages: null, activeConflictedPath: null });
+        await get().refreshStatus();
+      },
+    );
+  },
+
+  resolveConflictWithSide: async (
+    filePath: string,
+    side: "ours" | "theirs",
+  ) => {
+    const { activeTabId } = get();
+    if (!activeTabId) return;
+
+    await withLoading(
+      get,
+      set,
+      "staging",
+      `Failed to resolve conflict using ${side}`,
+      async () => {
+        const stages = await commands.getConflictStages(activeTabId, filePath, {
+          silent: true,
+        });
+        const content =
+          side === "ours" ? (stages.ours ?? "") : (stages.theirs ?? "");
+        await commands.saveMergedResolution(activeTabId, filePath, content, {
+          errorPrefix: `Failed to resolve conflict using ${side}`,
+        });
         set({ conflictStages: null, activeConflictedPath: null });
         await get().refreshStatus();
       },

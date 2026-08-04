@@ -256,6 +256,10 @@ export interface RepoState {
     filePath: string,
     mergedContent: string,
   ) => Promise<void>;
+  resolveConflictWithSide: (
+    filePath: string,
+    side: "ours" | "theirs",
+  ) => Promise<void>;
 
   // Phase 10 Actions
   loadStashDetail: (index: number) => Promise<void>;

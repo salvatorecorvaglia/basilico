@@ -55,6 +55,13 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
                             && name != ".next"
                             && name != ".turbo"
                             && name != "out"
+                            && name != "vendor"
+                            && name != "coverage"
+                            && name != ".cache"
+                            && name != "tmp"
+                            && name != "storage"
+                            && name != ".idea"
+                            && name != ".vscode"
                         {
                             let _ = debouncer.watcher().watch(&path, RecursiveMode::Recursive);
                         }
@@ -70,9 +77,9 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
         );
 
         loop {
-            // Wakes up periodically to check if the repository is still open in AppState.
-            // This prevents background thread leaks when repositories are closed.
-            match rx.recv_timeout(Duration::from_secs(5)) {
+            // Wakes up periodically (1s) to check if the repository is still open in AppState.
+            // This prevents background thread leaks and race conditions when repos are switched/reopened.
+            match rx.recv_timeout(Duration::from_secs(1)) {
                 Ok(Ok(events)) => {
                     let state = app.state::<AppState>();
                     if state.get_watcher_id(&repo_path).as_deref() != Some(&watcher_id) {
@@ -143,6 +150,13 @@ pub fn is_significant_path(path_str: &str) -> bool {
             || name == "dist"
             || name == "build"
             || name == "out"
+            || name == "vendor"
+            || name == "coverage"
+            || name == ".cache"
+            || name == "tmp"
+            || name == "storage"
+            || name == ".idea"
+            || name == ".vscode"
         {
             return false;
         }

@@ -797,3 +797,55 @@ async fn test_list_and_add_worktree() {
     let wt_list2 = list_worktrees(repo.path_str().to_string()).await.unwrap();
     assert_eq!(wt_list2.len(), 2);
 }
+
+#[tokio::test]
+async fn test_pre_commit_hook_discovery_in_worktree() {
+    let repo = TempRepo::new();
+    repo.write_file("main.txt", "main content");
+    repo.commit("initial commit");
+
+    let rel_wt_path = "wt_hook_test";
+    let wt_dir = repo.path.join(rel_wt_path);
+    add_worktree(
+        repo.path_str().to_string(),
+        rel_wt_path.to_string(),
+        None,
+        Some("wt-hook-branch".to_string()),
+    )
+    .await
+    .unwrap();
+
+    // Verify .git in worktree is a pointer file
+    let wt_git_file = wt_dir.join(".git");
+    assert!(wt_git_file.is_file());
+
+    // Create executable pre-commit hook in repo's main hooks dir
+    let hooks_dir = repo.path.join(".git").join("hooks");
+    std::fs::create_dir_all(&hooks_dir).unwrap();
+    let hook_file = hooks_dir.join("pre-commit");
+    std::fs::write(&hook_file, "#!/bin/sh\nexit 1\n").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&hook_file).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&hook_file, perms).unwrap();
+    }
+
+    // Attempt to create commit in worktree with failing pre-commit hook
+    std::fs::write(wt_dir.join("main.txt"), "modified in wt").unwrap();
+
+    let result = create_commit(
+        wt_dir.to_string_lossy().to_string(),
+        "failing commit".to_string(),
+        None,
+        None,
+        false,
+        false,
+    )
+    .await;
+
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(err.message.contains("Pre-commit hook failed"));
+}

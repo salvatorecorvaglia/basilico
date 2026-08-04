@@ -7,6 +7,7 @@ import * as ContextMenu from "@radix-ui/react-context-menu";
 import {
   AlertTriangle,
   Calendar,
+  Check,
   ChevronDown,
   ChevronRight,
   Clock,
@@ -37,6 +38,7 @@ export function StagingArea() {
     saveStash,
     cherryPickAbort,
     revertAbort,
+    resolveConflictWithSide,
     settings,
   } = useRepoStore();
 
@@ -201,6 +203,47 @@ export function StagingArea() {
     }
   };
 
+  const handleDragStart = (
+    e: React.DragEvent,
+    file: string,
+    isStaged: boolean,
+  ) => {
+    e.dataTransfer.setData("text/plain", JSON.stringify({ file, isStaged }));
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDropOnStaged = async (e: React.DragEvent) => {
+    e.preventDefault();
+    try {
+      const raw = e.dataTransfer.getData("text/plain");
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data?.file && !data.isStaged) {
+        await stageFiles([data.file]);
+      }
+    } catch {
+      // Ignore invalid drag payload
+    }
+  };
+
+  const handleDropOnUnstaged = async (e: React.DragEvent) => {
+    e.preventDefault();
+    try {
+      const raw = e.dataTransfer.getData("text/plain");
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data?.file && data.isStaged) {
+        await unstageFiles([data.file]);
+      }
+    } catch {
+      // Ignore invalid drag payload
+    }
+  };
+
   const createKeyDownHandler = (
     file: string,
     isStaged: boolean,
@@ -269,6 +312,50 @@ export function StagingArea() {
   ) => (
     <ContextMenu.Portal>
       <ContextMenu.Content className="radix-context-menu">
+        {isConflicted && (
+          <>
+            <ContextMenu.Item
+              className="context-menu-item"
+              onSelect={async () => {
+                try {
+                  await resolveConflictWithSide(filePath, "ours");
+                  addNotification({
+                    type: "success",
+                    message: `Resolved conflict in ${getFileName(filePath)} using Ours (Local)`,
+                  });
+                } catch (err) {
+                  addNotification({
+                    type: "error",
+                    message: `Failed to resolve conflict: ${err}`,
+                  });
+                }
+              }}
+            >
+              <Check size={12} />
+              <span>Accept Ours (Local)</span>
+            </ContextMenu.Item>
+            <ContextMenu.Item
+              className="context-menu-item"
+              onSelect={async () => {
+                try {
+                  await resolveConflictWithSide(filePath, "theirs");
+                  addNotification({
+                    type: "success",
+                    message: `Resolved conflict in ${getFileName(filePath)} using Theirs (Incoming)`,
+                  });
+                } catch (err) {
+                  addNotification({
+                    type: "error",
+                    message: `Failed to resolve conflict: ${err}`,
+                  });
+                }
+              }}
+            >
+              <Check size={12} />
+              <span>Accept Theirs (Incoming)</span>
+            </ContextMenu.Item>
+          </>
+        )}
         {!isConflicted && (
           <ContextMenu.Item
             className="context-menu-item"
@@ -452,15 +539,23 @@ export function StagingArea() {
           </div>
 
           {stagedOpen && (
-            <div className="staging-list">
+            <div
+              className="staging-list"
+              onDragOver={handleDragOver}
+              onDrop={handleDropOnStaged}
+            >
               {staged.length === 0 ? (
-                <div className="staging-empty-text">No staged changes</div>
+                <div className="staging-empty-text">
+                  No staged changes (drag unstaged files here to stage)
+                </div>
               ) : (
                 staged.map((file) => (
                   <ContextMenu.Root key={file.path}>
                     <ContextMenu.Trigger>
                       <div
                         className={`staging-file-row ${selectedFilePath === file.path ? "selected" : ""}`}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, file.path, true)}
                         onClick={() => handleFileClick(file.path, true)}
                         onKeyDown={createKeyDownHandler(file.path, true, false)}
                       >
@@ -524,7 +619,11 @@ export function StagingArea() {
           </div>
 
           {unstagedOpen && (
-            <div className="staging-list">
+            <div
+              className="staging-list"
+              onDragOver={handleDragOver}
+              onDrop={handleDropOnUnstaged}
+            >
               {totalUnstaged === 0 ? (
                 <div className="staging-empty-text">No unstaged changes</div>
               ) : (
@@ -535,6 +634,10 @@ export function StagingArea() {
                       <ContextMenu.Trigger>
                         <div
                           className={`staging-file-row ${selectedFilePath === file.path ? "selected" : ""}`}
+                          draggable
+                          onDragStart={(e) =>
+                            handleDragStart(e, file.path, false)
+                          }
                           onClick={() => handleFileClick(file.path, false)}
                           onKeyDown={createKeyDownHandler(
                             file.path,

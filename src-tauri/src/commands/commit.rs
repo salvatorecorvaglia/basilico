@@ -14,13 +14,18 @@ pub async fn create_commit(
     bypass_hooks: bool,
 ) -> Result<String, AppError> {
     tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&path)?;
+
         // Run pre-commit hooks if not bypassed
         if !bypass_hooks {
-            let hooks_path = std::path::Path::new(&path).join(".git").join("hooks").join("pre-commit");
+            let mut hooks_path = repo.path().join("hooks").join("pre-commit");
+            if !hooks_path.exists() {
+                hooks_path = repo.commondir().join("hooks").join("pre-commit");
+            }
+
             if hooks_path.exists() {
-                let mut cmd = crate::commands::new_command("git");
+                let mut cmd = crate::commands::new_command(hooks_path.to_str().unwrap_or("git"));
                 cmd.current_dir(&path);
-                cmd.args(["hook", "run", "pre-commit"]);
                 cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
                 match cmd.output() {
@@ -43,21 +48,23 @@ pub async fn create_commit(
             }
         }
 
-        let repo = Repository::open(&path)?;
         let mut index = repo.index()?;
         let tree_id = index.write_tree()?;
         let tree = repo.find_tree(tree_id)?;
 
-        // Create signature
+        // Get committer signature (user's git config identity)
+        let committer_sig = repo.signature().map_err(|_| {
+            AppError::invalid_state(
+                "Git author name and email are not configured. \
+                 Please set them in Settings or via 'git config user.name' and 'git config user.email'.",
+            )
+        })?;
+
+        // Create author signature
         let sig = if let (Some(name), Some(email)) = (author_name, author_email) {
             Signature::now(&name, &email)?
         } else {
-            repo.signature().map_err(|_| {
-                AppError::invalid_state(
-                    "Git author name and email are not configured. \
-                     Please set them in Settings or via 'git config user.name' and 'git config user.email'.",
-                )
-            })?
+            committer_sig.clone()
         };
 
         // Determine parents
@@ -97,7 +104,7 @@ pub async fn create_commit(
             // GPG sign commit
             let commit_content_buf = repo.commit_create_buffer(
                 &sig,
-                &sig,
+                &committer_sig,
                 &message,
                 &tree,
                 &parent_refs,

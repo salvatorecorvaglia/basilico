@@ -12,6 +12,7 @@ import { CommandPalette } from "./components/command-palette/CommandPalette";
 import { CommitDetail } from "./components/graph/CommitDetail";
 import { CommitList } from "./components/graph/CommitList";
 import { ResetModal } from "./components/graph/ResetModal";
+import { ConflictBanner } from "./components/layout/ConflictBanner";
 import { PanelErrorBoundary } from "./components/layout/PanelErrorBoundary";
 import { Sidebar } from "./components/layout/Sidebar";
 import { StatusBar } from "./components/layout/StatusBar";
@@ -215,10 +216,15 @@ function App() {
       const savedActive = localStorage.getItem("basilico-active-repo");
       if (savedRepos) {
         try {
-          const paths = JSON.parse(savedRepos) as string[];
-          if (paths.length > 0) {
-            const { restoreRepositories } = useRepoStore.getState();
-            await restoreRepositories(paths, savedActive);
+          const parsed = JSON.parse(savedRepos);
+          if (Array.isArray(parsed)) {
+            const validPaths = parsed.filter(
+              (p): p is string => typeof p === "string" && p.trim().length > 0,
+            );
+            if (validPaths.length > 0) {
+              const { restoreRepositories } = useRepoStore.getState();
+              await restoreRepositories(validPaths, savedActive);
+            }
           }
         } catch (e) {
           console.error("Failed to parse saved repositories:", e);
@@ -379,6 +385,9 @@ function App() {
         <>
           {/* Toolbar */}
           <Toolbar />
+
+          {/* Conflict Alert Banner */}
+          <ConflictBanner />
 
           {/* Main Content */}
           <div className="app-content">

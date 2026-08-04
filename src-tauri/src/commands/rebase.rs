@@ -101,25 +101,53 @@ pub async fn rebase_write_todo(
 }
 
 fn get_todo_action(repo: &Repository, idx: usize) -> Result<String, AppError> {
-    let todo_path = repo.path().join("rebase-merge/git-rebase-todo");
-    if !todo_path.exists() {
-        return Ok("pick".to_string());
-    }
-    let content = fs::read_to_string(todo_path)?;
+    let rebase_dir = repo.path().join("rebase-merge");
+    let todo_path = rebase_dir.join("git-rebase-todo");
+    let done_path = rebase_dir.join("done");
+
     let mut instruction_lines = Vec::new();
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
+
+    // 1. Read completed steps from 'done' file if available
+    if done_path.exists() {
+        if let Ok(content) = fs::read_to_string(&done_path) {
+            for line in content.lines() {
+                let trimmed = line.trim();
+                if !trimmed.is_empty() && !trimmed.starts_with('#') {
+                    instruction_lines.push(trimmed.to_string());
+                }
+            }
         }
-        instruction_lines.push(trimmed);
+    }
+
+    // 2. Read remaining steps from 'git-rebase-todo'
+    if todo_path.exists() {
+        if let Ok(content) = fs::read_to_string(&todo_path) {
+            for line in content.lines() {
+                let trimmed = line.trim();
+                if !trimmed.is_empty() && !trimmed.starts_with('#') {
+                    instruction_lines.push(trimmed.to_string());
+                }
+            }
+        }
     }
 
     if idx < instruction_lines.len() {
-        let line = instruction_lines[idx];
+        let line = &instruction_lines[idx];
         let parts: Vec<&str> = line.split_whitespace().collect();
         if !parts.is_empty() {
-            return Ok(parts[0].to_lowercase());
+            let action = parts[0].to_lowercase();
+            // Normalize short aliases
+            let normalized = match action.as_str() {
+                "p" => "pick",
+                "r" => "reword",
+                "e" => "edit",
+                "s" => "squash",
+                "f" => "fixup",
+                "d" => "drop",
+                "x" => "exec",
+                other => other,
+            };
+            return Ok(normalized.to_string());
         }
     }
 

@@ -45,3 +45,21 @@ pub fn new_command(program: &str) -> std::process::Command {
     }
     cmd
 }
+
+/// Runs a git CLI subcommand in a working directory and returns stdout as String.
+pub fn run_git_cmd(args: &[&str], cwd: &str) -> Result<String, crate::error::AppError> {
+    let mut cmd = new_command("git");
+    cmd.current_dir(cwd);
+    cmd.args(args);
+
+    let output = cmd
+        .output()
+        .map_err(|e| crate::error::AppError::command(format!("Failed to execute git {:?}: {}", args, e)))?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(crate::error::AppError::git(format!("git {:?} failed: {}", args, stderr)))
+    }
+}
