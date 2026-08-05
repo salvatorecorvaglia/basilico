@@ -9,12 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Conflict Resolution Workflow & Banner**: Added `ConflictBanner` component and expanded Zustand store slice actions to handle merge/rebase conflict workflows smoothly with conflict state detection and resolution controls.
-- **Reflog Inspector UI**: Added `ReflogInspector` view component and integrated reflog inspection UI tab and command palette action for viewing and navigating repository reflog histories.
+- **Bundled Font Assets**: Added `@fontsource/geist-sans` and `@fontsource/inter` web font dependencies to ensure consistent typography rendering offline without external CDN requests.
+- **Commit Signature Status & Autolink Parsing Helpers**: Added dedicated `signature-status.ts` for GPG signature verification status handling and `autolink.ts` helper utilities with comprehensive unit test coverage (`signature-status.test.ts`, `autolink.test.ts`).
+- **Expanded Frontend Unit Test Coverage**: Added unit test suites for design tokens (`design-tokens.test.ts`), command registry (`command-registry.test.ts`), store slices (`store.test.ts`), and modal components (`MergedBranchSweeperModal.test.tsx`).
+- **Git Hook Execution Helpers**: Expanded backend `git/hooks.rs` to support pre-commit, post-commit, and pre-rebase execution helpers with environment propagation.
 
+### Changed
+
+- **Interactive Rebase Editor & Backend Refactoring**: Refactored `rebase.rs` backend command handlers and `RebaseEditor` frontend component for robust step processing and state tracking during interactive rebases.
+- **Accessibility & Focus Management**: Improved keyboard navigation, ARIA roles, focus states, and high-contrast theme tokens across UI components.
+- **Modal Component Organization**: Consolidated modals into `src/components/modals/` directory (`SubmoduleModal`, `WorktreeModal`, `MergedBranchSweeperModal`).
+
+## [1.0.0] - 2026-08-03
 
 ### Added
 
+- **Conflict Resolution Workflow & Banner**: Added `ConflictBanner` component and expanded Zustand store slice actions to handle merge/rebase conflict workflows smoothly with conflict state detection and resolution controls.
+- **Reflog Inspector UI**: Added `ReflogInspector` view component and integrated reflog inspection UI tab and command palette action for viewing and navigating repository reflog histories.
 - **Worktree Locking & Unlocking**: Added `lock_worktree` and `unlock_worktree` Tauri backend commands and frontend API wrappers to support locking and unlocking Git worktrees with optional lock reasons.
 - **Backend Patch & Reflog Commands**: Added `apply_patch` and `get_reflog` backend command handlers for managing Git patches and inspecting repository reflog entries.
 - **Dedicated Rust Test Suites**: Reorganized and expanded backend unit and integration tests into dedicated test modules (`src-tauri/tests/commands_tests.rs`, `src-tauri/tests/git_tests.rs`, `src-tauri/tests/watcher_tests.rs`, `src-tauri/tests/backend_integration_test.rs`).
