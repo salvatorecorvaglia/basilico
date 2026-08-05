@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Test Suite Structure**: Reorganized frontend unit test suite structure by migrating tests from `__tests__` directories into a centralized `src/tests/` layout (`src/tests/components/`, `src/tests/lib/`, `src/tests/store/`).
 - **Repository Path Handling**: Standardized repository path canonicalization across Tauri backend command handlers (`repo.rs`, `conflict_resolver.rs`) to maintain consistent path references across desktop platforms.
 - **Code Formatting & Cleanup**: Applied uniform code formatting, cleaned up whitespace, and updated Tauri command registrations across backend modules.
+- **Package Manager Specification**: Specified `packageManager` (`pnpm@11.17.0`) in `package.json` and updated GitHub Actions (`ci.yml`, `release.yml`) to automatically resolve pnpm from `package.json`.
 
 ## [0.13.1] - 2026-07-30
 
