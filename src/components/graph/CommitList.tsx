@@ -4,15 +4,15 @@
    ═══════════════════════════════════════════════════════ */
 
 import * as ContextMenu from "@radix-ui/react-context-menu";
+import { flexRender, type SortingState } from "@tanstack/react-table";
 import {
-  createColumnHelper,
-  flexRender,
+  legacyCreateColumnHelper as createColumnHelper,
   getCoreRowModel,
   getFilteredRowModel,
   getSortedRowModel,
-  type SortingState,
-  useReactTable,
-} from "@tanstack/react-table";
+  type LegacyColumnDef,
+  useLegacyTable as useReactTable,
+} from "@tanstack/react-table/legacy";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ArrowLeftRight,
@@ -171,7 +171,7 @@ export function CommitList() {
     return () => observer.disconnect();
   }, []);
 
-  const columns = useMemo(
+  const columns = useMemo<LegacyColumnDef<GraphCommit, any>[]>(
     () => [
       columnHelper.accessor("shortOid", {
         id: "sha",
