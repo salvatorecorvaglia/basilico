@@ -1,6 +1,6 @@
 # Basilico 🌿
 
-**Fast, modern, and beautiful Git GUI client**
+**Fast, modern and beautiful Git GUI client**
 
 **Basilico** is designed to provide a premium, visually stunning desktop experience for managing Git repositories. By pairing a high-performance Rust backend powered by `libgit2` bindings with a modern, highly responsive React frontend, Basilico offers lightning-fast operations, rich repository visualizations, and robust safety guarantees.
 

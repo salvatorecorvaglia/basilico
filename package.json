@@ -1,7 +1,7 @@
 {
   "name": "basilico",
   "version": "1.0.0",
-  "description": "Fast, modern, and beautiful Git GUI client",
+  "description": "Fast, modern and beautiful Git GUI client",
   "author": "Salvatore Corvaglia",
   "license": "MIT",
   "type": "module",
