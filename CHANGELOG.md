@@ -13,19 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Commit Signature Status & Autolink Parsing Helpers**: Added dedicated `signature-status.ts` for GPG signature verification status handling and `autolink.ts` helper utilities with comprehensive unit test coverage (`signature-status.test.ts`, `autolink.test.ts`).
 - **Expanded Frontend Unit Test Coverage**: Added unit test suites for design tokens (`design-tokens.test.ts`), command registry (`command-registry.test.ts`), store slices (`store.test.ts`), and modal components (`MergedBranchSweeperModal.test.tsx`).
 - **Git Hook Execution Helpers**: Expanded backend `git/hooks.rs` to support pre-commit, post-commit, and pre-rebase execution helpers with environment propagation.
-- **Conflict Resolution Workflow & Banner**: Added `ConflictBanner` component and expanded Zustand store slice actions to handle merge/rebase conflict workflows smoothly with conflict state detection and resolution controls.
+- **Conflict Resolution Workflow & Banner**: Added `ConflictBanner` component and expanded Zustand store slice actions to handle merge/rebase conflict workflows smoothly with conflict state detection and resolution controls (including `resolveConflictWithSide`).
 - **Reflog Inspector UI**: Added `ReflogInspector` view component and integrated reflog inspection UI tab and command palette action for viewing and navigating repository reflog histories.
 - **Worktree Locking & Unlocking**: Added `lock_worktree` and `unlock_worktree` Tauri backend commands and frontend API wrappers to support locking and unlocking Git worktrees with optional lock reasons.
+- **Worktree & Submodule Store Slices**: Modularized Zustand state management by extracting `worktree-submodule-slice.ts` to handle worktree and submodule commands cleanly.
 - **Backend Patch & Reflog Commands**: Added `apply_patch` and `get_reflog` backend command handlers for managing Git patches and inspecting repository reflog entries.
 - **Dedicated Rust Test Suites**: Reorganized and expanded backend unit and integration tests into dedicated test modules (`src-tauri/tests/commands_tests.rs`, `src-tauri/tests/git_tests.rs`, `src-tauri/tests/watcher_tests.rs`, `src-tauri/tests/backend_integration_test.rs`).
 - **Modular Shortcut Helper & Frontend Unit Tests**: Extracted global keyboard shortcut parsing and matching into `src/lib/shortcuts.ts` and added dedicated frontend unit test coverage for keyboard shortcuts (`shortcuts.test.ts`), autolinks (`forge-links.test.ts`), reference validation (`git-validation.test.ts`), and user error messages (`error-messages.test.ts`).
 
 ### Changed
 
+- **TanStack Table v9 Migration**: Upgraded `@tanstack/react-table` to v9, bumped Biome linter configuration, and refactored `CommitList` components for compatibility with updated column helpers and table imports.
 - **Interactive Rebase Editor & Backend Refactoring**: Refactored `rebase.rs` backend command handlers and `RebaseEditor` frontend component for robust step processing and state tracking during interactive rebases.
 - **Accessibility & Focus Management**: Improved keyboard navigation, ARIA roles, focus states, and high-contrast theme tokens across UI components.
 - **Modal Component Organization**: Consolidated modals into `src/components/modals/` directory (`SubmoduleModal`, `WorktreeModal`, `MergedBranchSweeperModal`).
-- **Test Suite Structure**: Reorganized frontend unit test suite structure by migrating tests from `__tests__` directories into a centralized `src/tests/` layout (`src/tests/components/`, `src/tests/lib/`, `src/tests/store/`).
+- **Test Suite Structure**: Reorganized frontend unit test suite structure by migrating helper and store unit tests into a centralized `src/lib/tests/` layout.
 - **Repository Path Handling**: Standardized repository path canonicalization across Tauri backend command handlers (`repo.rs`, `conflict_resolver.rs`) to maintain consistent path references across desktop platforms.
 - **Code Formatting & Cleanup**: Applied uniform code formatting, cleaned up whitespace, and updated Tauri command registrations across backend modules.
 - **Package Manager Specification**: Specified `packageManager` (`pnpm@11.17.0`) in `package.json` and updated GitHub Actions (`ci.yml`, `release.yml`) to automatically resolve pnpm from `package.json`.

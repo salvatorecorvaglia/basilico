@@ -71,7 +71,7 @@ We use **Biome** to format and lint our TypeScript, React, and CSS code. Ensure 
 - Format your Rust code with `cargo fmt`.
 - Ensure there are no warnings or errors reported by `cargo clippy`.
 - Follow idiomatic Rust guidelines (explicit error handling, proper ownership and borrowing, avoidance of `unwrap()` in production-ready command handlers).
-- Modularize Tauri commands into domain-specific modules under `src-tauri/src/commands/` (e.g., `doctor.rs`, `ide.rs`, `branch.rs`, `rebase.rs`, `worktree.rs`, `patch.rs`, `reflog.rs`).
+- Modularize Tauri commands into domain-specific modules under `src-tauri/src/commands/` (e.g., `doctor.rs`, `ide.rs`, `branch.rs`, `rebase.rs`, `worktree.rs`, `submodule.rs`, `patch.rs`, `reflog.rs`, `hooks.rs`, `conflict_resolver.rs`).
 - Errors should be propagated to the frontend via the custom `Error` wrapper in `src-tauri/src/error.rs`.
 
 ---
