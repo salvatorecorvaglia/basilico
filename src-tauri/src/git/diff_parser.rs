@@ -148,6 +148,9 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
         }
         .to_string();
 
+        // libgit2 only sets the binary flag once it has inspected the blob
+        // content, which happens during the walk below — so this is an initial
+        // guess, corrected in the print callback.
         let is_binary = delta.flags().is_binary();
 
         files.push(FileDiff {
@@ -190,6 +193,15 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
             .and_then(|path| file_map.get(path).copied());
 
         if let Some(idx) = file_idx {
+            // 'B' marks libgit2's "Binary files differ" line. Catching it here
+            // is the only reliable signal: the delta flag is not populated until
+            // the content has been examined, so reading it up front reported
+            // every binary file as text.
+            if line.origin() == 'B' {
+                files[idx].is_binary = true;
+                return true;
+            }
+
             // Truncate parsing if diff is too large
             let total_lines = line_counts[idx];
             if total_lines > 5000 {

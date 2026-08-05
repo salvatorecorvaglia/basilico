@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import type { UserSettings } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
 import { applyThemeToDOM } from "../../lib/theme-presets";
@@ -52,8 +53,20 @@ function formatShortcutKeys(shortcut: string): string[] {
 }
 
 export function SettingsModal() {
-  const { settingsOpen, toggleSettings, addNotification } = useUIStore();
-  const { settings, loadSettings, saveSettings } = useRepoStore();
+  const { settingsOpen, toggleSettings, addNotification } = useUIStore(
+    useShallow((s) => ({
+      settingsOpen: s.settingsOpen,
+      toggleSettings: s.toggleSettings,
+      addNotification: s.addNotification,
+    })),
+  );
+  const { settings, loadSettings, saveSettings } = useRepoStore(
+    useShallow((s) => ({
+      settings: s.settings,
+      loadSettings: s.loadSettings,
+      saveSettings: s.saveSettings,
+    })),
+  );
 
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
   const [draft, setDraft] = useState<UserSettings | null>(null);
@@ -142,6 +155,7 @@ export function SettingsModal() {
                 </Dialog.Title>
                 <Dialog.Close asChild>
                   <button
+                    type="button"
                     className="settings-close-btn"
                     aria-label="Close settings"
                   >

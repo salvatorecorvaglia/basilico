@@ -12,6 +12,14 @@ pub async fn open_in_ide(
     line: Option<u32>,
     editor: Option<String>,
 ) -> Result<(), AppError> {
+    // A path starting with '-' would be parsed as a flag by every editor CLI
+    // below. Anchoring it to the current directory keeps it positional.
+    let path = if path.starts_with('-') {
+        format!("./{}", path)
+    } else {
+        path
+    };
+
     tokio::task::spawn_blocking(move || {
         let editor_name = editor.unwrap_or_else(|| "code".to_string()).to_lowercase();
 

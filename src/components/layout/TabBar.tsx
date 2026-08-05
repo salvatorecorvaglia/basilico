@@ -5,12 +5,21 @@
 
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen, Plus, X } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import { useRepoStore } from "../../store/repo-store";
 import "./TabBar.css";
 
 export function TabBar() {
   const { tabs, activeTabId, switchTab, closeTab, openRepository } =
-    useRepoStore();
+    useRepoStore(
+      useShallow((s) => ({
+        tabs: s.tabs,
+        activeTabId: s.activeTabId,
+        switchTab: s.switchTab,
+        closeTab: s.closeTab,
+        openRepository: s.openRepository,
+      })),
+    );
 
   const handleOpenRepo = async () => {
     const selected = await open({
@@ -39,6 +48,7 @@ export function TabBar() {
           return (
             <div
               key={tab.id}
+              role="presentation"
               className={`tabbar-tab ${isActive ? "active" : ""}`}
               onClick={() => switchTab(tab.id)}
               title={tab.path}
@@ -75,6 +85,7 @@ export function TabBar() {
       </div>
 
       <button
+        type="button"
         className="tabbar-add"
         onClick={handleOpenRepo}
         title="Open Repository"

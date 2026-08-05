@@ -130,18 +130,6 @@ pub async fn launch_external_merge_tool(
             )));
         }
 
-        // Clean up any stale basilico merge temporary directories
-        if let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if name.starts_with("basilico_merge_") {
-                        let _ = std::fs::remove_dir_all(&path);
-                    }
-                }
-            }
-        }
-
         let temp_dir =
             std::env::temp_dir().join(format!("basilico_merge_{}", uuid::Uuid::new_v4()));
         let mut builder = std::fs::DirBuilder::new();
@@ -268,18 +256,53 @@ pub async fn launch_external_merge_tool(
             AppError::command(format!("Failed to start merge tool '{}': {}", program, e))
         })?;
 
-        if status.success() {
-            // Automatically stage the resolved file in Git if exit status is success
-            let mut index = repo.index()?;
-            index.add_path(std::path::Path::new(&file_path))?;
-            index.write()?;
-            Ok(())
-        } else {
-            Err(AppError::command(format!(
+        // This session's scratch files are no longer needed once the tool exits.
+        // Only our own directory is removed: a blanket sweep of every
+        // `basilico_merge_*` directory would delete the working files of another
+        // merge tool the user still has open.
+        let _ = std::fs::remove_dir_all(&temp_dir);
+
+        if !status.success() {
+            return Err(AppError::command(format!(
                 "Merge tool exited with non-zero status: {:?}",
                 status.code()
-            )))
+            )));
         }
+
+        // Staging a file that still contains conflict markers would commit them.
+        // Check before clearing the conflict from the index.
+        let merged_text = std::fs::read_to_string(&merged_path).unwrap_or_default();
+        if has_conflict_markers(&merged_text) {
+            return Err(AppError::conflict(format!(
+                "'{}' still contains conflict markers (<<<<<<<, =======, >>>>>>>). \
+                 Resolve them before staging the file.",
+                file_path
+            )));
+        }
+
+        let mut index = repo.index()?;
+        index.add_path(std::path::Path::new(&file_path))?;
+        index.write()?;
+        Ok(())
     })
     .await?
+}
+
+/// Detects leftover merge-conflict markers at the start of a line.
+pub fn has_conflict_markers(content: &str) -> bool {
+    let mut has_start = false;
+    let mut has_sep = false;
+    let mut has_end = false;
+
+    for line in content.lines() {
+        if line.starts_with("<<<<<<<") {
+            has_start = true;
+        } else if line.starts_with("=======") {
+            has_sep = true;
+        } else if line.starts_with(">>>>>>>") {
+            has_end = true;
+        }
+    }
+
+    has_start && has_sep && has_end
 }

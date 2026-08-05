@@ -437,49 +437,9 @@ async fn test_create_range_patch() {
     assert!(patch.contains("Subject: [PATCH] commit 2"));
 }
 
-#[tokio::test]
-async fn test_rebase_init_and_write_todo() {
-    let repo = TempRepo::new();
-    repo.write_file("test.txt", "hello");
-    repo.commit("initial commit");
-
-    let base_oid = repo.repo.head().unwrap().target().unwrap();
-
-    create_branch(repo.path_str().to_string(), "branch1".to_string(), None)
-        .await
-        .unwrap();
-    checkout_branch(repo.path_str().to_string(), "branch1".to_string())
-        .await
-        .unwrap();
-
-    repo.write_file("test2.txt", "hello 2");
-    repo.commit("commit 2");
-
-    repo.write_file("test3.txt", "hello 3");
-    repo.commit("commit 3");
-
-    let todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
-        .await
-        .unwrap();
-
-    assert_eq!(todos.len(), 2);
-    assert_eq!(todos[0].action, "pick");
-    assert_eq!(todos[1].action, "pick");
-
-    let mut modified_todos = todos.clone();
-    modified_todos[0].action = "edit".to_string();
-
-    rebase_write_todo(repo.path_str().to_string(), modified_todos)
-        .await
-        .unwrap();
-
-    let rebase = repo.repo.open_rebase(None).unwrap();
-    assert_eq!(rebase.len(), 2);
-}
-
-#[tokio::test]
-async fn test_rebase_step_loop() {
-    let repo = TempRepo::new();
+/// Builds `initial` → `commit 2` → `commit 3` on `branch1` and returns the
+/// OID of `initial`, which every rebase test uses as the upstream.
+async fn setup_rebase_repo(repo: &TempRepo, same_file: bool) -> git2::Oid {
     repo.write_file("test.txt", "initial");
     repo.commit("initial");
 
@@ -492,57 +452,131 @@ async fn test_rebase_step_loop() {
         .await
         .unwrap();
 
-    repo.write_file("test2.txt", "hello 2");
-    repo.commit("commit 2");
+    if same_file {
+        repo.write_file("test.txt", "initial\ncommit 2");
+        repo.commit("commit 2");
+        repo.write_file("test.txt", "initial\ncommit 2\ncommit 3");
+        repo.commit("commit 3");
+    } else {
+        repo.write_file("test2.txt", "hello 2");
+        repo.commit("commit 2");
+        repo.write_file("test3.txt", "hello 3");
+        repo.commit("commit 3");
+    }
 
-    repo.write_file("test3.txt", "hello 3");
-    repo.commit("commit 3");
+    base_oid
+}
 
-    let _todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
+fn commit_messages(repo: &TempRepo) -> Vec<String> {
+    let mut revwalk = repo.repo.revwalk().unwrap();
+    revwalk.push_head().unwrap();
+    revwalk
+        .map(|oid| {
+            repo.repo
+                .find_commit(oid.unwrap())
+                .unwrap()
+                .message()
+                .unwrap_or("")
+                .trim()
+                .to_string()
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn test_rebase_init_does_not_touch_repository() {
+    let repo = TempRepo::new();
+    let base_oid = setup_rebase_repo(&repo, false).await;
+
+    let todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
         .await
         .unwrap();
 
-    let status = rebase_step(repo.path_str().to_string(), "none".to_string(), None)
+    // Oldest first, matching the order git applies the todo in.
+    assert_eq!(todos.len(), 2);
+    assert_eq!(todos[0].summary, "commit 2");
+    assert_eq!(todos[1].summary, "commit 3");
+    assert!(todos.iter().all(|t| t.action == "pick"));
+
+    // Planning must be side-effect free: abandoning the editor here previously
+    // left the repository stranded mid-rebase.
+    assert_eq!(repo.repo.state(), git2::RepositoryState::Clean);
+    assert!(repo.repo.open_rebase(None).is_err());
+}
+
+#[tokio::test]
+async fn test_rebase_start_applies_plan_in_order() {
+    let repo = TempRepo::new();
+    let base_oid = setup_rebase_repo(&repo, false).await;
+
+    let todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
+        .await
+        .unwrap();
+
+    // Swap the two commits. This is the regression that matters: the previous
+    // libgit2-driven implementation ignored the reordered todo entirely and
+    // applied commits in their original order.
+    let reordered = vec![todos[1].clone(), todos[0].clone()];
+
+    let status = rebase_start(repo.path_str().to_string(), base_oid.to_string(), reordered)
         .await
         .unwrap();
 
     assert_eq!(status.status, "finished");
+
+    let messages = commit_messages(&repo);
+    assert_eq!(messages, vec!["commit 2", "commit 3", "initial"]);
 }
 
 #[tokio::test]
-async fn test_rebase_step_squash_and_fixup() {
+async fn test_rebase_start_drop_removes_commit() {
     let repo = TempRepo::new();
-    repo.write_file("test.txt", "initial");
-    repo.commit("initial");
+    let base_oid = setup_rebase_repo(&repo, false).await;
 
-    let base_oid = repo.repo.head().unwrap().target().unwrap();
-
-    create_branch(repo.path_str().to_string(), "branch1".to_string(), None)
+    let mut todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
         .await
         .unwrap();
-    checkout_branch(repo.path_str().to_string(), "branch1".to_string())
+    todos[0].action = "drop".to_string();
+
+    let status = rebase_start(repo.path_str().to_string(), base_oid.to_string(), todos)
         .await
         .unwrap();
+    assert_eq!(status.status, "finished");
 
-    repo.write_file("test.txt", "initial\ncommit 2");
-    repo.commit("commit 2");
+    let messages = commit_messages(&repo);
+    assert_eq!(messages, vec!["commit 3", "initial"]);
+}
 
-    repo.write_file("test.txt", "initial\ncommit 2\ncommit 3");
-    repo.commit("commit 3");
+#[tokio::test]
+async fn test_rebase_start_rejects_plan_that_drops_everything() {
+    let repo = TempRepo::new();
+    let base_oid = setup_rebase_repo(&repo, false).await;
 
-    let todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
+    let mut todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
         .await
         .unwrap();
-    assert_eq!(todos.len(), 2);
+    for t in todos.iter_mut() {
+        t.action = "drop".to_string();
+    }
 
-    let mut modified_todos = todos.clone();
-    modified_todos[1].action = "fixup".to_string();
+    let err = rebase_start(repo.path_str().to_string(), base_oid.to_string(), todos)
+        .await
+        .unwrap_err();
+    assert!(err.message.contains("drops every commit"));
+    assert_eq!(repo.repo.state(), git2::RepositoryState::Clean);
+}
 
-    rebase_write_todo(repo.path_str().to_string(), modified_todos)
+#[tokio::test]
+async fn test_rebase_start_fixup_melds_without_editor() {
+    let repo = TempRepo::new();
+    let base_oid = setup_rebase_repo(&repo, true).await;
+
+    let mut todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
         .await
         .unwrap();
+    todos[1].action = "fixup".to_string();
 
-    let status = rebase_step(repo.path_str().to_string(), "none".to_string(), None)
+    let status = rebase_start(repo.path_str().to_string(), base_oid.to_string(), todos)
         .await
         .unwrap();
     assert_eq!(status.status, "finished");
@@ -550,57 +584,28 @@ async fn test_rebase_step_squash_and_fixup() {
     let head_commit = repo.repo.head().unwrap().peel_to_commit().unwrap();
     assert_eq!(head_commit.parent_count(), 1);
     assert_eq!(head_commit.parent(0).unwrap().id(), base_oid);
+    // fixup keeps the first commit's message and discards the second's.
     assert_eq!(head_commit.message().unwrap().trim(), "commit 2");
+
     let content = std::fs::read_to_string(repo.path.join("test.txt")).unwrap();
     assert_eq!(content, "initial\ncommit 2\ncommit 3");
 }
 
 #[tokio::test]
-async fn test_rebase_step_squash_continue() {
+async fn test_rebase_start_squash_uses_edited_message() {
     let repo = TempRepo::new();
-    repo.write_file("test.txt", "initial");
-    repo.commit("initial");
+    let base_oid = setup_rebase_repo(&repo, true).await;
 
-    let base_oid = repo.repo.head().unwrap().target().unwrap();
-
-    create_branch(repo.path_str().to_string(), "branch1".to_string(), None)
+    let mut todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
         .await
         .unwrap();
-    checkout_branch(repo.path_str().to_string(), "branch1".to_string())
+    todos[1].action = "squash".to_string();
+    todos[1].summary = "combined message edited".to_string();
+
+    let status = rebase_start(repo.path_str().to_string(), base_oid.to_string(), todos)
         .await
         .unwrap();
-
-    repo.write_file("test.txt", "initial\ncommit 2");
-    repo.commit("commit 2");
-
-    repo.write_file("test.txt", "initial\ncommit 2\ncommit 3");
-    repo.commit("commit 3");
-
-    let todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
-        .await
-        .unwrap();
-    assert_eq!(todos.len(), 2);
-
-    let mut modified_todos = todos.clone();
-    modified_todos[1].action = "squash".to_string();
-
-    rebase_write_todo(repo.path_str().to_string(), modified_todos)
-        .await
-        .unwrap();
-
-    let status = rebase_step(repo.path_str().to_string(), "none".to_string(), None)
-        .await
-        .unwrap();
-    assert_eq!(status.status, "reword");
-
-    let status2 = rebase_step(
-        repo.path_str().to_string(),
-        "continue".to_string(),
-        Some("combined message edited".to_string()),
-    )
-    .await
-    .unwrap();
-    assert_eq!(status2.status, "finished");
+    assert_eq!(status.status, "finished");
 
     let head_commit = repo.repo.head().unwrap().peel_to_commit().unwrap();
     assert_eq!(head_commit.parent_count(), 1);
@@ -609,6 +614,104 @@ async fn test_rebase_step_squash_continue() {
         head_commit.message().unwrap().trim(),
         "combined message edited"
     );
+
+    let content = std::fs::read_to_string(repo.path.join("test.txt")).unwrap();
+    assert_eq!(content, "initial\ncommit 2\ncommit 3");
+}
+
+#[tokio::test]
+async fn test_rebase_reword_message_survives_shell_metacharacters() {
+    let repo = TempRepo::new();
+    let base_oid = setup_rebase_repo(&repo, false).await;
+
+    let mut todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
+        .await
+        .unwrap();
+    todos[0].action = "reword".to_string();
+    // The message reaches git through an `exec` line, so quoting has to hold up
+    // against characters the shell would otherwise interpret.
+    todos[0].summary = "it's a $(dangerous) `message` \"quoted\"".to_string();
+
+    let status = rebase_start(repo.path_str().to_string(), base_oid.to_string(), todos)
+        .await
+        .unwrap();
+    assert_eq!(status.status, "finished");
+
+    let messages = commit_messages(&repo);
+    assert!(
+        messages.contains(&"it's a $(dangerous) `message` \"quoted\"".to_string()),
+        "reworded message was mangled: {:?}",
+        messages
+    );
+}
+
+#[tokio::test]
+async fn test_rebase_conflict_then_abort_restores_original_head() {
+    let repo = TempRepo::new();
+    repo.write_file("test.txt", "base");
+    repo.commit("initial");
+
+    let base_oid = repo.repo.head().unwrap().target().unwrap();
+    let default_branch = repo.repo.head().unwrap().shorthand().unwrap().to_string();
+
+    // Divergent edits to the same line on both sides guarantee a conflict.
+    create_branch(repo.path_str().to_string(), "branch1".to_string(), None)
+        .await
+        .unwrap();
+    checkout_branch(repo.path_str().to_string(), "branch1".to_string())
+        .await
+        .unwrap();
+    repo.write_file("test.txt", "branch side");
+    repo.commit("branch commit");
+    let branch_head = repo.repo.head().unwrap().target().unwrap();
+
+    checkout_branch(repo.path_str().to_string(), default_branch.clone())
+        .await
+        .unwrap();
+    repo.write_file("test.txt", "upstream side");
+    repo.commit("upstream commit");
+    let upstream_oid = repo.repo.head().unwrap().target().unwrap();
+
+    checkout_branch(repo.path_str().to_string(), "branch1".to_string())
+        .await
+        .unwrap();
+
+    let todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
+        .await
+        .unwrap();
+    assert_eq!(todos.len(), 1);
+
+    let status = rebase_start(repo.path_str().to_string(), upstream_oid.to_string(), todos)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        status.status, "conflict",
+        "expected the rebase to stop on a conflict, got {:?}",
+        status
+    );
+
+    rebase_step(repo.path_str().to_string(), "abort".to_string(), None)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        repo.repo.head().unwrap().target().unwrap(),
+        branch_head,
+        "abort must restore the original branch head"
+    );
+    assert_eq!(repo.repo.state(), git2::RepositoryState::Clean);
+}
+
+#[tokio::test]
+async fn test_rebase_step_rejects_unknown_action() {
+    let repo = TempRepo::new();
+    setup_rebase_repo(&repo, false).await;
+
+    let err = rebase_step(repo.path_str().to_string(), "none".to_string(), None)
+        .await
+        .unwrap_err();
+    assert!(err.message.contains("Unsupported rebase action"));
 }
 
 #[tokio::test]
@@ -847,5 +950,455 @@ async fn test_pre_commit_hook_discovery_in_worktree() {
 
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert!(err.message.contains("Pre-commit hook failed"));
+    // A linked worktree has no hooks directory of its own, so discovery must
+    // fall through to the common directory shared with the main repository.
+    assert!(
+        err.message.contains("pre-commit"),
+        "the failure should name the hook that rejected the commit, got: {}",
+        err.message
+    );
+}
+
+/// A rejected push must surface as an error.
+///
+/// `Remote::push` returns Ok when the *transport* succeeded, even if the server
+/// refused the ref update. Without a `push_update_reference` callback the UI
+/// reported "pushed successfully" while nothing had reached the remote — this
+/// test fails if that callback is ever dropped again.
+#[tokio::test]
+async fn test_push_surfaces_server_side_rejection() {
+    use basilico_lib::commands::remote::push;
+
+    let repo = TempRepo::new();
+    repo.write_file("f.txt", "one");
+    repo.commit("one");
+
+    let branch = repo.repo.head().unwrap().shorthand().unwrap().to_string();
+
+    // A bare repository standing in for the remote.
+    let remote_path = repo
+        .path
+        .parent()
+        .unwrap()
+        .join(format!("remote-{}.git", uuid::Uuid::new_v4()));
+    git2::Repository::init_bare(&remote_path).unwrap();
+    repo.repo
+        .remote("origin", remote_path.to_str().unwrap())
+        .unwrap();
+
+    let app = tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap()
+        .handle()
+        .clone();
+
+    // First push establishes the branch on the remote.
+    push(
+        app.clone(),
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch.clone(),
+        false,
+        None,
+    )
+    .await
+    .expect("initial push should succeed");
+
+    // Move the remote forward independently, then rewrite local history so the
+    // two have diverged and a non-forced push must be refused.
+    let remote_repo = git2::Repository::open(&remote_path).unwrap();
+    let remote_head = remote_repo.head().unwrap().peel_to_commit().unwrap();
+    let sig = git2::Signature::now("Other", "other@example.com").unwrap();
+    let tree = remote_head.tree().unwrap();
+    remote_repo
+        .commit(
+            Some(&format!("refs/heads/{}", branch)),
+            &sig,
+            &sig,
+            "remote side moved on",
+            &tree,
+            &[&remote_head],
+        )
+        .unwrap();
+
+    repo.write_file("f.txt", "local divergence");
+    repo.commit("local side");
+
+    let result = push(
+        app,
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch,
+        false,
+        None,
+    )
+    .await;
+
+    // The point of the test is that a push which did not update the remote can
+    // never report success. Which layer catches it varies: libgit2 rejects an
+    // obviously diverged push locally, whereas a server-side refusal (protected
+    // branch, pre-receive hook) is only visible through the
+    // `push_update_reference` callback — see `test_push_rejection_report`.
+    let err = result.expect_err("a non-fast-forward push must not report success");
+    assert!(
+        !err.message.is_empty(),
+        "the failure must carry an explanation for the user"
+    );
+
+    // The remote must still be on its own commit, untouched by the failed push.
+    let remote_repo = git2::Repository::open(&remote_path).unwrap();
+    let remote_tip = remote_repo.head().unwrap().peel_to_commit().unwrap();
+    assert_eq!(remote_tip.summary().unwrap(), "remote side moved on");
+
+    std::fs::remove_dir_all(&remote_path).ok();
+}
+
+/// The collector that turns `push_update_reference` callbacks into an error.
+///
+/// This is the path a server-side refusal takes — libgit2 reports the push as
+/// successful and only signals the refusal through this callback.
+#[test]
+fn test_push_rejection_report() {
+    use basilico_lib::git::credentials::{check_push_rejections, new_push_rejections};
+
+    // Nothing rejected: the push stands.
+    let clean = new_push_rejections();
+    assert!(check_push_rejections(&clean).is_ok());
+
+    // One ref refused by the server.
+    let rejected = new_push_rejections();
+    rejected
+        .borrow_mut()
+        .push("refs/heads/main — pre-receive hook declined".to_string());
+    let err = check_push_rejections(&rejected).expect_err("a refusal must become an error");
+    assert!(err.message.contains("refs/heads/main"));
+    assert!(err.message.contains("pre-receive hook declined"));
+
+    // Several refusals are all reported, not just the first.
+    let many = new_push_rejections();
+    many.borrow_mut().push("refs/heads/a — denied".to_string());
+    many.borrow_mut().push("refs/heads/b — denied".to_string());
+    let err = check_push_rejections(&many).unwrap_err();
+    assert!(err.message.contains("refs/heads/a"));
+    assert!(err.message.contains("refs/heads/b"));
+}
+
+/* ═══════════════════════════════════════════════════════
+Git hook lifecycle
+═══════════════════════════════════════════════════════ */
+
+/// Install an executable hook script in the repository.
+#[cfg(unix)]
+fn install_hook(repo: &TempRepo, name: &str, body: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = repo.path.join(".git").join("hooks");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(name);
+    std::fs::write(&path, body).unwrap();
+    let mut perms = std::fs::metadata(&path).unwrap().permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(&path, perms).unwrap();
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_commit_msg_hook_can_rewrite_the_message() {
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "hello");
+
+    // A trailer-appending hook: the classic reason commit-msg exists.
+    install_hook(
+        &repo,
+        "commit-msg",
+        "#!/bin/sh\nprintf '\\nIssue: ABC-123\\n' >> \"$1\"\n",
+    );
+
+    let mut index = repo.repo.index().unwrap();
+    index
+        .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+        .unwrap();
+    index.write().unwrap();
+
+    create_commit(
+        repo.path_str().to_string(),
+        "add a file".to_string(),
+        None,
+        None,
+        false,
+        false,
+    )
+    .await
+    .unwrap();
+
+    let head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    let msg = head.message().unwrap();
+    assert!(msg.contains("add a file"), "original message lost: {msg:?}");
+    assert!(
+        msg.contains("Issue: ABC-123"),
+        "commit-msg hook edit was discarded: {msg:?}"
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_commit_msg_hook_rejection_aborts_the_commit() {
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "hello");
+    install_hook(
+        &repo,
+        "commit-msg",
+        "#!/bin/sh\necho 'bad message' >&2\nexit 1\n",
+    );
+
+    let mut index = repo.repo.index().unwrap();
+    index
+        .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+        .unwrap();
+    index.write().unwrap();
+
+    let err = create_commit(
+        repo.path_str().to_string(),
+        "nope".to_string(),
+        None,
+        None,
+        false,
+        false,
+    )
+    .await
+    .unwrap_err();
+
+    assert!(err.message.contains("commit-msg"), "got: {}", err.message);
+    assert!(
+        err.message.contains("bad message"),
+        "hook output should reach the user"
+    );
+    assert!(
+        repo.repo.head().is_err(),
+        "no commit should have been created"
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_core_hooks_path_is_honoured() {
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "hello");
+
+    // Husky and lefthook both work by pointing core.hooksPath elsewhere.
+    let custom = repo.path.join(".husky");
+    std::fs::create_dir_all(&custom).unwrap();
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let p = custom.join("commit-msg");
+        std::fs::write(&p, "#!/bin/sh\nprintf '\\nvia-hooks-path\\n' >> \"$1\"\n").unwrap();
+        let mut perms = std::fs::metadata(&p).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&p, perms).unwrap();
+    }
+    repo.repo
+        .config()
+        .unwrap()
+        .set_str("core.hooksPath", custom.to_str().unwrap())
+        .unwrap();
+
+    let mut index = repo.repo.index().unwrap();
+    index
+        .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+        .unwrap();
+    index.write().unwrap();
+
+    create_commit(
+        repo.path_str().to_string(),
+        "hooked".to_string(),
+        None,
+        None,
+        false,
+        false,
+    )
+    .await
+    .unwrap();
+
+    let msg = repo
+        .repo
+        .head()
+        .unwrap()
+        .peel_to_commit()
+        .unwrap()
+        .message()
+        .unwrap()
+        .to_string();
+    assert!(
+        msg.contains("via-hooks-path"),
+        "core.hooksPath ignored: {msg:?}"
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_post_commit_failure_does_not_fail_the_commit() {
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "hello");
+    install_hook(&repo, "post-commit", "#!/bin/sh\nexit 3\n");
+
+    let mut index = repo.repo.index().unwrap();
+    index
+        .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+        .unwrap();
+    index.write().unwrap();
+
+    // git ignores post-commit's exit status; a failing notification hook must
+    // not make a successful commit look like it failed.
+    create_commit(
+        repo.path_str().to_string(),
+        "still committed".to_string(),
+        None,
+        None,
+        false,
+        false,
+    )
+    .await
+    .expect("post-commit failure must not abort the commit");
+
+    assert!(repo.repo.head().is_ok());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_bypass_hooks_skips_every_hook() {
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "hello");
+    install_hook(&repo, "pre-commit", "#!/bin/sh\nexit 1\n");
+    install_hook(&repo, "commit-msg", "#!/bin/sh\nexit 1\n");
+
+    let mut index = repo.repo.index().unwrap();
+    index
+        .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+        .unwrap();
+    index.write().unwrap();
+
+    create_commit(
+        repo.path_str().to_string(),
+        "bypassed".to_string(),
+        None,
+        None,
+        false,
+        true,
+    )
+    .await
+    .expect("bypass_hooks must skip failing hooks");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_non_executable_hook_is_ignored() {
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "hello");
+
+    // git skips hook files without the executable bit; so must we, otherwise a
+    // stale `.sample`-style file would block every commit.
+    let dir = repo.path.join(".git").join("hooks");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("pre-commit"), "#!/bin/sh\nexit 1\n").unwrap();
+
+    let mut index = repo.repo.index().unwrap();
+    index
+        .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+        .unwrap();
+    index.write().unwrap();
+
+    create_commit(
+        repo.path_str().to_string(),
+        "ok".to_string(),
+        None,
+        None,
+        false,
+        false,
+    )
+    .await
+    .expect("a non-executable hook must be ignored");
+}
+
+/// A force push must not silently overwrite commits pushed by someone else.
+///
+/// libgit2 has no `--force-with-lease`, so the check is explicit: the caller
+/// states which remote tip it believes is current, and the push is refused if
+/// the remote-tracking ref says otherwise.
+#[tokio::test]
+async fn test_force_push_refuses_when_remote_moved() {
+    use basilico_lib::commands::remote::push;
+
+    let repo = TempRepo::new();
+    repo.write_file("f.txt", "one");
+    repo.commit("one");
+    let branch = repo.repo.head().unwrap().shorthand().unwrap().to_string();
+
+    let remote_path = repo
+        .path
+        .parent()
+        .unwrap()
+        .join(format!("lease-remote-{}.git", uuid::Uuid::new_v4()));
+    git2::Repository::init_bare(&remote_path).unwrap();
+    repo.repo
+        .remote("origin", remote_path.to_str().unwrap())
+        .unwrap();
+
+    let app = tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap()
+        .handle()
+        .clone();
+
+    push(
+        app.clone(),
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch.clone(),
+        false,
+        None,
+    )
+    .await
+    .expect("initial push should succeed");
+
+    // The remote-tracking ref now records where we believe the remote is.
+    let tracked = repo
+        .repo
+        .find_reference(&format!("refs/remotes/origin/{}", branch))
+        .unwrap()
+        .target()
+        .unwrap()
+        .to_string();
+
+    // Claiming a stale tip must be refused...
+    let stale = "0".repeat(40);
+    let err = push(
+        app.clone(),
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch.clone(),
+        true,
+        Some(stale),
+    )
+    .await
+    .expect_err("a stale lease must block the force push");
+    assert!(
+        err.message.contains("Refusing to force push"),
+        "got: {}",
+        err.message
+    );
+
+    // ...while the correct tip lets it through.
+    repo.write_file("f.txt", "rewritten");
+    repo.commit("rewrite");
+    push(
+        app,
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch,
+        true,
+        Some(tracked),
+    )
+    .await
+    .expect("a matching lease should allow the force push");
+
+    std::fs::remove_dir_all(&remote_path).ok();
 }

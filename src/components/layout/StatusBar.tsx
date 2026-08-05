@@ -14,6 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   type CiStatusResult,
   fetchGitHubCiStatus,
@@ -24,8 +25,17 @@ import { GitDoctorModal } from "../settings/GitDoctorModal";
 import "./StatusBar.css";
 
 export function StatusBar() {
-  const { status, repoInfo, remotes, isRefreshing } = useRepoStore();
-  const { setActiveView } = useUIStore();
+  const { status, repoInfo, remotes, isRefreshing } = useRepoStore(
+    useShallow((s) => ({
+      status: s.status,
+      repoInfo: s.repoInfo,
+      remotes: s.remotes,
+      isRefreshing: s.isRefreshing,
+    })),
+  );
+  const { setActiveView } = useUIStore(
+    useShallow((s) => ({ setActiveView: s.setActiveView })),
+  );
   const [version, setVersion] = useState("");
   const [doctorOpen, setDoctorOpen] = useState(false);
   const [ciStatus, setCiStatus] = useState<CiStatusResult>({

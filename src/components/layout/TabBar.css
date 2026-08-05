@@ -37,7 +37,7 @@
   border-bottom: none;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   font-family: var(--font-family);
-  font-size: var(--text-sm);
+  font-size: var(--font-size-sm);
   font-weight: var(--weight-medium);
   white-space: nowrap;
   max-width: 180px;

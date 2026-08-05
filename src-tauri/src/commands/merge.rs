@@ -71,13 +71,25 @@ pub async fn abort_merge(path: String) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
 
-        // Clean up merge state files
-        repo.cleanup_state()?;
+        if repo.state() == git2::RepositoryState::Clean {
+            return Err(AppError::invalid_state(
+                "There is no merge in progress to abort.",
+            ));
+        }
 
-        if let Ok(head_ref) = repo.head() {
-            if let Ok(commit) = head_ref.peel_to_commit() {
-                repo.reset(commit.as_object(), git2::ResetType::Hard, None)?;
-            }
+        // Delegate to git rather than doing `cleanup_state` + `reset --hard`.
+        // `git merge --abort` restores the pre-merge working tree, including
+        // uncommitted changes that were compatible with the merge; the manual
+        // hard reset discarded them.
+        let output = crate::commands::new_command("git")
+            .current_dir(&path)
+            .args(["merge", "--abort"])
+            .output()
+            .map_err(|e| AppError::command(format!("Failed to run git merge --abort: {}", e)))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(AppError::git(format!("Merge abort failed: {}", stderr)));
         }
 
         Ok(())

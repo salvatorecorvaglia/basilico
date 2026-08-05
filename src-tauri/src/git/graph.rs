@@ -58,6 +58,30 @@ pub fn build_graph(
     hide_remotes: bool,
     path_filter: Option<&str>,
 ) -> Result<Vec<GraphCommit>, AppError> {
+    build_graph_page(
+        path,
+        0,
+        max_commits,
+        first_parent,
+        hide_remotes,
+        path_filter,
+    )
+}
+
+/// Build one page of the commit graph.
+///
+/// `skip` commits are still walked — lane assignment is a forward pass and the
+/// lanes in a page depend on everything before it — but only their OIDs and
+/// parents are read. Loading more commits therefore no longer re-serialises the
+/// messages, authors and dates of every commit already on screen.
+pub fn build_graph_page(
+    path: &str,
+    skip: usize,
+    max_commits: usize,
+    first_parent: bool,
+    hide_remotes: bool,
+    path_filter: Option<&str>,
+) -> Result<Vec<GraphCommit>, AppError> {
     let repo = Repository::open(path)?;
 
     // Collect refs for labeling
@@ -90,8 +114,12 @@ pub fn build_graph(
     let mut commits: Vec<GraphCommit> = Vec::new();
     let clean_path = path_filter.map(|s| s.trim()).filter(|s| !s.is_empty());
 
+    let mut scanned = 0usize;
+    let mut matched = 0usize;
+    let budget = skip.saturating_add(max_commits);
+
     for oid_result in revwalk {
-        if commits.len() >= max_commits {
+        if commits.len() >= budget {
             break;
         }
 
@@ -99,20 +127,49 @@ pub fn build_graph(
         let commit = repo.find_commit(oid)?;
 
         if let Some(target_path) = clean_path {
+            scanned += 1;
+            if scanned > PATH_FILTER_SCAN_LIMIT {
+                break;
+            }
             if !commit_touches_path(&repo, &commit, target_path)? {
                 continue;
             }
         }
 
+        let oid_str = oid.to_string();
         let parent_oids: Vec<String> = commit.parent_ids().map(|p| p.to_string()).collect();
-        let refs = ref_map.get(&oid.to_string()).cloned().unwrap_or_default();
+
+        // Rows before the requested page contribute their topology to lane
+        // assignment but are never sent to the client, so the costly field
+        // extraction is skipped for them.
+        if matched < skip {
+            matched += 1;
+            commits.push(GraphCommit {
+                short_oid: oid_str[..7.min(oid_str.len())].to_string(),
+                oid: oid_str,
+                message: String::new(),
+                author_name: String::new(),
+                author_email: String::new(),
+                author_date: 0,
+                committer_name: String::new(),
+                committer_date: 0,
+                parent_oids,
+                refs: Vec::new(),
+                lane: 0,
+                edges: Vec::new(),
+            });
+            continue;
+        }
+
+        matched += 1;
+        let refs = ref_map.get(&oid_str).cloned().unwrap_or_default();
 
         let author = commit.author();
         let committer = commit.committer();
 
         commits.push(GraphCommit {
-            oid: oid.to_string(),
-            short_oid: oid.to_string()[..7.min(oid.to_string().len())].to_string(),
+            short_oid: oid_str[..7.min(oid_str.len())].to_string(),
+            oid: oid_str,
             message: commit
                 .message()
                 .unwrap_or("")
@@ -132,10 +189,53 @@ pub fn build_graph(
         });
     }
 
-    // Assign lanes and edges
+    // Lanes must be assigned over the full prefix so the page's lanes line up
+    // with the rows already displayed.
     compute_lanes(&mut commits);
 
+    if skip > 0 {
+        commits.drain(..skip.min(commits.len()));
+    }
+
     Ok(commits)
+}
+
+/// Ceiling on how many commits are inspected when a path filter is active.
+///
+/// The `max_commits` limit counts *matching* commits, so a filter that matches
+/// rarely would otherwise walk the entire history before returning.
+const PATH_FILTER_SCAN_LIMIT: usize = 20_000;
+
+/// True when `target_path` looks like a literal file path rather than a
+/// pathspec pattern. Literal paths can be tested far more cheaply.
+fn is_literal_path(target_path: &str) -> bool {
+    !target_path.contains(['*', '?', '[', ']', ':'])
+}
+
+/// Fast path: a commit touched `target_path` iff the tree entry at that path
+/// differs from the parent's.
+///
+/// Comparing two tree-entry OIDs costs one path lookup per tree, against the
+/// full tree-to-tree diff the general case needs — the difference between
+/// O(depth) and O(tree size) for every commit in the walk.
+fn commit_touches_literal_path(commit: &git2::Commit, target_path: &str) -> Result<bool, AppError> {
+    let entry_oid = |tree: &git2::Tree| -> Option<git2::Oid> {
+        tree.get_path(std::path::Path::new(target_path))
+            .ok()
+            .map(|e| e.id())
+    };
+
+    let tree = commit.tree()?;
+    let current = entry_oid(&tree);
+
+    match commit.parent(0) {
+        Ok(parent) => {
+            let parent_tree = parent.tree()?;
+            Ok(current != entry_oid(&parent_tree))
+        }
+        // A root commit touches the path if it contains it at all.
+        Err(_) => Ok(current.is_some()),
+    }
 }
 
 fn commit_touches_path(
@@ -143,6 +243,10 @@ fn commit_touches_path(
     commit: &git2::Commit,
     target_path: &str,
 ) -> Result<bool, AppError> {
+    if is_literal_path(target_path) {
+        return commit_touches_literal_path(commit, target_path);
+    }
+
     let tree = commit.tree()?;
     let parent_tree = match commit.parent(0) {
         Ok(p) => Some(p.tree()?),

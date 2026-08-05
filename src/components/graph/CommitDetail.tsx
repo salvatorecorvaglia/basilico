@@ -15,11 +15,12 @@ import {
   FileText,
   Folder,
   Layers,
-  ShieldCheck,
   Tag,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import type { SignatureInfo, TreeEntryInfo } from "../../lib/git-types";
+import { describeSignature } from "../../lib/signature-status";
 import { getCommitSignature } from "../../lib/tauri-commands";
 import {
   formatDateTime,
@@ -124,8 +125,17 @@ function TreeViewNode({ node, level, onFileClick }: TreeViewNodeProps) {
     >
       {level > 0 && (
         <div
+          role="button"
+          tabIndex={0}
+          aria-expanded={node.isDir ? isOpen : undefined}
           className={`tree-node-row ${node.isDir ? "dir" : "file"}`}
           onClick={handleClick}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              handleClick(e as unknown as React.MouseEvent);
+            }
+          }}
         >
           {node.isDir ? (
             <span className="tree-node-chevron">
@@ -180,10 +190,29 @@ export function CommitDetail() {
     commitTree,
     loadCommitTree,
     isLoading,
-  } = useRepoStore();
+  } = useRepoStore(
+    useShallow((s) => ({
+      activeTabId: s.activeTabId,
+      commits: s.commits,
+      selectedCommitOid: s.selectedCommitOid,
+      commitDiff: s.commitDiff,
+      selectLocalFile: s.selectLocalFile,
+      createTag: s.createTag,
+      commitTree: s.commitTree,
+      loadCommitTree: s.loadCommitTree,
+      isLoading: s.isLoading,
+    })),
+  );
 
   const { setActiveView, addNotification, openFileViewer, openPrompt } =
-    useUIStore();
+    useUIStore(
+      useShallow((s) => ({
+        setActiveView: s.setActiveView,
+        addNotification: s.addNotification,
+        openFileViewer: s.openFileViewer,
+        openPrompt: s.openPrompt,
+      })),
+    );
   const [copiedOid, setCopiedOid] = useState(false);
   const [activeTab, setActiveTab] = useState<"changes" | "tree">("changes");
   const [sigInfo, setSigInfo] = useState<SignatureInfo | null>(null);
@@ -292,15 +321,24 @@ export function CommitDetail() {
               {" "}
               &lt;{commit.authorEmail}&gt;
             </span>
-            {sigInfo && (
-              <span
-                className="commit-gpg-badge"
-                title={`GPG Key ID: ${sigInfo.keyId}\nSigner: ${sigInfo.signer}`}
-              >
-                <ShieldCheck size={12} />
-                <span>{sigInfo.status}</span>
-              </span>
-            )}
+            {sigInfo &&
+              (() => {
+                const sig = describeSignature(sigInfo.status);
+                const SigIcon = sig.icon;
+                return (
+                  <span
+                    // role="img" so the badge is announced as a single unit;
+                    // a bare span has no role that supports aria-label.
+                    role="img"
+                    className={`commit-gpg-badge commit-gpg-badge--${sig.tone}`}
+                    aria-label={`Signature ${sig.label}. ${sig.hint}`}
+                    title={`${sig.hint}\nGPG Key ID: ${sigInfo.keyId}\nSigner: ${sigInfo.signer}`}
+                  >
+                    <SigIcon size={12} aria-hidden="true" />
+                    <span>{sig.label}</span>
+                  </span>
+                );
+              })()}
           </div>
           <div className="commit-detail-date text-secondary">
             {formatDateTime(commit.authorDate)}
@@ -310,6 +348,7 @@ export function CommitDetail() {
         <div className="commit-detail-oid">
           <span className="text-mono text-secondary">{commit.oid}</span>
           <button
+            type="button"
             className="commit-detail-copy"
             onClick={handleCopyOid}
             title="Copy SHA"
@@ -317,6 +356,7 @@ export function CommitDetail() {
             {copiedOid ? <Check size={12} /> : <Copy size={12} />}
           </button>
           <button
+            type="button"
             className="commit-detail-action-btn"
             onClick={handleCreateTagPrompt}
             title="Create Tag at this commit"
@@ -352,6 +392,7 @@ export function CommitDetail() {
       {/* Tabs Selector */}
       <div className="commit-detail-tabs-bar">
         <button
+          type="button"
           className={`commit-detail-tab-btn ${activeTab === "changes" ? "active" : ""}`}
           onClick={() => setActiveTab("changes")}
         >
@@ -359,6 +400,7 @@ export function CommitDetail() {
           <span>Changes ({commitDiff.length})</span>
         </button>
         <button
+          type="button"
           className={`commit-detail-tab-btn ${activeTab === "tree" ? "active" : ""}`}
           onClick={() => setActiveTab("tree")}
         >
@@ -430,10 +472,19 @@ export function CommitDetail() {
                     <ContextMenu.Root key={i}>
                       <ContextMenu.Trigger>
                         <div
+                          role="button"
+                          tabIndex={0}
                           className="commit-detail-file"
                           onClick={() => {
                             selectLocalFile(filePath, false);
                             setActiveView("staging");
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              selectLocalFile(filePath, false);
+                              setActiveView("staging");
+                            }
                           }}
                           style={{ cursor: "pointer" }}
                         >

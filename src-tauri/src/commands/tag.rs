@@ -56,10 +56,15 @@ pub async fn push_tag(
 
         let refspec = format!("refs/tags/{}:refs/tags/{}", tag_name, tag_name);
 
+        let rejections = crate::git::credentials::new_push_rejections();
         let mut push_opts = git2::PushOptions::new();
-        push_opts.remote_callbacks(crate::git::credentials::make_callbacks(ssh_key_path));
+        push_opts.remote_callbacks(crate::git::credentials::make_push_callbacks(
+            ssh_key_path,
+            rejections.clone(),
+        ));
 
         remote_obj.push(&[refspec.as_str()], Some(&mut push_opts))?;
+        crate::git::credentials::check_push_rejections(&rejections)?;
 
         Ok(())
     })

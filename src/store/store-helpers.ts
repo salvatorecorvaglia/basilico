@@ -44,6 +44,11 @@ export function setError(
   domain: string,
   message: string | null,
 ) {
+  if (message === null) {
+    clearError(get, set, domain);
+    return;
+  }
+
   set({
     error: message, // backward compat: also set the global error
     errors: { ...get().errors, [domain]: message },
@@ -56,9 +61,10 @@ export function clearError(
   set: (s: Partial<RepoState>) => void,
   domain: string,
 ) {
-  set({
-    errors: { ...get().errors, [domain]: null },
-  });
+  // The key is removed rather than set to null, so `errors` only ever contains
+  // domains that are actually failing and callers can count its entries.
+  const { [domain]: _cleared, ...rest } = get().errors;
+  set({ errors: rest });
 }
 
 /**

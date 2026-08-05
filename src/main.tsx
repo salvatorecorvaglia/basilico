@@ -1,3 +1,13 @@
+// Fonts are bundled rather than fetched from Google's CDN: a desktop Git client
+// must render correctly offline, and a CDN request on every launch leaks the
+// user's IP to a third party for no benefit.
+import "@fontsource/geist-sans/400.css";
+import "@fontsource/geist-sans/500.css";
+import "@fontsource/geist-sans/600.css";
+import "@fontsource/geist-sans/700.css";
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/500.css";
+import "@fontsource/inter/600.css";
 import { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import editorWorker from "monaco-editor/editor/editor.worker.js?worker";

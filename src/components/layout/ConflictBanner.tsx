@@ -1,12 +1,22 @@
 import { AlertTriangle, GitMerge, XCircle } from "lucide-react";
 import type React from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./ConflictBanner.css";
 
 export const ConflictBanner: React.FC = () => {
-  const { status, abortMerge, cherryPickAbort, revertAbort } = useRepoStore();
-  const { setActiveView } = useUIStore();
+  const { status, abortMerge, cherryPickAbort, revertAbort } = useRepoStore(
+    useShallow((s) => ({
+      status: s.status,
+      abortMerge: s.abortMerge,
+      cherryPickAbort: s.cherryPickAbort,
+      revertAbort: s.revertAbort,
+    })),
+  );
+  const { setActiveView } = useUIStore(
+    useShallow((s) => ({ setActiveView: s.setActiveView })),
+  );
 
   if (!status) return null;
 
@@ -58,6 +68,7 @@ export const ConflictBanner: React.FC = () => {
       </div>
       <div className="conflict-banner-actions">
         <button
+          type="button"
           className="conflict-banner-btn conflict-banner-btn-primary"
           onClick={handleOpenResolver}
         >
@@ -65,6 +76,7 @@ export const ConflictBanner: React.FC = () => {
           <span>Open Merge Editor</span>
         </button>
         <button
+          type="button"
           className="conflict-banner-btn conflict-banner-btn-secondary"
           onClick={handleAbort}
         >

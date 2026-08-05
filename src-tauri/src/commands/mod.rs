@@ -46,23 +46,48 @@ pub fn new_command(program: &str) -> std::process::Command {
     cmd
 }
 
-/// Runs a git CLI subcommand in a working directory and returns stdout as String.
+/// Run a git subcommand in `cwd` and return its trimmed stdout.
+///
+/// The single place git is invoked from, so exit-status handling is uniform:
+/// every caller previously had its own runner, and one of them ignored the exit
+/// status entirely, turning failures into empty result sets.
 pub fn run_git_cmd(args: &[&str], cwd: &str) -> Result<String, crate::error::AppError> {
-    let mut cmd = new_command("git");
-    cmd.current_dir(cwd);
-    cmd.args(args);
-
-    let output = cmd.output().map_err(|e| {
-        crate::error::AppError::command(format!("Failed to execute git {:?}: {}", args, e))
-    })?;
+    let output = git_output(args, cwd)?;
 
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        Err(crate::error::AppError::git(format!(
-            "git {:?} failed: {}",
-            args, stderr
+        Err(crate::error::AppError::git(git_failure_message(
+            args, &output,
         )))
+    }
+}
+
+/// Run a git subcommand and hand back the raw output for callers that need to
+/// inspect the exit code themselves (`git grep` exits 1 for "no matches").
+pub fn git_output(
+    args: &[&str],
+    cwd: &str,
+) -> Result<std::process::Output, crate::error::AppError> {
+    let mut cmd = new_command("git");
+    cmd.current_dir(cwd);
+    cmd.args(args);
+
+    cmd.output().map_err(|e| {
+        crate::error::AppError::command(format!("Failed to execute git {:?}: {}", args, e))
+    })
+}
+
+/// Build a diagnostic from a failed git invocation, preferring stderr but
+/// falling back to stdout — some subcommands report failures on stdout.
+pub fn git_failure_message(args: &[&str], output: &std::process::Output) -> String {
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let detail = if stderr.is_empty() { stdout } else { stderr };
+
+    if detail.is_empty() {
+        format!("git {:?} failed with no output", args)
+    } else {
+        format!("git {:?} failed: {}", args, detail)
     }
 }

@@ -62,7 +62,11 @@ export class ErrorBoundary extends React.Component<Props, State> {
               </div>
             )}
 
-            <button className="error-boundary-btn" onClick={this.handleReload}>
+            <button
+              type="button"
+              className="error-boundary-btn"
+              onClick={this.handleReload}
+            >
               <RefreshCw size={16} />
               <span>Reload Basilico</span>
             </button>

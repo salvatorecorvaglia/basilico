@@ -24,6 +24,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { openExternalTool } from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
@@ -43,7 +44,22 @@ export function Toolbar() {
     activeTabId,
     switchTab,
     openRepository,
-  } = useRepoStore();
+  } = useRepoStore(
+    useShallow((s) => ({
+      status: s.status,
+      isRefreshing: s.isRefreshing,
+      refreshAll: s.refreshAll,
+      fetch: s.fetch,
+      pull: s.pull,
+      push: s.push,
+      branches: s.branches,
+      checkoutBranch: s.checkoutBranch,
+      tabs: s.tabs,
+      activeTabId: s.activeTabId,
+      switchTab: s.switchTab,
+      openRepository: s.openRepository,
+    })),
+  );
 
   const {
     toggleCommandPalette,
@@ -51,7 +67,15 @@ export function Toolbar() {
     activeView,
     setActiveView,
     addNotification,
-  } = useUIStore();
+  } = useUIStore(
+    useShallow((s) => ({
+      toggleCommandPalette: s.toggleCommandPalette,
+      toggleSettings: s.toggleSettings,
+      activeView: s.activeView,
+      setActiveView: s.setActiveView,
+      addNotification: s.addNotification,
+    })),
+  );
 
   const [isFetching, setIsFetching] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
@@ -202,6 +226,7 @@ export function Toolbar() {
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <button
+              type="button"
               className="toolbar-btn toolbar-repo-selector"
               title="Switch active repository"
             >
@@ -274,6 +299,7 @@ export function Toolbar() {
         >
           <Popover.Trigger asChild>
             <button
+              type="button"
               className="toolbar-btn toolbar-branch-trigger"
               title="Switch active branch"
             >

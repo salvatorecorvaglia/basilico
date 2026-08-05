@@ -1,9 +1,15 @@
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import { useUIStore } from "../../store/ui-store";
 import "./NotificationToast.css";
 
 export function NotificationToast() {
-  const { notifications, removeNotification } = useUIStore();
+  const { notifications, removeNotification } = useUIStore(
+    useShallow((s) => ({
+      notifications: s.notifications,
+      removeNotification: s.removeNotification,
+    })),
+  );
 
   if (notifications.length === 0) return null;
 
@@ -39,6 +45,7 @@ export function NotificationToast() {
               )}
               {notif.action && (
                 <button
+                  type="button"
                   className="toast-action-btn"
                   onClick={() => {
                     notif.action?.onClick();
@@ -50,6 +57,7 @@ export function NotificationToast() {
               )}
             </div>
             <button
+              type="button"
               className="toast-close-btn"
               onClick={() => removeNotification(notif.id)}
             >

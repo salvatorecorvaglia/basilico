@@ -1,40 +1,151 @@
 use git2::{Cred, CredentialType, RemoteCallbacks};
-use std::path::PathBuf;
+use std::cell::RefCell;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+
+/// Collects per-ref rejection messages reported by the server during a push.
+///
+/// `Remote::push` succeeds as long as the *transport* succeeded, even when the
+/// server refuses individual ref updates (non-fast-forward, protected branch,
+/// pre-receive hook). The only way to observe those refusals is the
+/// `push_update_reference` callback, so we record them here and inspect the
+/// report once the push returns.
+pub type PushRejections = Rc<RefCell<Vec<String>>>;
+
+pub fn new_push_rejections() -> PushRejections {
+    Rc::new(RefCell::new(Vec::new()))
+}
+
+/// Turn collected rejections into a single error, if the server refused anything.
+pub fn check_push_rejections(rejections: &PushRejections) -> Result<(), crate::error::AppError> {
+    let rejected = rejections.borrow();
+    if rejected.is_empty() {
+        return Ok(());
+    }
+    Err(crate::error::AppError::git(format!(
+        "The remote rejected the push:\n{}",
+        rejected.join("\n")
+    )))
+}
+
+/// Build remote callbacks for a push, recording any server-side ref rejections
+/// into `rejections`. Callers MUST run [`check_push_rejections`] afterwards.
+pub fn make_push_callbacks<'a>(
+    custom_ssh_path: Option<String>,
+    rejections: PushRejections,
+) -> RemoteCallbacks<'a> {
+    let mut callbacks = make_callbacks(custom_ssh_path);
+    callbacks.push_update_reference(move |refname, status| {
+        if let Some(msg) = status {
+            rejections
+                .borrow_mut()
+                .push(format!("{} — {}", refname, msg));
+        }
+        // Returning Ok lets libgit2 report the remaining refs too; the caller
+        // converts the collected messages into a single actionable error.
+        Ok(())
+    });
+    callbacks
+}
+
+/// Candidate SSH keys, in the order they should be tried.
+fn ssh_key_candidates(custom_ssh_path: &Option<String>) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+
+    if let Some(path_str) = custom_ssh_path {
+        let path = PathBuf::from(path_str);
+        if path.exists() {
+            candidates.push(path);
+        }
+    }
+
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
+    for name in ["id_basilico", "id_ed25519", "id_ecdsa", "id_rsa"] {
+        let p = home.join(".ssh").join(name);
+        if p.exists() && !candidates.contains(&p) {
+            candidates.push(p);
+        }
+    }
+
+    candidates
+}
+
+/// True when the key file is passphrase-protected.
+///
+/// An encrypted key needs a passphrase that Basilico cannot prompt for from
+/// inside this callback, so such keys are skipped in favour of the agent —
+/// which is exactly where an unlocked copy of that key would live.
+#[doc(hidden)]
+pub fn key_is_encrypted_for_test(path: &Path) -> bool {
+    key_is_encrypted(path)
+}
+
+fn key_is_encrypted(path: &Path) -> bool {
+    let Ok(contents) = std::fs::read_to_string(path) else {
+        // Unreadable or binary: let libgit2 decide.
+        return false;
+    };
+
+    // Traditional PEM marks encryption in its headers; OpenSSH's own format
+    // names the cipher on the second line, with "none" meaning unencrypted.
+    if contents.contains("Proc-Type: 4,ENCRYPTED") || contents.contains("DEK-Info:") {
+        return true;
+    }
+
+    if contents.contains("BEGIN OPENSSH PRIVATE KEY") {
+        // The base64 body starts with a header naming the cipher; an unencrypted
+        // key encodes "none" there, which base64-encodes into the "bm9uZQ" run.
+        let body: String = contents
+            .lines()
+            .filter(|l| !l.starts_with("-----"))
+            .collect();
+        return !body.contains("bm9uZQ");
+    }
+
+    false
+}
 
 /// Build remote callbacks with credential handling.
 /// Supports SSH agent, SSH key files, and username/password.
 pub fn make_callbacks<'a>(custom_ssh_path: Option<String>) -> RemoteCallbacks<'a> {
     let mut callbacks = RemoteCallbacks::new();
 
+    // libgit2 re-invokes this callback until it succeeds or we return an error.
+    // Handing back the same rejected credential forever would spin, so each
+    // attempt moves on to the next candidate.
+    let mut attempt: usize = 0;
+
     callbacks.credentials(move |_url, username_from_url, allowed_types| {
-        // Try SSH keys
         if allowed_types.contains(CredentialType::SSH_KEY) {
             let username = username_from_url.unwrap_or("git");
-            // Try custom key first if provided
-            if let Some(ref path_str) = custom_ssh_path {
-                let path = PathBuf::from(path_str);
-                if path.exists() {
-                    return Cred::ssh_key(username, None, &path, None);
+            let candidates = ssh_key_candidates(&custom_ssh_path);
+
+            // Try each usable key once, then the agent, then give up.
+            while attempt < candidates.len() {
+                let path = candidates[attempt].clone();
+                attempt += 1;
+
+                if key_is_encrypted(&path) {
+                    log::debug!(
+                        "Skipping passphrase-protected SSH key {}; \
+                         add it to your ssh-agent with `ssh-add` to use it.",
+                        path.display()
+                    );
+                    continue;
                 }
+
+                return Cred::ssh_key(username, None, &path, None);
             }
 
-            let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
-            let basilico_path = home.join(".ssh").join("id_basilico");
-            let ed25519_path = home.join(".ssh").join("id_ed25519");
-            let key_path = home.join(".ssh").join("id_rsa");
-
-            if basilico_path.exists() {
-                return Cred::ssh_key(username, None, &basilico_path, None);
-            }
-            if ed25519_path.exists() {
-                return Cred::ssh_key(username, None, &ed25519_path, None);
-            }
-            if key_path.exists() {
-                return Cred::ssh_key(username, None, &key_path, None);
+            if attempt == candidates.len() {
+                attempt += 1;
+                return Cred::ssh_key_from_agent(username);
             }
 
-            // Fall back to SSH agent
-            return Cred::ssh_key_from_agent(username);
+            return Err(git2::Error::from_str(
+                "No usable SSH key was accepted. If your key has a passphrase, \
+                 load it into your ssh-agent with `ssh-add`, or select a key in Settings.",
+            ));
         }
 
         if allowed_types.contains(CredentialType::USER_PASS_PLAINTEXT) {

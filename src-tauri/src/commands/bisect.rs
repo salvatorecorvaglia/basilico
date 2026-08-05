@@ -16,12 +16,10 @@ pub struct BisectState {
     pub steps_remaining: Option<usize>,
 }
 
+/// Bisect reports progress on stdout *or* stderr depending on the subcommand,
+/// so success needs whichever one carried the message.
 fn run_git_cmd(repo_path: &str, args: &[&str]) -> Result<String, AppError> {
-    let output = crate::commands::new_command("git")
-        .current_dir(repo_path)
-        .args(args)
-        .output()
-        .map_err(|e| AppError::command(format!("Failed to execute git command: {}", e)))?;
+    let output = crate::commands::git_output(args, repo_path)?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -29,11 +27,9 @@ fn run_git_cmd(repo_path: &str, args: &[&str]) -> Result<String, AppError> {
     if output.status.success() {
         Ok(if stdout.is_empty() { stderr } else { stdout })
     } else {
-        Err(AppError::git(if stderr.is_empty() {
-            stdout
-        } else {
-            stderr
-        }))
+        Err(AppError::git(crate::commands::git_failure_message(
+            args, &output,
+        )))
     }
 }
 
@@ -79,8 +75,15 @@ pub async fn bisect_start(
         ));
     }
     tokio::task::spawn_blocking(move || {
-        // First run reset to clear any stale bisect state
-        let _ = run_git_cmd(&repo_path, &["bisect", "reset"]);
+        // Refuse rather than silently discarding an in-progress bisect: the
+        // reset would check out the original branch and throw away the search
+        // the user had already narrowed down.
+        let repo = Repository::open(&repo_path)?;
+        if repo.state() == git2::RepositoryState::Bisect {
+            return Err(AppError::invalid_state(
+                "A bisect session is already in progress. Finish or reset it before starting a new one.",
+            ));
+        }
 
         let output = run_git_cmd(&repo_path, &["bisect", "start", &bad, &good])?;
         Ok(get_bisect_state(&repo_path, output))

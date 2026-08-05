@@ -9,6 +9,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import * as commands from "../../lib/tauri-commands";
 import { useDarkMode } from "../../lib/use-dark-mode";
 import { getLanguageFromPath } from "../../lib/utils";
@@ -34,8 +35,24 @@ export function MergeEditor() {
     activeTabId,
     refreshAll,
     settings,
-  } = useRepoStore();
-  const { setActiveView, addNotification, openConfirm } = useUIStore();
+  } = useRepoStore(
+    useShallow((s) => ({
+      activeConflictedPath: s.activeConflictedPath,
+      conflictStages: s.conflictStages,
+      loadConflictStages: s.loadConflictStages,
+      resolveConflictStages: s.resolveConflictStages,
+      activeTabId: s.activeTabId,
+      refreshAll: s.refreshAll,
+      settings: s.settings,
+    })),
+  );
+  const { setActiveView, addNotification, openConfirm } = useUIStore(
+    useShallow((s) => ({
+      setActiveView: s.setActiveView,
+      addNotification: s.addNotification,
+      openConfirm: s.openConfirm,
+    })),
+  );
 
   const [launchingExternal, setLaunchingExternal] = useState(false);
 
@@ -269,12 +286,13 @@ export function MergeEditor() {
           </button>
 
           <button
+            type="button"
             className="merge-btn merge-btn-outline"
             onClick={() => setActiveView("staging")}
           >
             <X size={14} /> Cancel
           </button>
-          <button className="merge-btn" onClick={handleSave}>
+          <button type="button" className="merge-btn" onClick={handleSave}>
             <CheckSquare size={14} /> Save Resolution
           </button>
         </div>
@@ -343,6 +361,7 @@ export function MergeEditor() {
               </span>
               <div className="conflict-nav-buttons">
                 <button
+                  type="button"
                   disabled={activeBlockIndex === 0}
                   onClick={() => setActiveBlockIndex((prev) => prev - 1)}
                   className="nav-arrow-btn"
@@ -350,6 +369,7 @@ export function MergeEditor() {
                   <ChevronLeft size={16} />
                 </button>
                 <button
+                  type="button"
                   disabled={activeBlockIndex === conflictBlocks.length - 1}
                   onClick={() => setActiveBlockIndex((prev) => prev + 1)}
                   className="nav-arrow-btn"
@@ -359,18 +379,21 @@ export function MergeEditor() {
               </div>
               <div className="conflict-resolutions">
                 <button
+                  type="button"
                   className="resolve-btn resolve-ours"
                   onClick={() => handleResolveBlock("ours")}
                 >
                   Accept Ours
                 </button>
                 <button
+                  type="button"
                   className="resolve-btn resolve-theirs"
                   onClick={() => handleResolveBlock("theirs")}
                 >
                   Accept Theirs
                 </button>
                 <button
+                  type="button"
                   className="resolve-btn resolve-both"
                   onClick={() => handleResolveBlock("both")}
                 >

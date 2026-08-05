@@ -3,6 +3,9 @@
     "target": "ES2020",
     "useDefineForClassFields": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    /* Test files read source files from disk to assert cross-language
+       invariants, so they need Node's built-ins. */
+    "types": ["node", "vitest/globals", "@testing-library/jest-dom"],
     "module": "ESNext",
     "skipLibCheck": true,
 

@@ -20,7 +20,7 @@ body,
 
 body {
   font-family: var(--font-family);
-  font-size: var(--text-base);
+  font-size: var(--font-size-base);
   line-height: var(--leading-normal);
   color: var(--text-primary);
   background-color: var(--bg-base);
@@ -288,4 +288,38 @@ select:focus {
 
 .animate-spin {
   animation: spin 1s linear infinite;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Reduced Motion
+
+   Honours the OS "reduce motion" setting. Animations are collapsed to a
+   near-instant duration rather than removed outright, so anything that relies
+   on an animation reaching its end state (and on the animationend event that
+   follows) still settles correctly.
+
+   Spinners keep their motion but slow down: they signal ongoing work, and a
+   frozen spinner reads as a hung application.
+   ═══════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-spin,
+  .spinner,
+  .spinner-large {
+    animation-duration: 1.5s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  .animate-pulse,
+  .skeleton {
+    animation: none !important;
+  }
 }

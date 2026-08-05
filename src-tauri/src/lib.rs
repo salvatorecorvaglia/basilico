@@ -89,6 +89,7 @@ pub fn run() {
             // Rebase commands
             commands::rebase::rebase_init,
             commands::rebase::rebase_write_todo,
+            commands::rebase::rebase_start,
             commands::rebase::rebase_step,
             // Bisect commands
             commands::bisect::bisect_start,

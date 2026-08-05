@@ -33,6 +33,8 @@ export interface GitDataSlice {
   grepSearchResults: GrepMatch[];
 
   refreshGeneration: number;
+  /** False once the backend has returned a short page. */
+  hasMoreCommits: boolean;
 
   refreshStatus: () => Promise<void>;
   refreshCommitsAndStatus: () => Promise<void>;
@@ -76,6 +78,7 @@ export const createGitDataSlice: StateCreator<
   grepSearchResults: [],
 
   refreshGeneration: 0,
+  hasMoreCommits: true,
 
   refreshStatus: async () => {
     const { activeTabId, refreshGeneration } = get();
@@ -122,7 +125,7 @@ export const createGitDataSlice: StateCreator<
       ]);
       // Guard: only apply if still the same tab
       if (get().refreshGeneration === refreshGeneration) {
-        set({ status, commits });
+        set({ status, commits, hasMoreCommits: true });
       }
     } catch (err) {
       console.error("Failed to refresh commits and status:", err);
@@ -198,7 +201,16 @@ export const createGitDataSlice: StateCreator<
 
       // Guard: only apply if still the same tab
       if (get().refreshGeneration === refreshGeneration) {
-        set({ status, branches, tags, remotes, commits, stashes, repoInfo });
+        set({
+          status,
+          branches,
+          tags,
+          remotes,
+          commits,
+          stashes,
+          repoInfo,
+          hasMoreCommits: true,
+        });
 
         // Load worktrees and submodules in background (non-blocking)
         commands
@@ -287,21 +299,45 @@ export const createGitDataSlice: StateCreator<
       firstParentOnly,
       hideRemoteBranches,
       pathFilter,
+      refreshGeneration,
+      hasMoreCommits,
     } = get();
-    if (!activeTabId || loadingStates.commits) return;
+    if (!activeTabId || loadingStates.commits || !hasMoreCommits) return;
 
     setLoading(get, set, "commits", true);
     set({ error: null });
     try {
-      const moreCommits = await commands.getLog(
+      // Request only the next page. The backend still walks the preceding
+      // commits to keep graph lanes aligned, but no longer re-serialises them,
+      // so scrolling is linear in what is actually new rather than quadratic.
+      const page = await commands.getLog(
         activeTabId,
-        commits.length + count,
+        count,
         firstParentOnly,
         hideRemoteBranches,
         pathFilter,
         { silent: true },
+        commits.length,
       );
-      set({ commits: moreCommits });
+
+      // Guard: a tab switch during the fetch must not paste this tab's commits
+      // over the newly active one.
+      if (get().refreshGeneration !== refreshGeneration) return;
+
+      if (page.length === 0) {
+        set({ hasMoreCommits: false });
+        return;
+      }
+
+      // Defensive de-duplication: if the history changed underneath us the
+      // page boundary can overlap, and duplicate keys would break the list.
+      const seen = new Set(get().commits.map((c) => c.oid));
+      const fresh = page.filter((c) => !seen.has(c.oid));
+
+      set({
+        commits: [...get().commits, ...fresh],
+        hasMoreCommits: page.length >= count,
+      });
     } catch (err) {
       console.error("Failed to load more commits:", err);
       set({ error: String(err) });
@@ -336,7 +372,7 @@ export const createGitDataSlice: StateCreator<
   },
 
   loadFileBlame: async (filePath, commitOid = null) => {
-    const { activeTabId } = get();
+    const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
     setLoading(get, set, "blame", true);
@@ -347,7 +383,9 @@ export const createGitDataSlice: StateCreator<
         filePath,
         commitOid,
       );
-      set({ blameLines: lines });
+      if (get().refreshGeneration === refreshGeneration) {
+        set({ blameLines: lines });
+      }
     } catch (err) {
       console.error("Failed to load file blame:", err);
       set({ error: String(err) });
@@ -358,14 +396,16 @@ export const createGitDataSlice: StateCreator<
   },
 
   loadFileHistory: async (filePath) => {
-    const { activeTabId } = get();
+    const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
     setLoading(get, set, "history", true);
     set({ fileHistory: [], error: null });
     try {
       const history = await commands.getFileHistory(activeTabId, filePath);
-      set({ fileHistory: history });
+      if (get().refreshGeneration === refreshGeneration) {
+        set({ fileHistory: history });
+      }
     } catch (err) {
       console.error("Failed to load file history:", err);
       set({ error: String(err) });
@@ -376,7 +416,7 @@ export const createGitDataSlice: StateCreator<
   },
 
   searchCommits: async (query) => {
-    const { activeTabId } = get();
+    const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
     if (!query.trim()) {
@@ -390,7 +430,9 @@ export const createGitDataSlice: StateCreator<
       const results = await commands.searchCommits(activeTabId, query, {
         errorPrefix: "Failed to search commits",
       });
-      set({ commitSearchResults: results });
+      if (get().refreshGeneration === refreshGeneration) {
+        set({ commitSearchResults: results });
+      }
     } catch (err) {
       console.error("Failed to search commits:", err);
       set({ error: String(err) });
@@ -401,7 +443,7 @@ export const createGitDataSlice: StateCreator<
   },
 
   grepCode: async (query) => {
-    const { activeTabId } = get();
+    const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
     if (!query.trim()) {
@@ -415,7 +457,9 @@ export const createGitDataSlice: StateCreator<
       const results = await commands.grepCode(activeTabId, query, {
         errorPrefix: "Failed to search code",
       });
-      set({ grepSearchResults: results });
+      if (get().refreshGeneration === refreshGeneration) {
+        set({ grepSearchResults: results });
+      }
     } catch (err) {
       console.error("Failed to grep code:", err);
       set({ error: String(err) });

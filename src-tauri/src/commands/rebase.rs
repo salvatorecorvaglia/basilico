@@ -3,10 +3,25 @@ Basilico — Rebase Commands
 Command handlers for git rebase operations
 ═══════════════════════════════════════════════════════ */
 
+//! Interactive rebase is driven by `git rebase -i` rather than libgit2.
+//!
+//! libgit2 builds its operation list when the rebase is created and stores it
+//! as `cmt.N` files, hardcoded to "pick"; it never reads `git-rebase-todo`.
+//! Rewriting that file therefore had no effect on the order commits were
+//! applied in, while the per-step action was still looked up *by index* in the
+//! rewritten file — so after a reorder, `drop`/`squash`/`fixup` were applied to
+//! the wrong commits.
+//!
+//! Handing the plan to git itself makes reordering, dropping and squashing
+//! behave exactly as they do on the command line. The plan is passed to git
+//! through `GIT_SEQUENCE_EDITOR` via an environment variable, so no
+//! user-controlled path is ever interpolated into a shell string.
+
 use crate::error::AppError;
-use git2::{RebaseOptions, Repository};
+use git2::Repository;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -19,11 +34,186 @@ pub struct RebaseTodoItem {
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RebaseStatus {
-    pub status: String, // "none", "success", "conflict", "stepping", "finished"
+    pub status: String, // "none", "conflict", "edit", "finished"
     pub current_oid: Option<String>,
     pub message: Option<String>,
 }
 
+/// Where Basilico stores the todo body handed to `GIT_SEQUENCE_EDITOR`.
+fn plan_path(repo: &Repository) -> PathBuf {
+    repo.path().join("basilico-rebase-plan")
+}
+
+/// Directory holding commit messages referenced by `exec ... --file=`.
+fn message_dir(repo: &Repository) -> PathBuf {
+    repo.path().join("basilico-rebase-messages")
+}
+
+/// Quote a path for use inside a shell command in the rebase todo file.
+///
+/// `exec` lines are executed by the shell, so a repository path containing a
+/// space or a quote would otherwise split into multiple arguments.
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', r"'\''"))
+}
+
+/// Render the git todo body for `items`.
+///
+/// Actions that ordinarily require an interactive editor are expressed without
+/// one, so nothing can block waiting on input:
+///
+/// * `reword` → `pick` followed by `exec git commit --amend --file=…`
+/// * `squash` → `fixup` (which drops the message) plus the same amend, using
+///   the summary the user edited in the UI
+///
+/// `drop` is expressed by omitting the commit entirely.
+fn build_todo(items: &[RebaseTodoItem], msg_dir: &Path) -> Result<String, AppError> {
+    let mut todo = String::new();
+    let mut wrote_any = false;
+
+    for (idx, item) in items.iter().enumerate() {
+        let action = item.action.to_lowercase();
+        if action == "drop" || action == "d" {
+            continue;
+        }
+
+        let short = item.oid.as_str();
+
+        match action.as_str() {
+            "reword" | "r" => {
+                todo.push_str(&format!("pick {}\n", short));
+                let msg_file = msg_dir.join(format!("{}.msg", idx));
+                fs::write(&msg_file, format!("{}\n", item.summary.trim()))?;
+                todo.push_str(&format!(
+                    "exec git commit --amend --file={}\n",
+                    shell_quote(&msg_file.to_string_lossy())
+                ));
+            }
+            "squash" | "s" => {
+                // `fixup` keeps the base commit's message; the amend below then
+                // replaces it with the combined message the user chose.
+                todo.push_str(&format!("fixup {}\n", short));
+                let msg_file = msg_dir.join(format!("{}.msg", idx));
+                fs::write(&msg_file, format!("{}\n", item.summary.trim()))?;
+                todo.push_str(&format!(
+                    "exec git commit --amend --file={}\n",
+                    shell_quote(&msg_file.to_string_lossy())
+                ));
+            }
+            "fixup" | "f" => {
+                todo.push_str(&format!("fixup {}\n", short));
+            }
+            "edit" | "e" => {
+                todo.push_str(&format!("edit {}\n", short));
+            }
+            _ => {
+                todo.push_str(&format!("pick {}\n", short));
+            }
+        }
+
+        wrote_any = true;
+    }
+
+    if !wrote_any {
+        return Err(AppError::invalid_state(
+            "The rebase plan drops every commit. Keep at least one commit, or abort instead.",
+        ));
+    }
+
+    Ok(todo)
+}
+
+/// Run a git command with the sequence editor bound to our plan file.
+fn run_rebase_command(
+    repo_path: &str,
+    args: &[&str],
+    plan: Option<&Path>,
+) -> Result<std::process::Output, AppError> {
+    let mut cmd = crate::commands::new_command("git");
+    cmd.current_dir(repo_path);
+    cmd.args(args);
+
+    if let Some(plan) = plan {
+        // The plan path travels in the environment, never inside the command
+        // string, so spaces and quotes in the repository path are harmless.
+        cmd.env("BASILICO_REBASE_PLAN", plan);
+        cmd.env(
+            "GIT_SEQUENCE_EDITOR",
+            r#"sh -c 'cat "$BASILICO_REBASE_PLAN" > "$1"' --"#,
+        );
+    }
+
+    // Nothing may block on an interactive editor: every message this flow needs
+    // is supplied up front via `exec ... --file=`.
+    cmd.env("GIT_EDITOR", "true");
+
+    cmd.output()
+        .map_err(|e| AppError::command(format!("Failed to run git {:?}: {}", args, e)))
+}
+
+/// Inspect on-disk state to describe where the rebase stopped.
+fn current_status(
+    repo_path: &str,
+    output: &std::process::Output,
+) -> Result<RebaseStatus, AppError> {
+    let repo = Repository::open(repo_path)?;
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+    let in_progress = matches!(
+        repo.state(),
+        git2::RepositoryState::Rebase
+            | git2::RepositoryState::RebaseInteractive
+            | git2::RepositoryState::RebaseMerge
+    );
+
+    if !in_progress {
+        if !output.status.success() {
+            return Err(AppError::git(if stderr.is_empty() {
+                stdout
+            } else {
+                stderr
+            }));
+        }
+        return Ok(RebaseStatus {
+            status: "finished".to_string(),
+            current_oid: None,
+            message: Some("Rebase completed successfully".to_string()),
+        });
+    }
+
+    let head_oid = repo
+        .head()
+        .ok()
+        .and_then(|h| h.target())
+        .map(|o| o.to_string());
+    let has_conflicts = repo.index().map(|i| i.has_conflicts()).unwrap_or(false);
+
+    if has_conflicts {
+        return Ok(RebaseStatus {
+            status: "conflict".to_string(),
+            current_oid: head_oid,
+            message: Some(
+                "Conflicts detected. Resolve them in the staging area, then continue.".to_string(),
+            ),
+        });
+    }
+
+    Ok(RebaseStatus {
+        status: "edit".to_string(),
+        current_oid: head_oid,
+        message: Some(if stderr.is_empty() {
+            "Rebase paused. Make your changes, then continue.".to_string()
+        } else {
+            stderr
+        }),
+    })
+}
+
+/// Build the rebase plan for `upstream..HEAD` *without* touching repository state.
+///
+/// Opening the editor must not leave the repository mid-rebase — the previous
+/// implementation started one here, so cancelling the dialog stranded the repo.
 #[tauri::command]
 pub async fn rebase_init(
     repo_path: String,
@@ -32,42 +222,35 @@ pub async fn rebase_init(
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
 
-        let mut rebase = if let Ok(r) = repo.open_rebase(None) {
-            r
-        } else {
-            let upstream_obj = repo.revparse_single(&upstream)?;
-            let upstream_commit = repo.find_annotated_commit(upstream_obj.id())?;
+        let upstream_obj = repo.revparse_single(&upstream)?;
+        let upstream_commit = upstream_obj.peel_to_commit()?;
 
-            let mut opts = RebaseOptions::new();
-            repo.rebase(None, Some(&upstream_commit), None, Some(&mut opts))?
-        };
+        let head_commit = repo.head()?.peel_to_commit()?;
+
+        let mut revwalk = repo.revwalk()?;
+        revwalk.push(head_commit.id())?;
+        revwalk.hide(upstream_commit.id())?;
 
         let mut items = Vec::new();
-        let count = rebase.len();
-        for i in 0..count {
-            if let Some(op) = rebase.nth(i) {
-                let oid = op.id();
-                let summary = repo
-                    .find_commit(oid)
-                    .map(|c| c.summary().unwrap_or("").to_string())
-                    .unwrap_or_default();
+        for oid in revwalk {
+            let oid = oid?;
+            let commit = repo.find_commit(oid)?;
+            items.push(RebaseTodoItem {
+                action: "pick".to_string(),
+                oid: oid.to_string(),
+                summary: commit.summary().unwrap_or("").to_string(),
+            });
+        }
 
-                let action = match op.kind().unwrap_or(git2::RebaseOperationType::Pick) {
-                    git2::RebaseOperationType::Pick => "pick",
-                    git2::RebaseOperationType::Reword => "reword",
-                    git2::RebaseOperationType::Edit => "edit",
-                    git2::RebaseOperationType::Squash => "squash",
-                    git2::RebaseOperationType::Fixup => "fixup",
-                    git2::RebaseOperationType::Exec => "exec",
-                }
-                .to_string();
+        // A revwalk yields newest first; git applies the todo top-down, oldest
+        // first, and the UI mirrors that order.
+        items.reverse();
 
-                items.push(RebaseTodoItem {
-                    action,
-                    oid: oid.to_string(),
-                    summary,
-                });
-            }
+        if items.is_empty() {
+            return Err(AppError::invalid_state(format!(
+                "There are no commits between {} and HEAD to rebase.",
+                upstream
+            )));
         }
 
         Ok(items)
@@ -75,6 +258,8 @@ pub async fn rebase_init(
     .await?
 }
 
+/// Persist the plan the user assembled. Repository state is untouched until
+/// [`rebase_start`] runs.
 #[tauri::command]
 pub async fn rebase_write_todo(
     repo_path: String,
@@ -82,78 +267,45 @@ pub async fn rebase_write_todo(
 ) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
-        let todo_path = repo.path().join("rebase-merge/git-rebase-todo");
-
-        let mut content = String::new();
-        for item in items {
-            let short_oid = if item.oid.len() >= 7 {
-                &item.oid[0..7]
-            } else {
-                &item.oid
-            };
-            content.push_str(&format!("{} {} {}\n", item.action, short_oid, item.summary));
-        }
-
-        fs::write(todo_path, content)?;
+        let json = serde_json::to_string(&items)?;
+        fs::write(plan_path(&repo).with_extension("json"), json)?;
         Ok(())
     })
     .await?
 }
 
-fn get_todo_action(repo: &Repository, idx: usize) -> Result<String, AppError> {
-    let rebase_dir = repo.path().join("rebase-merge");
-    let todo_path = rebase_dir.join("git-rebase-todo");
-    let done_path = rebase_dir.join("done");
+/// Begin the rebase, handing `items` to git as the todo list.
+#[tauri::command]
+pub async fn rebase_start(
+    repo_path: String,
+    upstream: String,
+    items: Vec<RebaseTodoItem>,
+) -> Result<RebaseStatus, AppError> {
+    tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&repo_path)?;
 
-    let mut instruction_lines = Vec::new();
-
-    // 1. Read completed steps from 'done' file if available
-    if done_path.exists() {
-        if let Ok(content) = fs::read_to_string(&done_path) {
-            for line in content.lines() {
-                let trimmed = line.trim();
-                if !trimmed.is_empty() && !trimmed.starts_with('#') {
-                    instruction_lines.push(trimmed.to_string());
-                }
-            }
+        if repo.state() != git2::RepositoryState::Clean {
+            return Err(AppError::invalid_state(
+                "The repository already has an operation in progress. \
+                 Finish or abort it before starting a rebase.",
+            ));
         }
-    }
 
-    // 2. Read remaining steps from 'git-rebase-todo'
-    if todo_path.exists() {
-        if let Ok(content) = fs::read_to_string(&todo_path) {
-            for line in content.lines() {
-                let trimmed = line.trim();
-                if !trimmed.is_empty() && !trimmed.starts_with('#') {
-                    instruction_lines.push(trimmed.to_string());
-                }
-            }
-        }
-    }
+        let msg_dir = message_dir(&repo);
+        let _ = fs::remove_dir_all(&msg_dir);
+        fs::create_dir_all(&msg_dir)?;
 
-    if idx < instruction_lines.len() {
-        let line = &instruction_lines[idx];
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if !parts.is_empty() {
-            let action = parts[0].to_lowercase();
-            // Normalize short aliases
-            let normalized = match action.as_str() {
-                "p" => "pick",
-                "r" => "reword",
-                "e" => "edit",
-                "s" => "squash",
-                "f" => "fixup",
-                "d" => "drop",
-                "x" => "exec",
-                other => other,
-            };
-            return Ok(normalized.to_string());
-        }
-    }
+        let todo = build_todo(&items, &msg_dir)?;
+        let plan = plan_path(&repo);
+        fs::write(&plan, &todo)?;
 
-    Ok("pick".to_string())
+        let output = run_rebase_command(&repo_path, &["rebase", "-i", &upstream], Some(&plan))?;
+        current_status(&repo_path, &output)
+    })
+    .await?
 }
 
+/// Advance an in-progress rebase: `continue`, `skip` or `abort`.
 #[tauri::command]
 pub async fn rebase_step(
     repo_path: String,
@@ -162,17 +314,28 @@ pub async fn rebase_step(
 ) -> Result<RebaseStatus, AppError> {
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
-        let mut rebase = repo.open_rebase(None)?;
 
-        let signature = repo.signature().map_err(|_| {
-            AppError::invalid_state(
-                "Git author name and email are not configured. \
-                 Please set them in Settings or via 'git config user.name' and 'git config user.email'.",
-            )
-        })?;
+        let git_arg = match action.as_str() {
+            "continue" => "--continue",
+            "skip" => "--skip",
+            "abort" => "--abort",
+            other => {
+                return Err(AppError::invalid_state(format!(
+                    "Unsupported rebase action: {}",
+                    other
+                )))
+            }
+        };
 
-        if action == "abort" {
-            rebase.abort()?;
+        if git_arg == "--abort" {
+            let output = run_rebase_command(&repo_path, &["rebase", "--abort"], None)?;
+            let _ = fs::remove_dir_all(message_dir(&repo));
+            let _ = fs::remove_file(plan_path(&repo));
+
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                return Err(AppError::git(format!("Rebase abort failed: {}", stderr)));
+            }
             return Ok(RebaseStatus {
                 status: "none".to_string(),
                 current_oid: None,
@@ -180,205 +343,43 @@ pub async fn rebase_step(
             });
         }
 
-        if action == "skip" {
-            let head = repo.head()?;
-            let commit = head.peel_to_commit()?;
-            let obj = commit.into_object();
-            let mut opts = git2::build::CheckoutBuilder::new();
-            opts.force();
-            repo.checkout_tree(&obj, Some(&mut opts))?;
-        }
+        // An edited message supplied at continue-time amends the paused commit
+        // before handing control back to git.
+        if git_arg == "--continue" {
+            if let Some(msg) = commit_message
+                .as_ref()
+                .map(|m| m.trim())
+                .filter(|m| !m.is_empty())
+            {
+                let msg_dir = message_dir(&repo);
+                fs::create_dir_all(&msg_dir)?;
+                let msg_file = msg_dir.join("continue.msg");
+                fs::write(&msg_file, format!("{}\n", msg))?;
 
-        if action == "continue" {
-            let index = repo.index()?;
-            if index.has_conflicts() {
-                return Err(AppError::conflict(
-                    "Cannot continue rebase while there are merge conflicts.",
-                ));
-            }
-
-            let current_idx = rebase.operation_current().unwrap_or(0);
-            let action_name = get_todo_action(&repo, current_idx)?;
-
-            if action_name == "squash" || action_name == "s" {
-                if commit_message.is_none() {
-                    // Continuing after conflict: commit the index, perform the squash amend, and pause for rewording!
-                    let commit_oid = rebase.commit(None, &signature, None)?;
-                    let commit_c = repo.find_commit(commit_oid)?;
-                    if commit_c.parent_count() == 0 {
-                        return Err(AppError::invalid_state("Cannot squash the initial root commit of a repository"));
-                    }
-                    if let Ok(commit_b) = commit_c.parent(0) {
-                        let tree = commit_c.tree()?;
-                        let msg_b = commit_b.message().unwrap_or("");
-                        let msg_c = commit_c.message().unwrap_or("");
-                        let combined_msg = format!("{}\n\n{}", msg_b.trim(), msg_c.trim());
-                        let amended_oid = commit_b.amend(
-                            None,
-                            None,
-                            Some(&signature),
-                            None,
-                            Some(&combined_msg),
-                            Some(&tree),
-                        )?;
-                        repo.set_head_detached(amended_oid)?;
-
-                        return Ok(RebaseStatus {
-                            status: "reword".to_string(),
-                            current_oid: Some(amended_oid.to_string()),
-                            message: Some(format!("Paused for squash message edit at commit {}", amended_oid)),
-                        });
-                    }
-                } else {
-                    // The squash commit was already created and amended in the previous call.
-                    // We just need to update its message with the user's final edited message.
-                    let head_commit = repo.head()?.peel_to_commit()?;
-                    if let Some(msg) = commit_message {
-                        let amended_oid = head_commit.amend(
-                            Some("HEAD"),
-                            None,
-                            Some(&signature),
-                            None,
-                            Some(&msg),
-                            None,
-                        )?;
-                        repo.set_head_detached(amended_oid)?;
-                    }
-                }
-            } else if action_name == "drop" || action_name == "d" {
-                let commit_oid = rebase.commit(None, &signature, None)?;
-                let commit_c = repo.find_commit(commit_oid)?;
-                if let Ok(commit_b) = commit_c.parent(0) {
-                    repo.set_head_detached(commit_b.id())?;
-                    let mut opts = git2::build::CheckoutBuilder::new();
-                    opts.force();
-                    repo.checkout_tree(&commit_b.into_object(), Some(&mut opts))?;
-                }
-            } else {
-                let commit_oid = rebase.commit(None, &signature, commit_message.as_deref())?;
-
-                if action_name == "fixup" || action_name == "f" {
-                    let commit_c = repo.find_commit(commit_oid)?;
-                    if let Ok(commit_b) = commit_c.parent(0) {
-                        let tree = commit_c.tree()?;
-                        let msg = commit_b.message().map(|m| m.to_string());
-                        let amended_oid = commit_b.amend(
-                            None,
-                            None,
-                            Some(&signature),
-                            None,
-                            msg.as_deref(),
-                            Some(&tree),
-                        )?;
-                        repo.set_head_detached(amended_oid)?;
-                    }
+                let amend = run_rebase_command(
+                    &repo_path,
+                    &["commit", "--amend", "--file", &msg_file.to_string_lossy()],
+                    None,
+                )?;
+                if !amend.status.success() {
+                    let stderr = String::from_utf8_lossy(&amend.stderr).trim().to_string();
+                    return Err(AppError::git(format!(
+                        "Failed to amend message: {}",
+                        stderr
+                    )));
                 }
             }
         }
 
-        loop {
-            let next_op = match rebase.next() {
-                Some(Ok(op)) => op,
-                None => {
-                    rebase.finish(None)?;
-                    return Ok(RebaseStatus {
-                        status: "finished".to_string(),
-                        current_oid: None,
-                        message: Some("Rebase completed successfully".to_string()),
-                    });
-                }
-                Some(Err(e)) => return Err(AppError::from(e)),
-            };
+        let output = run_rebase_command(&repo_path, &["rebase", git_arg], None)?;
+        let status = current_status(&repo_path, &output)?;
 
-            let oid = next_op.id();
-            let index = repo.index()?;
-            if index.has_conflicts() {
-                return Ok(RebaseStatus {
-                    status: "conflict".to_string(),
-                    current_oid: Some(oid.to_string()),
-                    message: Some(format!("Conflict at commit {}", oid)),
-                });
-            }
-
-            let current_idx = rebase.operation_current().unwrap_or(0);
-            let action_name = get_todo_action(&repo, current_idx)?;
-
-            match action_name.as_str() {
-                "edit" | "e" => {
-                    return Ok(RebaseStatus {
-                        status: "edit".to_string(),
-                        current_oid: Some(oid.to_string()),
-                        message: Some(format!("Paused for editing at commit {}", oid)),
-                    });
-                }
-                "reword" | "r" => {
-                    return Ok(RebaseStatus {
-                        status: "reword".to_string(),
-                        current_oid: Some(oid.to_string()),
-                        message: Some(format!("Paused for rewording at commit {}", oid)),
-                    });
-                }
-                "fixup" | "f" => {
-                    let commit_oid = rebase.commit(None, &signature, None)?;
-                    let commit_c = repo.find_commit(commit_oid)?;
-                    if let Ok(commit_b) = commit_c.parent(0) {
-                        let tree = commit_c.tree()?;
-                        let msg = commit_b.message().map(|m| m.to_string());
-                        let amended_oid = commit_b.amend(
-                            None,
-                            None,
-                            Some(&signature),
-                            None,
-                            msg.as_deref(),
-                            Some(&tree),
-                        )?;
-                        repo.set_head_detached(amended_oid)?;
-                    }
-                }
-                "squash" | "s" => {
-                    let commit_oid = rebase.commit(None, &signature, None)?;
-                    let commit_c = repo.find_commit(commit_oid)?;
-                    if commit_c.parent_count() == 0 {
-                        return Err(AppError::invalid_state("Cannot squash the initial root commit of a repository"));
-                    }
-                    if let Ok(commit_b) = commit_c.parent(0) {
-                        let tree = commit_c.tree()?;
-                        let msg_b = commit_b.message().unwrap_or("");
-                        let msg_c = commit_c.message().unwrap_or("");
-                        let combined_msg = format!("{}\n\n{}", msg_b.trim(), msg_c.trim());
-                        let amended_oid = commit_b.amend(
-                            None,
-                            None,
-                            Some(&signature),
-                            None,
-                            Some(&combined_msg),
-                            Some(&tree),
-                        )?;
-                        repo.set_head_detached(amended_oid)?;
-
-                        return Ok(RebaseStatus {
-                            status: "reword".to_string(),
-                            current_oid: Some(amended_oid.to_string()),
-                            message: Some(format!("Paused for squash message edit at commit {}", amended_oid)),
-                        });
-                    }
-                }
-                "drop" | "d" => {
-                    let commit_oid = rebase.commit(None, &signature, None)?;
-                    let commit_c = repo.find_commit(commit_oid)?;
-                    if let Ok(commit_b) = commit_c.parent(0) {
-                        repo.set_head_detached(commit_b.id())?;
-                        let mut opts = git2::build::CheckoutBuilder::new();
-                        opts.force();
-                        repo.checkout_tree(&commit_b.into_object(), Some(&mut opts))?;
-                    }
-                }
-                _ => {
-                    // Pick, Exec: auto commit and loop
-                    rebase.commit(None, &signature, None)?;
-                }
-            }
+        if status.status == "finished" {
+            let _ = fs::remove_dir_all(message_dir(&repo));
+            let _ = fs::remove_file(plan_path(&repo));
         }
+
+        Ok(status)
     })
     .await?
 }

@@ -5,6 +5,25 @@ Command handlers for git worktree operations
 
 use crate::error::AppError;
 use serde::Serialize;
+use std::path::{Component, Path, PathBuf};
+
+/// Resolve `.` and `..` lexically, without requiring the path to exist.
+///
+/// `std::fs::canonicalize` cannot be used here: the worktree directory is being
+/// created, so it does not exist yet.
+pub fn normalize_path(path: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => {
+                out.pop();
+            }
+            Component::CurDir => {}
+            other => out.push(other.as_os_str()),
+        }
+    }
+    out
+}
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -92,24 +111,40 @@ pub async fn add_worktree(
     branch: Option<String>,
     new_branch: Option<String>,
 ) -> Result<(), AppError> {
-    // Validate path traversal
-    let path_obj = std::path::Path::new(&path);
-    if path_obj.is_absolute() {
-        return Err(AppError::invalid_state("Absolute paths are not allowed"));
-    }
-    for component in path_obj.components() {
-        if let std::path::Component::ParentDir = component {
-            return Err(AppError::invalid_state("Path traversal is not allowed"));
-        }
-    }
-
     tokio::task::spawn_blocking(move || {
-        // Ensure parent directory exists
-        if let Some(parent) = std::path::Path::new(&path).parent() {
+        // Worktrees are conventionally created *outside* the repository (a
+        // sibling directory), so absolute paths and `..` are both legitimate
+        // here. What must be prevented is placing one inside the working tree,
+        // where git would then see it as untracked clutter.
+        let repo_root = std::fs::canonicalize(&repo_path)
+            .map_err(|e| AppError::io(format!("Failed to resolve repository path: {}", e)))?;
+
+        let requested = std::path::Path::new(&path);
+        let absolute = if requested.is_absolute() {
+            requested.to_path_buf()
+        } else {
+            // Relative paths are resolved against the repository, not the
+            // process working directory — git interprets them that way, and
+            // creating the parent anywhere else would put it in the wrong place.
+            repo_root.join(requested)
+        };
+
+        // Placing a worktree inside the working tree is allowed (git permits
+        // it, and some layouts gitignore a `worktrees/` directory), but the
+        // repository root itself is never a valid target.
+        let normalized = normalize_path(&absolute);
+        if normalized == repo_root {
+            return Err(AppError::invalid_state(
+                "The worktree path cannot be the repository root itself.",
+            ));
+        }
+
+        if let Some(parent) = normalized.parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|e| AppError::io(format!("Failed to create parent directory: {}", e)))?;
         }
 
+        let path = normalized.to_string_lossy().to_string();
         let mut args = vec!["worktree".to_string(), "add".to_string()];
 
         if let Some(ref nb) = new_branch {
@@ -151,6 +186,8 @@ pub async fn remove_worktree(
             args.push("--force");
         }
 
+        // "--" stops git reading a worktree path that begins with '-' as a flag.
+        args.push("--");
         args.push(&worktree_path);
 
         let output = crate::commands::new_command("git")
@@ -200,6 +237,7 @@ pub async fn lock_worktree(
             args.push(r.clone());
         }
 
+        args.push("--".to_string());
         args.push(worktree_name);
 
         let output = crate::commands::new_command("git")
@@ -221,7 +259,7 @@ pub async fn lock_worktree(
 pub async fn unlock_worktree(repo_path: String, worktree_name: String) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
         let output = crate::commands::new_command("git")
-            .args(["worktree", "unlock", &worktree_name])
+            .args(["worktree", "unlock", "--", &worktree_name])
             .current_dir(&repo_path)
             .output()
             .map_err(|e| AppError::command(format!("Failed to unlock worktree: {}", e)))?;

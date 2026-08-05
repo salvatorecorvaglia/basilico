@@ -34,7 +34,11 @@ pub async fn get_commit_signature(
                     .and_then(|c| c.author().name().map(|n| n.to_string()))
                     .unwrap_or_else(|| "Unknown".to_string());
 
-                let mut status = "Signed".to_string();
+                // A signature that is merely *present* is not a verified one.
+                // Start from "Unverified" and only upgrade on an explicit GOODSIG
+                // from gpg, so a missing gpg binary or a failed verification is
+                // never presented to the user as a trusted signature.
+                let mut status = "Unverified".to_string();
                 let mut key_id = "GPG Key".to_string();
                 let mut signer = author_name.clone();
 
@@ -44,8 +48,18 @@ pub async fn get_commit_signature(
                 let sig_path = temp_dir.join("commit.sig");
                 let payload_path = temp_dir.join("commit.payload");
 
+                // 0700: the payload must not be swappable by another local user
+                // between the write below and gpg reading it back.
+                let mut builder = std::fs::DirBuilder::new();
+                builder.recursive(true);
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::DirBuilderExt;
+                    builder.mode(0o700);
+                }
+
                 // Attempt to verify with local gpg CLI
-                if fs::create_dir_all(&temp_dir).is_ok() {
+                if builder.create(&temp_dir).is_ok() {
                     if fs::write(&sig_path, &*sig_buf).is_ok()
                         && fs::write(&payload_path, &*payload_buf).is_ok()
                     {

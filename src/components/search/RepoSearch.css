@@ -112,7 +112,7 @@
 
 .search-submit-btn {
   background: var(--accent-color);
-  color: #121820;
+  color: var(--text-on-accent);
   border: none;
   font-size: 12px;
   font-weight: 600;

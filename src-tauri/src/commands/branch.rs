@@ -55,10 +55,17 @@ pub async fn delete_branch<R: tauri::Runtime>(
                 let mut remote_obj = repo.find_remote(remote_name)?;
                 let refspec = format!(":refs/heads/{}", branch_name);
 
+                let rejections = crate::git::credentials::new_push_rejections();
                 let mut push_opts = git2::PushOptions::new();
-                push_opts.remote_callbacks(crate::git::credentials::make_callbacks(ssh_key_path));
+                push_opts.remote_callbacks(crate::git::credentials::make_push_callbacks(
+                    ssh_key_path,
+                    rejections.clone(),
+                ));
 
                 remote_obj.push(&[refspec.as_str()], Some(&mut push_opts))?;
+                // A rejected deletion must not be followed by dropping the local
+                // tracking ref — that would hide a branch that still exists.
+                crate::git::credentials::check_push_rejections(&rejections)?;
             }
 
             // 2. Delete the local remote-tracking reference
@@ -80,8 +87,13 @@ pub async fn checkout_branch(path: String, name: String) -> Result<(), AppError>
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
 
-        // Check if name is a direct 40-character hexadecimal commit OID
-        if git2::Oid::from_str(&name).is_ok() {
+        // A full 40-character hex string is treated as a commit OID. The length
+        // check matters: `Oid::from_str` also accepts shorter hex strings and
+        // zero-pads them, so branches with all-hex names ("add", "beef") would
+        // otherwise be checked out as a detached HEAD at a bogus OID.
+        let looks_like_full_oid = name.len() == 40 && name.chars().all(|c| c.is_ascii_hexdigit());
+
+        if looks_like_full_oid && repo.find_branch(&name, git2::BranchType::Local).is_err() {
             let oid = git2::Oid::from_str(&name)?;
             let commit = repo.find_commit(oid)?;
             let obj = commit.into_object();
@@ -159,6 +171,33 @@ pub async fn rename_branch(
     .await?
 }
 
+/// Branch names that must never be offered for bulk deletion.
+///
+/// The sweeper deletes remote branches by pushing a deletion to the server, so a
+/// mistake here is visible to the whole team and is not undoable from the UI.
+const PROTECTED_BRANCH_NAMES: &[&str] = &[
+    "main",
+    "master",
+    "develop",
+    "development",
+    "trunk",
+    "release",
+];
+
+/// True when `branch_name` names a protected branch, in either its local
+/// (`main`) or remote-tracking (`origin/main`) form.
+pub fn is_protected_branch(branch_name: &str, target_name: &str) -> bool {
+    // Compare the last path segment so `origin/main` is caught alongside `main`.
+    let bare = branch_name.rsplit('/').next().unwrap_or(branch_name);
+    let target_bare = target_name.rsplit('/').next().unwrap_or(target_name);
+
+    if bare == target_bare {
+        return true;
+    }
+
+    PROTECTED_BRANCH_NAMES.contains(&bare)
+}
+
 #[tauri::command]
 pub async fn list_merged_branches(
     path: String,
@@ -180,7 +219,11 @@ pub async fn list_merged_branches(
             if b.is_head {
                 continue;
             }
-            if b.name == target_name {
+            // Excludes the target in both its local and remote-tracking form,
+            // plus the well-known long-lived branches. Without this, sweeping
+            // from a feature branch that has `main` merged in would offer
+            // `origin/main` for deletion.
+            if is_protected_branch(&b.name, &target_name) {
                 continue;
             }
 

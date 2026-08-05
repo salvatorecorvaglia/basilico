@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { editor, IDisposable } from "monaco-editor";
 import { useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import type { DiffHunkInfo } from "../../lib/git-types";
 import {
   type FileContentPair,
@@ -40,9 +41,28 @@ export function DiffView() {
     openInIde,
     repoInfo,
     settings,
-  } = useRepoStore();
+  } = useRepoStore(
+    useShallow((s) => ({
+      activeTabId: s.activeTabId,
+      selectedFilePath: s.selectedFilePath,
+      selectedFileIsStaged: s.selectedFileIsStaged,
+      localDiff: s.localDiff,
+      stageFiles: s.stageFiles,
+      unstageFiles: s.unstageFiles,
+      discardChanges: s.discardChanges,
+      applyPatch: s.applyPatch,
+      openInIde: s.openInIde,
+      repoInfo: s.repoInfo,
+      settings: s.settings,
+    })),
+  );
 
-  const { openConfirm, addNotification } = useUIStore();
+  const { openConfirm, addNotification } = useUIStore(
+    useShallow((s) => ({
+      openConfirm: s.openConfirm,
+      addNotification: s.addNotification,
+    })),
+  );
 
   const [viewMode, setViewMode] = useState<"visual" | "hunk">("visual");
   const [splitView, setSplitView] = useState(true);
@@ -467,6 +487,7 @@ export function DiffView() {
 
           {/* Stage / Unstage / Discard File */}
           <button
+            type="button"
             className={`diff-btn ${selectedFileIsStaged ? "diff-btn-secondary" : "diff-btn-primary"}`}
             onClick={handleStageFile}
           >
@@ -475,6 +496,7 @@ export function DiffView() {
 
           {!selectedFileIsStaged && (
             <button
+              type="button"
               className="diff-btn diff-btn-danger"
               onClick={handleDiscardFile}
               title="Discard all changes in this file"

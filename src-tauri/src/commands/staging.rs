@@ -12,7 +12,10 @@ pub async fn stage_files(path: String, files: Vec<String>) -> Result<(), AppErro
         let mut index = repo.index()?;
         for file in files {
             let validated_full_path = crate::git::utils::validate_path(workdir, Path::new(&file))?;
-            if validated_full_path.exists() {
+            // symlink_metadata, not `exists()`: a broken symlink is still a
+            // file that should be staged, but `exists()` follows the link and
+            // reports false, which would stage a deletion instead.
+            if std::fs::symlink_metadata(&validated_full_path).is_ok() {
                 index.add_path(Path::new(&file))?;
             } else {
                 // File was deleted — stage the deletion

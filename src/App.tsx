@@ -61,6 +61,7 @@ const StashInspector = lazy(() =>
 );
 
 import { open } from "@tauri-apps/plugin-dialog";
+import { useShallow } from "zustand/react/shallow";
 import { ConfirmModal } from "./components/layout/ConfirmModal";
 import { NotificationToast } from "./components/layout/NotificationToast";
 import { PromptModal } from "./components/layout/PromptModal";
@@ -172,6 +173,7 @@ const ViewRouter = React.memo(function ViewRouter({
               phase of Basilico.
             </p>
             <button
+              type="button"
               className="view-fallback-btn"
               onClick={() => useUIStore.getState().setActiveView("graph")}
             >
@@ -196,7 +198,17 @@ function App() {
     refreshAll,
     openRepository,
     loadRecentRepos,
-  } = useRepoStore();
+  } = useRepoStore(
+    useShallow((s) => ({
+      tabs: s.tabs,
+      activeTabId: s.activeTabId,
+      loadSettings: s.loadSettings,
+      settings: s.settings,
+      refreshAll: s.refreshAll,
+      openRepository: s.openRepository,
+      loadRecentRepos: s.loadRecentRepos,
+    })),
+  );
   const {
     sidebarVisible,
     activeView,
@@ -204,7 +216,16 @@ function App() {
     toggleCommandPalette,
     setActiveView,
     addNotification,
-  } = useUIStore();
+  } = useUIStore(
+    useShallow((s) => ({
+      sidebarVisible: s.sidebarVisible,
+      activeView: s.activeView,
+      toggleSettings: s.toggleSettings,
+      toggleCommandPalette: s.toggleCommandPalette,
+      setActiveView: s.setActiveView,
+      addNotification: s.addNotification,
+    })),
+  );
 
   // Load settings and restore tabs on mount
   useEffect(() => {

@@ -11,7 +11,9 @@ export default defineConfig(async (env) => {
       globals: true,
       environment: "jsdom",
       setupFiles: "./vitest.setup.ts",
-      passWithNoTests: true,
+      // Deliberately not `passWithNoTests`: a broken include glob or a renamed
+      // test directory would otherwise report a green run with zero tests.
+      passWithNoTests: false,
     },
   });
 });

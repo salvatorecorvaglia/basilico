@@ -2,6 +2,7 @@ import { DiffEditor } from "@monaco-editor/react";
 import { ArrowLeftRight, CheckCircle, FileCode, X } from "lucide-react";
 import type { editor } from "monaco-editor";
 import { useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import * as commands from "../../lib/tauri-commands";
 import {
   getDirectory,
@@ -24,9 +25,25 @@ export function CompareView() {
     compareFileDiff,
     selectCompareFile,
     startComparison,
-  } = useRepoStore();
+  } = useRepoStore(
+    useShallow((s) => ({
+      activeTabId: s.activeTabId,
+      compareDiff: s.compareDiff,
+      compareBase: s.compareBase,
+      compareTarget: s.compareTarget,
+      selectedCompareFile: s.selectedCompareFile,
+      compareFileDiff: s.compareFileDiff,
+      selectCompareFile: s.selectCompareFile,
+      startComparison: s.startComparison,
+    })),
+  );
 
-  const { setActiveView, addNotification } = useUIStore();
+  const { setActiveView, addNotification } = useUIStore(
+    useShallow((s) => ({
+      setActiveView: s.setActiveView,
+      addNotification: s.addNotification,
+    })),
+  );
   const [splitView, setSplitView] = useState(true);
   const [contents, setContents] = useState<{
     original: string;
@@ -109,6 +126,7 @@ export function CompareView() {
 
         <div className="compare-header-actions">
           <button
+            type="button"
             className="compare-header-btn"
             onClick={handleSwap}
             title="Swap comparison direction"
@@ -120,6 +138,7 @@ export function CompareView() {
           <div className="compare-header-sep" />
 
           <button
+            type="button"
             className={`compare-header-btn ${splitView ? "active" : ""}`}
             onClick={() => setSplitView(!splitView)}
             title="Toggle Split/Inline Diff"
@@ -129,6 +148,7 @@ export function CompareView() {
           </button>
 
           <button
+            type="button"
             className="compare-header-btn close-btn"
             onClick={handleClose}
             title="Exit comparison"
@@ -162,8 +182,17 @@ export function CompareView() {
                 return (
                   <div
                     key={idx}
+                    role="button"
+                    tabIndex={0}
+                    aria-current={isSelected}
                     className={`compare-file-row ${isSelected ? "selected" : ""}`}
                     onClick={() => selectCompareFile(filePath)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        selectCompareFile(filePath);
+                      }
+                    }}
                   >
                     <span
                       className="compare-file-status"

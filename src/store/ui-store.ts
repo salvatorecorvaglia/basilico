@@ -102,6 +102,10 @@ interface UIState {
   removeNotification: (id: string) => void;
 }
 
+/** Timeout handles per notification id, so a dismissed toast can cancel its own
+ *  auto-removal instead of leaking the timer. */
+const activeTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+
 export const useUIStore = create<UIState>((set, get) => ({
   sidebarVisible: true,
   sidebarWidth: 240,
@@ -220,6 +224,3 @@ export const useUIStore = create<UIState>((set, get) => ({
     }));
   },
 }));
-
-// Module-level map to track active timeout handles per notification ID to prevent leaks
-const activeTimeouts = new Map<string, ReturnType<typeof setTimeout>>();

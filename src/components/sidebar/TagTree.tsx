@@ -6,6 +6,7 @@
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Globe, Plus, Tag, Trash } from "lucide-react";
 import { useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import type { TagInfo } from "../../lib/git-types";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
@@ -16,8 +17,22 @@ interface TagTreeProps {
 
 export function TagTree({ tags }: TagTreeProps) {
   const { checkoutBranch, deleteTag, createTag, pushTag, selectedCommitOid } =
-    useRepoStore();
-  const { addNotification, openPrompt, openConfirm } = useUIStore();
+    useRepoStore(
+      useShallow((s) => ({
+        checkoutBranch: s.checkoutBranch,
+        deleteTag: s.deleteTag,
+        createTag: s.createTag,
+        pushTag: s.pushTag,
+        selectedCommitOid: s.selectedCommitOid,
+      })),
+    );
+  const { addNotification, openPrompt, openConfirm } = useUIStore(
+    useShallow((s) => ({
+      addNotification: s.addNotification,
+      openPrompt: s.openPrompt,
+      openConfirm: s.openConfirm,
+    })),
+  );
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   const handleCheckoutTag = async (name: string) => {

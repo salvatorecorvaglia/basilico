@@ -72,31 +72,88 @@ pub async fn save_stash(
     .await?
 }
 
+/// Resolve the stash at `index`, verifying it still holds `expected_oid`.
+///
+/// Stash indices shift on every push/pop/drop, so an index captured by the UI
+/// can point at a different stash by the time the user acts on it (a CLI stash,
+/// a concurrent watcher refresh). Acting on the wrong stash is unrecoverable,
+/// so we re-resolve by OID and only fall back to the index when the caller has
+/// no OID to offer.
+fn resolve_stash_index(
+    repo: &mut Repository,
+    index: usize,
+    expected_oid: Option<&str>,
+) -> Result<usize, AppError> {
+    let expected = match expected_oid {
+        Some(oid) if !oid.is_empty() => oid,
+        _ => return Ok(index),
+    };
+
+    let mut entries: Vec<(usize, String)> = Vec::new();
+    repo.stash_foreach(|idx, _name, oid| {
+        entries.push((idx, oid.to_string()));
+        true
+    })?;
+
+    // Fast path: the index still points at the stash the user selected.
+    if entries
+        .iter()
+        .any(|(idx, oid)| *idx == index && oid == expected)
+    {
+        return Ok(index);
+    }
+
+    // The list shifted — find where the selected stash moved to.
+    if let Some((idx, _)) = entries.iter().find(|(_, oid)| oid == expected) {
+        return Ok(*idx);
+    }
+
+    Err(AppError::not_found(
+        "That stash no longer exists — the stash list changed since it was displayed. \
+         Refresh and try again.",
+    ))
+}
+
 #[tauri::command]
-pub async fn apply_stash(path: String, index: usize) -> Result<(), AppError> {
+pub async fn apply_stash(
+    path: String,
+    index: usize,
+    expected_oid: Option<String>,
+) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
         let mut repo = Repository::open(&path)?;
-        repo.stash_apply(index, None)?;
+        let idx = resolve_stash_index(&mut repo, index, expected_oid.as_deref())?;
+        repo.stash_apply(idx, None)?;
         Ok(())
     })
     .await?
 }
 
 #[tauri::command]
-pub async fn pop_stash(path: String, index: usize) -> Result<(), AppError> {
+pub async fn pop_stash(
+    path: String,
+    index: usize,
+    expected_oid: Option<String>,
+) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
         let mut repo = Repository::open(&path)?;
-        repo.stash_pop(index, None)?;
+        let idx = resolve_stash_index(&mut repo, index, expected_oid.as_deref())?;
+        repo.stash_pop(idx, None)?;
         Ok(())
     })
     .await?
 }
 
 #[tauri::command]
-pub async fn drop_stash(path: String, index: usize) -> Result<(), AppError> {
+pub async fn drop_stash(
+    path: String,
+    index: usize,
+    expected_oid: Option<String>,
+) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
         let mut repo = Repository::open(&path)?;
-        repo.stash_drop(index)?;
+        let idx = resolve_stash_index(&mut repo, index, expected_oid.as_deref())?;
+        repo.stash_drop(idx)?;
         Ok(())
     })
     .await?

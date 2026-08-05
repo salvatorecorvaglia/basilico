@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { editor } from "monaco-editor";
 import { useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   type FileContentPair,
   getFileContentPairRevisions,
@@ -41,10 +42,31 @@ export function StashInspector() {
     applyStash,
     popStash,
     dropStash,
-  } = useRepoStore();
+  } = useRepoStore(
+    useShallow((s) => ({
+      activeTabId: s.activeTabId,
+      stashes: s.stashes,
+      selectedStashIndex: s.selectedStashIndex,
+      stashDiff: s.stashDiff,
+      selectedStashFile: s.selectedStashFile,
+      selectedStashFileDiff: s.selectedStashFileDiff,
+      selectStashFile: s.selectStashFile,
+      createBranchFromStash: s.createBranchFromStash,
+      applyStash: s.applyStash,
+      popStash: s.popStash,
+      dropStash: s.dropStash,
+    })),
+  );
 
   const { addNotification, setActiveView, openConfirm, openPrompt } =
-    useUIStore();
+    useUIStore(
+      useShallow((s) => ({
+        addNotification: s.addNotification,
+        setActiveView: s.setActiveView,
+        openConfirm: s.openConfirm,
+        openPrompt: s.openPrompt,
+      })),
+    );
   const [splitView, setSplitView] = useState(true);
   const [contents, setContents] = useState<FileContentPair | null>(null);
   const [loadingContents, setLoadingContents] = useState(false);
@@ -219,6 +241,7 @@ export function StashInspector() {
 
         <div className="stash-actions">
           <button
+            type="button"
             className="stash-action-btn btn-secondary"
             onClick={handleApply}
             title="Apply stash changes and keep the stash in list"
@@ -228,6 +251,7 @@ export function StashInspector() {
           </button>
 
           <button
+            type="button"
             className="stash-action-btn btn-secondary"
             onClick={handlePop}
             title="Apply stash changes and remove from stash list"
@@ -237,6 +261,7 @@ export function StashInspector() {
           </button>
 
           <button
+            type="button"
             className="stash-action-btn btn-secondary"
             onClick={handleBranch}
             title="Create branch from the stash base commit and apply changes"
@@ -246,6 +271,7 @@ export function StashInspector() {
           </button>
 
           <button
+            type="button"
             className="stash-action-btn btn-danger"
             onClick={handleDrop}
             title="Discard this stash entry permanently"
@@ -276,6 +302,7 @@ export function StashInspector() {
 
                 return (
                   <button
+                    type="button"
                     key={filePath}
                     className={`stash-file-item ${isSelected ? "active" : ""}`}
                     onClick={() => selectStashFile(filePath)}
@@ -310,6 +337,7 @@ export function StashInspector() {
 
             {selectedStashFile && (
               <button
+                type="button"
                 className={`layout-toggle-btn ${splitView ? "active" : ""}`}
                 onClick={() => setSplitView(!splitView)}
                 title="Toggle Split / Inline diff"

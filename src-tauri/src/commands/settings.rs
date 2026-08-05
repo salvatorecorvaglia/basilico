@@ -59,6 +59,39 @@ impl Default for UserSettings {
     }
 }
 
+/// Write a file readable and writable only by the current user.
+///
+/// `settings.json` holds the GitHub PAT, so the default umask (which yields
+/// world-readable 0644 on Unix) would expose the token to every local account.
+/// The mode is applied at creation time so there is no window where the file
+/// exists with broader permissions.
+fn write_private_file(path: &PathBuf, content: &str) -> std::io::Result<()> {
+    use std::io::Write;
+
+    let mut opts = fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+
+    let mut file = opts.open(path)?;
+
+    // An existing file keeps its original mode when reopened, so tighten it
+    // explicitly to repair permissions written by an earlier version.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = file.set_permissions(fs::Permissions::from_mode(0o600));
+    }
+
+    file.write_all(content.as_bytes())?;
+    file.sync_all()?;
+    Ok(())
+}
+
 fn settings_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, AppError> {
     let config_dir = app
         .path()
@@ -122,7 +155,7 @@ pub async fn save_settings<R: tauri::Runtime>(
 
     let content = serde_json::to_string_pretty(&settings)?;
 
-    fs::write(&path, content)
+    write_private_file(&path, &content)
         .map_err(|e| AppError::settings(format!("Failed to write settings: {}", e)))?;
 
     // Update cache

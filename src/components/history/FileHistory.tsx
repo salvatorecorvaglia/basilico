@@ -2,6 +2,7 @@ import { DiffEditor } from "@monaco-editor/react";
 import { ArrowLeft } from "lucide-react";
 import type { editor } from "monaco-editor";
 import { useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { getFileContentAtRevision } from "../../lib/tauri-commands";
 import { formatDateTime, getLanguageFromPath } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
@@ -15,8 +16,18 @@ export function FileHistory() {
     fileHistory,
     loadFileHistory,
     isLoading,
-  } = useRepoStore();
-  const { setActiveView } = useUIStore();
+  } = useRepoStore(
+    useShallow((s) => ({
+      activeTabId: s.activeTabId,
+      selectedFilePath: s.selectedFilePath,
+      fileHistory: s.fileHistory,
+      loadFileHistory: s.loadFileHistory,
+      isLoading: s.isLoading,
+    })),
+  );
+  const { setActiveView } = useUIStore(
+    useShallow((s) => ({ setActiveView: s.setActiveView })),
+  );
   const [selectedCommitOid, setSelectedCommitOid] = useState<string | null>(
     null,
   );
@@ -91,7 +102,11 @@ export function FileHistory() {
           No file selected for history. Please select a file from staging or
           details pane.
         </p>
-        <button className="history-btn" onClick={() => setActiveView("graph")}>
+        <button
+          type="button"
+          className="history-btn"
+          onClick={() => setActiveView("graph")}
+        >
           Back to Graph
         </button>
       </div>
@@ -103,6 +118,7 @@ export function FileHistory() {
       {/* Header */}
       <div className="file-history-header">
         <button
+          type="button"
           className="history-back-btn"
           onClick={() => setActiveView("graph")}
           title="Back to Graph"
@@ -132,9 +148,11 @@ export function FileHistory() {
             fileHistory.map((entry) => {
               const isActive = entry.commitOid === selectedCommitOid;
               return (
-                <div
+                <button
+                  type="button"
                   key={entry.commitOid}
                   className={`history-commit-item ${isActive ? "active" : ""}`}
+                  aria-current={isActive}
                   onClick={() => setSelectedCommitOid(entry.commitOid)}
                 >
                   <div className="commit-item-dot" />
@@ -162,7 +180,7 @@ export function FileHistory() {
                       )}
                     </div>
                   </div>
-                </div>
+                </button>
               );
             })
           )}

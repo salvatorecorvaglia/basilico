@@ -6,13 +6,13 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { useRepoStore } from "../../store/repo-store";
+import { SubmoduleModal } from "../modals/SubmoduleModal";
+import { WorktreeModal } from "../modals/WorktreeModal";
 import { BranchTree } from "../sidebar/BranchTree";
 import { RemoteTree } from "../sidebar/RemoteTree";
 import { StashTree } from "../sidebar/StashTree";
-import { SubmoduleModal } from "../sidebar/SubmoduleModal";
 import { SubmoduleTree } from "../sidebar/SubmoduleTree";
 import { TagTree } from "../sidebar/TagTree";
-import { WorktreeModal } from "../sidebar/WorktreeModal";
 import { WorktreeTree } from "../sidebar/WorktreeTree";
 import "./Sidebar.css";
 
@@ -38,8 +38,17 @@ function TreeSection({
   return (
     <div className="sidebar-section">
       <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={isOpen}
         className="sidebar-section-header"
         onClick={() => setIsOpen(!isOpen)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setIsOpen(!isOpen);
+          }
+        }}
       >
         <span className="sidebar-chevron">
           {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -49,6 +58,7 @@ function TreeSection({
         <span className="sidebar-section-count">{count}</span>
         {action && (
           <div
+            role="presentation"
             className="sidebar-section-action-wrapper"
             onClick={(e) => e.stopPropagation()}
           >
@@ -56,7 +66,7 @@ function TreeSection({
           </div>
         )}
       </div>
-      {isOpen && <div className="sidebar-section-content">{children}</div>}
+      isOpen && <div className="sidebar-section-content">{children}</div>
     </div>
   );
 }

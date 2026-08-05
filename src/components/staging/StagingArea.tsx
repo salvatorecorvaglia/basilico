@@ -16,6 +16,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   getDirectory,
   getFileName,
@@ -40,10 +41,31 @@ export function StagingArea() {
     revertAbort,
     resolveConflictWithSide,
     settings,
-  } = useRepoStore();
+  } = useRepoStore(
+    useShallow((s) => ({
+      status: s.status,
+      selectedFilePath: s.selectedFilePath,
+      selectLocalFile: s.selectLocalFile,
+      stageFiles: s.stageFiles,
+      unstageFiles: s.unstageFiles,
+      discardChanges: s.discardChanges,
+      saveStash: s.saveStash,
+      cherryPickAbort: s.cherryPickAbort,
+      revertAbort: s.revertAbort,
+      resolveConflictWithSide: s.resolveConflictWithSide,
+      settings: s.settings,
+    })),
+  );
 
   const { setActiveView, addNotification, openPrompt, openConfirm } =
-    useUIStore();
+    useUIStore(
+      useShallow((s) => ({
+        setActiveView: s.setActiveView,
+        addNotification: s.addNotification,
+        openPrompt: s.openPrompt,
+        openConfirm: s.openConfirm,
+      })),
+    );
 
   const [stagedOpen, setStagedOpen] = useState(true);
   const [unstagedOpen, setUnstagedOpen] = useState(true);
@@ -474,6 +496,8 @@ export function StagingArea() {
                   <ContextMenu.Trigger>
                     <div
                       className={`staging-file-row ${selectedFilePath === file ? "selected" : ""}`}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => handleFileClick(file, false, true)}
                       onKeyDown={createKeyDownHandler(file, false, true)}
                     >
@@ -499,8 +523,17 @@ export function StagingArea() {
         {/* Staged Changes */}
         <div className="staging-section">
           <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={stagedOpen}
             className="staging-section-header"
             onClick={() => setStagedOpen(!stagedOpen)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setStagedOpen(!stagedOpen);
+              }
+            }}
           >
             <button type="button" className="staging-chevron">
               {stagedOpen ? (
@@ -540,6 +573,7 @@ export function StagingArea() {
 
           {stagedOpen && (
             <div
+              role="presentation"
               className="staging-list"
               onDragOver={handleDragOver}
               onDrop={handleDropOnStaged}
@@ -554,6 +588,8 @@ export function StagingArea() {
                     <ContextMenu.Trigger>
                       <div
                         className={`staging-file-row ${selectedFilePath === file.path ? "selected" : ""}`}
+                        role="button"
+                        tabIndex={0}
                         draggable
                         onDragStart={(e) => handleDragStart(e, file.path, true)}
                         onClick={() => handleFileClick(file.path, true)}
@@ -592,8 +628,17 @@ export function StagingArea() {
         {/* Unstaged Changes */}
         <div className="staging-section">
           <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={unstagedOpen}
             className="staging-section-header"
             onClick={() => setUnstagedOpen(!unstagedOpen)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setUnstagedOpen(!unstagedOpen);
+              }
+            }}
           >
             <button type="button" className="staging-chevron">
               {unstagedOpen ? (
@@ -620,6 +665,7 @@ export function StagingArea() {
 
           {unstagedOpen && (
             <div
+              role="presentation"
               className="staging-list"
               onDragOver={handleDragOver}
               onDrop={handleDropOnUnstaged}
@@ -634,6 +680,8 @@ export function StagingArea() {
                       <ContextMenu.Trigger>
                         <div
                           className={`staging-file-row ${selectedFilePath === file.path ? "selected" : ""}`}
+                          role="button"
+                          tabIndex={0}
                           draggable
                           onDragStart={(e) =>
                             handleDragStart(e, file.path, false)
@@ -696,6 +744,8 @@ export function StagingArea() {
                       <ContextMenu.Trigger>
                         <div
                           className={`staging-file-row ${selectedFilePath === file ? "selected" : ""}`}
+                          role="button"
+                          tabIndex={0}
                           onClick={() => handleFileClick(file, false)}
                           onKeyDown={createKeyDownHandler(file, false, false)}
                         >

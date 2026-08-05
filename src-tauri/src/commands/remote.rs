@@ -3,7 +3,11 @@ use crate::git::helpers;
 use git2::{build::CheckoutBuilder, FetchOptions, MergeOptions, PushOptions, Repository};
 
 #[tauri::command]
-pub async fn fetch(app: tauri::AppHandle, path: String, remote: String) -> Result<(), AppError> {
+pub async fn fetch<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    path: String,
+    remote: String,
+) -> Result<(), AppError> {
     let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
@@ -20,17 +24,44 @@ pub async fn fetch(app: tauri::AppHandle, path: String, remote: String) -> Resul
 }
 
 #[tauri::command]
-pub async fn push(
-    app: tauri::AppHandle,
+pub async fn push<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     path: String,
     remote: String,
     branch: String,
     force: bool,
+    expected_remote_oid: Option<String>,
 ) -> Result<(), AppError> {
     let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
         let mut remote_obj = repo.find_remote(&remote)?;
+
+        // A force push overwrites whatever is on the remote. `expected_remote_oid`
+        // carries the remote-tracking tip the UI last showed the user; if the
+        // real remote has moved past it, someone else has pushed in the
+        // meantime and the force would destroy their work. This is the
+        // equivalent of git's --force-with-lease, which libgit2 does not
+        // implement natively.
+        if force {
+            if let Some(expected) = expected_remote_oid.as_deref().filter(|s| !s.is_empty()) {
+                let remote_ref = format!("refs/remotes/{}/{}", remote, branch);
+                if let Ok(reference) = repo.find_reference(&remote_ref) {
+                    if let Some(actual) = reference.target() {
+                        if actual.to_string() != expected {
+                            return Err(AppError::invalid_state(format!(
+                                "Refusing to force push: {}/{} has moved since you last fetched \
+                                 (expected {}, found {}). Fetch and review the new commits first.",
+                                remote,
+                                branch,
+                                &expected[..7.min(expected.len())],
+                                &actual.to_string()[..7]
+                            )));
+                        }
+                    }
+                }
+            }
+        }
 
         let refspec = if force {
             format!("+refs/heads/{}:refs/heads/{}", branch, branch)
@@ -38,10 +69,15 @@ pub async fn push(
             format!("refs/heads/{}:refs/heads/{}", branch, branch)
         };
 
+        let rejections = crate::git::credentials::new_push_rejections();
         let mut push_opts = PushOptions::new();
-        push_opts.remote_callbacks(crate::git::credentials::make_callbacks(ssh_key_path));
+        push_opts.remote_callbacks(crate::git::credentials::make_push_callbacks(
+            ssh_key_path,
+            rejections.clone(),
+        ));
 
         remote_obj.push(&[refspec.as_str()], Some(&mut push_opts))?;
+        crate::git::credentials::check_push_rejections(&rejections)?;
 
         Ok(())
     })
@@ -49,8 +85,8 @@ pub async fn push(
 }
 
 #[tauri::command]
-pub async fn pull(
-    app: tauri::AppHandle,
+pub async fn pull<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     path: String,
     remote: String,
     branch: String,

@@ -65,6 +65,9 @@ jobs:
       - name: Typecheck & Build
         run: pnpm run build
 
+      - name: Audit npm dependencies
+        run: pnpm audit --audit-level high
+
   # ──────────────────────────────────────────────
   # Rust Format Check
   # ──────────────────────────────────────────────
@@ -113,5 +116,32 @@ jobs:
       - name: Clippy linting
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
+      # Rebase tests drive the real `git` binary, so an identity must be
+      # available for the commits they create.
+      - name: Configure git identity for tests
+        run: |
+          git config --global user.name "CI"
+          git config --global user.email "ci@example.com"
+
       - name: Run tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  # ──────────────────────────────────────────────
+  # Dependency Audit
+  # ──────────────────────────────────────────────
+  cargo-audit:
+    name: Cargo Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Audit Rust dependencies
+        run: cargo audit --file src-tauri/Cargo.lock

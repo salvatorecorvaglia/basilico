@@ -1,8 +1,7 @@
 use crate::error::AppError;
+use crate::git::hooks;
 use git2::{Repository, Signature};
 use serde::Serialize;
-use std::io::Write;
-use std::process::Stdio;
 
 #[tauri::command]
 pub async fn create_commit(
@@ -15,37 +14,40 @@ pub async fn create_commit(
 ) -> Result<String, AppError> {
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
+        let hook_workdir = repo.workdir().unwrap_or_else(|| repo.path()).to_path_buf();
 
-        // Run pre-commit hooks if not bypassed
+        // Hook lifecycle, in the order git runs it:
+        //   pre-commit → prepare-commit-msg → commit-msg → (commit) → post-commit
+        // `commit-msg` may rewrite the message file, so the final message is
+        // read back from disk rather than assumed to be what we wrote.
+        let mut message = message;
+
         if !bypass_hooks {
-            let mut hooks_path = repo.path().join("hooks").join("pre-commit");
-            if !hooks_path.exists() {
-                hooks_path = repo.commondir().join("hooks").join("pre-commit");
-            }
+            hooks::run_blocking_hook(&repo, &hook_workdir, "pre-commit", &[])?;
 
-            if hooks_path.exists() {
-                let mut cmd = crate::commands::new_command(hooks_path.to_str().unwrap_or("git"));
-                cmd.current_dir(&path);
-                cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+            let msg_path = hooks::commit_msg_path(&repo);
+            std::fs::write(&msg_path, &message)?;
+            let msg_path_str = msg_path.to_string_lossy().to_string();
 
-                match cmd.output() {
-                    Ok(output) => {
-                        if !output.status.success() {
-                            let stdout_str = String::from_utf8_lossy(&output.stdout);
-                            let stderr_str = String::from_utf8_lossy(&output.stderr);
-                            let combined_output = format!("{}{}", stdout_str, stderr_str);
-                            return Err(AppError::command(format!(
-                                "Pre-commit hook failed (exit code: {}):\n{}",
-                                output.status.code().unwrap_or(-1),
-                                combined_output
-                            )));
-                        }
-                    }
-                    Err(e) => {
-                        return Err(AppError::command(format!("Failed to run pre-commit hook: {}", e)));
-                    }
-                }
+            // "message" is the source git reports when a message was supplied
+            // up front rather than composed in an editor.
+            hooks::run_blocking_hook(
+                &repo,
+                &hook_workdir,
+                "prepare-commit-msg",
+                &[&msg_path_str, "message"],
+            )?;
+
+            hooks::run_blocking_hook(&repo, &hook_workdir, "commit-msg", &[&msg_path_str])?;
+
+            let edited = std::fs::read_to_string(&msg_path)?;
+            let edited = hooks::strip_comments(&edited);
+            if edited.is_empty() {
+                return Err(AppError::invalid_state(
+                    "The commit message is empty after running hooks. Aborting the commit.",
+                ));
             }
+            message = edited;
         }
 
         let mut index = repo.index()?;
@@ -60,11 +62,24 @@ pub async fn create_commit(
             )
         })?;
 
-        // Create author signature
-        let sig = if let (Some(name), Some(email)) = (author_name, author_email) {
-            Signature::now(&name, &email)?
-        } else {
-            committer_sig.clone()
+        // Create author signature. When amending without an explicit override,
+        // the original author is preserved — `git commit --amend` keeps
+        // authorship, and rewriting it would silently reassign someone else's
+        // commit to the current user.
+        let explicit_author = match (author_name, author_email) {
+            (Some(name), Some(email)) => Some(Signature::now(&name, &email)?),
+            _ => None,
+        };
+
+        let sig = match explicit_author {
+            Some(s) => s,
+            None if amend => repo
+                .head()
+                .ok()
+                .and_then(|h| h.peel_to_commit().ok())
+                .map(|c| c.author().to_owned())
+                .unwrap_or_else(|| committer_sig.clone()),
+            None => committer_sig.clone(),
         };
 
         // Determine parents
@@ -95,12 +110,9 @@ pub async fn create_commit(
 
         let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
 
-        // Check if GPG signing is enabled in Git config
-        let config = repo.config()?;
-        let gpg_sign = config.get_bool("commit.gpgsign").unwrap_or(false);
-        let signing_key = config.get_string("user.signingkey").ok();
+        let (should_sign, signing_key) = crate::git::helpers::signing_config(&repo);
 
-        let commit_id = if gpg_sign {
+        let commit_id = if should_sign {
             // GPG sign commit
             let commit_content_buf = repo.commit_create_buffer(
                 &sig,
@@ -112,26 +124,8 @@ pub async fn create_commit(
             let commit_content = std::str::from_utf8(&commit_content_buf)
                 .map_err(|_| AppError::invalid_state("Commit buffer is not valid UTF-8"))?;
 
-            let mut cmd = crate::commands::new_command("gpg");
-            cmd.arg("--status-fd").arg("2").arg("-bsa");
-            if let Some(ref key) = signing_key {
-                cmd.arg("-u").arg(key);
-            }
-
-            cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-            let mut child = cmd.spawn().map_err(|e| AppError::command(format!("Failed to spawn gpg: {}", e)))?;
-
-            if let Some(mut stdin) = child.stdin.take() {
-                stdin.write_all(commit_content.as_bytes())?;
-            }
-
-            let output = child.wait_with_output().map_err(|e| AppError::command(format!("Failed to wait for gpg: {}", e)))?;
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-                return Err(AppError::gpg(format!("GPG signing failed: {}", stderr)));
-            }
-
-            let signature = String::from_utf8_lossy(&output.stdout).to_string();
+            let signature =
+                crate::git::helpers::gpg_sign(commit_content, signing_key.as_deref())?;
             let commit_oid = repo.commit_signed(commit_content, &signature, Some("gpgsig"))?;
 
             // Update HEAD
@@ -180,18 +174,26 @@ pub async fn create_commit(
             if amend {
                 let head_ref = repo.head()?;
                 let commit_to_amend = head_ref.peel_to_commit()?;
+                // Author and committer are distinct: the committer is always
+                // whoever is performing the rewrite.
                 commit_to_amend.amend(
                     Some("HEAD"),
                     Some(&sig),
-                    Some(&sig),
+                    Some(&committer_sig),
                     None,
                     Some(&message),
                     Some(&tree),
                 )?
             } else {
                 let has_merge_head = repo.find_reference("MERGE_HEAD").is_ok();
-                let commit_oid =
-                    repo.commit(Some("HEAD"), &sig, &sig, &message, &tree, &parent_refs)?;
+                let commit_oid = repo.commit(
+                    Some("HEAD"),
+                    &sig,
+                    &committer_sig,
+                    &message,
+                    &tree,
+                    &parent_refs,
+                )?;
 
                 if has_merge_head {
                     let _ = repo.cleanup_state();
@@ -199,6 +201,19 @@ pub async fn create_commit(
                 commit_oid
             }
         };
+
+        // post-commit is informational: git ignores its exit status, and a
+        // failing notification hook must not make a successful commit look
+        // like it failed.
+        if !bypass_hooks {
+            match hooks::run_hook(&repo, &hook_workdir, "post-commit", &[]) {
+                Ok(result) if result.ran && !result.success => {
+                    log::warn!("post-commit hook failed: {}", result.combined_output.trim());
+                }
+                Err(e) => log::warn!("post-commit hook could not be run: {}", e),
+                _ => {}
+            }
+        }
 
         Ok(commit_id.to_string())
     })
@@ -314,10 +329,11 @@ pub async fn revert_abort(path: String) -> Result<(), AppError> {
 pub async fn reset_to_commit(path: String, oid: String, mode: String) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
-        let object = repo.revparse_single(&oid)?;
-        let commit = object
-            .as_commit()
-            .ok_or_else(|| AppError::invalid_state("Object is not a commit"))?;
+        // Peel rather than downcast: a tag or a ref resolves to a tag object,
+        // which `as_commit` rejects outright.
+        let commit = repo.revparse_single(&oid)?.peel_to_commit().map_err(|_| {
+            AppError::invalid_state(format!("'{}' does not resolve to a commit", oid))
+        })?;
 
         let reset_type = match mode.as_str() {
             "soft" => git2::ResetType::Soft,
@@ -350,10 +366,9 @@ pub struct TreeEntryInfo {
 pub async fn get_commit_tree(path: String, oid: String) -> Result<Vec<TreeEntryInfo>, AppError> {
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
-        let object = repo.revparse_single(&oid)?;
-        let commit = object
-            .as_commit()
-            .ok_or_else(|| AppError::invalid_state("Object is not a commit"))?;
+        let commit = repo.revparse_single(&oid)?.peel_to_commit().map_err(|_| {
+            AppError::invalid_state(format!("'{}' does not resolve to a commit", oid))
+        })?;
         let tree = commit.tree()?;
 
         let mut entries = Vec::new();

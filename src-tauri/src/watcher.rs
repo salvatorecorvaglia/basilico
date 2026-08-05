@@ -34,11 +34,15 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
             .watcher()
             .watch(watch_path, RecursiveMode::NonRecursive);
 
-        // 2. Watch .git recursively to detect ref changes, branch changes, commits
-        let git_path = watch_path.join(".git");
-        let _ = debouncer
-            .watcher()
-            .watch(&git_path, RecursiveMode::Recursive);
+        // 2. Watch the git directory recursively to detect ref/branch/commit
+        //    changes. In a linked worktree or a submodule, `.git` is a *file*
+        //    pointing elsewhere, so watching it directly would silently observe
+        //    nothing. Ask libgit2 where the real directory is.
+        for git_dir in resolve_git_dirs(watch_path) {
+            let _ = debouncer
+                .watcher()
+                .watch(&git_dir, RecursiveMode::Recursive);
+        }
 
         // 3. Watch non-ignored top-level directories recursively
         if let Ok(entries) = std::fs::read_dir(watch_path) {
@@ -124,6 +128,35 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
             }
         }
     });
+}
+
+/// The git directories worth watching for a repository at `repo_path`.
+///
+/// For a normal repository this is just `.git`. For a linked worktree it is the
+/// worktree's own git directory *and* the shared common directory, since refs
+/// live in the latter while `HEAD` lives in the former.
+fn resolve_git_dirs(repo_path: &Path) -> Vec<std::path::PathBuf> {
+    let mut dirs = Vec::new();
+
+    match git2::Repository::open(repo_path) {
+        Ok(repo) => {
+            dirs.push(repo.path().to_path_buf());
+            let common = repo.commondir().to_path_buf();
+            if !dirs.contains(&common) {
+                dirs.push(common);
+            }
+        }
+        Err(_) => {
+            // Fall back to the conventional layout if the repository cannot be
+            // opened (e.g. it was removed between opening and watching).
+            let fallback = repo_path.join(".git");
+            if fallback.is_dir() {
+                dirs.push(fallback);
+            }
+        }
+    }
+
+    dirs
 }
 
 /// Returns true if the changed file path is significant (not ignored or transient).

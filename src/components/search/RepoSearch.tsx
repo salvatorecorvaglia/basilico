@@ -5,6 +5,7 @@
 
 import { CornerDownRight, FileText, GitCommit, Search, X } from "lucide-react";
 import { useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { formatDateTime } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
@@ -18,9 +19,20 @@ export function RepoSearch() {
     grepCode,
     selectCommit,
     selectLocalFile,
-  } = useRepoStore();
+  } = useRepoStore(
+    useShallow((s) => ({
+      commitSearchResults: s.commitSearchResults,
+      grepSearchResults: s.grepSearchResults,
+      searchCommits: s.searchCommits,
+      grepCode: s.grepCode,
+      selectCommit: s.selectCommit,
+      selectLocalFile: s.selectLocalFile,
+    })),
+  );
 
-  const { setActiveView } = useUIStore();
+  const { setActiveView } = useUIStore(
+    useShallow((s) => ({ setActiveView: s.setActiveView })),
+  );
 
   const [searchTab, setSearchTab] = useState<"commits" | "code">("commits");
   const [query, setQuery] = useState("");
@@ -66,6 +78,7 @@ export function RepoSearch() {
         <h2>Search Repository</h2>
         <div className="search-tabs">
           <button
+            type="button"
             className={`search-tab-btn ${searchTab === "commits" ? "active" : ""}`}
             onClick={() => {
               setSearchTab("commits");
@@ -76,6 +89,7 @@ export function RepoSearch() {
             <span>Commits</span>
           </button>
           <button
+            type="button"
             className={`search-tab-btn ${searchTab === "code" ? "active" : ""}`}
             onClick={() => {
               setSearchTab("code");
@@ -133,8 +147,16 @@ export function RepoSearch() {
               {commitSearchResults.map((commit) => (
                 <div
                   key={commit.oid}
+                  role="button"
+                  tabIndex={0}
                   className="search-result-row commit-result"
                   onClick={() => handleCommitClick(commit.oid)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleCommitClick(commit.oid);
+                    }
+                  }}
                 >
                   <div className="commit-result-title truncate">
                     {commit.message}
@@ -167,8 +189,16 @@ export function RepoSearch() {
             {grepSearchResults.map((match, i) => (
               <div
                 key={i}
+                role="button"
+                tabIndex={0}
                 className="search-result-row grep-result"
                 onClick={() => handleGrepClick(match.filePath)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleGrepClick(match.filePath);
+                  }
+                }}
               >
                 <div className="grep-result-header">
                   <FileText size={12} className="text-secondary" />

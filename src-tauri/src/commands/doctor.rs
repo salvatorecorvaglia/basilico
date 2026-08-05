@@ -31,38 +31,111 @@ pub struct DanglingCommitInfo {
     pub action_subject: String,
 }
 
-fn dir_size<P: AsRef<Path>>(path: P) -> u64 {
+/// Directories skipped when measuring repository size — they are build output or
+/// dependency caches, not repository content, and walking them can take minutes.
+const SKIPPED_DIRS: &[&str] = &[
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    ".next",
+    ".turbo",
+    "out",
+    "vendor",
+    "coverage",
+    ".cache",
+];
+
+/// Guards against pathological trees. Symlinks are never followed (see below),
+/// but deeply nested real directories should not blow the stack either.
+const MAX_WALK_DEPTH: usize = 64;
+
+fn is_skipped_dir(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .map(|name| SKIPPED_DIRS.contains(&name))
+        .unwrap_or(false)
+}
+
+fn dir_size_inner(path: &Path, depth: usize) -> u64 {
+    if depth >= MAX_WALK_DEPTH {
+        return 0;
+    }
     let mut total = 0;
     if let Ok(entries) = fs::read_dir(path) {
         for entry in entries.flatten() {
-            let p = entry.path();
-            if p.is_file() {
-                if let Ok(meta) = entry.metadata() {
-                    total += meta.len();
+            // symlink_metadata does not follow links, so a symlink cycle
+            // (`ln -s .. loop`) can never recurse into itself.
+            let Ok(meta) = entry.metadata_no_follow() else {
+                continue;
+            };
+            if meta.is_file() {
+                total += meta.len();
+            } else if meta.is_dir() {
+                let p = entry.path();
+                if !is_skipped_dir(&p) {
+                    total += dir_size_inner(&p, depth + 1);
                 }
-            } else if p.is_dir() {
-                total += dir_size(p);
             }
         }
     }
     total
 }
 
-fn count_files_with_ext<P: AsRef<Path>>(path: P, ext: &str) -> u64 {
+fn dir_size<P: AsRef<Path>>(path: P) -> u64 {
+    dir_size_inner(path.as_ref(), 0)
+}
+
+fn count_files_inner(path: &Path, matcher: &dyn Fn(&Path) -> bool, depth: usize) -> u64 {
+    if depth >= MAX_WALK_DEPTH {
+        return 0;
+    }
     let mut count = 0;
     if let Ok(entries) = fs::read_dir(path) {
         for entry in entries.flatten() {
+            let Ok(meta) = entry.metadata_no_follow() else {
+                continue;
+            };
             let p = entry.path();
-            if p.is_file() {
-                if p.extension().map(|e| e == ext).unwrap_or(false) {
+            if meta.is_file() {
+                if matcher(&p) {
                     count += 1;
                 }
-            } else if p.is_dir() {
-                count += count_files_with_ext(p, ext);
+            } else if meta.is_dir() && !is_skipped_dir(&p) {
+                count += count_files_inner(&p, matcher, depth + 1);
             }
         }
     }
     count
+}
+
+fn count_files_with_ext<P: AsRef<Path>>(path: P, ext: &str) -> u64 {
+    let ext = ext.to_string();
+    count_files_inner(
+        path.as_ref(),
+        &move |p: &Path| p.extension().map(|e| e == ext.as_str()).unwrap_or(false),
+        0,
+    )
+}
+
+/// Counts every regular file under `path`, regardless of extension.
+/// LFS objects are stored without a file extension, so an extension filter
+/// would always match nothing.
+fn count_all_files<P: AsRef<Path>>(path: P) -> u64 {
+    count_files_inner(path.as_ref(), &|_p: &Path| true, 0)
+}
+
+/// `DirEntry::metadata` already avoids following the link on most platforms, but
+/// the contract is not guaranteed across all of them; go through
+/// `symlink_metadata` explicitly so the no-follow behaviour is unambiguous.
+trait NoFollowMetadata {
+    fn metadata_no_follow(&self) -> std::io::Result<fs::Metadata>;
+}
+
+impl NoFollowMetadata for fs::DirEntry {
+    fn metadata_no_follow(&self) -> std::io::Result<fs::Metadata> {
+        fs::symlink_metadata(self.path())
+    }
 }
 
 fn count_loose_objects<P: AsRef<Path>>(git_dir: P) -> u64 {
@@ -96,7 +169,7 @@ pub async fn get_repo_health(path: String) -> Result<DoctorReport, AppError> {
         let loose_objects_count = count_loose_objects(&git_dir);
         let packfiles_count = count_files_with_ext(git_dir.join("objects").join("pack"), "pack");
         let lfs_objects_count = if git_dir.join("lfs").exists() {
-            count_files_with_ext(git_dir.join("lfs"), "")
+            count_all_files(git_dir.join("lfs"))
         } else {
             0
         };

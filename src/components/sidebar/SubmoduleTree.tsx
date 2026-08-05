@@ -5,6 +5,7 @@
 
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Download, FolderOpen, Package, Plus, RefreshCw } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import type { SubmoduleInfo } from "../../lib/git-types";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
@@ -16,8 +17,17 @@ interface SubmoduleTreeProps {
 
 export function SubmoduleTree({ submodules, onOpenModal }: SubmoduleTreeProps) {
   const { openRepository, initSubmodules, updateSubmodules, syncSubmodules } =
-    useRepoStore();
-  const { addNotification } = useUIStore();
+    useRepoStore(
+      useShallow((s) => ({
+        openRepository: s.openRepository,
+        initSubmodules: s.initSubmodules,
+        updateSubmodules: s.updateSubmodules,
+        syncSubmodules: s.syncSubmodules,
+      })),
+    );
+  const { addNotification } = useUIStore(
+    useShallow((s) => ({ addNotification: s.addNotification })),
+  );
 
   return {
     count: submodules.length,

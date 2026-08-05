@@ -1,6 +1,7 @@
 import Editor from "@monaco-editor/react";
 import { Check, Copy, Download, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { getFileContentAtRevision } from "../../lib/tauri-commands";
 import { useDarkMode } from "../../lib/use-dark-mode";
 import { getLanguageFromPath } from "../../lib/utils";
@@ -10,14 +11,24 @@ import "./FileViewerModal.css";
 
 export function FileViewerModal() {
   const isDark = useDarkMode();
-  const { activeTabId } = useRepoStore();
+  const { activeTabId } = useRepoStore(
+    useShallow((s) => ({ activeTabId: s.activeTabId })),
+  );
   const {
     fileViewerOpen,
     fileViewerPath,
     fileViewerOid,
     closeFileViewer,
     addNotification,
-  } = useUIStore();
+  } = useUIStore(
+    useShallow((s) => ({
+      fileViewerOpen: s.fileViewerOpen,
+      fileViewerPath: s.fileViewerPath,
+      fileViewerOid: s.fileViewerOid,
+      closeFileViewer: s.closeFileViewer,
+      addNotification: s.addNotification,
+    })),
+  );
 
   const [content, setContent] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
@@ -79,11 +90,19 @@ export function FileViewerModal() {
   };
 
   return (
+    // Click-outside-to-dismiss is a pointer convenience; Escape is the
+    // keyboard path and is handled by the effect above, so these wrappers carry
+    // no semantics of their own.
     <div
+      role="presentation"
       className="file-viewer-overlay animate-fade-in"
       onClick={closeFileViewer}
     >
-      <div className="file-viewer-content" onClick={(e) => e.stopPropagation()}>
+      <div
+        role="presentation"
+        className="file-viewer-content"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="file-viewer-header">
           <div className="file-viewer-title-group">
@@ -100,6 +119,7 @@ export function FileViewerModal() {
 
           <div className="file-viewer-actions">
             <button
+              type="button"
               className="viewer-action-btn"
               onClick={handleCopy}
               title="Copy content"
@@ -113,6 +133,7 @@ export function FileViewerModal() {
               <span>{copied ? "Copied" : "Copy"}</span>
             </button>
             <button
+              type="button"
               className="viewer-action-btn"
               onClick={handleDownload}
               title="Save to disk"
@@ -122,7 +143,11 @@ export function FileViewerModal() {
               <span>Save</span>
             </button>
             <div className="viewer-action-sep" />
-            <button className="file-viewer-close-btn" onClick={closeFileViewer}>
+            <button
+              type="button"
+              className="file-viewer-close-btn"
+              onClick={closeFileViewer}
+            >
               <X size={16} />
             </button>
           </div>

@@ -1,5 +1,6 @@
 import { ArrowLeft, Clock, ExternalLink, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./BlameView.css";
@@ -15,8 +16,22 @@ export function BlameView() {
     openInIde,
     repoInfo,
     settings,
-  } = useRepoStore();
-  const { setActiveView } = useUIStore();
+  } = useRepoStore(
+    useShallow((s) => ({
+      selectedFilePath: s.selectedFilePath,
+      blameLines: s.blameLines,
+      loadFileBlame: s.loadFileBlame,
+      selectCommit: s.selectCommit,
+      selectedCommitOid: s.selectedCommitOid,
+      isLoading: s.isLoading,
+      openInIde: s.openInIde,
+      repoInfo: s.repoInfo,
+      settings: s.settings,
+    })),
+  );
+  const { setActiveView } = useUIStore(
+    useShallow((s) => ({ setActiveView: s.setActiveView })),
+  );
   const [currentCommitOid, setCurrentCommitOid] = useState<string | null>(
     selectedCommitOid,
   );
@@ -34,7 +49,11 @@ export function BlameView() {
           No file selected for blame. Please select a file from staging or
           history.
         </p>
-        <button className="blame-btn" onClick={() => setActiveView("graph")}>
+        <button
+          type="button"
+          className="blame-btn"
+          onClick={() => setActiveView("graph")}
+        >
           Back to History
         </button>
       </div>
@@ -64,6 +83,7 @@ export function BlameView() {
     <div className="blame-view animate-fade-in">
       <div className="blame-header">
         <button
+          type="button"
           className="blame-back-btn"
           onClick={() => setActiveView("graph")}
           title="Back to Graph"
@@ -84,6 +104,7 @@ export function BlameView() {
           )}
         </div>
         <button
+          type="button"
           className="blame-btn-editor"
           onClick={() => handleOpenInIde()}
           title={`Open file in ${settings?.externalEditor || "code"}`}
@@ -106,6 +127,7 @@ export function BlameView() {
         </button>
         {currentCommitOid && (
           <button
+            type="button"
             className="blame-reset-btn"
             onClick={() => setCurrentCommitOid(null)}
             title="Reset blame to HEAD/Workdir"

@@ -23,11 +23,20 @@ import { useUIStore } from "../../store/ui-store";
 import "./RebaseEditor.css";
 
 export function RebaseEditor() {
-  const { rebaseTodoItems, rebaseStatus, writeRebaseTodo, stepRebase } =
-    useRepoStore();
+  const rebaseTodoItems = useRepoStore((s) => s.rebaseTodoItems);
+  const rebaseStatus = useRepoStore((s) => s.rebaseStatus);
+  const writeRebaseTodo = useRepoStore((s) => s.writeRebaseTodo);
+  const startRebase = useRepoStore((s) => s.startRebase);
+  const stepRebase = useRepoStore((s) => s.stepRebase);
 
-  const { addNotification, openPrompt } = useUIStore();
+  const addNotification = useUIStore((s) => s.addNotification);
+  const openPrompt = useUIStore((s) => s.openPrompt);
+  const openConfirm = useUIStore((s) => s.openConfirm);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+  // While planning, nothing has been written to the repository yet — the plan
+  // is editable and the run controls do not apply.
+  const isPlanning = rebaseStatus?.status === "planning";
 
   // If no rebase active
   if (!rebaseStatus || rebaseStatus.status === "none") {
@@ -166,6 +175,33 @@ export function RebaseEditor() {
     }
   };
 
+  const handleStart = () => {
+    const kept = rebaseTodoItems.filter((i) => i.action !== "drop");
+    const dropped = rebaseTodoItems.length - kept.length;
+
+    openConfirm({
+      title: "Start interactive rebase?",
+      message:
+        `This rewrites ${kept.length} commit(s)` +
+        (dropped > 0 ? ` and drops ${dropped}` : "") +
+        `. Commits that have already been pushed will need a force push afterwards.`,
+      confirmLabel: "Start rebase",
+      cancelLabel: "Keep editing",
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          const res = await startRebase();
+          handleRebaseResult(res);
+        } catch (err) {
+          addNotification({
+            type: "error",
+            message: `Failed to start rebase: ${err}`,
+          });
+        }
+      },
+    });
+  };
+
   // Step controls
   const handleStep = async (action: "continue" | "skip" | "abort") => {
     if (
@@ -242,42 +278,58 @@ export function RebaseEditor() {
               <span>Click Continue to reword commit</span>
             </div>
           )}
-          <button
-            type="button"
-            className="rebase-btn btn-skip"
-            onClick={handleAutosquash}
-            title="Autosquash fixup! and squash! commits"
-          >
-            <Sparkles size={12} />
-            <span>Autosquash</span>
-          </button>
-          <button
-            type="button"
-            className="rebase-btn btn-continue"
-            onClick={() => handleStep("continue")}
-            title="Apply next commit or continue after conflict resolution"
-          >
-            <Play size={12} />
-            <span>Continue</span>
-          </button>
-          <button
-            type="button"
-            className="rebase-btn btn-skip"
-            onClick={() => handleStep("skip")}
-            title="Skip current commit and continue"
-          >
-            <XCircle size={12} />
-            <span>Skip</span>
-          </button>
-          <button
-            type="button"
-            className="rebase-btn btn-abort"
-            onClick={() => handleStep("abort")}
-            title="Abort rebase and return to original HEAD"
-          >
-            <Trash2 size={12} />
-            <span>Abort</span>
-          </button>
+          {isPlanning ? (
+            <>
+              <button
+                type="button"
+                className="rebase-btn btn-skip"
+                onClick={handleAutosquash}
+                title="Reorder fixup! and squash! commits onto their targets"
+              >
+                <Sparkles size={12} />
+                <span>Autosquash</span>
+              </button>
+              <button
+                type="button"
+                className="rebase-btn btn-continue"
+                onClick={handleStart}
+                title="Apply this plan to the repository"
+              >
+                <Play size={12} />
+                <span>Start Rebase</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="rebase-btn btn-continue"
+                onClick={() => handleStep("continue")}
+                title="Continue after resolving conflicts or finishing an edit"
+              >
+                <Play size={12} />
+                <span>Continue</span>
+              </button>
+              <button
+                type="button"
+                className="rebase-btn btn-skip"
+                onClick={() => handleStep("skip")}
+                title="Skip current commit and continue"
+              >
+                <XCircle size={12} />
+                <span>Skip</span>
+              </button>
+              <button
+                type="button"
+                className="rebase-btn btn-abort"
+                onClick={() => handleStep("abort")}
+                title="Abort rebase and return to original HEAD"
+              >
+                <Trash2 size={12} />
+                <span>Abort</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -299,19 +351,30 @@ export function RebaseEditor() {
             return (
               <div
                 key={item.oid}
-                draggable
+                draggable={isPlanning}
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={handleDragOver}
                 onDrop={() => handleDrop(index)}
-                className={`rebase-row ${isCurrent ? "current" : ""} ${draggedIndex === index ? "dragging" : ""}`}
+                className={`rebase-row ${isCurrent ? "current" : ""} $draggedIndex === index ? "dragging" : ""$isPlanning ? "" : "rebase-row--locked"`}
               >
-                <div className="col-drag drag-handle" title="Drag to reorder">
+                <div
+                  className="col-drag drag-handle"
+                  title={
+                    isPlanning
+                      ? "Drag to reorder"
+                      : "The plan is locked once the rebase is running"
+                  }
+                >
                   <Menu size={14} />
                 </div>
 
                 <div className="col-action">
                   <select
                     value={item.action}
+                    // Once git is executing the todo, changing it here would
+                    // have no effect on what actually runs.
+                    disabled={!isPlanning}
+                    aria-label={`Action for commit ${item.oid.slice(0, 7)}`}
                     onChange={(e) =>
                       handleActionChange(
                         index,
@@ -350,6 +413,8 @@ export function RebaseEditor() {
                         className="settings-input"
                         style={{ height: "24px", fontSize: "12px", flex: 1 }}
                         value={item.summary}
+                        disabled={!isPlanning}
+                        aria-label={`Message for commit ${item.oid.slice(0, 7)}`}
                         onChange={(e) =>
                           handleSummaryChange(index, e.target.value)
                         }
@@ -371,17 +436,21 @@ export function RebaseEditor() {
                 <div className="col-reorder">
                   <button
                     type="button"
-                    disabled={index === 0}
+                    disabled={!isPlanning || index === 0}
                     onClick={() => moveUp(index)}
                     title="Move Up"
+                    aria-label={`Move commit $item.oid.slice(0, 7)earlier`}
                   >
                     <ArrowUp size={12} />
                   </button>
                   <button
                     type="button"
-                    disabled={index === rebaseTodoItems.length - 1}
+                    disabled={
+                      !isPlanning || index === rebaseTodoItems.length - 1
+                    }
                     onClick={() => moveDown(index)}
                     title="Move Down"
+                    aria-label={`Move commit $item.oid.slice(0, 7)later`}
                   >
                     <ArrowDown size={12} />
                   </button>

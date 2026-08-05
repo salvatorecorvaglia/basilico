@@ -1,6 +1,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AlertTriangle, X } from "lucide-react";
 import { useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./ResetModal.css";
@@ -9,8 +10,17 @@ type ResetMode = "soft" | "mixed" | "hard";
 
 export function ResetModal() {
   const { resetModalOpen, resetCommitOid, closeResetModal, addNotification } =
-    useUIStore();
-  const { resetToCommit } = useRepoStore();
+    useUIStore(
+      useShallow((s) => ({
+        resetModalOpen: s.resetModalOpen,
+        resetCommitOid: s.resetCommitOid,
+        closeResetModal: s.closeResetModal,
+        addNotification: s.addNotification,
+      })),
+    );
+  const { resetToCommit } = useRepoStore(
+    useShallow((s) => ({ resetToCommit: s.resetToCommit })),
+  );
 
   const [mode, setMode] = useState<ResetMode>("mixed");
   const [confirmHard, setConfirmHard] = useState(false);
@@ -75,6 +85,7 @@ export function ResetModal() {
                 </div>
                 <Dialog.Close asChild>
                   <button
+                    type="button"
                     className="reset-modal-close-btn"
                     disabled={isSubmitting}
                     aria-label="Close dialog"

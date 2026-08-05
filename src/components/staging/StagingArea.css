@@ -17,7 +17,7 @@
   justify-content: center;
   height: 100%;
   color: var(--text-tertiary);
-  font-size: var(--text-base);
+  font-size: var(--font-size-base);
 }
 
 .staging-lists {
@@ -41,7 +41,7 @@
   border-radius: var(--radius-md);
   cursor: pointer;
   user-select: none;
-  font-size: var(--text-sm);
+  font-size: var(--font-size-sm);
   font-weight: var(--weight-semibold);
   color: var(--text-secondary);
   gap: 6px;
@@ -79,7 +79,7 @@
   color: var(--text-secondary);
   padding: 1px 6px;
   border-radius: var(--radius-full);
-  font-size: var(--text-xs);
+  font-size: var(--font-size-xs);
   font-weight: var(--weight-bold);
   border: 1px solid var(--border-default);
 }
@@ -93,7 +93,7 @@
 .staging-action-btn {
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
-  font-size: var(--text-xs);
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   font-weight: var(--weight-medium);
   cursor: pointer;
@@ -118,7 +118,7 @@
 
 .staging-empty-text {
   padding: var(--space-2) var(--space-4);
-  font-size: var(--text-sm);
+  font-size: var(--font-size-sm);
   color: var(--text-tertiary);
   font-style: italic;
 }
@@ -130,7 +130,7 @@
   border-radius: var(--radius-md);
   cursor: pointer;
   gap: var(--space-2);
-  font-size: var(--text-base);
+  font-size: var(--font-size-base);
   position: relative;
   transition: all var(--transition-fast);
   border: 1px solid transparent;
@@ -212,11 +212,11 @@
 .file-name {
   color: var(--text-primary);
   font-weight: var(--weight-medium);
-  font-size: var(--text-base);
+  font-size: var(--font-size-base);
 }
 
 .file-dir {
-  font-size: var(--text-xs);
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   margin-top: 1px;
 }
@@ -261,7 +261,7 @@
   align-items: center;
   gap: var(--space-2);
   color: var(--color-warning);
-  font-size: var(--text-sm);
+  font-size: var(--font-size-sm);
   font-weight: var(--weight-medium);
 }
 
@@ -274,7 +274,7 @@
   background: color-mix(in srgb, var(--color-warning) 15%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-warning) 30%, transparent);
   color: var(--color-warning);
-  font-size: var(--text-xs);
+  font-size: var(--font-size-xs);
   font-weight: var(--weight-semibold);
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);

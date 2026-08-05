@@ -312,13 +312,25 @@ export const createCollaborationSlice: StateCreator<
   },
 
   push: async (remote, branch, force) => {
-    const { activeTabId } = get();
+    const { activeTabId, branches } = get();
     if (!activeTabId) return;
 
+    // The remote-tracking tip as currently known to the UI. Passing it lets the
+    // backend detect that someone else pushed since our last fetch and refuse a
+    // force push that would discard their commits.
+    const expectedRemoteOid =
+      branches.find((b) => b.isRemote && b.name === `${remote}/${branch}`)
+        ?.oid ?? null;
+
     await withLoading(get, set, "collaboration", "Push failed", async () => {
-      await commands.push(activeTabId, remote, branch, force, {
-        errorPrefix: "Push failed",
-      });
+      await commands.push(
+        activeTabId,
+        remote,
+        branch,
+        force,
+        expectedRemoteOid,
+        { errorPrefix: "Push failed" },
+      );
       await get().refreshAll();
     });
   },

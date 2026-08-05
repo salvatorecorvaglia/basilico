@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import type { DanglingCommitInfo, DoctorReport } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
@@ -35,8 +36,19 @@ interface GitDoctorModalProps {
 }
 
 export function GitDoctorModal({ open, onOpenChange }: GitDoctorModalProps) {
-  const { activeTabId, createBranch, refreshAll } = useRepoStore();
-  const { addNotification, openPrompt } = useUIStore();
+  const { activeTabId, createBranch, refreshAll } = useRepoStore(
+    useShallow((s) => ({
+      activeTabId: s.activeTabId,
+      createBranch: s.createBranch,
+      refreshAll: s.refreshAll,
+    })),
+  );
+  const { addNotification, openPrompt } = useUIStore(
+    useShallow((s) => ({
+      addNotification: s.addNotification,
+      openPrompt: s.openPrompt,
+    })),
+  );
 
   const [report, setReport] = useState<DoctorReport | null>(null);
   const [dangling, setDangling] = useState<DanglingCommitInfo[]>([]);
@@ -161,7 +173,11 @@ export function GitDoctorModal({ open, onOpenChange }: GitDoctorModalProps) {
               </h2>
             </Dialog.Title>
             <Dialog.Close asChild>
-              <button className="settings-close-btn" aria-label="Close Doctor">
+              <button
+                type="button"
+                className="settings-close-btn"
+                aria-label="Close Doctor"
+              >
                 <X size={16} />
               </button>
             </Dialog.Close>

@@ -44,6 +44,14 @@ export interface StagingSlice {
   ) => Promise<void>;
 }
 
+/**
+ * The OID the UI believes sits at `index`, so the backend can detect a shifted
+ * stash list and refuse to act on the wrong entry.
+ */
+function stashOidAt(get: () => RepoState, index: number): string | null {
+  return get().stashes.find((s) => s.index === index)?.oid ?? null;
+}
+
 export const createStagingSlice: StateCreator<
   RepoState,
   [],
@@ -248,7 +256,7 @@ export const createStagingSlice: StateCreator<
       "stashes",
       "Failed to apply stash",
       async () => {
-        await commands.applyStash(activeTabId, index, {
+        await commands.applyStash(activeTabId, index, stashOidAt(get, index), {
           errorPrefix: "Failed to apply stash",
         });
         // Targeted refresh: commits + status after stash apply
@@ -263,7 +271,7 @@ export const createStagingSlice: StateCreator<
     if (!activeTabId) return;
 
     await withLoading(get, set, "stashes", "Failed to pop stash", async () => {
-      await commands.popStash(activeTabId, index, {
+      await commands.popStash(activeTabId, index, stashOidAt(get, index), {
         errorPrefix: "Failed to pop stash",
       });
       // Targeted refresh: commits + status after stash pop
@@ -277,7 +285,7 @@ export const createStagingSlice: StateCreator<
     if (!activeTabId) return;
 
     await withLoading(get, set, "stashes", "Failed to drop stash", async () => {
-      await commands.dropStash(activeTabId, index, {
+      await commands.dropStash(activeTabId, index, stashOidAt(get, index), {
         errorPrefix: "Failed to drop stash",
       });
       // Targeted refresh: commits + status after stash drop
@@ -360,7 +368,7 @@ export const createStagingSlice: StateCreator<
         await get().checkoutBranch(branchName);
 
         // 3. Pop the stash (applies to workspace and drops)
-        await commands.popStash(activeTabId, index, {
+        await commands.popStash(activeTabId, index, stash.oid, {
           errorPrefix: "Failed to pop stash",
         });
 

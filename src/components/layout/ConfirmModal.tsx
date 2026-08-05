@@ -1,11 +1,17 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AlertTriangle, Info, X } from "lucide-react";
 import { useCallback } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useUIStore } from "../../store/ui-store";
 import "./ConfirmModal.css";
 
 export function ConfirmModal() {
-  const { confirmOptions, closeConfirm } = useUIStore();
+  const { confirmOptions, closeConfirm } = useUIStore(
+    useShallow((s) => ({
+      confirmOptions: s.confirmOptions,
+      closeConfirm: s.closeConfirm,
+    })),
+  );
 
   const handleCancel = useCallback(() => {
     if (confirmOptions?.onCancel) {
@@ -49,6 +55,7 @@ export function ConfirmModal() {
                 </div>
                 <Dialog.Close asChild>
                   <button
+                    type="button"
                     className="confirm-close-btn"
                     aria-label="Close dialog"
                   >

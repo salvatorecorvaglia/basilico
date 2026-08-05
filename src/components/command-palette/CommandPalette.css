@@ -47,7 +47,7 @@
   border: none;
   color: var(--text-primary);
   font-family: var(--font-family);
-  font-size: var(--text-md);
+  font-size: var(--font-size-md);
   font-weight: var(--weight-medium);
   outline: none;
   padding: 0;
@@ -84,7 +84,7 @@
   text-align: center;
   color: var(--text-tertiary);
   font-family: var(--font-family);
-  font-size: var(--text-sm);
+  font-size: var(--font-size-sm);
   font-style: italic;
 }
 

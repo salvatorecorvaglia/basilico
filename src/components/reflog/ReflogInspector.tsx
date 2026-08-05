@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import type { ReflogEntry } from "../../lib/git-types";
 import { getReflog, restoreReflogEntry } from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
@@ -55,8 +56,15 @@ function formatRelativeTime(timestamp: number): string {
 }
 
 export function ReflogInspector() {
-  const { addNotification } = useUIStore();
-  const { activeTabId, refreshAll } = useRepoStore();
+  const { addNotification } = useUIStore(
+    useShallow((s) => ({ addNotification: s.addNotification })),
+  );
+  const { activeTabId, refreshAll } = useRepoStore(
+    useShallow((s) => ({
+      activeTabId: s.activeTabId,
+      refreshAll: s.refreshAll,
+    })),
+  );
 
   const [entries, setEntries] = useState<ReflogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -349,6 +357,7 @@ export function ReflogInspector() {
               <div className="reflog-mode-options">
                 {/* Mixed Mode (Recommended) */}
                 <div
+                  role="presentation"
                   className={`reflog-mode-card ${resetMode === "mixed" ? "selected" : ""}`}
                   onClick={() => setResetMode("mixed")}
                 >
@@ -369,9 +378,9 @@ export function ReflogInspector() {
                     </span>
                   </div>
                 </div>
-
                 {/* Soft Mode */}
                 <div
+                  role="presentation"
                   className={`reflog-mode-card ${resetMode === "soft" ? "selected" : ""}`}
                   onClick={() => setResetMode("soft")}
                 >
@@ -390,9 +399,9 @@ export function ReflogInspector() {
                     </span>
                   </div>
                 </div>
-
                 {/* Hard Mode */}
                 <div
+                  role="presentation"
                   className={`reflog-mode-card ${resetMode === "hard" ? "selected" : ""}`}
                   onClick={() => setResetMode("hard")}
                 >

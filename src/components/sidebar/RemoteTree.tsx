@@ -6,6 +6,7 @@
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { ArrowLeftRight, CircleDot, Globe, Trash } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import type { BranchInfo, RemoteInfo } from "../../lib/git-types";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
@@ -16,8 +17,20 @@ interface RemoteTreeProps {
 }
 
 export function RemoteTree({ branches, remotes }: RemoteTreeProps) {
-  const { checkoutBranch, deleteBranch, startComparison } = useRepoStore();
-  const { addNotification, setActiveView, openConfirm } = useUIStore();
+  const { checkoutBranch, deleteBranch, startComparison } = useRepoStore(
+    useShallow((s) => ({
+      checkoutBranch: s.checkoutBranch,
+      deleteBranch: s.deleteBranch,
+      startComparison: s.startComparison,
+    })),
+  );
+  const { addNotification, setActiveView, openConfirm } = useUIStore(
+    useShallow((s) => ({
+      addNotification: s.addNotification,
+      setActiveView: s.setActiveView,
+      openConfirm: s.openConfirm,
+    })),
+  );
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
 
   // Memoize remote branch filtering

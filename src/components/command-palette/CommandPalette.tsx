@@ -6,6 +6,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { ArrowRight, Command, Terminal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./CommandPalette.css";
@@ -25,7 +26,15 @@ export function CommandPalette() {
     setActiveView,
     addNotification,
     openPrompt,
-  } = useUIStore();
+  } = useUIStore(
+    useShallow((s) => ({
+      commandPaletteOpen: s.commandPaletteOpen,
+      toggleCommandPalette: s.toggleCommandPalette,
+      setActiveView: s.setActiveView,
+      addNotification: s.addNotification,
+      openPrompt: s.openPrompt,
+    })),
+  );
 
   const {
     refreshAll,
@@ -37,7 +46,19 @@ export function CommandPalette() {
     resetBisect,
     startBisect,
     status,
-  } = useRepoStore();
+  } = useRepoStore(
+    useShallow((s) => ({
+      refreshAll: s.refreshAll,
+      fetch: s.fetch,
+      pull: s.pull,
+      push: s.push,
+      createBranch: s.createBranch,
+      initRebase: s.initRebase,
+      resetBisect: s.resetBisect,
+      startBisect: s.startBisect,
+      status: s.status,
+    })),
+  );
 
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -363,18 +384,40 @@ export function CommandPalette() {
             <span className="palette-esc-badge">ESC</span>
           </div>
 
-          <div ref={listRef} className="palette-results custom-scrollbar">
+          {/* Listbox semantics: arrow-key navigation and Enter are handled once
+              on the dialog (handleKeyDownPalette), which is the accessible
+              pattern for a combobox-driven list — the options themselves are
+              not individually focusable. */}
+          <div
+            ref={listRef}
+            role="listbox"
+            aria-label="Commands"
+            className="palette-results custom-scrollbar"
+          >
             {filteredCommands.length === 0 ? (
               <div className="palette-empty">No commands match your query</div>
             ) : (
               filteredCommands.map((cmd, index) => (
                 <div
                   key={cmd.id}
+                  role="option"
+                  aria-selected={index === selectedIndex}
+                  // -1 keeps options out of the tab order (focus stays in the
+                  // input, per the combobox pattern) while still allowing them
+                  // to be focused programmatically.
+                  tabIndex={-1}
                   className={`palette-row ${index === selectedIndex ? "active" : ""}`}
                   onMouseEnter={() => setSelectedIndex(index)}
                   onClick={() => {
                     cmd.action();
                     toggleCommandPalette();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      cmd.action();
+                      toggleCommandPalette();
+                    }
                   }}
                 >
                   <div className="palette-row-left">

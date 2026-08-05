@@ -12,15 +12,29 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./BisectWizard.css";
 
 export function BisectWizard() {
   const { bisectState, startBisect, markBisect, resetBisect, commits } =
-    useRepoStore();
+    useRepoStore(
+      useShallow((s) => ({
+        bisectState: s.bisectState,
+        startBisect: s.startBisect,
+        markBisect: s.markBisect,
+        resetBisect: s.resetBisect,
+        commits: s.commits,
+      })),
+    );
 
-  const { addNotification, openConfirm } = useUIStore();
+  const { addNotification, openConfirm } = useUIStore(
+    useShallow((s) => ({
+      addNotification: s.addNotification,
+      openConfirm: s.openConfirm,
+    })),
+  );
 
   // Form states for setup
   const [badCommit, setBadCommit] = useState("HEAD");
@@ -117,8 +131,11 @@ export function BisectWizard() {
 
         <form onSubmit={handleStart} className="bisect-setup-form">
           <div className="form-group">
-            <label>Known BAD Commit (e.g. revision, SHA, branch)</label>
+            <label htmlFor="bisect-bad-commit">
+              Known BAD Commit (e.g. revision, SHA, branch)
+            </label>
             <input
+              id="bisect-bad-commit"
               type="text"
               placeholder="HEAD"
               value={badCommit}
@@ -130,8 +147,11 @@ export function BisectWizard() {
           </div>
 
           <div className="form-group">
-            <label>Known GOOD Commit (e.g. revision, SHA, tag)</label>
+            <label htmlFor="bisect-good-commit">
+              Known GOOD Commit (e.g. revision, SHA, tag)
+            </label>
             <input
+              id="bisect-good-commit"
               type="text"
               placeholder="e.g. v1.2.0 or commit SHA"
               value={goodCommit}
@@ -171,6 +191,7 @@ export function BisectWizard() {
           </span>
         </div>
         <button
+          type="button"
           className={isFinished ? "bisect-exit-btn" : "bisect-abort-btn"}
           onClick={isFinished ? handleExitDirectly : handleReset}
           title={isFinished ? "Exit Bisect" : "Abort Bisect"}
@@ -244,6 +265,7 @@ export function BisectWizard() {
 
             <div className="bisect-actions">
               <button
+                type="button"
                 className="bisect-action-btn btn-bad"
                 onClick={() => handleMark("bad")}
                 title="Mark this commit as containing the bug"
@@ -252,6 +274,7 @@ export function BisectWizard() {
                 <span>Mark BAD (Confirms Bug)</span>
               </button>
               <button
+                type="button"
                 className="bisect-action-btn btn-good"
                 onClick={() => handleMark("good")}
                 title="Mark this commit as NOT containing the bug"
@@ -260,6 +283,7 @@ export function BisectWizard() {
                 <span>Mark GOOD (Works Fine)</span>
               </button>
               <button
+                type="button"
                 className="bisect-action-btn btn-skip"
                 onClick={() => handleMark("skip")}
                 title="Skip this commit (e.g. if code does not build or cannot be tested)"

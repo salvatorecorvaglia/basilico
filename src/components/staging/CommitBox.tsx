@@ -6,6 +6,7 @@
 import { Check, Edit2 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./CommitBox.css";
@@ -21,8 +22,17 @@ const CONVENTIONAL_TYPES = [
 ];
 
 export function CommitBox() {
-  const { commits, status, commit, isLoading } = useRepoStore();
-  const { addNotification } = useUIStore();
+  const { commits, status, commit, isLoading } = useRepoStore(
+    useShallow((s) => ({
+      commits: s.commits,
+      status: s.status,
+      commit: s.commit,
+      isLoading: s.isLoading,
+    })),
+  );
+  const { addNotification } = useUIStore(
+    useShallow((s) => ({ addNotification: s.addNotification })),
+  );
   const [summary, setSummary] = useState("");
   const [description, setDescription] = useState("");
   const [amend, setAmend] = useState(false);

@@ -32,6 +32,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { buildAutolinkSegments } from "../../lib/autolink";
 import { getCommitUrl } from "../../lib/forge-links";
 import type { GraphCommit, RefLabel } from "../../lib/git-types";
 import { validateTagName } from "../../lib/git-validation";
@@ -42,7 +44,7 @@ import {
 } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
-import { MergedBranchSweeperModal } from "../sidebar/MergedBranchSweeperModal";
+import { MergedBranchSweeperModal } from "../modals/MergedBranchSweeperModal";
 import { CommitGraph } from "./CommitGraph";
 import "./CommitList.css";
 
@@ -90,7 +92,27 @@ export function CommitList() {
     hideRemoteBranches,
     pathFilter,
     setGraphFilters,
-  } = useRepoStore();
+  } = useRepoStore(
+    useShallow((s) => ({
+      commits: s.commits,
+      selectedCommitOid: s.selectedCommitOid,
+      selectCommit: s.selectCommit,
+      loadMoreCommits: s.loadMoreCommits,
+      checkoutBranch: s.checkoutBranch,
+      createBranch: s.createBranch,
+      createTag: s.createTag,
+      cherryPickCommit: s.cherryPickCommit,
+      revertCommit: s.revertCommit,
+      startComparison: s.startComparison,
+      isLoading: s.isLoading,
+      settings: s.settings,
+      remotes: s.remotes,
+      firstParentOnly: s.firstParentOnly,
+      hideRemoteBranches: s.hideRemoteBranches,
+      pathFilter: s.pathFilter,
+      setGraphFilters: s.setGraphFilters,
+    })),
+  );
 
   const {
     openResetModal,
@@ -98,7 +120,15 @@ export function CommitList() {
     setActiveView,
     openPrompt,
     openConfirm,
-  } = useUIStore();
+  } = useUIStore(
+    useShallow((s) => ({
+      openResetModal: s.openResetModal,
+      addNotification: s.addNotification,
+      setActiveView: s.setActiveView,
+      openPrompt: s.openPrompt,
+      openConfirm: s.openConfirm,
+    })),
+  );
 
   const parentRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(600);
@@ -156,72 +186,34 @@ export function CommitList() {
         header: "Message",
         cell: (info) => {
           const message = info.getValue();
-          const pattern = settings?.autolinkPattern;
-          const urlTemplate = settings?.autolinkUrl;
+          const segments = buildAutolinkSegments(
+            message,
+            settings?.autolinkPattern,
+            settings?.autolinkUrl,
+          );
 
-          if (!pattern || !urlTemplate) {
-            return <span className="commit-message truncate">{message}</span>;
-          }
-
-          try {
-            const regex = new RegExp(pattern, "g");
-            if (!regex.test(message)) {
-              return <span className="commit-message truncate">{message}</span>;
-            }
-
-            regex.lastIndex = 0;
-            const parts: React.ReactNode[] = [];
-            let lastIndex = 0;
-            let match = regex.exec(message);
-
-            while (match !== null) {
-              const matchText = match[0];
-              const matchIndex = match.index;
-
-              if (matchIndex > lastIndex) {
-                parts.push(message.substring(lastIndex, matchIndex));
-              }
-
-              let targetUrl = urlTemplate;
-              if (match[1]) {
-                targetUrl = urlTemplate.replace("$1", match[1]);
-                for (let i = 2; i < match.length; i++) {
-                  targetUrl = targetUrl.replace(`$${i}`, match[i] || "");
-                }
-              } else {
-                targetUrl = urlTemplate.replace("$1", matchText);
-              }
-
-              parts.push(
-                <a
-                  key={matchIndex}
-                  href={targetUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="autolink"
-                  onClick={(e) => e.stopPropagation()}
-                  style={{
-                    color: "var(--accent-primary)",
-                    textDecoration: "underline",
-                  }}
-                >
-                  {matchText}
-                </a>,
-              );
-
-              lastIndex = regex.lastIndex;
-              match = regex.exec(message);
-            }
-
-            if (lastIndex < message.length) {
-              parts.push(message.substring(lastIndex));
-            }
-
-            return <span className="commit-message truncate">{parts}</span>;
-          } catch (e) {
-            console.error("Invalid autolink pattern regex:", e);
-            return <span className="commit-message truncate">{message}</span>;
-          }
+          return (
+            <span className="commit-message truncate">
+              {segments.map((segment, idx) =>
+                segment.url ? (
+                  <a
+                    // Segments are positional; the index is the stable identity
+                    // for a given message render.
+                    key={`${idx}-${segment.text}`}
+                    href={segment.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="autolink"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {segment.text}
+                  </a>
+                ) : (
+                  segment.text
+                ),
+              )}
+            </span>
+          );
         },
         size: 280,
       }),
@@ -318,6 +310,26 @@ export function CommitList() {
     overscan: 20,
   });
 
+  // The keyboard handler needs the current rows and selection, but making them
+  // effect dependencies re-registered the window listener on every arrow key.
+  // A ref gives the handler fresh values with a listener that binds once.
+  const navStateRef = useRef({
+    rows,
+    selectedCommitOid,
+    virtualizer,
+    selectCommit,
+    setActiveView,
+    vimModeEnabled: !!settings?.vimModeEnabled,
+  });
+  navStateRef.current = {
+    rows,
+    selectedCommitOid,
+    virtualizer,
+    selectCommit,
+    setActiveView,
+    vimModeEnabled: !!settings?.vimModeEnabled,
+  };
+
   const handleScroll = useCallback(() => {
     const el = parentRef.current;
     if (!el) return;
@@ -339,7 +351,14 @@ export function CommitList() {
           target.closest(".monaco-editor"));
       if (isInput) return;
 
-      const isVim = !!settings?.vimModeEnabled;
+      const {
+        rows: currentRows,
+        selectedCommitOid: currentOid,
+        virtualizer: currentVirtualizer,
+        selectCommit: currentSelect,
+        setActiveView: currentSetView,
+        vimModeEnabled: isVim,
+      } = navStateRef.current;
 
       if (
         e.key === "ArrowDown" ||
@@ -347,25 +366,27 @@ export function CommitList() {
         (isVim && (e.key === "j" || e.key === "k"))
       ) {
         e.preventDefault();
-        const currentIndex = rows.findIndex(
-          (r) => r.original.oid === selectedCommitOid,
+        const currentIndex = currentRows.findIndex(
+          (r) => r.original.oid === currentOid,
         );
         let nextIndex = currentIndex;
         if (e.key === "ArrowDown" || (isVim && e.key === "j")) {
           nextIndex =
-            currentIndex < rows.length - 1 ? currentIndex + 1 : currentIndex;
+            currentIndex < currentRows.length - 1
+              ? currentIndex + 1
+              : currentIndex;
         } else if (e.key === "ArrowUp" || (isVim && e.key === "k")) {
           nextIndex = currentIndex > 0 ? currentIndex - 1 : currentIndex;
         }
 
-        const nextRow = rows[nextIndex];
+        const nextRow = currentRows[nextIndex];
         if (nextRow) {
-          selectCommit(nextRow.original.oid);
-          virtualizer.scrollToIndex(nextIndex);
+          currentSelect(nextRow.original.oid);
+          currentVirtualizer.scrollToIndex(nextIndex);
         }
       } else if (isVim && e.key === "s") {
         e.preventDefault();
-        setActiveView("staging");
+        currentSetView("staging");
       } else if (isVim && e.key === "/") {
         e.preventDefault();
         const searchInput = document.querySelector(
@@ -378,14 +399,8 @@ export function CommitList() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    rows,
-    selectedCommitOid,
-    selectCommit,
-    virtualizer,
-    settings?.vimModeEnabled,
-    setActiveView,
-  ]);
+    // Bound once: everything mutable is read through navStateRef.
+  }, []);
 
   // Render loading skeleton
   if (isLoading && commits.length === 0) {
@@ -699,9 +714,24 @@ export function CommitList() {
         {table.getHeaderGroups()[0].headers.map((header) => (
           <div
             key={header.id}
+            role="columnheader"
+            tabIndex={0}
+            aria-sort={
+              header.column.getIsSorted() === "asc"
+                ? "ascending"
+                : header.column.getIsSorted() === "desc"
+                  ? "descending"
+                  : "none"
+            }
             className="commit-list-header-cell"
             style={{ width: `${header.getSize()}px` }}
             onClick={header.column.getToggleSortingHandler()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                header.column.toggleSorting();
+              }
+            }}
           >
             {flexRender(header.column.columnDef.header, header.getContext())}
             {header.column.getIsSorted() ? (
@@ -725,7 +755,11 @@ export function CommitList() {
                 />
               )
             ) : null}
+            {/* Presentational drag grip: column widths are a pointer-only
+                affordance, and the onClick exists solely to stop the drag from
+                also triggering the header's sort. */}
             <div
+              role="presentation"
               onMouseDown={header.getResizeHandler()}
               onTouchStart={header.getResizeHandler()}
               className={`resizer ${header.column.getIsResizing() ? "isResizing" : ""}`}
@@ -768,6 +802,13 @@ export function CommitList() {
               <ContextMenu.Root key={commit.oid}>
                 <ContextMenu.Trigger>
                   <div
+                    // A row selects a commit, so it carries button semantics.
+                    // It cannot be a <button>: rows contain links (autolinked
+                    // issue references), and nesting those is invalid HTML.
+                    // Arrow-key navigation is handled once at the window level.
+                    role="button"
+                    tabIndex={-1}
+                    aria-pressed={isSelected}
                     className={`commit-row ${isSelected ? "selected" : ""}`}
                     style={{
                       position: "absolute",
@@ -778,6 +819,12 @@ export function CommitList() {
                       transform: `translateY(${virtualRow.start}px)`,
                     }}
                     onClick={() => selectCommit(commit.oid)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        selectCommit(commit.oid);
+                      }
+                    }}
                     onDragOver={(e) => {
                       if (e.dataTransfer.types.includes("text/plain")) {
                         e.preventDefault();

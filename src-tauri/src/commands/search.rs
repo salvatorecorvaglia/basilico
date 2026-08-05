@@ -16,11 +16,13 @@ pub struct GrepMatch {
 }
 
 fn run_git_log(repo_path: &str, args: &[&str]) -> Result<Vec<GraphCommit>, AppError> {
-    let output = crate::commands::new_command("git")
-        .current_dir(repo_path)
-        .args(args)
-        .output()
-        .map_err(|e| AppError::command(format!("Failed to run git log: {}", e)))?;
+    let output = crate::commands::git_output(args, repo_path)?;
+
+    if !output.status.success() {
+        return Err(AppError::git(crate::commands::git_failure_message(
+            args, &output,
+        )));
+    }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut commits = Vec::new();
@@ -132,41 +134,74 @@ pub async fn search_commits(
     Ok(unique_commits)
 }
 
+/// Split one `git grep -n` output line into `(path, line_number, content)`.
+///
+/// The format is `<path>:<line>:<content>`, but `<path>` may itself contain
+/// colons (`C:\repo\file.rs`, or a file literally named `a:b`). Scanning for the
+/// first colon that is followed by digits and another colon identifies the real
+/// separator.
+pub fn split_grep_line(line: &str) -> Option<(String, usize, String)> {
+    let mut search_from = 0;
+    while let Some(rel) = line[search_from..].find(':') {
+        let colon = search_from + rel;
+        let rest = &line[colon + 1..];
+        if let Some(next_rel) = rest.find(':') {
+            let number_part = &rest[..next_rel];
+            if !number_part.is_empty() {
+                if let Ok(line_number) = number_part.parse::<usize>() {
+                    return Some((
+                        line[..colon].to_string(),
+                        line_number,
+                        rest[next_rel + 1..].to_string(),
+                    ));
+                }
+            }
+        }
+        search_from = colon + 1;
+    }
+    None
+}
+
 #[tauri::command]
 pub async fn grep_code(repo_path: String, query: String) -> Result<Vec<GrepMatch>, AppError> {
     if query.trim().is_empty() {
         return Ok(Vec::new());
     }
 
-    let output = crate::commands::new_command("git")
-        .current_dir(&repo_path)
-        .args([
-            "grep",
-            "-n",
-            "-I",
-            "--no-color",
-            "--fixed-strings",
-            "-e",
-            &query,
-        ])
-        .output()
-        .map_err(|e| AppError::command(format!("Failed to run git grep: {}", e)))?;
+    let args = [
+        "grep",
+        "-n",
+        "-I",
+        "--no-color",
+        "--fixed-strings",
+        "-e",
+        query.as_str(),
+    ];
+    let output = crate::commands::git_output(&args, &repo_path)?;
+
+    // `git grep` exits 1 when there are simply no matches; anything above that
+    // is a real failure that must not be reported to the user as "no results".
+    match output.status.code() {
+        Some(0) | Some(1) => {}
+        _ => {
+            return Err(AppError::git(crate::commands::git_failure_message(
+                &args, &output,
+            )));
+        }
+    }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     let mut matches = Vec::new();
     for line in stdout.lines() {
-        let parts: Vec<&str> = line.splitn(3, ':').collect();
-        if parts.len() == 3 {
-            let file_path = parts[0].to_string();
-            if let Ok(line_number) = parts[1].parse::<usize>() {
-                let content = parts[2].to_string();
-                matches.push(GrepMatch {
-                    file_path,
-                    line_number,
-                    content,
-                });
-            }
+        // Paths may contain ':' (and always do on Windows), so anchor the split
+        // on the line-number field rather than taking the first two colons.
+        if let Some((file_path, line_number, content)) = split_grep_line(line) {
+            matches.push(GrepMatch {
+                file_path,
+                line_number,
+                content,
+            });
         }
     }
 

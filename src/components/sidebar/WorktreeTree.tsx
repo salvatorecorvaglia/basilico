@@ -5,6 +5,7 @@
 
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { FolderOpen, FolderTree, Plus, Scissors, Trash } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import type { WorktreeInfo } from "../../lib/git-types";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
@@ -15,8 +16,19 @@ interface WorktreeTreeProps {
 }
 
 export function WorktreeTree({ worktrees, onOpenModal }: WorktreeTreeProps) {
-  const { openRepository, removeWorktree, pruneWorktrees } = useRepoStore();
-  const { addNotification, openConfirm } = useUIStore();
+  const { openRepository, removeWorktree, pruneWorktrees } = useRepoStore(
+    useShallow((s) => ({
+      openRepository: s.openRepository,
+      removeWorktree: s.removeWorktree,
+      pruneWorktrees: s.pruneWorktrees,
+    })),
+  );
+  const { addNotification, openConfirm } = useUIStore(
+    useShallow((s) => ({
+      addNotification: s.addNotification,
+      openConfirm: s.openConfirm,
+    })),
+  );
 
   return {
     count: worktrees.length,

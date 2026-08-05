@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { openExternalTool } from "../lib/tauri-commands";
 import { useRepoStore } from "../store/repo-store";
 import "./WelcomeScreen.css";
@@ -32,7 +33,17 @@ export function WelcomeScreen() {
     recentRepos,
     pinRecentRepo,
     removeRecentRepo,
-  } = useRepoStore();
+  } = useRepoStore(
+    useShallow((s) => ({
+      openRepository: s.openRepository,
+      cloneRepository: s.cloneRepository,
+      initializeRepository: s.initializeRepository,
+      isLoading: s.isLoading,
+      recentRepos: s.recentRepos,
+      pinRecentRepo: s.pinRecentRepo,
+      removeRecentRepo: s.removeRecentRepo,
+    })),
+  );
 
   const [cloneOpen, setCloneOpen] = useState(false);
   const [initOpen, setInitOpen] = useState(false);
@@ -228,8 +239,22 @@ export function WelcomeScreen() {
                 filteredRecents.map((repo) => (
                   <div
                     key={repo.path}
+                    // Not a <button>: the card contains its own action
+                    // buttons, and nesting interactive elements inside a
+                    // button is invalid HTML.
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open repository ${repo.name}`}
                     className="welcome-recent-card"
                     onClick={() => openRepository(repo.path)}
+                    onKeyDown={(e) => {
+                      // The card holds its own action buttons, so it cannot be
+                      // a <button> itself; activation is wired up by hand.
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openRepository(repo.path);
+                      }
+                    }}
                   >
                     <div className="welcome-recent-card-left truncate">
                       <FolderOpen
@@ -267,39 +292,52 @@ export function WelcomeScreen() {
                       </div>
                     </div>
 
-                    <div
-                      className="welcome-recent-card-actions"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <div className="welcome-recent-card-actions">
                       <button
+                        type="button"
                         className="welcome-card-btn"
-                        onClick={() => handleLaunchTool(repo.path, "vscode")}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleLaunchTool(repo.path, "vscode");
+                        }}
                         title="Open in VS Code"
                       >
                         <Code size={13} />
                       </button>
                       <button
+                        type="button"
                         className="welcome-card-btn"
-                        onClick={() => handleLaunchTool(repo.path, "terminal")}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleLaunchTool(repo.path, "terminal");
+                        }}
                         title="Open in Terminal"
                       >
                         <Terminal size={13} />
                       </button>
                       <button
+                        type="button"
                         className={`welcome-card-btn welcome-btn-pin ${repo.isPinned ? "pinned" : ""}`}
-                        onClick={() => pinRecentRepo(repo.path, !repo.isPinned)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          pinRecentRepo(repo.path, !repo.isPinned);
+                        }}
                         title={
                           repo.isPinned ? "Unpin repository" : "Pin repository"
                         }
                       >
                         <Star
                           size={13}
-                          fill={repo.isPinned ? "var(--accent-gold)" : "none"}
+                          fill={repo.isPinned ? "var(--color-warning)" : "none"}
                         />
                       </button>
                       <button
+                        type="button"
                         className="welcome-card-btn welcome-btn-remove"
-                        onClick={() => removeRecentRepo(repo.path)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeRecentRepo(repo.path);
+                        }}
                         title="Remove from recents"
                       >
                         <Trash2 size={13} />
@@ -409,6 +447,7 @@ export function WelcomeScreen() {
               </Dialog.Title>
               <Dialog.Close asChild>
                 <button
+                  type="button"
                   className="welcome-modal-close"
                   aria-label="Close"
                   disabled={isLoading}
@@ -491,6 +530,7 @@ export function WelcomeScreen() {
               </Dialog.Title>
               <Dialog.Close asChild>
                 <button
+                  type="button"
                   className="welcome-modal-close"
                   aria-label="Close"
                   disabled={isLoading}

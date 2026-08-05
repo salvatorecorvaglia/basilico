@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import type { BranchInfo } from "../../lib/git-types";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
@@ -27,9 +28,20 @@ export function MergedBranchSweeperModal({
   open,
   onOpenChange,
 }: MergedBranchSweeperModalProps) {
-  const { branches, listMergedBranches, deleteBranch, repoInfo } =
-    useRepoStore();
-  const { addNotification } = useUIStore();
+  const { branches, listMergedBranches, deleteBranch, repoInfo } = useRepoStore(
+    useShallow((s) => ({
+      branches: s.branches,
+      listMergedBranches: s.listMergedBranches,
+      deleteBranch: s.deleteBranch,
+      repoInfo: s.repoInfo,
+    })),
+  );
+  const { addNotification, openConfirm } = useUIStore(
+    useShallow((s) => ({
+      addNotification: s.addNotification,
+      openConfirm: s.openConfirm,
+    })),
+  );
 
   const [targetBranch, setTargetBranch] = useState<string>(
     repoInfo?.headBranch || "main",
@@ -46,7 +58,10 @@ export function MergedBranchSweeperModal({
     try {
       const list = await listMergedBranches(targetBranch);
       setMergedList(list);
-      setSelectedBranches(new Set(list.map((b) => b.name)));
+      // Deliberately starts empty. Deleting a remote branch pushes the deletion
+      // to the server and cannot be undone from Basilico, so bulk deletion must
+      // be an explicit choice rather than the default.
+      setSelectedBranches(new Set());
     } catch {
       setMergedList([]);
       setSelectedBranches(new Set());
@@ -79,21 +94,18 @@ export function MergedBranchSweeperModal({
     setSelectedBranches(next);
   };
 
-  const handleBulkDelete = async () => {
-    if (selectedBranches.size === 0) return;
+  const runBulkDelete = async (targets: BranchInfo[]) => {
     setIsDeleting(true);
 
     let successCount = 0;
-    let failCount = 0;
+    const failures: string[] = [];
 
-    for (const name of Array.from(selectedBranches)) {
-      const bInfo = mergedList.find((b) => b.name === name);
-      if (!bInfo) continue;
+    for (const bInfo of targets) {
       try {
         await deleteBranch(bInfo.name, bInfo.isRemote);
         successCount++;
-      } catch {
-        failCount++;
+      } catch (err) {
+        failures.push(`${bInfo.name}: ${err}`);
       }
     }
 
@@ -105,14 +117,52 @@ export function MergedBranchSweeperModal({
         message: `Successfully pruned ${successCount} merged branch(es)`,
       });
     }
-    if (failCount > 0) {
+    if (failures.length > 0) {
+      // Naming the branches that survived matters: a partial failure otherwise
+      // leaves the user unsure which deletions actually reached the remote.
       addNotification({
         type: "error",
-        message: `Failed to delete ${failCount} branch(es)`,
+        message: `Failed to delete ${failures.length} branch(es)`,
+        description: failures.join("\n"),
       });
     }
 
     onOpenChange(false);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedBranches.size === 0) return;
+
+    const targets = mergedList.filter((b) => selectedBranches.has(b.name));
+    if (targets.length === 0) return;
+
+    const remoteTargets = targets.filter((b) => b.isRemote);
+    const localCount = targets.length - remoteTargets.length;
+
+    const summary = [
+      localCount > 0 ? `${localCount} local branch(es)` : null,
+      remoteTargets.length > 0
+        ? `${remoteTargets.length} remote branch(es)`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" and ");
+
+    const remoteWarning =
+      remoteTargets.length > 0
+        ? `\n\nDeleting a remote branch pushes the deletion to the server for everyone. This cannot be undone from Basilico.\n\nRemote branches:\n${remoteTargets
+            .map((b) => `  • ${b.name}`)
+            .join("\n")}`
+        : "";
+
+    openConfirm({
+      title: "Delete merged branches?",
+      message: `You are about to delete ${summary}.${remoteWarning}`,
+      confirmLabel: `Delete ${targets.length} branch(es)`,
+      cancelLabel: "Cancel",
+      isDanger: true,
+      onConfirm: () => runBulkDelete(targets),
+    });
   };
 
   return (
@@ -132,7 +182,11 @@ export function MergedBranchSweeperModal({
               </h2>
             </Dialog.Title>
             <Dialog.Close asChild>
-              <button className="settings-close-btn" aria-label="Close sweeper">
+              <button
+                type="button"
+                className="settings-close-btn"
+                aria-label="Close sweeper"
+              >
                 <X size={16} />
               </button>
             </Dialog.Close>
@@ -270,7 +324,10 @@ export function MergedBranchSweeperModal({
                   {mergedList.map((b) => {
                     const isSelected = selectedBranches.has(b.name);
                     return (
-                      <div
+                      // A label makes the whole row clickable *and* keyboard
+                      // reachable via the checkbox, without hand-rolled key
+                      // handlers on a div.
+                      <label
                         key={b.name}
                         style={{
                           display: "flex",
@@ -283,12 +340,11 @@ export function MergedBranchSweeperModal({
                             ? "var(--bg-hover)"
                             : "transparent",
                         }}
-                        onClick={() => toggleBranch(b.name)}
                       >
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => {}}
+                          onChange={() => toggleBranch(b.name)}
                         />
                         <GitBranch size={13} className="text-secondary" />
                         <span
@@ -306,7 +362,7 @@ export function MergedBranchSweeperModal({
                         >
                           {b.isRemote ? "Remote" : "Local"}
                         </span>
-                      </div>
+                      </label>
                     );
                   })}
                 </div>
@@ -327,8 +383,8 @@ export function MergedBranchSweeperModal({
               type="button"
               className="settings-btn"
               style={{
-                background: "var(--danger-color, #f85149)",
-                borderColor: "var(--danger-color, #f85149)",
+                background: "var(--color-danger)",
+                borderColor: "var(--color-danger)",
               }}
               disabled={selectedBranches.size === 0 || isDeleting}
               onClick={handleBulkDelete}

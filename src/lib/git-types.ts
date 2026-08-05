@@ -189,7 +189,13 @@ export interface RebaseTodoItem {
 }
 
 export interface RebaseStatus {
+  /**
+   * "planning" is frontend-only: a plan is being assembled and nothing has
+   * been written to the repository yet. Every other value comes from the
+   * backend and reflects real on-disk rebase state.
+   */
   status:
+    | "planning"
     | "none"
     | "success"
     | "conflict"

@@ -2,11 +2,17 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useUIStore } from "../../store/ui-store";
 import "./PromptModal.css";
 
 export function PromptModal() {
-  const { promptOptions, closePrompt } = useUIStore();
+  const { promptOptions, closePrompt } = useUIStore(
+    useShallow((s) => ({
+      promptOptions: s.promptOptions,
+      closePrompt: s.closePrompt,
+    })),
+  );
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const inputRefs = useRef<
     Record<string, HTMLInputElement | HTMLTextAreaElement | null>
@@ -91,6 +97,7 @@ export function PromptModal() {
                 </Dialog.Title>
                 <Dialog.Close asChild>
                   <button
+                    type="button"
                     className="prompt-close-btn"
                     aria-label="Close dialog"
                   >

@@ -5,6 +5,7 @@
 
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Archive, Check, RotateCcw, Trash } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import type { StashInfo } from "../../lib/git-types";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
@@ -14,8 +15,21 @@ interface StashTreeProps {
 }
 
 export function StashTree({ stashes }: StashTreeProps) {
-  const { applyStash, popStash, dropStash, loadStashDetail } = useRepoStore();
-  const { addNotification, setActiveView, openConfirm } = useUIStore();
+  const { applyStash, popStash, dropStash, loadStashDetail } = useRepoStore(
+    useShallow((s) => ({
+      applyStash: s.applyStash,
+      popStash: s.popStash,
+      dropStash: s.dropStash,
+      loadStashDetail: s.loadStashDetail,
+    })),
+  );
+  const { addNotification, setActiveView, openConfirm } = useUIStore(
+    useShallow((s) => ({
+      addNotification: s.addNotification,
+      setActiveView: s.setActiveView,
+      openConfirm: s.openConfirm,
+    })),
+  );
 
   const handleStashSelect = async (index: number) => {
     await loadStashDetail(index);

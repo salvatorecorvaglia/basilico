@@ -15,6 +15,7 @@ import {
   Trash,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { getCreatePrUrl } from "../../lib/forge-links";
 import type { BranchInfo } from "../../lib/git-types";
 import { validateBranchName } from "../../lib/git-validation";
@@ -34,9 +35,26 @@ export function BranchTree({ branches }: BranchTreeProps) {
     mergeBranch,
     startComparison,
     remotes,
-  } = useRepoStore();
+  } = useRepoStore(
+    useShallow((s) => ({
+      checkoutBranch: s.checkoutBranch,
+      createBranch: s.createBranch,
+      deleteBranch: s.deleteBranch,
+      renameBranch: s.renameBranch,
+      mergeBranch: s.mergeBranch,
+      startComparison: s.startComparison,
+      remotes: s.remotes,
+    })),
+  );
   const { addNotification, setActiveView, openPrompt, openConfirm } =
-    useUIStore();
+    useUIStore(
+      useShallow((s) => ({
+        addNotification: s.addNotification,
+        setActiveView: s.setActiveView,
+        openPrompt: s.openPrompt,
+        openConfirm: s.openConfirm,
+      })),
+    );
 
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
 

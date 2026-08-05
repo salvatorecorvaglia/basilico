@@ -22,14 +22,14 @@
 
 .stash-inspector-empty h3 {
   margin: 0;
-  font-size: var(--font-lg);
+  font-size: var(--font-size-lg);
   font-weight: var(--weight-semibold);
   color: var(--text-secondary);
 }
 
 .stash-inspector-empty p {
   margin: 0;
-  font-size: var(--font-sm);
+  font-size: var(--font-size-sm);
 }
 
 /* Header */
@@ -54,7 +54,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: var(--font-md);
+  font-size: var(--font-size-md);
   font-weight: var(--weight-bold);
 }
 
@@ -70,13 +70,13 @@
   background: var(--bg-hover);
   padding: 1px 6px;
   border-radius: var(--radius-sm);
-  font-size: var(--font-xs);
+  font-size: var(--font-size-xs);
   border: 1px solid var(--border-color);
 }
 
 .stash-msg {
   margin: 0;
-  font-size: var(--font-sm);
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
@@ -92,7 +92,7 @@
   align-items: center;
   gap: var(--space-1-5);
   padding: var(--space-2) var(--space-3);
-  font-size: var(--font-xs);
+  font-size: var(--font-size-xs);
   font-weight: var(--weight-medium);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
@@ -113,13 +113,13 @@
 
 .stash-action-btn.btn-danger {
   background: rgba(248, 81, 73, 0.1);
-  color: #ff6b6b;
+  color: var(--color-danger);
   border-color: rgba(248, 81, 73, 0.2);
 }
 
 .stash-action-btn.btn-danger:hover {
   background: rgba(248, 81, 73, 0.25);
-  border-color: #ff6b6b;
+  border-color: var(--color-danger);
   transform: translateY(-1px);
 }
 
@@ -143,7 +143,7 @@
 
 .stash-list-header {
   padding: var(--space-3) var(--space-4);
-  font-size: var(--font-xs);
+  font-size: var(--font-size-xs);
   font-weight: var(--weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -174,14 +174,14 @@
 
 .stash-files-empty p {
   margin: 0;
-  font-size: var(--font-xs);
+  font-size: var(--font-size-xs);
 }
 
 .stash-file-item {
   display: flex;
   align-items: center;
   padding: var(--space-2) var(--space-3);
-  font-size: var(--font-xs);
+  font-size: var(--font-size-xs);
   border-radius: var(--radius-sm);
   background: transparent;
   border: none;
@@ -200,7 +200,7 @@
 
 .stash-file-item.active {
   background: var(--accent-primary);
-  color: #ffffff;
+  color: var(--text-inverse);
 }
 
 .stash-file-item .chevron {
@@ -222,7 +222,7 @@
 .stash-file-item .file-stats {
   display: flex;
   gap: var(--space-1);
-  font-size: var(--font-xs);
+  font-size: var(--font-size-xs);
   flex-shrink: 0;
 }
 
@@ -231,12 +231,12 @@
 }
 
 .stash-file-item .file-stats .del {
-  color: #f85149;
+  color: var(--blame-red);
 }
 
 .stash-file-item.active .file-stats .add,
 .stash-file-item.active .file-stats .del {
-  color: #ffffff;
+  color: var(--text-inverse);
 }
 
 /* Diff Editor Panel */
@@ -261,7 +261,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: var(--font-sm);
+  font-size: var(--font-size-sm);
   font-weight: var(--weight-medium);
   color: var(--text-secondary);
 }
@@ -271,7 +271,7 @@
   align-items: center;
   gap: var(--space-1-5);
   padding: var(--space-1-5) var(--space-2-5);
-  font-size: var(--font-xs);
+  font-size: var(--font-size-xs);
   font-weight: var(--weight-medium);
   border-radius: var(--radius-sm);
   background: transparent;
@@ -292,7 +292,7 @@
   flex: 1;
   min-height: 0;
   position: relative;
-  background: #1e1e1e; /* Monaco default bg fallback */
+  background: var(--editor-bg);
 }
 
 .stash-diff-placeholder {
@@ -308,14 +308,14 @@
 
 .stash-diff-placeholder h3 {
   margin: 0;
-  font-size: var(--font-md);
+  font-size: var(--font-size-md);
   font-weight: var(--weight-semibold);
   color: var(--text-secondary);
 }
 
 .stash-diff-placeholder p {
   margin: 0;
-  font-size: var(--font-sm);
+  font-size: var(--font-size-sm);
 }
 
 /* Spinner Loading */

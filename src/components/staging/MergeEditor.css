@@ -30,14 +30,14 @@
 }
 
 .merge-header-info h2 {
-  font-size: var(--text-base);
+  font-size: var(--font-size-base);
   font-weight: var(--weight-semibold);
   color: var(--text-primary);
   margin: 0;
 }
 
 .merge-header-info span {
-  font-size: var(--text-xs);
+  font-size: var(--font-size-xs);
   display: block;
 }
 
@@ -77,7 +77,7 @@
   background: var(--accent-primary);
   color: var(--text-inverse);
   border-radius: var(--radius-md);
-  font-size: var(--text-xs);
+  font-size: var(--font-size-xs);
   font-weight: var(--weight-medium);
   transition: all var(--transition-fast);
 }
@@ -139,7 +139,7 @@
 .merge-panel-title {
   padding: var(--space-2) var(--space-4);
   background: var(--bg-elevated);
-  font-size: var(--text-xs);
+  font-size: var(--font-size-xs);
   font-weight: var(--weight-semibold);
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border-muted);
@@ -164,7 +164,7 @@
 }
 
 .conflict-index {
-  font-size: var(--text-xs);
+  font-size: var(--font-size-xs);
   font-weight: var(--weight-semibold);
   color: var(--text-primary);
 }
@@ -231,7 +231,7 @@
 
 .resolve-btn.resolve-both {
   background: rgba(139, 92, 246, 0.15);
-  color: #a78bfa;
+  color: var(--cat-purple);
   border: 1px solid rgba(139, 92, 246, 0.3);
 }
 

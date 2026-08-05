@@ -11,10 +11,13 @@ import type { RepoState } from "../types";
 export interface RebaseBisectSlice {
   rebaseTodoItems: RebaseTodoItem[];
   rebaseStatus: RebaseStatus | null;
+  /** Upstream the pending plan was built against; needed to start the rebase. */
+  rebaseUpstream: string | null;
   bisectState: BisectState | null;
 
   initRebase: (upstream: string) => Promise<void>;
   writeRebaseTodo: (items: RebaseTodoItem[]) => Promise<void>;
+  startRebase: () => Promise<RebaseStatus>;
   stepRebase: (
     action: string,
     commitMessage?: string | null,
@@ -22,6 +25,20 @@ export interface RebaseBisectSlice {
   startBisect: (bad: string, good: string) => Promise<void>;
   markBisect: (status: string) => Promise<void>;
   resetBisect: () => Promise<void>;
+}
+
+/** Debounce window for persisting the in-progress rebase plan to disk. */
+const PLAN_PERSIST_DELAY_MS = 400;
+let planPersistTimer: ReturnType<typeof setTimeout> | null = null;
+
+function schedulePlanPersist(repoPath: string, items: RebaseTodoItem[]) {
+  if (planPersistTimer) clearTimeout(planPersistTimer);
+  planPersistTimer = setTimeout(() => {
+    planPersistTimer = null;
+    commands
+      .rebaseWriteTodo(repoPath, items, { silent: true })
+      .catch((err) => console.warn("Failed to persist rebase plan:", err));
+  }, PLAN_PERSIST_DELAY_MS);
 }
 
 export const createRebaseBisectSlice: StateCreator<
@@ -32,6 +49,7 @@ export const createRebaseBisectSlice: StateCreator<
 > = (set, get) => ({
   rebaseTodoItems: [],
   rebaseStatus: null,
+  rebaseUpstream: null,
   bisectState: null,
 
   initRebase: async (upstream: string) => {
@@ -47,7 +65,17 @@ export const createRebaseBisectSlice: StateCreator<
         const items = await commands.rebaseInit(activeTabId, upstream, {
           errorPrefix: "Failed to initialize rebase",
         });
-        set({ rebaseTodoItems: items });
+        // The repository is untouched at this point: the plan is only staged
+        // in the UI, so closing the editor cannot strand a half-started rebase.
+        set({
+          rebaseTodoItems: items,
+          rebaseUpstream: upstream,
+          rebaseStatus: {
+            status: "planning",
+            currentOid: null,
+            message: "Arrange your commits, then start the rebase.",
+          },
+        });
       },
     );
   },
@@ -56,16 +84,36 @@ export const createRebaseBisectSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) return;
 
-    await withLoading(
+    // Applied optimistically: editing the plan is a local action and must stay
+    // responsive. Persistence is debounced because inline message editing fires
+    // this on every keystroke, and it is best-effort — the plan that matters is
+    // the one handed to `rebase_start`.
+    set({ rebaseTodoItems: items });
+    schedulePlanPersist(activeTabId, items);
+  },
+
+  startRebase: async () => {
+    const { activeTabId, rebaseTodoItems, rebaseUpstream } = get();
+    if (!activeTabId) throw new Error("No active repository tab");
+    if (!rebaseUpstream) {
+      throw new Error("No rebase plan has been prepared");
+    }
+
+    return await withLoading(
       get,
       set,
       "collaboration",
-      "Failed to write rebase todo list",
+      "Failed to start rebase",
       async () => {
-        await commands.rebaseWriteTodo(activeTabId, items, {
-          errorPrefix: "Failed to write rebase todo list",
-        });
-        set({ rebaseTodoItems: items });
+        const status = await commands.rebaseStart(
+          activeTabId,
+          rebaseUpstream,
+          rebaseTodoItems,
+          { errorPrefix: "Failed to start rebase" },
+        );
+        set({ rebaseStatus: status });
+        await get().refreshCommitsAndStatus();
+        return status;
       },
     );
   },
@@ -87,6 +135,9 @@ export const createRebaseBisectSlice: StateCreator<
           { errorPrefix: "Failed to execute rebase step" },
         );
         set({ rebaseStatus: status });
+        if (status.status === "finished" || status.status === "none") {
+          set({ rebaseTodoItems: [], rebaseUpstream: null });
+        }
         await get().refreshCommitsAndStatus();
         return status;
       },

@@ -6,7 +6,10 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!!**/dist"]
+    "includes": [
+      "**",
+      "!!**/dist"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -19,10 +22,11 @@
       "preset": "recommended",
       "a11y": {
         "recommended": true,
-        "noStaticElementInteractions": "off",
-        "useKeyWithClickEvents": "off",
-        "useButtonType": "off",
-        "noLabelWithoutControl": "off"
+        "useButtonType": "error",
+        "noLabelWithoutControl": "error",
+        "useSemanticElements": "off",
+        "noStaticElementInteractions": "warn",
+        "useKeyWithClickEvents": "warn"
       },
       "complexity": {
         "noImportantStyles": "off"
@@ -33,7 +37,7 @@
       },
       "correctness": {
         "noUnknownProperty": "off",
-        "noInvalidUseBeforeDeclaration": "off",
+        "noInvalidUseBeforeDeclaration": "error",
         "useExhaustiveDependencies": "warn"
       },
       "style": {

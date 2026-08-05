@@ -121,6 +121,8 @@ export const openExternalTool = (
 
 // ── Log Commands ──
 
+// `skip` requests a page: the backend still walks the earlier commits to keep
+// graph lanes aligned, but only serialises the ones being asked for.
 export const getLog = (
   path: string,
   maxCommits?: number,
@@ -128,10 +130,11 @@ export const getLog = (
   hideRemotes?: boolean,
   pathFilter?: string,
   options?: InvokeOptions,
+  skip?: number,
 ) =>
   invokeCommand<GraphCommit[]>(
     "get_log",
-    { path, maxCommits, firstParent, hideRemotes, pathFilter },
+    { path, maxCommits, firstParent, hideRemotes, pathFilter, skip },
     options,
   );
 
@@ -321,13 +324,22 @@ export const resolveConflict = (
 export const fetch = (path: string, remote: string, options?: InvokeOptions) =>
   invokeCommand<void>("fetch", { path, remote }, options);
 
+// `expectedRemoteOid` is the remote-tracking tip the UI last showed. On a force
+// push the backend refuses if the real remote has moved past it — the
+// equivalent of git's --force-with-lease.
 export const push = (
   path: string,
   remote: string,
   branch: string,
   force: boolean,
+  expectedRemoteOid: string | null,
   options?: InvokeOptions,
-) => invokeCommand<void>("push", { path, remote, branch, force }, options);
+) =>
+  invokeCommand<void>(
+    "push",
+    { path, remote, branch, force, expectedRemoteOid },
+    options,
+  );
 
 export const pull = (
   path: string,
@@ -386,23 +398,29 @@ export const saveStash = (
     options,
   );
 
+// `expectedOid` guards against the stash list shifting between render and
+// action (a CLI stash, a watcher refresh). The backend re-resolves the index
+// from the OID and refuses to act if that stash is gone.
 export const applyStash = (
   path: string,
   index: number,
+  expectedOid: string | null,
   options?: InvokeOptions,
-) => invokeCommand<void>("apply_stash", { path, index }, options);
+) => invokeCommand<void>("apply_stash", { path, index, expectedOid }, options);
 
 export const popStash = (
   path: string,
   index: number,
+  expectedOid: string | null,
   options?: InvokeOptions,
-) => invokeCommand<void>("pop_stash", { path, index }, options);
+) => invokeCommand<void>("pop_stash", { path, index, expectedOid }, options);
 
 export const dropStash = (
   path: string,
   index: number,
+  expectedOid: string | null,
   options?: InvokeOptions,
-) => invokeCommand<void>("drop_stash", { path, index }, options);
+) => invokeCommand<void>("drop_stash", { path, index, expectedOid }, options);
 
 // ── Phase 3: Tag Creation & Push Commands ──
 
@@ -445,6 +463,19 @@ export const rebaseWriteTodo = (
   items: RebaseTodoItem[],
   options?: InvokeOptions,
 ) => invokeCommand<void>("rebase_write_todo", { repoPath, items }, options);
+
+/** Hands the assembled plan to git. Nothing is rewritten until this runs. */
+export const rebaseStart = (
+  repoPath: string,
+  upstream: string,
+  items: RebaseTodoItem[],
+  options?: InvokeOptions,
+) =>
+  invokeCommand<RebaseStatus>(
+    "rebase_start",
+    { repoPath, upstream, items },
+    options,
+  );
 
 export const rebaseStep = (
   repoPath: string,

@@ -69,7 +69,7 @@ export class PanelErrorBoundary extends React.Component<Props, State> {
           <p
             style={{
               margin: 0,
-              fontSize: "var(--text-xs)",
+              fontSize: "var(--font-size-xs)",
               color: "var(--text-secondary)",
               maxWidth: "280px",
               lineHeight: "var(--leading-normal)",
@@ -90,7 +90,7 @@ export class PanelErrorBoundary extends React.Component<Props, State> {
               border: "1px solid var(--border-default)",
               padding: "var(--space-2) var(--space-4)",
               borderRadius: "var(--radius-md)",
-              fontSize: "var(--text-xs)",
+              fontSize: "var(--font-size-xs)",
               fontWeight: "var(--weight-medium)",
               cursor: "pointer",
             }}

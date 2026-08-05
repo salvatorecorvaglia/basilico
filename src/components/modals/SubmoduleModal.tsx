@@ -1,48 +1,60 @@
 /* ═══════════════════════════════════════════════════════
-   Basilico — Worktree Inspector Modal
-   List, switch, add, remove, and open Git worktrees
+   Basilico — Submodule Manager Modal
+   List, update, sync, and add Git submodules
    ═══════════════════════════════════════════════════════ */
 
 import * as Dialog from "@radix-ui/react-dialog";
 import {
-  ExternalLink,
-  FolderTree,
-  GitBranch,
+  AlertTriangle,
+  CheckCircle,
+  FolderGit2,
   Plus,
-  Trash2,
+  RefreshCw,
+  RotateCw,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import type { WorktreeInfo } from "../../lib/git-types";
+import { useShallow } from "zustand/react/shallow";
+import type { SubmoduleInfo } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 
-interface WorktreeModalProps {
+interface SubmoduleModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
-  const { activeTabId, branches, openRepository, refreshAll, openInIde } =
-    useRepoStore();
-  const { addNotification } = useUIStore();
+export function SubmoduleModal({ open, onOpenChange }: SubmoduleModalProps) {
+  const { activeTabId, submodules, refreshAll } = useRepoStore(
+    useShallow((s) => ({
+      activeTabId: s.activeTabId,
+      submodules: s.submodules,
+      refreshAll: s.refreshAll,
+    })),
+  );
+  const { addNotification } = useUIStore(
+    useShallow((s) => ({ addNotification: s.addNotification })),
+  );
 
-  const [worktreeList, setWorktreeList] = useState<WorktreeInfo[]>([]);
+  const [submoduleList, setSubmoduleList] =
+    useState<SubmoduleInfo[]>(submodules);
   const [loading, setLoading] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [newUrl, setNewUrl] = useState("");
   const [newPath, setNewPath] = useState("");
-  const [selectedBranch, setSelectedBranch] = useState("");
   const [adding, setAdding] = useState(false);
 
-  const fetchWorktrees = useCallback(async () => {
+  const fetchSubmodules = useCallback(async () => {
     if (!activeTabId) return;
     setLoading(true);
     try {
-      const list = await commands.listWorktrees(activeTabId, { silent: true });
-      setWorktreeList(list);
+      const list = await commands.listSubmodules(activeTabId, { silent: true });
+      setSubmoduleList(list);
     } catch {
-      setWorktreeList([]);
+      setSubmoduleList([]);
     } finally {
       setLoading(false);
     }
@@ -50,85 +62,73 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
 
   useEffect(() => {
     if (open) {
-      fetchWorktrees();
+      fetchSubmodules();
       setShowAddForm(false);
+      setNewUrl("");
       setNewPath("");
-      setSelectedBranch(branches[0]?.name || "main");
     }
-  }, [open, fetchWorktrees, branches]);
+  }, [open, fetchSubmodules]);
 
-  const handleSwitchTab = async (wtPath: string) => {
-    try {
-      await openRepository(wtPath);
-      addNotification({
-        type: "success",
-        message: `Opened workspace tab for worktree "${wtPath}"`,
-      });
-      onOpenChange(false);
-    } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to open worktree tab: ${err}`,
-      });
-    }
-  };
-
-  const handleOpenInIde = async (wtPath: string) => {
-    try {
-      await openInIde(wtPath);
-      addNotification({
-        type: "success",
-        message: `Opened worktree "${wtPath}" in external editor`,
-      });
-    } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to open worktree in editor: ${err}`,
-      });
-    }
-  };
-
-  const handleRemoveWorktree = async (wtPath: string) => {
+  const handleUpdateAll = async () => {
     if (!activeTabId) return;
+    setUpdating(true);
     try {
-      await commands.removeWorktree(activeTabId, wtPath, false);
+      await commands.updateSubmodules(activeTabId, [], true);
       addNotification({
         type: "success",
-        message: `Removed worktree at "${wtPath}"`,
+        message: "Updated all submodules recursively",
       });
-      await fetchWorktrees();
+      await fetchSubmodules();
       await refreshAll();
     } catch (err) {
       addNotification({
         type: "error",
-        message: `Failed to remove worktree: ${err}`,
+        message: `Failed to update submodules: ${err}`,
       });
+    } finally {
+      setUpdating(false);
     }
   };
 
-  const handleAddWorktree = async (e: React.FormEvent) => {
+  const handleSyncUrls = async () => {
+    if (!activeTabId) return;
+    setSyncing(true);
+    try {
+      await commands.syncSubmodules(activeTabId, []);
+      addNotification({
+        type: "success",
+        message: "Synced submodule URLs",
+      });
+      await fetchSubmodules();
+    } catch (err) {
+      addNotification({
+        type: "error",
+        message: `Failed to sync submodules: ${err}`,
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleAddSubmodule = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeTabId || !newPath.trim()) return;
+    if (!activeTabId || !newUrl.trim() || !newPath.trim()) return;
     setAdding(true);
     try {
-      await commands.addWorktree(
-        activeTabId,
-        newPath.trim(),
-        selectedBranch || undefined,
-        undefined,
-      );
+      await commands.addSubmodule(activeTabId, newUrl.trim(), newPath.trim());
       addNotification({
         type: "success",
-        message: `Added worktree at "${newPath.trim()}"`,
+        message: `Added submodule "${newPath.trim()}"`,
       });
       setShowAddForm(false);
+      setNewUrl("");
       setNewPath("");
-      await fetchWorktrees();
+      await fetchSubmodules();
       await refreshAll();
     } catch (err) {
       addNotification({
         type: "error",
-        message: `Failed to add worktree: ${err}`,
+        message: `Failed to add submodule: ${err}`,
       });
     } finally {
       setAdding(false);
@@ -141,20 +141,21 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
         <Dialog.Overlay className="settings-overlay" />
         <Dialog.Content
           className="settings-modal"
-          style={{ maxWidth: "620px", maxHeight: "80vh" }}
+          style={{ maxWidth: "600px", maxHeight: "80vh" }}
         >
           {/* Header */}
           <div className="settings-header">
             <Dialog.Title asChild>
               <h2>
-                <FolderTree size={18} />
-                Worktree Inspector
+                <FolderGit2 size={18} />
+                Submodule Manager
               </h2>
             </Dialog.Title>
             <Dialog.Close asChild>
               <button
+                type="button"
                 className="settings-close-btn"
-                aria-label="Close Worktrees"
+                aria-label="Close Submodules"
               >
                 <X size={16} />
               </button>
@@ -167,24 +168,47 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
             <div
               style={{
                 display: "flex",
-                justifyContent: "flex-end",
+                gap: "var(--space-2)",
                 marginBottom: "var(--space-4)",
               }}
             >
+              <button
+                type="button"
+                className="settings-btn settings-btn-outline"
+                onClick={handleUpdateAll}
+                disabled={updating || loading}
+              >
+                <RefreshCw
+                  size={13}
+                  className={updating ? "animate-spin" : ""}
+                />
+                <span>{updating ? "Updating..." : "Update All"}</span>
+              </button>
+
+              <button
+                type="button"
+                className="settings-btn settings-btn-outline"
+                onClick={handleSyncUrls}
+                disabled={syncing || loading}
+              >
+                <RotateCw size={13} className={syncing ? "animate-spin" : ""} />
+                <span>{syncing ? "Syncing..." : "Sync URLs"}</span>
+              </button>
+
               <button
                 type="button"
                 className={`settings-btn ${showAddForm ? "settings-btn-outline" : ""}`}
                 onClick={() => setShowAddForm(!showAddForm)}
               >
                 <Plus size={13} />
-                <span>{showAddForm ? "Cancel" : "Add Worktree"}</span>
+                <span>{showAddForm ? "Cancel" : "Add Submodule"}</span>
               </button>
             </div>
 
-            {/* Add Worktree Form */}
+            {/* Add Submodule Form */}
             {showAddForm && (
               <form
-                onSubmit={handleAddWorktree}
+                onSubmit={handleAddSubmodule}
                 style={{
                   padding: "var(--space-3)",
                   background: "var(--bg-secondary)",
@@ -198,7 +222,7 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
               >
                 <div>
                   <label
-                    htmlFor="worktree-path-input"
+                    htmlFor="submodule-url-input"
                     style={{
                       fontSize: "11px",
                       fontWeight: 500,
@@ -206,22 +230,22 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
                       marginBottom: "4px",
                     }}
                   >
-                    Worktree Directory Path:
+                    Repository URL:
                   </label>
                   <input
-                    id="worktree-path-input"
+                    id="submodule-url-input"
                     type="text"
                     className="settings-input"
-                    placeholder="../basilico-feature"
-                    value={newPath}
-                    onChange={(e) => setNewPath(e.target.value)}
+                    placeholder="https://github.com/org/repo.git"
+                    value={newUrl}
+                    onChange={(e) => setNewUrl(e.target.value)}
                     required
                   />
                 </div>
 
                 <div>
                   <label
-                    htmlFor="worktree-branch-select"
+                    htmlFor="submodule-path-input"
                     style={{
                       fontSize: "11px",
                       fontWeight: 500,
@@ -229,20 +253,17 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
                       marginBottom: "4px",
                     }}
                   >
-                    Checkout Branch:
+                    Destination Path:
                   </label>
-                  <select
-                    id="worktree-branch-select"
+                  <input
+                    id="submodule-path-input"
+                    type="text"
                     className="settings-input"
-                    value={selectedBranch}
-                    onChange={(e) => setSelectedBranch(e.target.value)}
-                  >
-                    {branches.map((b) => (
-                      <option key={b.name} value={b.name}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="vendor/my-submodule"
+                    value={newPath}
+                    onChange={(e) => setNewPath(e.target.value)}
+                    required
+                  />
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -251,13 +272,13 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
                     className="settings-btn"
                     disabled={adding}
                   >
-                    <span>{adding ? "Adding..." : "Confirm Add Worktree"}</span>
+                    <span>{adding ? "Adding..." : "Confirm Add"}</span>
                   </button>
                 </div>
               </form>
             )}
 
-            {/* Worktree List */}
+            {/* Submodule List */}
             {loading ? (
               <div
                 style={{
@@ -268,10 +289,10 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
               >
                 <span className="spinner-large" />
                 <p style={{ marginTop: "var(--space-2)" }}>
-                  Loading worktrees...
+                  Loading submodules...
                 </p>
               </div>
-            ) : worktreeList.length === 0 ? (
+            ) : submoduleList.length === 0 ? (
               <div
                 style={{
                   textAlign: "center",
@@ -279,17 +300,17 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
                   color: "var(--text-tertiary)",
                 }}
               >
-                <FolderTree
+                <FolderGit2
                   size={32}
                   style={{
                     margin: "0 auto var(--space-2)",
                     color: "var(--text-tertiary)",
                   }}
                 />
-                <p style={{ fontWeight: 500 }}>No Worktrees Found</p>
+                <p style={{ fontWeight: 500 }}>No Submodules Found</p>
                 <p style={{ fontSize: "11px" }}>
-                  Only the main workspace directory exists. Click &quot;Add
-                  Worktree&quot; to create a new linked worktree.
+                  This repository has no configured Git submodules. Click
+                  &quot;Add Submodule&quot; above to add one.
                 </p>
               </div>
             ) : (
@@ -302,9 +323,9 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
                   background: "var(--bg-secondary)",
                 }}
               >
-                {worktreeList.map((wt, idx) => (
+                {submoduleList.map((sm) => (
                   <div
-                    key={wt.path}
+                    key={sm.name}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -331,40 +352,27 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
                         <span
                           style={{ fontWeight: 600, fontFamily: "monospace" }}
                         >
-                          {wt.name}
+                          {sm.name}
                         </span>
-                        {wt.branch && (
-                          <span
-                            className="commit-ref ref-branch"
-                            style={{
-                              fontSize: "10px",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "2px",
-                            }}
-                          >
-                            <GitBranch size={9} /> {wt.branch}
-                          </span>
-                        )}
-                        {idx === 0 && (
-                          <span
-                            className="commit-ref ref-head"
-                            style={{ fontSize: "10px" }}
-                          >
-                            Main
-                          </span>
-                        )}
+                        <span
+                          className="truncate text-tertiary"
+                          style={{ fontSize: "11px" }}
+                        >
+                          ({sm.path})
+                        </span>
                       </div>
-                      <div
-                        style={{
-                          fontSize: "10px",
-                          color: "var(--text-tertiary)",
-                          marginTop: "2px",
-                        }}
-                        className="truncate"
-                      >
-                        {wt.path}
-                      </div>
+                      {sm.url && (
+                        <div
+                          style={{
+                            fontSize: "10px",
+                            color: "var(--text-tertiary)",
+                            marginTop: "2px",
+                          }}
+                          className="truncate"
+                        >
+                          {sm.url}
+                        </div>
+                      )}
                     </div>
 
                     <div
@@ -374,40 +382,30 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
                         gap: "var(--space-2)",
                       }}
                     >
-                      <button
-                        type="button"
-                        className="hunk-btn hunk-btn-primary"
-                        style={{ height: "24px", fontSize: "11px" }}
-                        onClick={() => handleSwitchTab(wt.path)}
-                        title="Open worktree as active tab"
-                      >
-                        <span>Open Tab</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        className="hunk-btn hunk-btn-secondary"
-                        style={{ height: "24px", fontSize: "11px" }}
-                        onClick={() => handleOpenInIde(wt.path)}
-                        title="Open in external IDE"
-                      >
-                        <ExternalLink size={11} />
-                      </button>
-
-                      {idx > 0 && (
-                        <button
-                          type="button"
-                          className="hunk-btn hunk-btn-secondary"
+                      {sm.status === "up-to-date" ? (
+                        <span
+                          className="commit-ref ref-head"
                           style={{
-                            height: "24px",
-                            fontSize: "11px",
-                            color: "var(--danger-color, #f85149)",
+                            fontSize: "10px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "3px",
                           }}
-                          onClick={() => handleRemoveWorktree(wt.path)}
-                          title="Remove worktree"
                         >
-                          <Trash2 size={11} />
-                        </button>
+                          <CheckCircle size={10} /> Up-to-date
+                        </span>
+                      ) : (
+                        <span
+                          className="commit-ref ref-tag"
+                          style={{
+                            fontSize: "10px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "3px",
+                          }}
+                        >
+                          <AlertTriangle size={10} /> {sm.status}
+                        </span>
                       )}
                     </div>
                   </div>
