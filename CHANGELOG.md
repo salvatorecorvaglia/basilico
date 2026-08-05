@@ -13,17 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Commit Signature Status & Autolink Parsing Helpers**: Added dedicated `signature-status.ts` for GPG signature verification status handling and `autolink.ts` helper utilities with comprehensive unit test coverage (`signature-status.test.ts`, `autolink.test.ts`).
 - **Expanded Frontend Unit Test Coverage**: Added unit test suites for design tokens (`design-tokens.test.ts`), command registry (`command-registry.test.ts`), store slices (`store.test.ts`), and modal components (`MergedBranchSweeperModal.test.tsx`).
 - **Git Hook Execution Helpers**: Expanded backend `git/hooks.rs` to support pre-commit, post-commit, and pre-rebase execution helpers with environment propagation.
-
-### Changed
-
-- **Interactive Rebase Editor & Backend Refactoring**: Refactored `rebase.rs` backend command handlers and `RebaseEditor` frontend component for robust step processing and state tracking during interactive rebases.
-- **Accessibility & Focus Management**: Improved keyboard navigation, ARIA roles, focus states, and high-contrast theme tokens across UI components.
-- **Modal Component Organization**: Consolidated modals into `src/components/modals/` directory (`SubmoduleModal`, `WorktreeModal`, `MergedBranchSweeperModal`).
-
-## [1.0.0] - 2026-08-03
-
-### Added
-
 - **Conflict Resolution Workflow & Banner**: Added `ConflictBanner` component and expanded Zustand store slice actions to handle merge/rebase conflict workflows smoothly with conflict state detection and resolution controls.
 - **Reflog Inspector UI**: Added `ReflogInspector` view component and integrated reflog inspection UI tab and command palette action for viewing and navigating repository reflog histories.
 - **Worktree Locking & Unlocking**: Added `lock_worktree` and `unlock_worktree` Tauri backend commands and frontend API wrappers to support locking and unlocking Git worktrees with optional lock reasons.
@@ -33,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Interactive Rebase Editor & Backend Refactoring**: Refactored `rebase.rs` backend command handlers and `RebaseEditor` frontend component for robust step processing and state tracking during interactive rebases.
+- **Accessibility & Focus Management**: Improved keyboard navigation, ARIA roles, focus states, and high-contrast theme tokens across UI components.
+- **Modal Component Organization**: Consolidated modals into `src/components/modals/` directory (`SubmoduleModal`, `WorktreeModal`, `MergedBranchSweeperModal`).
 - **Test Suite Structure**: Reorganized frontend unit test suite structure by migrating tests from `__tests__` directories into a centralized `src/tests/` layout (`src/tests/components/`, `src/tests/lib/`, `src/tests/store/`).
 - **Repository Path Handling**: Standardized repository path canonicalization across Tauri backend command handlers (`repo.rs`, `conflict_resolver.rs`) to maintain consistent path references across desktop platforms.
 - **Code Formatting & Cleanup**: Applied uniform code formatting, cleaned up whitespace, and updated Tauri command registrations across backend modules.
