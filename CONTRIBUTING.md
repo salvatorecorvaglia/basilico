@@ -1,8 +1,6 @@
 # Contributing to Basilico 🌿
 
-Thank you for your interest in contributing to **Basilico**! We are excited to build a fast, modern and beautiful Git GUI client, and we welcome contributions of all kinds: bug fixes, new features, documentation improvements, design suggestions, and bug reports.
-
-This document provides guidelines and instructions to help you get started with contributing to this repository.
+Thank you for your interest in contributing to **Basilico**! We welcome contributions, bug reports, feature requests, and security improvements from the community.
 
 ---
 
