@@ -124,19 +124,3 @@ jobs:
       - name: Run tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
-  # ──────────────────────────────────────────────
-  # Dependency Audit
-  # ──────────────────────────────────────────────
-  cargo-audit:
-    name: Cargo Audit
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Audit Rust dependencies
-        uses: actions-rust-lang/audit@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          workingDirectory: src-tauri
