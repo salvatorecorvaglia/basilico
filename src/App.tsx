@@ -65,6 +65,7 @@ import { useShallow } from "zustand/react/shallow";
 import { ConfirmModal } from "./components/layout/ConfirmModal";
 import { NotificationToast } from "./components/layout/NotificationToast";
 import { PromptModal } from "./components/layout/PromptModal";
+import { UpdaterToast } from "./components/layout/UpdaterToast";
 import { useUpdater } from "./hooks/use-updater";
 import { matchesShortcut } from "./lib/shortcuts";
 import { useRepoStore } from "./store/repo-store";
@@ -378,6 +379,7 @@ function App() {
     <div className="app">
       {/* Notifications */}
       <NotificationToast />
+      <UpdaterToast />
 
       {/* Global prompts/confirms */}
       <PromptModal />

@@ -1,35 +1,20 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Dependencies & Package Managers
+node_modules/
+.pnpm-store/
 
-node_modules
-dist
-dist-ssr
-*.local
+# Build & Output
+dist/
+dist-ssr/
+*.tsbuildinfo
+.vite/
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# Rust/Cargo
+# Rust / Cargo / Tauri
+target/
 src-tauri/target/
 src-tauri/gen/
 src-tauri/bin/
-
-# Environment files
-.env
-.env.*
-.env.local
+src-tauri/icons/android/
+src-tauri/icons/ios/
 
 # Tauri updater private keys
 *.key
@@ -37,10 +22,48 @@ src-tauri/bin/
 **/tauri-updater.key
 **/tauri-updater.pub
 
-# Testing and Cache
+# Testing & Cache
 coverage/
+.vitest/
 .biome_cache/
-*.tsbuildinfo
+.eslintcache
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+lerna-debug.log*
+
+# Environment files
+.env
+.env.*
+.env.local
+.env.*.local
+*.local
+!.env.example
+
+# IDEs & Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.zed/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+.Spotlight-V100
+.Trashes
 
 # AI Tools & Agents
 .openai/
@@ -61,4 +84,6 @@ claude-settings.json
 .codex/
 .cagent/
 .cursor/
+.windsurf/
+.cline/
 CLAUDE.md
