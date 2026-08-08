@@ -29,7 +29,9 @@ pub async fn get_file_blame(
         let workdir = repo
             .workdir()
             .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
-        let validated_full_path = crate::git::utils::validate_path(workdir, Path::new(&file_path))?;
+        // Read below via `fs::read_to_string`, which follows symlinks.
+        let validated_full_path =
+            crate::git::utils::validate_path_no_symlink(workdir, Path::new(&file_path))?;
 
         // 1. Get file content at the specified revision or HEAD/workdir
         let (content, resolved_oid) = if let Some(ref oid_str) = commit_oid {

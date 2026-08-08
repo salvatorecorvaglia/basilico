@@ -14,6 +14,10 @@ pub struct FileHistoryEntry {
     pub file_path: String,
 }
 
+/// Ceiling on commits inspected while looking for changes to one path.
+/// Mirrors `graph::PATH_FILTER_SCAN_LIMIT`, which exists for the same reason.
+const HISTORY_SCAN_LIMIT: usize = 20_000;
+
 #[tauri::command]
 pub async fn get_file_history(
     path: String,
@@ -33,8 +37,18 @@ pub async fn get_file_history(
         let limit = max_commits.unwrap_or(100);
         let mut history = Vec::new();
         let mut current_path = file_path.clone();
+        let mut scanned = 0usize;
 
         for oid_res in walk {
+            // `limit` bounds *matches*, not work. A file touched rarely in a
+            // long history would otherwise walk every commit, diffing trees
+            // (with rename detection) the whole way. The graph walk already
+            // caps its path filter the same way — see PATH_FILTER_SCAN_LIMIT.
+            scanned += 1;
+            if scanned > HISTORY_SCAN_LIMIT {
+                break;
+            }
+
             let oid = oid_res?;
             let commit = repo.find_commit(oid)?;
 

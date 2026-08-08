@@ -16,6 +16,7 @@ import {
   FolderGit2,
   FolderPlus,
   GitBranch,
+  Monitor as MonitorCog,
   Moon,
   RefreshCw,
   Search,
@@ -23,8 +24,9 @@ import {
   Sun,
   Terminal,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { useColorScheme } from "../../lib/color-scheme";
 import { openExternalTool } from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
@@ -84,7 +86,7 @@ export function Toolbar() {
   const [branchPopoverOpen, setBranchPopoverOpen] = useState(false);
   const [branchSearch, setBranchSearch] = useState("");
 
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const { isDark, preference, setPreference } = useColorScheme();
 
   const handleLaunchTool = async (tool: string) => {
     if (!activeTabId) return;
@@ -98,28 +100,24 @@ export function Toolbar() {
     }
   };
 
-  // Sync native color scheme with light-dark switcher
-  useEffect(() => {
-    const isDark =
-      document.documentElement.classList.contains("dark") ||
-      getComputedStyle(document.documentElement)
-        .getPropertyValue("color-scheme")
-        .includes("dark");
-    setIsDarkMode(isDark);
-  }, []);
-
-  const toggleColorScheme = () => {
-    const nextDark = !isDarkMode;
-    setIsDarkMode(nextDark);
-    document.documentElement.style.colorScheme = nextDark ? "dark" : "light";
-    if (nextDark) {
-      document.documentElement.classList.add("dark");
-      document.documentElement.classList.remove("light");
-    } else {
-      document.documentElement.classList.add("light");
-      document.documentElement.classList.remove("dark");
-    }
+  // Light → Dark → System, so following the OS stays reachable rather than
+  // being lost the first time the user touches the toggle.
+  const cycleColorScheme = () => {
+    setPreference(
+      preference === "light"
+        ? "dark"
+        : preference === "dark"
+          ? "system"
+          : "light",
+    );
   };
+
+  const colorSchemeLabel =
+    preference === "system"
+      ? `Colour scheme: following system (${isDark ? "dark" : "light"}). Switch to light.`
+      : preference === "light"
+        ? "Colour scheme: light. Switch to dark."
+        : "Colour scheme: dark. Follow system.";
 
   const handleCheckout = async (name: string) => {
     try {
@@ -475,11 +473,17 @@ export function Toolbar() {
         <button
           type="button"
           className="toolbar-icon-btn"
-          onClick={toggleColorScheme}
-          title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-          aria-label="Toggle Color Scheme"
+          onClick={cycleColorScheme}
+          title={colorSchemeLabel}
+          aria-label={colorSchemeLabel}
         >
-          {isDarkMode ? <Sun size={13} /> : <Moon size={13} />}
+          {preference === "system" ? (
+            <MonitorCog size={13} />
+          ) : isDark ? (
+            <Sun size={13} />
+          ) : (
+            <Moon size={13} />
+          )}
         </button>
 
         <button

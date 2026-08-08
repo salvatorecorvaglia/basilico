@@ -35,8 +35,11 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
         openInIde: s.openInIde,
       })),
     );
-  const { addNotification } = useUIStore(
-    useShallow((s) => ({ addNotification: s.addNotification })),
+  const { addNotification, openConfirm } = useUIStore(
+    useShallow((s) => ({
+      addNotification: s.addNotification,
+      openConfirm: s.openConfirm,
+    })),
   );
 
   const [worktreeList, setWorktreeList] = useState<WorktreeInfo[]>([]);
@@ -99,22 +102,32 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
     }
   };
 
-  const handleRemoveWorktree = async (wtPath: string) => {
+  // Removing a worktree deletes a linked working directory, so it goes through
+  // the same confirmation every other destructive action in the app uses.
+  const handleRemoveWorktree = (wtPath: string) => {
     if (!activeTabId) return;
-    try {
-      await commands.removeWorktree(activeTabId, wtPath, false);
-      addNotification({
-        type: "success",
-        message: `Removed worktree at "${wtPath}"`,
-      });
-      await fetchWorktrees();
-      await refreshAll();
-    } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to remove worktree: ${err}`,
-      });
-    }
+    openConfirm({
+      title: "Remove Worktree",
+      message: `Remove the worktree at "${wtPath}"? Its working directory will be deleted. Any uncommitted changes there cannot be recovered.`,
+      confirmLabel: "Remove Worktree",
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await commands.removeWorktree(activeTabId, wtPath, false);
+          addNotification({
+            type: "success",
+            message: `Removed worktree at "${wtPath}"`,
+          });
+          await fetchWorktrees();
+          await refreshAll();
+        } catch (err) {
+          addNotification({
+            type: "error",
+            message: `Failed to remove worktree: ${err}`,
+          });
+        }
+      },
+    });
   };
 
   const handleAddWorktree = async (e: React.FormEvent) => {
@@ -413,7 +426,7 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
                           style={{
                             height: "24px",
                             fontSize: "11px",
-                            color: "var(--danger-color, #f85149)",
+                            color: "var(--color-danger)",
                           }}
                           onClick={() => handleRemoveWorktree(wt.path)}
                           title="Remove worktree"

@@ -1,6 +1,5 @@
 import { DiffEditor } from "@monaco-editor/react";
 import { ArrowLeftRight, CheckCircle, FileCode, X } from "lucide-react";
-import type { editor } from "monaco-editor";
 import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import * as commands from "../../lib/tauri-commands";
@@ -14,6 +13,8 @@ import {
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./CompareView.css";
+// Registers the bundled Monaco + workers; keeps it off the startup chunk.
+import { disposeModelsOnUnmount } from "../../lib/monaco-setup";
 
 export function CompareView() {
   const {
@@ -260,17 +261,7 @@ export function CompareView() {
                       horizontal: "visible",
                     },
                   }}
-                  onMount={(editor: editor.IStandaloneDiffEditor) => {
-                    const originalDispose = editor.dispose;
-                    editor.dispose = () => {
-                      try {
-                        editor.setModel(null);
-                      } catch {
-                        // Ignore
-                      }
-                      originalDispose.call(editor);
-                    };
-                  }}
+                  onMount={disposeModelsOnUnmount}
                 />
               </div>
             </div>

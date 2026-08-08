@@ -43,7 +43,7 @@
 }
 
 .badge-bisect-state.testing {
-  background: rgba(255, 158, 44, 0.15);
+  background: color-mix(in srgb, var(--cat-orange) 15%, transparent);
   color: var(--color-warning);
 }
 
@@ -132,9 +132,9 @@
 }
 
 .bisect-abort-btn {
-  background: rgba(248, 81, 73, 0.15);
+  background: color-mix(in srgb, var(--color-danger) 15%, transparent);
   color: var(--color-danger);
-  border: 1px solid rgba(248, 81, 73, 0.2);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 20%, transparent);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -147,7 +147,7 @@
 }
 
 .bisect-abort-btn:hover {
-  background: rgba(248, 81, 73, 0.25);
+  background: color-mix(in srgb, var(--color-danger) 25%, transparent);
 }
 
 .bisect-exit-btn {
@@ -240,14 +240,14 @@
 }
 
 .btn-bad {
-  background: rgba(248, 81, 73, 0.15);
+  background: color-mix(in srgb, var(--color-danger) 15%, transparent);
   color: var(--color-danger);
-  border: 1px solid rgba(248, 81, 73, 0.3);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 30%, transparent);
 }
 
 .btn-bad:hover {
-  background: rgba(248, 81, 73, 0.25);
-  box-shadow: 0 0 10px rgba(248, 81, 73, 0.15);
+  background: color-mix(in srgb, var(--color-danger) 25%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-danger) 15%, transparent);
 }
 
 .btn-good {

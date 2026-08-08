@@ -31,17 +31,11 @@ export default defineConfig(async () => ({
     },
   },
   build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (
-            id.includes("node_modules/monaco-editor") ||
-            id.includes("node_modules/@monaco-editor")
-          ) {
-            return "monaco";
-          }
-        },
-      },
-    },
+    // No manual Monaco chunk. Forcing every monaco-editor module into one
+    // named chunk defeated the lazy boundaries: the chunk became a static
+    // dependency of the entry, so Vite preloaded it on first paint. The
+    // React.lazy boundaries in App.tsx plus src/lib/monaco-setup.ts already
+    // give the splitting we want, so let the bundler follow the real graph.
+    chunkSizeWarningLimit: 5000,
   },
 }));

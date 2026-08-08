@@ -9,7 +9,7 @@
   width: 320px;
   max-width: 90vw;
   padding: var(--space-3) var(--space-4);
-  background: rgba(22, 27, 34, 0.85);
+  background: var(--scrim-raised);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-default);

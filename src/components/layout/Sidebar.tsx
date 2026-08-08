@@ -57,6 +57,7 @@ function TreeSection({
         <span className="sidebar-section-title">{title}</span>
         <span className="sidebar-section-count">{count}</span>
         {action && (
+          // biome-ignore lint/a11y/noStaticElementInteractions: no interaction of its own; the handler only stops the header toggle from firing
           <div
             role="presentation"
             className="sidebar-section-action-wrapper"
@@ -66,7 +67,7 @@ function TreeSection({
           </div>
         )}
       </div>
-      isOpen && <div className="sidebar-section-content">{children}</div>
+      {isOpen && <div className="sidebar-section-content">{children}</div>}
     </div>
   );
 }

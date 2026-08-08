@@ -12,7 +12,16 @@
   z-index: var(--z-modal);
 }
 
+/* Radix portals the overlay and the content as siblings, so the content
+   positions itself rather than relying on the overlay's flexbox — the same
+   approach the other dialogs in the app use (see .settings-modal). */
 .file-viewer-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: var(--z-modal);
+  outline: none;
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg, 12px);
@@ -22,7 +31,21 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: modalScaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  /* `modalScaleUp` was referenced here but never defined anywhere, so the
+     entrance animation silently did nothing. This keyframe carries the
+     centring translate through, which a bare `scale()` would otherwise drop. */
+  animation: fileViewerScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fileViewerScaleIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 .file-viewer-header {

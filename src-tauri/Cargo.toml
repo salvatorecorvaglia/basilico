@@ -13,8 +13,14 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[features]
+# Exposes `test_utils` (and Tauri's mock runtime) to the integration tests in
+# `tests/`, which link against the library as an external crate and so cannot
+# see `#[cfg(test)]` items. Never enabled for a release build.
+test-utils = ["tauri/test"]
+
 [dependencies]
-tauri = { version = "2", features = ["tray-icon", "test"] }
+tauri = { version = "2" }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-updater = "2"
@@ -31,6 +37,12 @@ log = "0.4"
 env_logger = "0.11"
 uuid = { version = "1", features = ["v4"] }
 dirs = "6"
+
+[dev-dependencies]
+# Self-dependency so `cargo test`/`cargo clippy --all-targets` turn on
+# `test-utils` automatically, while a release build leaves it off.
+basilico = { path = ".", features = ["test-utils"] }
+tokio = { version = "1", features = ["full"] }
 
 [profile.release]
 strip = true

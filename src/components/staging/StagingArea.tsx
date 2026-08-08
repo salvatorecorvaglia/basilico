@@ -572,6 +572,7 @@ export function StagingArea() {
           </div>
 
           {stagedOpen && (
+            // biome-ignore lint/a11y/noStaticElementInteractions: drop target only; the Stage/Unstage buttons and row key handlers are the keyboard path
             <div
               role="presentation"
               className="staging-list"
@@ -664,6 +665,7 @@ export function StagingArea() {
           </div>
 
           {unstagedOpen && (
+            // biome-ignore lint/a11y/noStaticElementInteractions: drop target only; the Stage/Unstage buttons and row key handlers are the keyboard path
             <div
               role="presentation"
               className="staging-list"

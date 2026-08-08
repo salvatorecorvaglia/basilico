@@ -112,13 +112,13 @@
 }
 
 .stash-action-btn.btn-danger {
-  background: rgba(248, 81, 73, 0.1);
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
   color: var(--color-danger);
-  border-color: rgba(248, 81, 73, 0.2);
+  border-color: color-mix(in srgb, var(--color-danger) 20%, transparent);
 }
 
 .stash-action-btn.btn-danger:hover {
-  background: rgba(248, 81, 73, 0.25);
+  background: color-mix(in srgb, var(--color-danger) 25%, transparent);
   border-color: var(--color-danger);
   transform: translateY(-1px);
 }

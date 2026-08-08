@@ -50,7 +50,7 @@
 .statusbar-state {
   color: var(--color-warning);
   font-weight: var(--weight-medium);
-  background: rgba(210, 153, 34, 0.15);
+  background: color-mix(in srgb, var(--color-warning) 15%, transparent);
   padding: 0 var(--space-2);
   border-radius: var(--radius-sm);
 }

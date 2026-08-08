@@ -18,7 +18,12 @@ pub struct BisectState {
 
 /// Bisect reports progress on stdout *or* stderr depending on the subcommand,
 /// so success needs whichever one carried the message.
-fn run_git_cmd(repo_path: &str, args: &[&str]) -> Result<String, AppError> {
+///
+/// Deliberately distinct from [`crate::commands::run_git_cmd`], which returns
+/// stdout only. Named apart from it so the two cannot be confused: this one
+/// used to shadow the shared helper, which made the shared one look used when
+/// it in fact had no callers at all.
+fn run_bisect_cmd(repo_path: &str, args: &[&str]) -> Result<String, AppError> {
     let output = crate::commands::git_output(args, repo_path)?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -40,7 +45,7 @@ fn get_bisect_state(repo_path: &str, last_output: String) -> BisectState {
         .unwrap_or(false);
 
     let current_oid = if is_bisecting {
-        run_git_cmd(repo_path, &["rev-parse", "HEAD"]).ok()
+        run_bisect_cmd(repo_path, &["rev-parse", "HEAD"]).ok()
     } else {
         None
     };
@@ -69,11 +74,8 @@ pub async fn bisect_start(
     bad: String,
     good: String,
 ) -> Result<BisectState, AppError> {
-    if bad.starts_with('-') || good.starts_with('-') {
-        return Err(AppError::invalid_state(
-            "Bisect revisions cannot start with a hyphen",
-        ));
-    }
+    crate::commands::validate_git_argument(&bad, "Bisect revision")?;
+    crate::commands::validate_git_argument(&good, "Bisect revision")?;
     tokio::task::spawn_blocking(move || {
         // Refuse rather than silently discarding an in-progress bisect: the
         // reset would check out the original branch and throw away the search
@@ -85,7 +87,7 @@ pub async fn bisect_start(
             ));
         }
 
-        let output = run_git_cmd(&repo_path, &["bisect", "start", &bad, &good])?;
+        let output = run_bisect_cmd(&repo_path, &["bisect", "start", &bad, &good])?;
         Ok(get_bisect_state(&repo_path, output))
     })
     .await?
@@ -100,7 +102,7 @@ pub async fn bisect_mark(
         return Err(AppError::invalid_state("Invalid bisect status"));
     }
     tokio::task::spawn_blocking(move || {
-        let output = run_git_cmd(&repo_path, &["bisect", &status])?;
+        let output = run_bisect_cmd(&repo_path, &["bisect", &status])?;
         Ok(get_bisect_state(&repo_path, output))
     })
     .await?
@@ -109,7 +111,7 @@ pub async fn bisect_mark(
 #[tauri::command]
 pub async fn bisect_reset(repo_path: String) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
-        run_git_cmd(&repo_path, &["bisect", "reset"])?;
+        run_bisect_cmd(&repo_path, &["bisect", "reset"])?;
         Ok(())
     })
     .await?

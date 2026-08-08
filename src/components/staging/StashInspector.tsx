@@ -15,7 +15,6 @@ import {
   Play,
   Trash2,
 } from "lucide-react";
-import type { editor } from "monaco-editor";
 import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -27,6 +26,8 @@ import { getLanguageFromPath } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./StashInspector.css";
+// Registers the bundled Monaco + workers; keeps it off the startup chunk.
+import { disposeModelsOnUnmount } from "../../lib/monaco-setup";
 
 export function StashInspector() {
   const isDark = useDarkMode();
@@ -382,17 +383,7 @@ export function StashInspector() {
                     scrollBeyondLastLine: false,
                     diffWordWrap: "off",
                   }}
-                  onMount={(editor: editor.IStandaloneDiffEditor) => {
-                    const originalDispose = editor.dispose;
-                    editor.dispose = () => {
-                      try {
-                        editor.setModel(null);
-                      } catch {
-                        // Ignore
-                      }
-                      originalDispose.call(editor);
-                    };
-                  }}
+                  onMount={disposeModelsOnUnmount}
                 />
               ) : (
                 <div className="stash-diff-placeholder">

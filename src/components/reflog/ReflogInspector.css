@@ -39,10 +39,14 @@
   border-radius: 8px;
   background: var(
     --accent-gradient,
-    linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2))
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--cat-indigo) 20%, transparent),
+      color-mix(in srgb, var(--cat-purple) 20%, transparent)
+    )
   );
   color: var(--accent-primary);
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  border: 1px solid color-mix(in srgb, var(--cat-indigo) 30%, transparent);
 }
 
 .reflog-title {
@@ -107,7 +111,7 @@
 .reflog-search-input:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cat-indigo) 20%, transparent);
 }
 
 .reflog-select {
@@ -240,52 +244,52 @@
 }
 
 .action-checkout {
-  background: rgba(59, 130, 246, 0.15);
+  background: color-mix(in srgb, var(--cat-blue) 15%, transparent);
   color: var(--cat-blue);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  border: 1px solid color-mix(in srgb, var(--cat-blue) 30%, transparent);
 }
 
 .action-commit {
-  background: rgba(34, 197, 94, 0.15);
+  background: color-mix(in srgb, var(--cat-green) 15%, transparent);
   color: var(--cat-green);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  border: 1px solid color-mix(in srgb, var(--cat-green) 30%, transparent);
 }
 
 .action-rebase {
-  background: rgba(168, 85, 247, 0.15);
+  background: color-mix(in srgb, var(--cat-purple) 15%, transparent);
   color: var(--cat-purple);
-  border: 1px solid rgba(168, 85, 247, 0.3);
+  border: 1px solid color-mix(in srgb, var(--cat-purple) 30%, transparent);
 }
 
 .action-reset {
-  background: rgba(249, 115, 22, 0.15);
+  background: color-mix(in srgb, var(--cat-orange) 15%, transparent);
   color: var(--cat-orange);
-  border: 1px solid rgba(249, 115, 22, 0.3);
+  border: 1px solid color-mix(in srgb, var(--cat-orange) 30%, transparent);
 }
 
 .action-merge {
-  background: rgba(6, 182, 212, 0.15);
+  background: color-mix(in srgb, var(--cat-cyan) 15%, transparent);
   color: var(--cat-cyan);
-  border: 1px solid rgba(6, 182, 212, 0.3);
+  border: 1px solid color-mix(in srgb, var(--cat-cyan) 30%, transparent);
 }
 
 .action-pull,
 .action-fetch {
-  background: rgba(99, 102, 241, 0.15);
+  background: color-mix(in srgb, var(--cat-indigo) 15%, transparent);
   color: var(--cat-indigo);
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  border: 1px solid color-mix(in srgb, var(--cat-indigo) 30%, transparent);
 }
 
 .action-cherry-pick {
-  background: rgba(234, 179, 8, 0.15);
+  background: color-mix(in srgb, var(--cat-yellow) 15%, transparent);
   color: var(--cat-yellow);
-  border: 1px solid rgba(234, 179, 8, 0.3);
+  border: 1px solid color-mix(in srgb, var(--cat-yellow) 30%, transparent);
 }
 
 .action-default {
-  background: rgba(148, 163, 184, 0.15);
+  background: color-mix(in srgb, var(--cat-slate) 15%, transparent);
   color: var(--cat-slate);
-  border: 1px solid rgba(148, 163, 184, 0.3);
+  border: 1px solid color-mix(in srgb, var(--cat-slate) 30%, transparent);
 }
 
 /* SHA badge */
@@ -305,8 +309,8 @@
 }
 
 .reflog-sha-btn:hover {
-  background-color: rgba(99, 102, 241, 0.15);
-  border-color: rgba(99, 102, 241, 0.4);
+  background-color: color-mix(in srgb, var(--cat-indigo) 15%, transparent);
+  border-color: color-mix(in srgb, var(--cat-indigo) 40%, transparent);
 }
 
 /* Table row actions */
@@ -326,8 +330,8 @@
 }
 
 .reflog-row-btn:hover {
-  background-color: rgba(239, 68, 68, 0.15);
-  border-color: rgba(239, 68, 68, 0.4);
+  background-color: color-mix(in srgb, var(--color-danger) 15%, transparent);
+  border-color: color-mix(in srgb, var(--color-danger) 40%, transparent);
   color: var(--cat-rose);
 }
 
@@ -452,13 +456,13 @@
 }
 
 .reflog-mode-card:hover {
-  border-color: rgba(99, 102, 241, 0.4);
-  background-color: rgba(99, 102, 241, 0.05);
+  border-color: color-mix(in srgb, var(--cat-indigo) 40%, transparent);
+  background-color: color-mix(in srgb, var(--cat-indigo) 5%, transparent);
 }
 
 .reflog-mode-card.selected {
   border-color: var(--accent-primary);
-  background-color: rgba(99, 102, 241, 0.1);
+  background-color: color-mix(in srgb, var(--cat-indigo) 10%, transparent);
 }
 
 .reflog-mode-radio {

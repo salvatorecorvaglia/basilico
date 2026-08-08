@@ -10,15 +10,7 @@ use crate::error::AppError;
 /// `format-patch` accepts flags such as `--output-directory`, so a revision
 /// beginning with `-` must never reach it positionally.
 fn validate_revision(rev: &str) -> Result<(), AppError> {
-    if rev.is_empty() {
-        return Err(AppError::invalid_state("Revision must not be empty"));
-    }
-    if rev.starts_with('-') {
-        return Err(AppError::invalid_state(
-            "Revision must not start with a hyphen",
-        ));
-    }
-    Ok(())
+    crate::commands::validate_git_argument(rev, "Revision")
 }
 
 #[tauri::command]

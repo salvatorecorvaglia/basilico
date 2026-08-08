@@ -153,6 +153,15 @@
   --cat-slate: #cbd5e1;
   --cat-rose: #fca5a5;
 
+  /* ── Overlay scrims ──
+     Translucent chrome for toasts and floating panels. Fixed dark values by
+     design: these sit above arbitrary app content and need to stay legible in
+     either theme, exactly like --terminal-bg above. */
+  --scrim-raised: rgba(22, 27, 34, 0.85);
+  --scrim-sunken: rgba(13, 17, 23, 0.2);
+  --scrim-border: rgba(48, 54, 61, 0.2);
+  --scrim-border-strong: rgba(48, 54, 61, 0.1);
+
   /* Blame uses a GitHub-derived set; kept separate so neither palette shifts. */
   --blame-fg: #c9d1d9;
   --blame-blue: #58a6ff;

@@ -96,7 +96,10 @@ pub async fn save_merged_resolution(
         let workdir = repo
             .workdir()
             .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
-        let validated_full_path = crate::git::utils::validate_path(workdir, Path::new(&file_path))?;
+        // Written below via `fs::write`, which follows symlinks and would
+        // otherwise overwrite whatever the link points at.
+        let validated_full_path =
+            crate::git::utils::validate_path_no_symlink(workdir, Path::new(&file_path))?;
 
         fs::write(&validated_full_path, merged_content)?;
 
@@ -158,8 +161,9 @@ pub async fn launch_external_merge_tool(
         let workdir = repo
             .workdir()
             .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
+        // Handed to an external merge tool that will write to it.
         let merged_path =
-            crate::git::utils::validate_path(workdir, std::path::Path::new(&file_path))?;
+            crate::git::utils::validate_path_no_symlink(workdir, std::path::Path::new(&file_path))?;
 
         let tool_lower = tool_name.to_lowercase();
         let (program, args) = if tool_lower == "meld" {

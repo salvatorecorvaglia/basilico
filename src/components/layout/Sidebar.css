@@ -186,9 +186,9 @@
 }
 
 .sidebar-badge.annotated {
-  background: rgba(217, 119, 6, 0.15);
+  background: color-mix(in srgb, var(--color-warning) 15%, transparent);
   color: var(--color-warning);
-  border: 1px solid rgba(217, 119, 6, 0.25);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 25%, transparent);
 }
 
 .sidebar-sync {
@@ -302,7 +302,7 @@
 
 .context-menu-item.danger:hover,
 .context-menu-item.danger:focus {
-  background: rgba(239, 68, 68, 0.1);
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
   color: var(--color-danger);
 }
 

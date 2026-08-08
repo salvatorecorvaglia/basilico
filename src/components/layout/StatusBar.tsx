@@ -104,10 +104,10 @@ export function StatusBar() {
                     cursor: ciStatus.url ? "pointer" : "default",
                     color:
                       ciStatus.status === "success"
-                        ? "var(--accent-primary, #2da44e)"
+                        ? "var(--accent-primary)"
                         : ciStatus.status === "failure"
-                          ? "var(--danger-color, #f85149)"
-                          : "var(--accent-info, #0969da)",
+                          ? "var(--color-danger)"
+                          : "var(--color-info)",
                   }}
                 >
                   {ciStatus.status === "success" && <CheckCircle2 size={12} />}

@@ -5,7 +5,6 @@ import type {
   FileDiff,
   FileHistoryEntry,
   GraphCommit,
-  GrepMatch,
   RemoteInfo,
   RepoInfo,
   RepoStatus,
@@ -29,8 +28,6 @@ export interface GitDataSlice {
   commitDiff: FileDiff[];
   blameLines: BlameLine[];
   fileHistory: FileHistoryEntry[];
-  commitSearchResults: GraphCommit[];
-  grepSearchResults: GrepMatch[];
 
   refreshGeneration: number;
   /** False once the backend has returned a short page. */
@@ -51,8 +48,6 @@ export interface GitDataSlice {
   listMergedBranches: (targetBranch?: string) => Promise<BranchInfo[]>;
   loadFileBlame: (filePath: string, commitOid?: string | null) => Promise<void>;
   loadFileHistory: (filePath: string) => Promise<void>;
-  searchCommits: (query: string) => Promise<void>;
-  grepCode: (query: string) => Promise<void>;
 }
 
 export const createGitDataSlice: StateCreator<
@@ -74,8 +69,6 @@ export const createGitDataSlice: StateCreator<
   commitDiff: [],
   blameLines: [],
   fileHistory: [],
-  commitSearchResults: [],
-  grepSearchResults: [],
 
   refreshGeneration: 0,
   hasMoreCommits: true,
@@ -412,60 +405,6 @@ export const createGitDataSlice: StateCreator<
       throw err;
     } finally {
       setLoading(get, set, "history", false);
-    }
-  },
-
-  searchCommits: async (query) => {
-    const { activeTabId, refreshGeneration } = get();
-    if (!activeTabId) return;
-
-    if (!query.trim()) {
-      set({ commitSearchResults: [] });
-      return;
-    }
-
-    setLoading(get, set, "search", true);
-    set({ error: null });
-    try {
-      const results = await commands.searchCommits(activeTabId, query, {
-        errorPrefix: "Failed to search commits",
-      });
-      if (get().refreshGeneration === refreshGeneration) {
-        set({ commitSearchResults: results });
-      }
-    } catch (err) {
-      console.error("Failed to search commits:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "search", false);
-    }
-  },
-
-  grepCode: async (query) => {
-    const { activeTabId, refreshGeneration } = get();
-    if (!activeTabId) return;
-
-    if (!query.trim()) {
-      set({ grepSearchResults: [] });
-      return;
-    }
-
-    setLoading(get, set, "search", true);
-    set({ error: null });
-    try {
-      const results = await commands.grepCode(activeTabId, query, {
-        errorPrefix: "Failed to search code",
-      });
-      if (get().refreshGeneration === refreshGeneration) {
-        set({ grepSearchResults: results });
-      }
-    } catch (err) {
-      console.error("Failed to grep code:", err);
-      set({ error: String(err) });
-      throw err;
-    } finally {
-      setLoading(get, set, "search", false);
     }
   },
 });

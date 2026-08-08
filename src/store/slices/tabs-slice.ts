@@ -304,32 +304,38 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
       });
 
       const openedTabs: RepoTab[] = [];
-      let lastActiveInfo = null;
+      const infoByPath = new Map<string, RepoInfo>();
       let finalActiveTabId = activePath;
 
-      for (const path of paths) {
-        try {
-          const info = await commands.openRepo(path, {
-            silent: true,
-          });
-          const tabId = info.path;
+      // Opens are independent, so they run concurrently: restoring N tabs
+      // sequentially made startup grow linearly with tab count, when it need
+      // only take as long as the slowest single open. `allSettled` keeps the
+      // previous behaviour of skipping repositories that no longer exist.
+      const results = await Promise.allSettled(
+        paths.map((path) => commands.openRepo(path, { silent: true })),
+      );
 
-          // Add to recent repositories
-          addRepoToRecent(info);
-
-          openedTabs.push({
-            id: tabId,
-            path: info.path,
-            name: info.name,
-            isActive: false,
-          });
-          if (tabId === activePath) {
-            lastActiveInfo = info;
-          }
-        } catch (err) {
-          console.error(`Failed to restore repository at ${path}:`, err);
+      results.forEach((result, index) => {
+        if (result.status === "rejected") {
+          console.error(
+            `Failed to restore repository at ${paths[index]}:`,
+            result.reason,
+          );
+          return;
         }
-      }
+        const info = result.value;
+
+        // Add to recent repositories
+        addRepoToRecent(info);
+
+        openedTabs.push({
+          id: info.path,
+          path: info.path,
+          name: info.name,
+          isActive: false,
+        });
+        infoByPath.set(info.path, info);
+      });
 
       if (openedTabs.length === 0) {
         set({ loadingStates: { ...get().loadingStates, global: false } });
@@ -338,18 +344,43 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
         return;
       }
 
-      // Determine the active tab
-      const hasActive = openedTabs.some((t) => t.id === finalActiveTabId);
-      if (!hasActive) {
-        finalActiveTabId = openedTabs[0].id;
+      // Restoration takes several IPC round-trips, so the user can open a
+      // repository manually while it is still running. Merge with whatever is
+      // in the store now instead of overwriting it — the previous unconditional
+      // `set` was built purely from the local accumulator and silently dropped
+      // any tab opened in that window.
+      const concurrentTabs = get().tabs.filter(
+        (existing) => !openedTabs.some((t) => t.id === existing.id),
+      );
+      const mergedTabs = [...openedTabs, ...concurrentTabs];
+
+      // A tab the user opened by hand is a deliberate, more recent choice than
+      // the persisted one, so let it keep focus.
+      const manuallyActivated = get().activeTabId;
+      if (
+        manuallyActivated &&
+        concurrentTabs.some((t) => t.id === manuallyActivated)
+      ) {
+        finalActiveTabId = manuallyActivated;
       }
 
-      const finalTabs = openedTabs.map((t) => ({
+      // Determine the active tab
+      const hasActive = mergedTabs.some((t) => t.id === finalActiveTabId);
+      if (!hasActive) {
+        finalActiveTabId = mergedTabs[0].id;
+      }
+
+      const finalTabs = mergedTabs.map((t) => ({
         ...t,
         isActive: t.id === finalActiveTabId,
       }));
 
-      let activeInfo = lastActiveInfo;
+      // Reuse the info already fetched during restoration when it describes the
+      // tab that ended up active; a manually-opened tab can win the race above,
+      // in which case its info is not in this map and is fetched below.
+      let activeInfo: RepoInfo | null = finalActiveTabId
+        ? (infoByPath.get(finalActiveTabId) ?? null)
+        : null;
       if (!activeInfo) {
         const activeTab = finalTabs.find((t) => t.isActive);
         if (activeTab) {

@@ -154,7 +154,7 @@
 
 .reset-mode-option.active-danger {
   border-color: var(--color-danger);
-  background: rgba(239, 68, 68, 0.08);
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
 }
 
 .reset-mode-option.active-danger input[type="radio"] {
@@ -162,8 +162,8 @@
 }
 
 .reset-danger-warning {
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 20%, transparent);
   border-radius: var(--radius-md);
   padding: var(--space-4);
   display: flex;

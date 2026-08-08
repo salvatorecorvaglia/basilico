@@ -1,21 +1,13 @@
-import { useEffect, useState } from "react";
+import { useColorScheme } from "./color-scheme";
 
-export function useDarkMode() {
-  const [isDark, setIsDark] = useState(() => {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
-  });
-
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const listener = (e: MediaQueryListEvent) => {
-      setIsDark(e.matches);
-    };
-
-    media.addEventListener("change", listener);
-    return () => {
-      media.removeEventListener("change", listener);
-    };
-  }, []);
-
-  return isDark;
+/**
+ * Whether the app is currently rendering dark.
+ *
+ * Thin wrapper over {@link useColorScheme} so the Monaco-hosting views keep
+ * their existing call shape while sharing the one source of truth — this used
+ * to read `prefers-color-scheme` directly, which meant it ignored the Toolbar's
+ * manual light/dark override entirely and left the editors mismatched.
+ */
+export function useDarkMode(): boolean {
+  return useColorScheme().isDark;
 }

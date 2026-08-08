@@ -231,7 +231,20 @@ function App() {
   // Load settings and restore tabs on mount
   useEffect(() => {
     const init = async () => {
-      await loadSettings();
+      // `loadSettings` rethrows, and runs silently so nothing surfaces a toast.
+      // Letting that reject would abandon the rest of startup — recent repos
+      // and saved tabs would never load, with no clue why — so failing to read
+      // settings degrades to defaults rather than stopping the sequence.
+      try {
+        await loadSettings();
+      } catch (e) {
+        console.error("Failed to load settings; continuing with defaults:", e);
+        useUIStore.getState().addNotification({
+          type: "warning",
+          message:
+            "Could not load your settings; using defaults for this session.",
+        });
+      }
       loadRecentRepos();
 
       const savedRepos = localStorage.getItem("basilico-open-repos");
@@ -253,7 +266,13 @@ function App() {
         }
       }
     };
-    init();
+    init().catch((e) => {
+      console.error("Startup initialisation failed:", e);
+      useUIStore.getState().addNotification({
+        type: "error",
+        message: `Failed to restore your session: ${e}`,
+      });
+    });
   }, [loadSettings, loadRecentRepos]);
 
   // Listen to file system changes from Rust watcher

@@ -29,7 +29,9 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 0 var(--space-3);
+  /* Left padding lives on the button so the whole tab area, not just the
+     label, activates it — the wrapper no longer has a click handler. */
+  padding: 0 var(--space-3) 0 0;
   height: 30px;
   background: transparent;
   color: var(--text-secondary);
@@ -146,7 +148,7 @@
   height: 100%;
   background: transparent;
   border: none;
-  padding: 0;
+  padding: 0 0 0 var(--space-3);
   margin: 0;
   color: inherit;
   font-family: inherit;

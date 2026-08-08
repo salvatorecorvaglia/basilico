@@ -32,6 +32,7 @@ import {
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./CommitDetail.css";
+import { useCopyFeedback } from "../../lib/use-copy-feedback";
 
 interface TreeNode {
   name: string;
@@ -213,7 +214,8 @@ export function CommitDetail() {
         openPrompt: s.openPrompt,
       })),
     );
-  const [copiedOid, setCopiedOid] = useState(false);
+  const { isCopied, markCopied } = useCopyFeedback();
+  const copiedOid = isCopied();
   const [activeTab, setActiveTab] = useState<"changes" | "tree">("changes");
   const [sigInfo, setSigInfo] = useState<SignatureInfo | null>(null);
 
@@ -256,8 +258,7 @@ export function CommitDetail() {
 
   const handleCopyOid = () => {
     navigator.clipboard.writeText(commit.oid);
-    setCopiedOid(true);
-    setTimeout(() => setCopiedOid(false), 2000);
+    markCopied();
   };
 
   const handleCreateTagPrompt = () => {

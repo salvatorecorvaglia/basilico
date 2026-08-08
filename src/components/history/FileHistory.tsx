@@ -1,6 +1,5 @@
 import { DiffEditor } from "@monaco-editor/react";
 import { ArrowLeft } from "lucide-react";
-import type { editor } from "monaco-editor";
 import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { getFileContentAtRevision } from "../../lib/tauri-commands";
@@ -8,6 +7,8 @@ import { formatDateTime, getLanguageFromPath } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./FileHistory.css";
+// Registers the bundled Monaco + workers; keeps it off the startup chunk.
+import { disposeModelsOnUnmount } from "../../lib/monaco-setup";
 
 export function FileHistory() {
   const {
@@ -213,17 +214,7 @@ export function FileHistory() {
                   "JetBrains Mono, Fira Code, Menlo, Monaco, Consolas, monospace",
                 scrollBeyondLastLine: false,
               }}
-              onMount={(editor: editor.IStandaloneDiffEditor) => {
-                const originalDispose = editor.dispose;
-                editor.dispose = () => {
-                  try {
-                    editor.setModel(null);
-                  } catch {
-                    // Ignore
-                  }
-                  originalDispose.call(editor);
-                };
-              }}
+              onMount={disposeModelsOnUnmount}
             />
           ) : (
             <div className="history-diff-empty">

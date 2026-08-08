@@ -349,13 +349,16 @@ export function RebaseEditor() {
               item.action === "reword" || item.action === "squash";
 
             return (
+              /* Drag-to-reorder is an enhancement: every row also has
+                 keyboard-operable Move Up / Move Down buttons below. */
+              // biome-ignore lint/a11y/noStaticElementInteractions: drag is optional; Move Up/Down buttons are the keyboard path
               <div
                 key={item.oid}
                 draggable={isPlanning}
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={handleDragOver}
                 onDrop={() => handleDrop(index)}
-                className={`rebase-row ${isCurrent ? "current" : ""} $draggedIndex === index ? "dragging" : ""$isPlanning ? "" : "rebase-row--locked"`}
+                className={`rebase-row ${isCurrent ? "current" : ""} ${draggedIndex === index ? "dragging" : ""} ${isPlanning ? "" : "rebase-row--locked"}`}
               >
                 <div
                   className="col-drag drag-handle"
@@ -439,7 +442,7 @@ export function RebaseEditor() {
                     disabled={!isPlanning || index === 0}
                     onClick={() => moveUp(index)}
                     title="Move Up"
-                    aria-label={`Move commit $item.oid.slice(0, 7)earlier`}
+                    aria-label={`Move commit ${item.oid.slice(0, 7)} earlier`}
                   >
                     <ArrowUp size={12} />
                   </button>
@@ -450,7 +453,7 @@ export function RebaseEditor() {
                     }
                     onClick={() => moveDown(index)}
                     title="Move Down"
-                    aria-label={`Move commit $item.oid.slice(0, 7)later`}
+                    aria-label={`Move commit ${item.oid.slice(0, 7)} later`}
                   >
                     <ArrowDown size={12} />
                   </button>

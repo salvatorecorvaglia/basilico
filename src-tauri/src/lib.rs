@@ -4,6 +4,7 @@ pub mod git;
 pub mod state;
 pub mod watcher;
 
+#[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
 
 use state::AppState;

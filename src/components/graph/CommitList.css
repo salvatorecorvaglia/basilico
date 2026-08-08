@@ -208,21 +208,21 @@
 }
 
 .ref-branch {
-  background: rgba(99, 102, 241, 0.15);
+  background: color-mix(in srgb, var(--cat-indigo) 15%, transparent);
   color: var(--text-link);
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  border: 1px solid color-mix(in srgb, var(--cat-indigo) 25%, transparent);
 }
 
 .ref-remote {
-  background: rgba(168, 85, 247, 0.15);
+  background: color-mix(in srgb, var(--cat-purple) 15%, transparent);
   color: var(--cat-purple);
-  border: 1px solid rgba(168, 85, 247, 0.25);
+  border: 1px solid color-mix(in srgb, var(--cat-purple) 25%, transparent);
 }
 
 .ref-tag {
-  background: rgba(217, 119, 6, 0.15);
+  background: color-mix(in srgb, var(--color-warning) 15%, transparent);
   color: var(--color-warning);
-  border: 1px solid rgba(217, 119, 6, 0.25);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 25%, transparent);
 }
 
 /* ── Author Column ── */

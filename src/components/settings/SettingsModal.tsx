@@ -19,21 +19,13 @@ import { useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { UserSettings } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
-import { applyThemeToDOM } from "../../lib/theme-presets";
+import { applyThemeToDOM, THEME_PRESETS } from "../../lib/theme-presets";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./SettingsModal.css";
+import { useCopyFeedback } from "../../lib/use-copy-feedback";
 
 type SettingsTab = "appearance" | "git" | "ssh" | "shortcuts";
-
-const THEME_PRESETS = [
-  { id: "sage-green", name: "Sage Green", color: "#2ea043" },
-  { id: "royal-blue", name: "Royal Blue", color: "#1f6feb" },
-  { id: "amethyst-purple", name: "Amethyst Purple", color: "#8b5cf6" },
-  { id: "amber-gold", name: "Amber Gold", color: "#d29922" },
-  { id: "crimson-red", name: "Crimson Red", color: "#f85149" },
-  { id: "ocean-teal", name: "Ocean Teal", color: "#2dd4bf" },
-];
 
 const SHORTCUT_LABELS: Record<string, string> = {
   commandPalette: "Command Palette",
@@ -73,7 +65,8 @@ export function SettingsModal() {
   const [sshKeys, setSshKeys] = useState<string[]>([]);
   const [sshComment, setSshComment] = useState("");
   const [generatedPubKey, setGeneratedPubKey] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const { isCopied, markCopied } = useCopyFeedback();
+  const copied = isCopied();
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Load settings on open
@@ -133,8 +126,7 @@ export function SettingsModal() {
   const handleCopyPubKey = () => {
     if (generatedPubKey) {
       navigator.clipboard.writeText(generatedPubKey);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      markCopied();
     }
   };
 

@@ -47,8 +47,9 @@ pub async fn get_file_content_pair(
         let workdir = repo
             .workdir()
             .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
+        // Read below via `fs::read_to_string`, which follows symlinks.
         let validated_full_path =
-            crate::git::utils::validate_path(workdir, std::path::Path::new(&file_path))?;
+            crate::git::utils::validate_path_no_symlink(workdir, std::path::Path::new(&file_path))?;
 
         let mut original = String::new();
         let mut modified = String::new();

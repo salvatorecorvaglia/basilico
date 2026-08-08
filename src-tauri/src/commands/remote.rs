@@ -43,23 +43,46 @@ pub async fn push<R: tauri::Runtime>(
         // meantime and the force would destroy their work. This is the
         // equivalent of git's --force-with-lease, which libgit2 does not
         // implement natively.
+        // The lease must fail *closed*: every path that cannot establish what
+        // the remote tip was has to refuse, otherwise the one guard protecting
+        // an irreversible overwrite silently disappears exactly when the local
+        // view of the remote is missing or stale.
         if force {
-            if let Some(expected) = expected_remote_oid.as_deref().filter(|s| !s.is_empty()) {
-                let remote_ref = format!("refs/remotes/{}/{}", remote, branch);
-                if let Ok(reference) = repo.find_reference(&remote_ref) {
-                    if let Some(actual) = reference.target() {
-                        if actual.to_string() != expected {
-                            return Err(AppError::invalid_state(format!(
-                                "Refusing to force push: {}/{} has moved since you last fetched \
-                                 (expected {}, found {}). Fetch and review the new commits first.",
-                                remote,
-                                branch,
-                                &expected[..7.min(expected.len())],
-                                &actual.to_string()[..7]
-                            )));
-                        }
-                    }
-                }
+            let expected = expected_remote_oid
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| {
+                    AppError::invalid_state(format!(
+                        "Refusing to force push: Basilico has no record of what {}/{} pointed at, \
+                         so it cannot tell whether someone else has pushed. Fetch first.",
+                        remote, branch
+                    ))
+                })?;
+
+            let remote_ref = format!("refs/remotes/{}/{}", remote, branch);
+            let actual = repo
+                .find_reference(&remote_ref)
+                .ok()
+                .and_then(|r| r.target())
+                .ok_or_else(|| {
+                    AppError::invalid_state(format!(
+                        "Refusing to force push: no local tracking ref for {}/{}, so the remote \
+                         tip cannot be verified. Fetch first.",
+                        remote, branch
+                    ))
+                })?;
+
+            let actual = actual.to_string();
+            if actual != expected {
+                return Err(AppError::invalid_state(format!(
+                    "Refusing to force push: {}/{} has moved since you last fetched \
+                     (expected {}, found {}). Fetch and review the new commits first.",
+                    remote,
+                    branch,
+                    &expected[..7.min(expected.len())],
+                    &actual[..7.min(actual.len())]
+                )));
             }
         }
 

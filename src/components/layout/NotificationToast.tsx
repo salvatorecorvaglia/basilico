@@ -60,6 +60,7 @@ export function NotificationToast() {
               type="button"
               className="toast-close-btn"
               onClick={() => removeNotification(notif.id)}
+              aria-label="Dismiss notification"
             >
               <X size={12} />
             </button>

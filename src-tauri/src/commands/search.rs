@@ -162,6 +162,10 @@ pub fn split_grep_line(line: &str) -> Option<(String, usize, String)> {
     None
 }
 
+/// Ceiling on returned `git grep` matches. Beyond this the list stops being
+/// navigable, and the cost is paid in IPC serialisation and DOM nodes.
+const GREP_MATCH_LIMIT: usize = 2_000;
+
 #[tauri::command]
 pub async fn grep_code(repo_path: String, query: String) -> Result<Vec<GrepMatch>, AppError> {
     if query.trim().is_empty() {
@@ -194,6 +198,13 @@ pub async fn grep_code(repo_path: String, query: String) -> Result<Vec<GrepMatch
 
     let mut matches = Vec::new();
     for line in stdout.lines() {
+        // A broad query over a large repository can match hundreds of
+        // thousands of lines; every one would be serialised over IPC and
+        // rendered into an unwindowed list. Stop at a bound the UI can
+        // actually show, matching the truncation the diff parser already does.
+        if matches.len() >= GREP_MATCH_LIMIT {
+            break;
+        }
         // Paths may contain ':' (and always do on Windows), so anchor the split
         // on the line-number field rather than taking the first two colons.
         if let Some((file_path, line_number, content)) = split_grep_line(line) {

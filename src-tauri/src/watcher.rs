@@ -44,32 +44,37 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
                 .watch(&git_dir, RecursiveMode::Recursive);
         }
 
-        // 3. Watch non-ignored top-level directories recursively
+        // 3. Watch non-ignored top-level directories recursively.
+        //
+        // The ignore decision comes from the repository's own rules rather than
+        // a hardcoded name list. The old list covered the JS/Rust cases its
+        // author happened to hit — a project with `.venv`, `Pods`, `bin`, `obj`
+        // or any other large ignored directory got it watched recursively,
+        // which is expensive everywhere and can exhaust inotify watches on
+        // Linux. `is_path_ignored` answers for whatever the repo actually
+        // gitignores, so it also stays correct as a project's layout changes.
+        let ignore_repo = git2::Repository::open(watch_path).ok();
         if let Ok(entries) = std::fs::read_dir(watch_path) {
             for entry in entries.flatten() {
-                if let Ok(file_type) = entry.file_type() {
-                    if file_type.is_dir() {
-                        let path = entry.path();
-                        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                        if name != ".git"
-                            && name != "node_modules"
-                            && name != "target"
-                            && name != "dist"
-                            && name != "build"
-                            && name != ".next"
-                            && name != ".turbo"
-                            && name != "out"
-                            && name != "vendor"
-                            && name != "coverage"
-                            && name != ".cache"
-                            && name != "tmp"
-                            && name != "storage"
-                            && name != ".idea"
-                            && name != ".vscode"
-                        {
-                            let _ = debouncer.watcher().watch(&path, RecursiveMode::Recursive);
-                        }
-                    }
+                if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                    continue;
+                }
+                let path = entry.path();
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+                // `.git` is handled above, with the correct worktree/submodule
+                // resolution; watching it again here would duplicate events.
+                if name == ".git" {
+                    continue;
+                }
+
+                let ignored = ignore_repo
+                    .as_ref()
+                    .and_then(|r| r.is_path_ignored(&path).ok())
+                    .unwrap_or_else(|| is_conventionally_ignored(name));
+
+                if !ignored {
+                    let _ = debouncer.watcher().watch(&path, RecursiveMode::Recursive);
                 }
             }
         }
@@ -157,6 +162,35 @@ fn resolve_git_dirs(repo_path: &Path) -> Vec<std::path::PathBuf> {
     }
 
     dirs
+}
+
+/// Fallback for when the repository cannot be opened to consult its ignore
+/// rules. Conventional build/dependency directory names only — the real
+/// decision belongs to git.
+pub fn is_conventionally_ignored(name: &str) -> bool {
+    matches!(
+        name,
+        "node_modules"
+            | "target"
+            | "dist"
+            | "build"
+            | "out"
+            | "vendor"
+            | "coverage"
+            | "tmp"
+            | "storage"
+            | ".next"
+            | ".turbo"
+            | ".cache"
+            | ".idea"
+            | ".vscode"
+            | ".venv"
+            | "venv"
+            | "__pycache__"
+            | "Pods"
+            | "bin"
+            | "obj"
+    )
 }
 
 /// Returns true if the changed file path is significant (not ignored or transient).

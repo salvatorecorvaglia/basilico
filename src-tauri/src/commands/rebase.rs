@@ -281,6 +281,10 @@ pub async fn rebase_start(
     upstream: String,
     items: Vec<RebaseTodoItem>,
 ) -> Result<RebaseStatus, AppError> {
+    // `upstream` lands in a positional argv slot right after `-i`, where a value
+    // such as `--exec=<cmd>` would be read by git as a flag that runs an
+    // arbitrary command after every replayed commit.
+    crate::commands::validate_git_argument(&upstream, "Upstream revision")?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
 

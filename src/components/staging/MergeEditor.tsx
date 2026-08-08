@@ -16,6 +16,8 @@ import { getLanguageFromPath } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./MergeEditor.css";
+// Registers the bundled Monaco + workers; keeps it off the startup chunk.
+import { disposeModelsOnUnmount } from "../../lib/monaco-setup";
 
 interface ConflictBlock {
   start: number; // 0-indexed line index
@@ -312,6 +314,7 @@ export function MergeEditor() {
               <div className="merge-panel-title">Ours (Local Changes)</div>
               <div className="merge-panel-editor-container">
                 <Editor
+                  onMount={disposeModelsOnUnmount}
                   value={oursValue}
                   language={getLanguageFromPath(activeConflictedPath)}
                   theme={isDark ? "basilico-dark" : "basilico-light"}
@@ -334,6 +337,7 @@ export function MergeEditor() {
               <div className="merge-panel-title">Theirs (Incoming Changes)</div>
               <div className="merge-panel-editor-container">
                 <Editor
+                  onMount={disposeModelsOnUnmount}
                   value={theirsValue}
                   language={getLanguageFromPath(activeConflictedPath)}
                   theme={isDark ? "basilico-dark" : "basilico-light"}
@@ -408,6 +412,7 @@ export function MergeEditor() {
             <div className="merge-panel-title">Merged Result (Editable)</div>
             <div className="merge-panel-editor-container">
               <Editor
+                onMount={disposeModelsOnUnmount}
                 value={mergedValue}
                 onChange={(val) => setMergedValue(val || "")}
                 language={getLanguageFromPath(activeConflictedPath)}

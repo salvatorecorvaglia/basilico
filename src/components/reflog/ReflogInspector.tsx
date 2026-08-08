@@ -20,6 +20,7 @@ import { getReflog, restoreReflogEntry } from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./ReflogInspector.css";
+import { useCopyFeedback } from "../../lib/use-copy-feedback";
 
 function getActionBadgeClass(message: string): {
   label: string;
@@ -71,7 +72,8 @@ export function ReflogInspector() {
   const [searchQuery, setSearchQuery] = useState("");
   const [refTarget, setRefTarget] = useState("HEAD");
   const [maxCount, setMaxCount] = useState(200);
-  const [copiedOid, setCopiedOid] = useState<string | null>(null);
+  // Keyed by OID so the tick shows on the row that was actually copied.
+  const { copiedKey: copiedOid, markCopied } = useCopyFeedback();
 
   // Restore Modal State
   const [restoreModalEntry, setRestoreModalEntry] =
@@ -104,12 +106,11 @@ export function ReflogInspector() {
 
   const handleCopyOid = (oid: string) => {
     navigator.clipboard.writeText(oid);
-    setCopiedOid(oid);
+    markCopied(oid);
     addNotification({
       type: "info",
       message: `Copied commit SHA ${oid.slice(0, 7)} to clipboard`,
     });
-    setTimeout(() => setCopiedOid(null), 2000);
   };
 
   const handleConfirmRestore = async () => {
@@ -330,7 +331,7 @@ export function ReflogInspector() {
           <div className="reflog-modal">
             <div className="reflog-modal-header">
               <h3 className="reflog-modal-title">
-                <RotateCcw size={16} style={{ color: "#ef4444" }} />
+                <RotateCcw size={16} style={{ color: "var(--color-danger)" }} />
                 Restore Repository State
               </h3>
               <button
@@ -356,10 +357,8 @@ export function ReflogInspector() {
 
               <div className="reflog-mode-options">
                 {/* Mixed Mode (Recommended) */}
-                <div
-                  role="presentation"
+                <label
                   className={`reflog-mode-card ${resetMode === "mixed" ? "selected" : ""}`}
-                  onClick={() => setResetMode("mixed")}
                 >
                   <input
                     type="radio"
@@ -377,12 +376,10 @@ export function ReflogInspector() {
                       directory files unchanged.
                     </span>
                   </div>
-                </div>
+                </label>
                 {/* Soft Mode */}
-                <div
-                  role="presentation"
+                <label
                   className={`reflog-mode-card ${resetMode === "soft" ? "selected" : ""}`}
-                  onClick={() => setResetMode("soft")}
                 >
                   <input
                     type="radio"
@@ -398,12 +395,10 @@ export function ReflogInspector() {
                       the index.
                     </span>
                   </div>
-                </div>
+                </label>
                 {/* Hard Mode */}
-                <div
-                  role="presentation"
+                <label
                   className={`reflog-mode-card ${resetMode === "hard" ? "selected" : ""}`}
-                  onClick={() => setResetMode("hard")}
                 >
                   <input
                     type="radio"
@@ -415,7 +410,7 @@ export function ReflogInspector() {
                   <div className="reflog-mode-info">
                     <span
                       className="reflog-mode-name"
-                      style={{ color: "#ef4444" }}
+                      style={{ color: "var(--color-danger)" }}
                     >
                       Hard Reset (Warning: Destructive)
                     </span>
@@ -424,7 +419,7 @@ export function ReflogInspector() {
                       to match the target commit exactly.
                     </span>
                   </div>
-                </div>
+                </label>
               </div>
             </div>
 

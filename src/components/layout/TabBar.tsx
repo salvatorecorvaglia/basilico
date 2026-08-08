@@ -35,22 +35,18 @@ export function TabBar() {
 
   return (
     <div className="tabbar">
-      <div className="tabbar-tabs">
+      <div className="tabbar-tabs" role="tablist">
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
-          const handleKeyDown = (e: React.KeyboardEvent) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              switchTab(tab.id);
-            }
-          };
 
           return (
+            // The wrapper is pure layout. It previously carried its own
+            // onClick, which duplicated the tab button's — every child either
+            // handled the event or stopped it, so the only clickable area it
+            // added was the padding between the two buttons.
             <div
               key={tab.id}
-              role="presentation"
               className={`tabbar-tab ${isActive ? "active" : ""}`}
-              onClick={() => switchTab(tab.id)}
               title={tab.path}
             >
               <button
@@ -58,11 +54,7 @@ export function TabBar() {
                 role="tab"
                 aria-selected={isActive}
                 className="tabbar-tab-button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  switchTab(tab.id);
-                }}
-                onKeyDown={handleKeyDown}
+                onClick={() => switchTab(tab.id)}
                 aria-label={tab.name}
               >
                 <FolderOpen size={14} className="tabbar-tab-icon" />
@@ -71,10 +63,7 @@ export function TabBar() {
               <button
                 type="button"
                 className="tabbar-tab-close"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  closeTab(tab.id);
-                }}
+                onClick={() => closeTab(tab.id)}
                 aria-label={`Close tab for ${tab.name}`}
               >
                 <X size={12} />

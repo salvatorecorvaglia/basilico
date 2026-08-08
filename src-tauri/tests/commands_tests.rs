@@ -1402,3 +1402,194 @@ async fn test_force_push_refuses_when_remote_moved() {
 
     std::fs::remove_dir_all(&remote_path).ok();
 }
+
+/// The lease must fail *closed*.
+///
+/// Both "the caller supplied no expected tip" and "there is no remote-tracking
+/// ref to compare against" previously fell through to an unguarded force push,
+/// silently removing the only protection against overwriting someone else's
+/// work at exactly the moment the local view of the remote was missing.
+#[tokio::test]
+async fn test_force_push_refuses_when_the_lease_cannot_be_established() {
+    use basilico_lib::commands::remote::push;
+
+    let repo = TempRepo::new();
+    repo.write_file("f.txt", "one");
+    repo.commit("one");
+    let branch = repo.repo.head().unwrap().shorthand().unwrap().to_string();
+
+    let remote_path = repo
+        .path
+        .parent()
+        .unwrap()
+        .join(format!("lease-open-{}.git", uuid::Uuid::new_v4()));
+    git2::Repository::init_bare(&remote_path).unwrap();
+    repo.repo
+        .remote("origin", remote_path.to_str().unwrap())
+        .unwrap();
+
+    let app = tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap()
+        .handle()
+        .clone();
+
+    // No expected tip at all: previously skipped the check entirely.
+    let err = push(
+        app.clone(),
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch.clone(),
+        true,
+        None,
+    )
+    .await
+    .expect_err("a force push without a lease must be refused");
+    assert!(
+        err.message.contains("Refusing to force push"),
+        "got: {}",
+        err.message
+    );
+
+    // An empty string is the same "no information" case arriving from the UI.
+    let err = push(
+        app.clone(),
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch.clone(),
+        true,
+        Some(String::new()),
+    )
+    .await
+    .expect_err("an empty lease must be refused");
+    assert!(
+        err.message.contains("Refusing to force push"),
+        "got: {}",
+        err.message
+    );
+
+    // A claimed tip with no remote-tracking ref to verify it against (never
+    // fetched, or the ref was pruned) is unverifiable, so it must also refuse.
+    let err = push(
+        app,
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch,
+        true,
+        Some("0".repeat(40)),
+    )
+    .await
+    .expect_err("an unverifiable lease must be refused");
+    assert!(
+        err.message.contains("Refusing to force push"),
+        "got: {}",
+        err.message
+    );
+
+    std::fs::remove_dir_all(&remote_path).ok();
+}
+
+/// Values that reach a git argv slot must never be readable as flags.
+///
+/// `git rebase -i --exec=<cmd>` runs an arbitrary command after every replayed
+/// commit, and `git submodule add` delegates to `git clone`, which honours
+/// `--upload-pack=<cmd>`. Both are command execution, and neither needs a shell.
+#[tokio::test]
+async fn test_rebase_rejects_option_shaped_upstream() {
+    let repo = TempRepo::new();
+    repo.write_file("f.txt", "one");
+    repo.commit("one");
+
+    for upstream in ["--exec=touch /tmp/pwned", "-x", ""] {
+        let err = rebase_start(
+            repo.path_str().to_string(),
+            upstream.to_string(),
+            Vec::new(),
+        )
+        .await
+        .expect_err("an option-shaped upstream must be refused");
+        assert!(
+            err.message.contains("must not start with a hyphen")
+                || err.message.contains("must not be empty"),
+            "upstream {:?} produced: {}",
+            upstream,
+            err.message
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_add_submodule_rejects_option_shaped_url() {
+    use basilico_lib::commands::submodule::add_submodule;
+
+    let repo = TempRepo::new();
+    repo.write_file("f.txt", "one");
+    repo.commit("one");
+
+    let err = add_submodule(
+        repo.path_str().to_string(),
+        "--upload-pack=touch /tmp/pwned".to_string(),
+        "vendor/dep".to_string(),
+    )
+    .await
+    .expect_err("an option-shaped submodule URL must be refused");
+    assert!(
+        err.message.contains("must not start with a hyphen"),
+        "got: {}",
+        err.message
+    );
+}
+
+/// A repository can commit a symlink pointing anywhere on disk, and git will
+/// check it out. `fs::read_to_string`/`fs::write` follow symlinks, so the
+/// syntactic path check alone let a hostile repo read or overwrite any file the
+/// user could.
+#[cfg(unix)]
+#[tokio::test]
+async fn test_workdir_reads_and_writes_refuse_symlinked_paths() {
+    use basilico_lib::commands::conflict_resolver::save_merged_resolution;
+    use basilico_lib::commands::diff::get_file_content_pair;
+
+    let repo = TempRepo::new();
+    repo.write_file("real.txt", "content");
+    repo.commit("seed");
+
+    let secret = repo
+        .path
+        .parent()
+        .unwrap()
+        .join(format!("basilico-secret-{}.txt", uuid::Uuid::new_v4()));
+    std::fs::write(&secret, "TOP SECRET").unwrap();
+    std::os::unix::fs::symlink(&secret, repo.path.join("leak.txt")).unwrap();
+
+    // `FileContentPair` is not `Debug`, so match rather than `expect_err`.
+    match get_file_content_pair(repo.path_str().to_string(), "leak.txt".to_string(), false).await {
+        Ok(_) => panic!("reading through a symlink must be refused"),
+        Err(err) => assert!(
+            err.message.contains("symbolic link"),
+            "got: {}",
+            err.message
+        ),
+    }
+
+    let err = save_merged_resolution(
+        repo.path_str().to_string(),
+        "leak.txt".to_string(),
+        "OVERWRITTEN".to_string(),
+    )
+    .await
+    .expect_err("writing through a symlink must be refused");
+    assert!(
+        err.message.contains("symbolic link"),
+        "got: {}",
+        err.message
+    );
+
+    assert_eq!(
+        std::fs::read_to_string(&secret).unwrap(),
+        "TOP SECRET",
+        "the symlink target must not have been overwritten"
+    );
+
+    std::fs::remove_file(&secret).ok();
+}

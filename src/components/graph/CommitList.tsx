@@ -171,6 +171,11 @@ export function CommitList() {
     return () => observer.disconnect();
   }, []);
 
+  // TanStack's column-value generic is invariant, so a heterogeneous column
+  // array cannot be typed with `unknown` — each accessor would have to match
+  // exactly. `any` is the library's own idiom for this position; the accessors
+  // below remain individually type-checked against GraphCommit.
+  // biome-ignore lint/suspicious/noExplicitAny: invariant generic, see above
   const columns = useMemo<LegacyColumnDef<GraphCommit, any>[]>(
     () => [
       columnHelper.accessor("shortOid", {
@@ -758,6 +763,9 @@ export function CommitList() {
             {/* Presentational drag grip: column widths are a pointer-only
                 affordance, and the onClick exists solely to stop the drag from
                 also triggering the header's sort. */}
+            {/* Column resizing is a pointer-only refinement; widths are
+                cosmetic and every column stays readable without it. */}
+            {/* biome-ignore lint/a11y/noStaticElementInteractions: pointer-only column resize, no content is gated behind it */}
             <div
               role="presentation"
               onMouseDown={header.getResizeHandler()}

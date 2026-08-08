@@ -86,7 +86,7 @@
 }
 
 .commit-detail-parent-oid:hover {
-  background: rgba(88, 166, 255, 0.1);
+  background: color-mix(in srgb, var(--cat-blue) 10%, transparent);
 }
 
 /* ── Tabs selector ── */

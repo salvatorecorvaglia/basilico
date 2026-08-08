@@ -115,6 +115,61 @@ describe("repo store — stale response handling", () => {
     expect(useRepoStore.getState().commits).toEqual([]);
   });
 
+  // Search briefly lost this guard: a refactor split `searchCommits`/`grepCode`
+  // into their own slice, which — because slices are merged by spread and the
+  // new one spread later — silently replaced the generation-checked versions
+  // with copies that wrote unconditionally.
+  it.each([
+    ["searchCommits", "search_commits", "commitSearchResults"],
+    ["grepCode", "grep_code", "grepSearchResults"],
+  ] as const)(
+    "discards %s results that arrive after the tab changed",
+    async (action, command, resultKey) => {
+      useRepoStore.setState({ activeTabId: "/repo-a", [resultKey]: [] });
+
+      let release: (value: unknown) => void = () => {};
+      const pending = new Promise((resolve) => {
+        release = resolve;
+      });
+
+      invokeMock.mockImplementation((cmd: string) => {
+        if (cmd === command) return pending;
+        return Promise.resolve([]);
+      });
+
+      const inFlight = useRepoStore.getState()[action]("needle");
+
+      useRepoStore.setState({
+        activeTabId: "/repo-b",
+        refreshGeneration: useRepoStore.getState().refreshGeneration + 1,
+      });
+
+      release([{ oid: "stale", shortOid: "stale", message: "old tab" }]);
+      await inFlight;
+
+      expect(useRepoStore.getState()[resultKey]).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["searchCommits", "search_commits", "commitSearchResults"],
+    ["grepCode", "grep_code", "grepSearchResults"],
+  ] as const)(
+    "applies %s results that arrive while the tab is unchanged",
+    async (action, command, resultKey) => {
+      useRepoStore.setState({ activeTabId: "/repo-a", [resultKey]: [] });
+      const fresh = [{ oid: "abc", shortOid: "abc", message: "current tab" }];
+
+      invokeMock.mockImplementation((cmd: string) =>
+        Promise.resolve(cmd === command ? fresh : []),
+      );
+
+      await useRepoStore.getState()[action]("needle");
+
+      expect(useRepoStore.getState()[resultKey]).toEqual(fresh);
+    },
+  );
+
   it("applies a commit list that arrives while the tab is unchanged", async () => {
     useRepoStore.setState({ activeTabId: "/repo-a", commits: [] });
     const fresh = [{ oid: "abc", shortOid: "abc", message: "current tab" }];

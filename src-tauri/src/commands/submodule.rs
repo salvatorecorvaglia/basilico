@@ -72,14 +72,13 @@ pub async fn init_submodules(repo_path: String, paths: Vec<String>) -> Result<()
             args.extend(paths);
         }
 
-        let output = crate::commands::new_command("git")
-            .args(&args)
-            .current_dir(&repo_path)
-            .output()
-            .map_err(|e| AppError::command(format!("Failed to run git submodule init: {}", e)))?;
-
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let output = crate::commands::git_output(arg_refs.as_slice(), &repo_path)?;
         if !output.status.success() {
-            return Err(AppError::submodule(String::from_utf8_lossy(&output.stderr)));
+            return Err(AppError::submodule(crate::commands::git_failure_message(
+                arg_refs.as_slice(),
+                &output,
+            )));
         }
 
         Ok(())
@@ -109,14 +108,13 @@ pub async fn update_submodules(
             args.extend(paths);
         }
 
-        let output = crate::commands::new_command("git")
-            .args(&args)
-            .current_dir(&repo_path)
-            .output()
-            .map_err(|e| AppError::command(format!("Failed to run git submodule update: {}", e)))?;
-
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let output = crate::commands::git_output(arg_refs.as_slice(), &repo_path)?;
         if !output.status.success() {
-            return Err(AppError::submodule(String::from_utf8_lossy(&output.stderr)));
+            return Err(AppError::submodule(crate::commands::git_failure_message(
+                arg_refs.as_slice(),
+                &output,
+            )));
         }
 
         Ok(())
@@ -134,14 +132,13 @@ pub async fn sync_submodules(repo_path: String, paths: Vec<String>) -> Result<()
             args.extend(paths);
         }
 
-        let output = crate::commands::new_command("git")
-            .args(&args)
-            .current_dir(&repo_path)
-            .output()
-            .map_err(|e| AppError::command(format!("Failed to run git submodule sync: {}", e)))?;
-
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let output = crate::commands::git_output(arg_refs.as_slice(), &repo_path)?;
         if !output.status.success() {
-            return Err(AppError::submodule(String::from_utf8_lossy(&output.stderr)));
+            return Err(AppError::submodule(crate::commands::git_failure_message(
+                arg_refs.as_slice(),
+                &output,
+            )));
         }
 
         Ok(())
@@ -160,14 +157,18 @@ pub async fn add_submodule(repo_path: String, url: String, path: String) -> Resu
         // Validate path traversal
         let _ = crate::git::utils::validate_path(workdir, std::path::Path::new(&path))?;
 
-        let output = crate::commands::new_command("git")
-            .args(["submodule", "add", &url, &path])
-            .current_dir(&repo_path)
-            .output()
-            .map_err(|e| AppError::command(format!("Failed to run git submodule add: {}", e)))?;
+        // `submodule add` delegates to `git clone`, which honours flags such as
+        // `--upload-pack=<cmd>`. Reject option-shaped values and stop argument
+        // parsing with `--`, as the sibling submodule commands already do.
+        crate::commands::validate_git_argument(&url, "Submodule URL")?;
 
+        let output =
+            crate::commands::git_output(&["submodule", "add", "--", &url, &path], &repo_path)?;
         if !output.status.success() {
-            return Err(AppError::submodule(String::from_utf8_lossy(&output.stderr)));
+            return Err(AppError::submodule(crate::commands::git_failure_message(
+                &["submodule", "add", "--", &url, &path],
+                &output,
+            )));
         }
 
         Ok(())

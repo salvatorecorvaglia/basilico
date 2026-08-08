@@ -26,6 +26,8 @@ import { getLanguageFromPath } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./DiffView.css";
+// Registers the bundled Monaco + workers; keeps it off the startup chunk.
+import "../../lib/monaco-setup";
 
 export function DiffView() {
   const isDark = useDarkMode();
