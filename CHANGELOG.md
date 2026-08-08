@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Auto-Update Toast Notification & Zustand Store**: Integrated `UpdaterToast` UI component and dedicated `updater-store.ts` Zustand store for checking application updates, tracking download progress, and prompting binary relaunch.
+- **Gitignore-Aware File Watcher**: Refactored repository file watcher in `src-tauri/src/watcher.rs` to query Git ignore rules dynamically via `git2::is_path_ignored` instead of hardcoded directory ignore lists.
+- **Centralized Monaco Setup**: Introduced `src/lib/monaco-setup.ts` to manage worker registration, language definitions, and dynamic theme switching cleanly across Monaco editor components.
+- **Copy Feedback Hook**: Added `useCopyFeedback` utility hook (`src/lib/use-copy-feedback.ts`) to provide instant visual feedback on copy-to-clipboard actions.
+- **Search & File History Caps**: Added safety result limits (`MAX_SEARCH_RESULTS`, `MAX_HISTORY_ENTRIES`) for commit search/grep and file history operations to prevent memory allocation spikes.
+
+### Changed
+
+- **Strict Biome Linting Enforcement**: Zeroed out all Biome linter warnings and enforced strict lint checks (`--error-on-warnings`) across package scripts and CI workflow gates.
+- **Tab Bar Event Handling & Cleanup**: Simplified `TabBar` event handling and fixed potential race conditions during parallel tab session restoration.
+- **Accessibility & Focus Controls**: Converted `ReflogInspector` selection cards to real accessible `<label>` elements with keyboard navigation equivalents.
+- **Design Tokens & Theme Hardening**: Cleaned up CSS variable fallback tokens and added dedicated design token unit test coverage (`design-tokens.test.ts`).
+- **Dependency Upgrades**: Upgraded `lucide-react` to `v1.29.0` and updated lockfiles.
+
 ## [1.0.0] - 2026-08-06
 
 ### Added

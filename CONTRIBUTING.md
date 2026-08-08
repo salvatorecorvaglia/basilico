@@ -55,7 +55,7 @@ To run and build Basilico locally, make sure you have installed the [Prerequisit
 ## Coding Guidelines
 
 ### Frontend Standards
-We use **Biome** to format and lint our TypeScript, React, and CSS code. Ensure your code passes all Biome checks before submitting a PR.
+We use **Biome** to format and lint our TypeScript, React, and CSS code. Ensure your code passes all Biome checks with zero warnings (`--error-on-warnings`) before submitting a PR.
 
 - **Check Linting**: `pnpm lint`
 - **Format Code**: `pnpm format`
@@ -82,7 +82,7 @@ Always verify that your changes do not break existing functionality:
   ```bash
   pnpm test
   ```
-  We use **Vitest** and **React Testing Library** for frontend testing. When adding features or fixing bugs (in UI components, lib utilities, or Zustand state stores), add or update unit tests under `src/lib/tests/` (e.g., `shortcuts.test.ts`, `forge-links.test.ts`, `git-validation.test.ts`, `error-messages.test.ts`).
+  We use **Vitest** and **React Testing Library** for frontend testing. When adding features or fixing bugs (in UI components, lib utilities, or Zustand state stores), add or update unit tests under `src/lib/tests/` (e.g., `design-tokens.test.ts`, `store.test.ts`, `shortcuts.test.ts`, `forge-links.test.ts`, `autolink.test.ts`, `signature-status.test.ts`, `git-validation.test.ts`, `error-messages.test.ts`).
 
 - **Run Backend Tests**:
   If you modify Rust files in `src-tauri`, run backend tests using:
@@ -92,7 +92,7 @@ Always verify that your changes do not break existing functionality:
   ```
   Backend test suites are organized into dedicated test modules in `src-tauri/tests/` (`commands_tests.rs`, `git_tests.rs`, `watcher_tests.rs`, `backend_integration_test.rs`).
 
-*Note: GitHub Actions enforces quality gates in parallel (linting, formatting, Vitest frontend tests, Rust compilation, and tests).*
+*Note: GitHub Actions enforces quality gates in parallel (strict linting with `--error-on-warnings`, formatting, Vitest frontend tests, Rust compilation, and tests).*
 
 ---
 

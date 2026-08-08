@@ -10,6 +10,9 @@
 
 - **📊 Beautiful Commit Graph & Topology Filters**: Visualize your project's commit history, branches, and tags with a fluid, theme-aware interactive timeline and topology filters.
 - **🔄 Visual Interactive Rebase & Autosquash**: Squash, fixup, drop, reorder commits, or perform autosquashes (`fixup!`/`squash!`) with inline summary editing.
+- **🔔 Automated Application Updater & Toast**: Integrated app updater (`UpdaterToast` & Zustand store) providing real-time release notifications, download progress, and binary relaunching.
+- **👁️ Gitignore-Aware Repository Watcher**: High-efficiency, `.gitignore`-aware backend file watcher (`git2::is_path_ignored`) that avoids file watch limit exhaustion.
+- **💻 Centralized Monaco Editor Integration**: Optimized Monaco setup (`monaco-setup.ts`) featuring local worker loading, syntax language registration, and dynamic theme synchronization.
 - **🩺 Git Doctor Diagnostics**: Perform full health checks on repository status, SSH setup, OS watch limits, submodules, and environment configurations.
 - **🔗 Forge Deep Links & Autolink Parsing**: Open commits, branches, lines, and issue references directly in GitHub, GitLab, Bitbucket, Azure DevOps, or Codeberg.
 - **⚡ External IDE Integration & Keyboard Shortcuts**: Open repositories and files in external editors (VS Code, Cursor, Zed, etc.), match modular keybindings (`CmdOrCtrl+K`, `CmdOrCtrl+Shift+P`), and navigate commit lists using Vim keybindings (`j`/`k`).
@@ -57,7 +60,7 @@ To build Basilico from source, you will need the following tools installed on yo
 
 ### Testing
 
-Run frontend unit tests (helper utilities, keyboard shortcuts, autolink parsing, and reference validation under `src/lib/tests/`) using Vitest:
+Run frontend unit tests (helper utilities, design tokens, state stores, keyboard shortcuts, autolink parsing, and reference validation under `src/lib/tests/`) using Vitest:
 ```bash
 pnpm test
 ```
@@ -69,9 +72,9 @@ cd src-tauri && cargo test
 
 ### Formatting & Linting
 
-We use Biome for formatting and linting frontend code:
+We use Biome for formatting and linting frontend code with strict zero-warning enforcement (`--error-on-warnings`):
 ```bash
-# Check code style and run linter
+# Check code style and run linter (errors on warnings)
 pnpm lint
 
 # Format code automatically
