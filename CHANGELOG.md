@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-12
+
 ### Added
 
 - **Auto-Update Toast Notification & Zustand Store**: Integrated `UpdaterToast` UI component and dedicated `updater-store.ts` Zustand store for checking application updates, tracking download progress, and prompting binary relaunch.
@@ -21,7 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tab Bar Event Handling & Cleanup**: Simplified `TabBar` event handling and fixed potential race conditions during parallel tab session restoration.
 - **Accessibility & Focus Controls**: Converted `ReflogInspector` selection cards to real accessible `<label>` elements with keyboard navigation equivalents.
 - **Design Tokens & Theme Hardening**: Cleaned up CSS variable fallback tokens and added dedicated design token unit test coverage (`design-tokens.test.ts`).
-- **Dependency Upgrades**: Upgraded `lucide-react` to `v1.29.0` and updated lockfiles.
+- **Dependency Upgrades**: Upgraded dependencies including `lucide-react` to `v1.31.0`, `@tanstack/react-table` to `v9.1.2`, `@testing-library/jest-dom` to `v7.0.1`, `@types/node` to `v26.2.0`, and `vite` to `v8.2.1`.
+
+### Removed
+
+- **Unused Cargo Dependency**: Removed unused `chrono` crate dependency from Rust backend `Cargo.toml`.
+
 
 ## [1.0.0] - 2026-08-06
 
