@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
  * These tests compare the two lists so the mismatch surfaces at build time.
  */
 
-const ROOT = join(__dirname, "..", "..", "..");
+const ROOT = join(__dirname, "..", "..");
 
 function registeredRustCommands(): Set<string> {
   const src = readFileSync(join(ROOT, "src-tauri", "src", "lib.rs"), "utf8");

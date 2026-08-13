@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getCommitUrl, parseRemoteUrl } from "../forge-links";
+import { getCommitUrl, parseRemoteUrl } from "../../src/lib/forge-links";
 
 describe("forge-links", () => {
   describe("parseRemoteUrl", () => {

@@ -82,7 +82,7 @@ Always verify that your changes do not break existing functionality:
   ```bash
   pnpm test
   ```
-  We use **Vitest** and **React Testing Library** for frontend testing. When adding features or fixing bugs (in UI components, lib utilities, or Zustand state stores), add or update unit tests under `src/lib/tests/` (e.g., `design-tokens.test.ts`, `store.test.ts`, `shortcuts.test.ts`, `forge-links.test.ts`, `autolink.test.ts`, `signature-status.test.ts`, `git-validation.test.ts`, `error-messages.test.ts`).
+  We use **Vitest** and **React Testing Library** for frontend testing. When adding features or fixing bugs (in UI components, lib utilities, or Zustand state stores), add or update unit tests under the top-level `tests/` directory (e.g., `tests/lib/design-tokens.test.ts`, `tests/lib/store.test.ts`, `tests/lib/shortcuts.test.ts`, `tests/lib/forge-links.test.ts`, `tests/lib/autolink.test.ts`, `tests/lib/signature-status.test.ts`, `tests/lib/git-validation.test.ts`, `tests/lib/error-messages.test.ts`).
 
 - **Run Backend Tests**:
   If you modify Rust files in `src-tauri`, run backend tests using:

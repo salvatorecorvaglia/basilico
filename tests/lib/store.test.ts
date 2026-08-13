@@ -7,9 +7,9 @@ vi.mock("@tauri-apps/api/core", () => ({
     invokeMock(cmd, args),
 }));
 
-import { useRepoStore } from "../../store/repo-store";
-import { INITIAL_LOADING_STATES } from "../../store/types";
-import type { GraphCommit } from "../git-types";
+import { useRepoStore } from "../../src/store/repo-store";
+import { INITIAL_LOADING_STATES } from "../../src/store/types";
+import type { GraphCommit } from "../../src/lib/git-types";
 
 function resetStore() {
   useRepoStore.setState({
@@ -191,7 +191,7 @@ describe("repo store — per-domain errors", () => {
   });
 
   it("removes the key when an error is cleared rather than storing null", async () => {
-    const { setError, clearError } = await import("../../store/store-helpers");
+    const { setError, clearError } = await import("../../src/store/store-helpers");
     const get = () => useRepoStore.getState();
     const set = (s: object) => useRepoStore.setState(s);
 

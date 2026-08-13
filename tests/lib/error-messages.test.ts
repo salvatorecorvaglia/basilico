@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { friendlyErrorMessage } from "../error-messages";
+import { friendlyErrorMessage } from "../../src/lib/error-messages";
 
 describe("error-messages", () => {
   it("should map authentication errors correctly", () => {

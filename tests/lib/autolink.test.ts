@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAutolinkSegments } from "../autolink";
+import { buildAutolinkSegments } from "../../src/lib/autolink";
 
 const ISSUE_URL = "https://example.com/issues/$1";
 

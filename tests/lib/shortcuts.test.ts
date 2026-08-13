@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchesShortcut, parseShortcut } from "../shortcuts";
+import { matchesShortcut, parseShortcut } from "../../src/lib/shortcuts";
 
 describe("shortcuts", () => {
   it("should parse shortcut strings into structured configs", () => {

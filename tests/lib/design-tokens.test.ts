@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
  * tokens that were never defined — which renders nothing at all, silently.
  */
 
-const ROOT = join(__dirname, "..", "..", "..");
+const ROOT = join(__dirname, "..", "..");
 const COMPONENTS = join(ROOT, "src", "components");
 const STYLES = join(ROOT, "src", "styles");
 

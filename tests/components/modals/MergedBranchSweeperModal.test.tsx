@@ -8,10 +8,10 @@ vi.mock("@tauri-apps/api/core", () => ({
     invokeMock(cmd, args),
 }));
 
-import type { BranchInfo } from "../../lib/git-types";
-import { useRepoStore } from "../../store/repo-store";
-import { useUIStore } from "../../store/ui-store";
-import { MergedBranchSweeperModal } from "./MergedBranchSweeperModal";
+import type { BranchInfo } from "../../../src/lib/git-types";
+import { useRepoStore } from "../../../src/store/repo-store";
+import { useUIStore } from "../../../src/store/ui-store";
+import { MergedBranchSweeperModal } from "../../../src/components/modals/MergedBranchSweeperModal";
 
 function branch(name: string, isRemote: boolean): BranchInfo {
   return {

@@ -60,7 +60,7 @@ To build Basilico from source, you will need the following tools installed on yo
 
 ### Testing
 
-Run frontend unit tests (helper utilities, design tokens, state stores, keyboard shortcuts, autolink parsing, and reference validation under `src/lib/tests/`) using Vitest:
+Run frontend unit tests (helper utilities, design tokens, state stores, keyboard shortcuts, autolink parsing, and reference validation under `tests/`) using Vitest:
 ```bash
 pnpm test
 ```

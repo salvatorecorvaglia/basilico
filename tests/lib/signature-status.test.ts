@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeSignature } from "../signature-status";
+import { describeSignature } from "../../src/lib/signature-status";
 
 describe("describeSignature", () => {
   it("marks only an explicit GOODSIG as verified", () => {
