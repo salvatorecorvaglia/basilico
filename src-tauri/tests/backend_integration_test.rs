@@ -12,7 +12,10 @@ async fn test_integration_repo_lifecycle() {
     repo.commit("initial commit");
 
     let head_commit = repo.repo.head().unwrap().peel_to_commit().unwrap();
-    assert_eq!(head_commit.summary().ok().flatten().unwrap(), "initial commit");
+    assert_eq!(
+        head_commit.summary().ok().flatten().unwrap(),
+        "initial commit"
+    );
 }
 
 #[tokio::test]
