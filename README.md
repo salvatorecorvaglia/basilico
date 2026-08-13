@@ -84,16 +84,6 @@ pnpm format
 pnpm lint:fix
 ```
 
-### Production Build
-
-To compile a production bundle and generate installers:
-```bash
-pnpm tauri build
-```
-The compiled binaries will be outputted to `src-tauri/target/release/` or wrapped inside OS-specific installer formats under `src-tauri/target/release/bundle/`.
-
----
-
 ## 💻 Platform-Specific Installation Notes
 
 ### macOS
