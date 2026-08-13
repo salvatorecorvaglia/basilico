@@ -54,7 +54,7 @@ self.MonacoEnvironment = {
 // lives in the full package types — so reach it through a narrow local shape
 // rather than widening the whole import to `any`.
 type JsonDefaults = {
-  jsonDefaults: {
+  jsonDefaults?: {
     setDiagnosticsOptions: (options: {
       validate: boolean;
       allowComments: boolean;
@@ -64,8 +64,8 @@ type JsonDefaults = {
 };
 
 (
-  monaco.languages as unknown as { json: JsonDefaults }
-).json.jsonDefaults.setDiagnosticsOptions({
+  monaco.languages as unknown as { json?: JsonDefaults }
+).json?.jsonDefaults?.setDiagnosticsOptions({
   validate: false,
   allowComments: true,
   schemaValidation: "ignore",

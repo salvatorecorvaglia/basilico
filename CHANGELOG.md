@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-08-13
+
+### Fixed
+
+- **Monaco JSON Language Setup Guard**: Added optional chaining guards for `monaco.languages.json?.jsonDefaults` in `src/lib/monaco-setup.ts` to prevent runtime errors when Monaco JSON language features are uninitialized.
+
+### Changed
+
+- **CI/CD & Release Workflows**: Streamlined release workflows and updated `sccache-action` step to `v0.0.11` in GitHub Actions workflows (`ci.yml`, `release.yml`).
+- **Documentation Refinements**: Updated project documentation in `README.md`.
+
 ## [1.1.0] - 2026-08-12
 
 ### Added
