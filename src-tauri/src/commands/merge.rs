@@ -30,7 +30,7 @@ pub async fn merge_branch(path: String, branch_name: String) -> Result<String, A
             repo.checkout_tree(&target_object, Some(&mut checkout_opts))?;
 
             let head_ref = repo.find_reference("HEAD")?;
-            if let Some(refname) = head_ref.symbolic_target() {
+            if let Ok(Some(refname)) = head_ref.symbolic_target() {
                 let mut real_ref = repo.find_reference(refname)?;
                 real_ref.set_target(
                     target_oid,

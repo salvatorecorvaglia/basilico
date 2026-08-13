@@ -42,7 +42,7 @@ pub fn create_merge_commit(
         // Update HEAD
         let head_ref = repo.head()?;
         if head_ref.is_branch() {
-            if let Some(refname) = head_ref.name() {
+            if let Ok(refname) = head_ref.name() {
                 let mut r = repo.find_reference(refname)?;
                 r.set_target(commit_oid, &format!("commit (signed): {}", message))?;
                 repo.set_head(refname)?;

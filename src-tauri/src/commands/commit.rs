@@ -133,7 +133,7 @@ pub async fn create_commit(
             match head_ref {
                 Ok(head) => {
                     if head.is_branch() {
-                        if let Some(refname) = head.name() {
+                        if let Ok(refname) = head.name() {
                             let mut r = repo.find_reference(refname)?;
                             r.set_target(commit_oid, &format!("commit (signed): {}", message))?;
                             repo.set_head(refname)?;
@@ -146,7 +146,7 @@ pub async fn create_commit(
                     // This might be the initial commit in an empty repo.
                     // Resolve where HEAD points symbolically (e.g. refs/heads/main)
                     if let Ok(head_sym) = repo.find_reference("HEAD") {
-                        if let Some(target) = head_sym.symbolic_target() {
+                        if let Ok(Some(target)) = head_sym.symbolic_target() {
                             // Create the target reference pointing to the new commit
                             repo.reference(
                                 target,

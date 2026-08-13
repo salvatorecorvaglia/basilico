@@ -285,7 +285,7 @@ pub async fn find_dangling_commits(path: String) -> Result<Vec<DanglingCommitInf
                             message,
                             author_name: author.name().unwrap_or("").to_string(),
                             date: author.when().seconds(),
-                            action_subject: entry.message().unwrap_or("").to_string(),
+                            action_subject: entry.message().ok().flatten().unwrap_or("").to_string(),
                         });
                     }
                 }

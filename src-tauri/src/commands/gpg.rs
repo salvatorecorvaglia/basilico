@@ -31,7 +31,7 @@ pub async fn get_commit_signature(
                 let author_name = repo
                     .find_commit(oid)
                     .ok()
-                    .and_then(|c| c.author().name().map(|n| n.to_string()))
+                    .and_then(|c| c.author().name().ok().map(|n| n.to_string()))
                     .unwrap_or_else(|| "Unknown".to_string());
 
                 // A signature that is merely *present* is not a verified one.

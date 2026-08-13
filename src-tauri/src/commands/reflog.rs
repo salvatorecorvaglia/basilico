@@ -42,7 +42,7 @@ pub async fn get_reflog(
                 committer_name: committer.name().unwrap_or("").to_string(),
                 committer_email: committer.email().unwrap_or("").to_string(),
                 date: committer.when().seconds(),
-                message: entry.message().unwrap_or("").to_string(),
+                message: entry.message().ok().flatten().unwrap_or("").to_string(),
             });
         }
 

@@ -88,7 +88,7 @@ pub fn open_repo(path: &str) -> Result<RepoInfo, AppError> {
     let head_branch = repo
         .head()
         .ok()
-        .and_then(|h| h.shorthand().map(String::from));
+        .and_then(|h| h.shorthand().ok().map(String::from));
 
     let state = format!("{:?}", repo.state());
 
@@ -189,7 +189,7 @@ pub fn get_status(path: &str) -> Result<RepoStatus, AppError> {
     let head_branch = repo
         .head()
         .ok()
-        .and_then(|h| h.shorthand().map(String::from));
+        .and_then(|h| h.shorthand().ok().map(String::from));
 
     let (ahead, behind) = get_ahead_behind(&repo).unwrap_or((0, 0));
     let state = format!("{:?}", repo.state());
@@ -307,12 +307,12 @@ pub fn list_remotes(path: &str) -> Result<Vec<RemoteInfo>, AppError> {
     let remote_names = repo.remotes()?;
     let mut remotes = Vec::new();
 
-    for name in remote_names.iter().flatten() {
+    for name in remote_names.iter().flatten().flatten() {
         let remote = repo.find_remote(name)?;
         remotes.push(RemoteInfo {
             name: name.to_string(),
-            url: remote.url().map(String::from),
-            push_url: remote.pushurl().map(String::from),
+            url: remote.url().ok().map(String::from),
+            push_url: remote.pushurl().ok().flatten().map(String::from),
         });
     }
 
@@ -331,7 +331,7 @@ pub fn list_tags(path: &str) -> Result<Vec<TagInfo>, AppError> {
 
         let (message, tagger, is_annotated) = match repo.find_tag(oid) {
             Ok(tag) => {
-                let msg = tag.message().map(String::from);
+                let msg = tag.message().ok().flatten().map(String::from);
                 let tgr = tag
                     .tagger()
                     .map(|s| format!("{} <{}>", s.name().unwrap_or(""), s.email().unwrap_or("")));

@@ -371,7 +371,7 @@ pub fn compute_lanes(commits: &mut [GraphCommit]) {
 
         for (p_idx, parent_oid) in parent_oids.iter().enumerate() {
             let parent_git_oid =
-                git2::Oid::from_str(parent_oid).unwrap_or_else(|_| git2::Oid::zero());
+                git2::Oid::from_str(parent_oid).unwrap_or(git2::Oid::ZERO_SHA1);
             let is_boundary = !walked_oids.contains(&parent_git_oid);
 
             let target_lane = if p_idx == 0 {

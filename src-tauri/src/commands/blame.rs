@@ -103,7 +103,7 @@ pub async fn get_file_blame(
                             let sig = commit.author();
                             let name = sig.name().unwrap_or("Unknown").to_string();
                             let email = sig.email().unwrap_or("").to_string();
-                            let summary = commit.summary().unwrap_or("").to_string();
+                            let summary = commit.summary().ok().flatten().unwrap_or("").to_string();
                             (name, email, summary)
                         } else {
                             ("Unknown".to_string(), "".to_string(), "".to_string())

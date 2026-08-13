@@ -28,7 +28,7 @@ pub async fn list_stashes(path: String) -> Result<Vec<StashInfo>, AppError> {
             let msg = repo
                 .find_commit(oid)
                 .ok()
-                .and_then(|c| c.message().map(|m| m.trim().to_string()))
+                .and_then(|c| c.message().ok().map(|m| m.trim().to_string()))
                 .unwrap_or_else(|| name.clone());
 
             stashes.push(StashInfo {

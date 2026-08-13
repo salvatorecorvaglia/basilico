@@ -129,7 +129,7 @@ pub async fn get_file_history(
                     author_name: sig.name().unwrap_or("Unknown").to_string(),
                     author_email: sig.email().unwrap_or("").to_string(),
                     author_date: sig.when().seconds(),
-                    commit_summary: commit.summary().unwrap_or("").to_string(),
+                    commit_summary: commit.summary().ok().flatten().unwrap_or("").to_string(),
                     file_path: current_path.clone(),
                 });
 

@@ -238,7 +238,7 @@ pub async fn rebase_init(
             items.push(RebaseTodoItem {
                 action: "pick".to_string(),
                 oid: oid.to_string(),
-                summary: commit.summary().unwrap_or("").to_string(),
+                summary: commit.summary().ok().flatten().unwrap_or("").to_string(),
             });
         }
 

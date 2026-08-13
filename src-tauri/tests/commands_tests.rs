@@ -1048,7 +1048,7 @@ async fn test_push_surfaces_server_side_rejection() {
     // The remote must still be on its own commit, untouched by the failed push.
     let remote_repo = git2::Repository::open(&remote_path).unwrap();
     let remote_tip = remote_repo.head().unwrap().peel_to_commit().unwrap();
-    assert_eq!(remote_tip.summary().unwrap(), "remote side moved on");
+    assert_eq!(remote_tip.summary().ok().flatten().unwrap(), "remote side moved on");
 
     std::fs::remove_dir_all(&remote_path).ok();
 }

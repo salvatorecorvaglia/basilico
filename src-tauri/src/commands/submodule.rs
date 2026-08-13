@@ -26,9 +26,9 @@ pub async fn list_submodules(repo_path: String) -> Result<Vec<SubmoduleInfo>, Ap
         let mut result = Vec::new();
 
         for sm in &submodules {
-            let name = sm.name().unwrap_or("").to_string();
+            let name = sm.name().ok().unwrap_or("").to_string();
             let path = sm.path().to_string_lossy().to_string();
-            let url = sm.url().map(|u| u.to_string());
+            let url = sm.url().ok().flatten().map(|u| u.to_string());
             let head_oid = sm.head_id().map(|id| id.to_string());
 
             // Determine status based on submodule state

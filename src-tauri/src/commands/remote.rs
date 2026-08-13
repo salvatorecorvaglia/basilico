@@ -147,7 +147,7 @@ pub async fn pull<R: tauri::Runtime>(
 
             let head_ref = repo.head()?;
             if head_ref.is_branch() {
-                if let Some(refname) = head_ref.name() {
+                if let Ok(refname) = head_ref.name() {
                     let mut r = repo.find_reference(refname)?;
                     r.set_target(target_oid, &format!("pull: fast-forward to {}", target_oid))?;
                     repo.set_head(refname)?;
