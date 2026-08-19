@@ -62,26 +62,40 @@ pub async fn list_submodules(repo_path: String) -> Result<Vec<SubmoduleInfo>, Ap
     .await?
 }
 
+/// Run a `git submodule <...>` subcommand, appending `-- <paths>` when
+/// specific paths were requested (an empty list means "all submodules").
+/// Shared by init/update/sync, which otherwise repeated this args-building
+/// and error-wrapping verbatim.
+fn run_submodule_subcommand(
+    repo_path: &str,
+    mut args: Vec<String>,
+    paths: Vec<String>,
+) -> Result<(), AppError> {
+    if !paths.is_empty() {
+        args.push("--".to_string());
+        args.extend(paths);
+    }
+
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let output = crate::commands::git_output(arg_refs.as_slice(), repo_path)?;
+    if !output.status.success() {
+        return Err(AppError::submodule(crate::commands::git_failure_message(
+            arg_refs.as_slice(),
+            &output,
+        )));
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn init_submodules(repo_path: String, paths: Vec<String>) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
-        let mut args = vec!["submodule".to_string(), "init".to_string()];
-
-        if !paths.is_empty() {
-            args.push("--".to_string());
-            args.extend(paths);
-        }
-
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let output = crate::commands::git_output(arg_refs.as_slice(), &repo_path)?;
-        if !output.status.success() {
-            return Err(AppError::submodule(crate::commands::git_failure_message(
-                arg_refs.as_slice(),
-                &output,
-            )));
-        }
-
-        Ok(())
+        run_submodule_subcommand(
+            &repo_path,
+            vec!["submodule".to_string(), "init".to_string()],
+            paths,
+        )
     })
     .await?
 }
@@ -98,26 +112,10 @@ pub async fn update_submodules(
             "update".to_string(),
             "--init".to_string(),
         ];
-
         if recursive {
             args.push("--recursive".to_string());
         }
-
-        if !paths.is_empty() {
-            args.push("--".to_string());
-            args.extend(paths);
-        }
-
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let output = crate::commands::git_output(arg_refs.as_slice(), &repo_path)?;
-        if !output.status.success() {
-            return Err(AppError::submodule(crate::commands::git_failure_message(
-                arg_refs.as_slice(),
-                &output,
-            )));
-        }
-
-        Ok(())
+        run_submodule_subcommand(&repo_path, args, paths)
     })
     .await?
 }
@@ -125,23 +123,11 @@ pub async fn update_submodules(
 #[tauri::command]
 pub async fn sync_submodules(repo_path: String, paths: Vec<String>) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
-        let mut args = vec!["submodule".to_string(), "sync".to_string()];
-
-        if !paths.is_empty() {
-            args.push("--".to_string());
-            args.extend(paths);
-        }
-
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let output = crate::commands::git_output(arg_refs.as_slice(), &repo_path)?;
-        if !output.status.success() {
-            return Err(AppError::submodule(crate::commands::git_failure_message(
-                arg_refs.as_slice(),
-                &output,
-            )));
-        }
-
-        Ok(())
+        run_submodule_subcommand(
+            &repo_path,
+            vec!["submodule".to_string(), "sync".to_string()],
+            paths,
+        )
     })
     .await?
 }

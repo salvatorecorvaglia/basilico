@@ -1,6 +1,6 @@
 use crate::error::AppError;
 use crate::git::helpers;
-use git2::{build::CheckoutBuilder, FetchOptions, MergeOptions, PushOptions, Repository};
+use git2::{FetchOptions, PushOptions, Repository};
 
 #[tauri::command]
 pub async fn fetch<R: tauri::Runtime>(
@@ -132,53 +132,8 @@ pub async fn pull<R: tauri::Runtime>(
         let remote_ref = format!("refs/remotes/{}/{}", remote, branch);
         let reference = repo.find_reference(&remote_ref)?;
         let annotated = repo.reference_to_annotated_commit(&reference)?;
-
-        let (merge_analysis, _) = repo.merge_analysis(&[&annotated])?;
-
-        if merge_analysis.is_up_to_date() {
-            return Ok("success".to_string());
-        }
-
-        if merge_analysis.is_fast_forward() {
-            // Fast-forward: just move HEAD to the remote commit
-            let target_oid = annotated.id();
-            let target_object = repo.find_object(target_oid, None)?;
-            repo.checkout_tree(&target_object, Some(CheckoutBuilder::new().safe()))?;
-
-            let head_ref = repo.head()?;
-            if head_ref.is_branch() {
-                if let Ok(refname) = head_ref.name() {
-                    let mut r = repo.find_reference(refname)?;
-                    r.set_target(target_oid, &format!("pull: fast-forward to {}", target_oid))?;
-                    repo.set_head(refname)?;
-                }
-            } else {
-                repo.set_head_detached(target_oid)?;
-            }
-            return Ok("success".to_string());
-        }
-
-        // Normal merge
-        let mut merge_opts = MergeOptions::new();
-        let mut checkout_opts = CheckoutBuilder::new();
-        checkout_opts.safe();
-
-        repo.merge(
-            &[&annotated],
-            Some(&mut merge_opts),
-            Some(&mut checkout_opts),
-        )?;
-
-        if repo.index().map(|idx| idx.has_conflicts()).unwrap_or(false) {
-            Ok("conflicts".to_string())
-        } else {
-            // Create merge commit to finalize the merge
-            let head = repo.head()?.peel_to_commit()?;
-            let remote_commit = repo.find_commit(annotated.id())?;
-            let msg = format!("Merge branch '{}' of {}", branch, remote);
-            helpers::create_merge_commit(&repo, &head, &remote_commit, &msg)?;
-            Ok("success".to_string())
-        }
+        let msg = format!("Merge branch '{}' of {}", branch, remote);
+        helpers::perform_merge(&repo, &annotated, "pull", &msg)
     })
     .await?
 }

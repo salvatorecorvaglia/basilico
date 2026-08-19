@@ -1,7 +1,7 @@
 //! Shared Git helper functions to reduce code duplication across commands.
 
 use crate::error::AppError;
-use git2::{Commit, Repository, Signature};
+use git2::{AnnotatedCommit, Commit, Repository, Signature};
 use std::io::Write;
 use std::process::Stdio;
 
@@ -15,6 +15,66 @@ pub fn get_or_fallback_signature(repo: &Repository) -> Result<Signature<'static>
              Please set them in Settings or via 'git config user.name' and 'git config user.email'.",
         )
     })
+}
+
+/// Merge `annotated` into the currently checked-out branch: fast-forward when
+/// possible, otherwise a real merge, returning `"conflicts"` if that leaves
+/// the index unresolved. Shared by `merge_branch` and `pull`, which otherwise
+/// carried two copies of the same analyze → checkout → merge → conflict-check
+/// flow, differing only in their reflog wording and merge commit message.
+pub fn perform_merge(
+    repo: &Repository,
+    annotated: &AnnotatedCommit,
+    reflog_action: &str,
+    commit_message: &str,
+) -> Result<String, AppError> {
+    let (merge_analysis, _) = repo.merge_analysis(&[annotated])?;
+
+    if merge_analysis.is_up_to_date() {
+        return Ok("success".to_string());
+    }
+
+    if merge_analysis.is_fast_forward() {
+        let target_oid = annotated.id();
+        let target_object = repo.find_object(target_oid, None)?;
+        let mut checkout_opts = git2::build::CheckoutBuilder::new();
+        checkout_opts.safe();
+        repo.checkout_tree(&target_object, Some(&mut checkout_opts))?;
+
+        let head_ref = repo.head()?;
+        if head_ref.is_branch() {
+            if let Ok(refname) = head_ref.name() {
+                let mut r = repo.find_reference(refname)?;
+                r.set_target(
+                    target_oid,
+                    &format!("{}: fast-forward to {}", reflog_action, target_oid),
+                )?;
+                repo.set_head(refname)?;
+            }
+        } else {
+            repo.set_head_detached(target_oid)?;
+        }
+        return Ok("success".to_string());
+    }
+
+    let mut merge_opts = git2::MergeOptions::new();
+    let mut checkout_opts = git2::build::CheckoutBuilder::new();
+    checkout_opts.safe();
+
+    repo.merge(
+        &[annotated],
+        Some(&mut merge_opts),
+        Some(&mut checkout_opts),
+    )?;
+
+    if repo.index().map(|idx| idx.has_conflicts()).unwrap_or(false) {
+        Ok("conflicts".to_string())
+    } else {
+        let head = repo.head()?.peel_to_commit()?;
+        let remote_commit = repo.find_commit(annotated.id())?;
+        create_merge_commit(repo, &head, &remote_commit, commit_message)?;
+        Ok("success".to_string())
+    }
 }
 
 /// Create a merge commit pointing HEAD to the merge of `head_commit` and `remote_commit`.

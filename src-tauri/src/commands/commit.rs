@@ -216,13 +216,8 @@ pub async fn cherry_pick_commit(path: String, oid: String) -> Result<String, App
         // Validate OID format to prevent command line option/argument injection
         let _ = git2::Oid::from_str(&oid)?;
 
-        let output = crate::commands::new_command("git")
-            .current_dir(&path)
-            .args(["cherry-pick", &oid])
-            .output()
-            .map_err(|e| {
-                AppError::command(format!("Failed to execute cherry-pick process: {}", e))
-            })?;
+        let args = ["cherry-pick", oid.as_str()];
+        let output = crate::commands::git_output(&args, &path)?;
 
         let repo = Repository::open(&path)?;
         match repo.state() {
@@ -233,8 +228,9 @@ pub async fn cherry_pick_commit(path: String, oid: String) -> Result<String, App
                 if output.status.success() {
                     Ok("success".to_string())
                 } else {
-                    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-                    Err(AppError::git(format!("Cherry-pick failed: {}", stderr)))
+                    Err(AppError::git(crate::commands::git_failure_message(
+                        &args, &output,
+                    )))
                 }
             }
         }
@@ -245,23 +241,8 @@ pub async fn cherry_pick_commit(path: String, oid: String) -> Result<String, App
 #[tauri::command]
 pub async fn cherry_pick_abort(path: String) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
-        let output = crate::commands::new_command("git")
-            .current_dir(&path)
-            .args(["cherry-pick", "--abort"])
-            .output()
-            .map_err(|e| {
-                AppError::command(format!("Failed to abort cherry-pick process: {}", e))
-            })?;
-
-        if output.status.success() {
-            Ok(())
-        } else {
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            Err(AppError::git(format!(
-                "Cherry-pick abort failed: {}",
-                stderr
-            )))
-        }
+        crate::commands::run_git_cmd(&["cherry-pick", "--abort"], &path)?;
+        Ok(())
     })
     .await?
 }
@@ -272,11 +253,8 @@ pub async fn revert_commit(path: String, oid: String) -> Result<String, AppError
         // Validate OID format to prevent command line option/argument injection
         let _ = git2::Oid::from_str(&oid)?;
 
-        let output = crate::commands::new_command("git")
-            .current_dir(&path)
-            .args(["revert", "--no-edit", &oid])
-            .output()
-            .map_err(|e| AppError::command(format!("Failed to execute revert process: {}", e)))?;
+        let args = ["revert", "--no-edit", oid.as_str()];
+        let output = crate::commands::git_output(&args, &path)?;
 
         let repo = Repository::open(&path)?;
         match repo.state() {
@@ -287,8 +265,9 @@ pub async fn revert_commit(path: String, oid: String) -> Result<String, AppError
                 if output.status.success() {
                     Ok("success".to_string())
                 } else {
-                    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-                    Err(AppError::git(format!("Revert failed: {}", stderr)))
+                    Err(AppError::git(crate::commands::git_failure_message(
+                        &args, &output,
+                    )))
                 }
             }
         }
@@ -299,18 +278,8 @@ pub async fn revert_commit(path: String, oid: String) -> Result<String, AppError
 #[tauri::command]
 pub async fn revert_abort(path: String) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
-        let output = crate::commands::new_command("git")
-            .current_dir(&path)
-            .args(["revert", "--abort"])
-            .output()
-            .map_err(|e| AppError::command(format!("Failed to abort revert process: {}", e)))?;
-
-        if output.status.success() {
-            Ok(())
-        } else {
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            Err(AppError::git(format!("Revert abort failed: {}", stderr)))
-        }
+        crate::commands::run_git_cmd(&["revert", "--abort"], &path)?;
+        Ok(())
     })
     .await?
 }

@@ -127,10 +127,3 @@ impl From<serde_json::Error> for AppError {
         }
     }
 }
-
-// Tauri commands need Result<T, String> or impl Serialize for errors
-impl From<AppError> for String {
-    fn from(err: AppError) -> Self {
-        err.message
-    }
-}

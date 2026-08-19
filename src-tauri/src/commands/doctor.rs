@@ -188,20 +188,7 @@ pub async fn get_repo_health(path: String) -> Result<DoctorReport, AppError> {
 #[tauri::command]
 pub async fn run_git_gc(path: String) -> Result<String, AppError> {
     tokio::task::spawn_blocking(move || {
-        let output = crate::commands::new_command("git")
-            .arg("-C")
-            .arg(&path)
-            .arg("gc")
-            .arg("--prune=now")
-            .output()
-            .map_err(|e| AppError::command(format!("Failed to execute git gc: {}", e)))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(AppError::command(format!("git gc error: {}", stderr)));
-        }
-
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stdout = crate::commands::run_git_cmd(&["gc", "--prune=now"], &path)?;
         if stdout.is_empty() {
             Ok("Repository optimized successfully (git gc completed)".to_string())
         } else {
@@ -214,13 +201,10 @@ pub async fn run_git_gc(path: String) -> Result<String, AppError> {
 #[tauri::command]
 pub async fn run_git_fsck(path: String) -> Result<String, AppError> {
     tokio::task::spawn_blocking(move || {
-        let output = crate::commands::new_command("git")
-            .arg("-C")
-            .arg(&path)
-            .arg("fsck")
-            .arg("--full")
-            .output()
-            .map_err(|e| AppError::command(format!("Failed to execute git fsck: {}", e)))?;
+        // `fsck` can exit non-zero while still just reporting non-fatal notes,
+        // so the exit status is intentionally not checked here — the combined
+        // output is shown to the user either way, not treated as a Rust error.
+        let output = crate::commands::git_output(&["fsck", "--full"], &path)?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();

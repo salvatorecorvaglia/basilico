@@ -203,8 +203,9 @@ pub fn build_graph_page(
 /// Ceiling on how many commits are inspected when a path filter is active.
 ///
 /// The `max_commits` limit counts *matching* commits, so a filter that matches
-/// rarely would otherwise walk the entire history before returning.
-const PATH_FILTER_SCAN_LIMIT: usize = 20_000;
+/// rarely would otherwise walk the entire history before returning. Also used
+/// by `commands::history::get_file_history`, which scans for the same reason.
+pub const PATH_FILTER_SCAN_LIMIT: usize = 20_000;
 
 /// True when `target_path` looks like a literal file path rather than a
 /// pathspec pattern. Literal paths can be tested far more cheaply.

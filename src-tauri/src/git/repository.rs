@@ -206,14 +206,32 @@ pub fn get_status(path: &str) -> Result<RepoStatus, AppError> {
     })
 }
 
+/// Ahead/behind counts for `branch` relative to its upstream, along with the
+/// upstream's name. Shared by `get_ahead_behind` (current branch) and
+/// `list_branches` (every local branch), which previously computed this
+/// independently.
+fn upstream_ahead_behind(
+    repo: &Repository,
+    branch: &git2::Branch,
+) -> Result<(Option<String>, usize, usize), AppError> {
+    match branch.upstream() {
+        Ok(upstream_branch) => {
+            let upstream_name = upstream_branch.name()?.unwrap_or("").to_string();
+            let local_oid = branch.get().target();
+            let remote_oid = upstream_branch.get().target();
+            let (a, b) = match (local_oid, remote_oid) {
+                (Some(l), Some(r)) => repo.graph_ahead_behind(l, r).unwrap_or((0, 0)),
+                _ => (0, 0),
+            };
+            Ok((Some(upstream_name), a, b))
+        }
+        Err(_) => Ok((None, 0, 0)),
+    }
+}
+
 /// Get ahead/behind counts relative to upstream.
 pub fn get_ahead_behind(repo: &Repository) -> Result<(usize, usize), AppError> {
     let head = repo.head()?;
-    let local_oid = head.target().ok_or_else(|| AppError {
-        message: "HEAD has no target".to_string(),
-        kind: crate::error::ErrorKind::GitError,
-    })?;
-
     let branch_name = head.shorthand().unwrap_or("HEAD");
     if branch_name == "HEAD" {
         return Ok((0, 0));
@@ -224,18 +242,7 @@ pub fn get_ahead_behind(repo: &Repository) -> Result<(usize, usize), AppError> {
         Err(_) => return Ok((0, 0)),
     };
 
-    let upstream_branch = match local_branch.upstream() {
-        Ok(u) => u,
-        Err(_) => return Ok((0, 0)),
-    };
-
-    let upstream_ref = upstream_branch.into_reference();
-    let upstream_oid = upstream_ref.target().ok_or_else(|| AppError {
-        message: "upstream has no target".to_string(),
-        kind: crate::error::ErrorKind::GitError,
-    })?;
-
-    let (ahead, behind) = repo.graph_ahead_behind(local_oid, upstream_oid)?;
+    let (_, ahead, behind) = upstream_ahead_behind(repo, &local_branch)?;
     Ok((ahead, behind))
 }
 
@@ -257,19 +264,7 @@ pub fn list_branches(path: &str) -> Result<Vec<BranchInfo>, AppError> {
             .unwrap_or_default();
 
         let (upstream, ahead, behind) = if !is_remote {
-            match branch.upstream() {
-                Ok(upstream_branch) => {
-                    let upstream_name = upstream_branch.name()?.unwrap_or("").to_string();
-                    let local_oid = branch.get().target();
-                    let remote_oid = upstream_branch.get().target();
-                    let (a, b) = match (local_oid, remote_oid) {
-                        (Some(l), Some(r)) => repo.graph_ahead_behind(l, r).unwrap_or((0, 0)),
-                        _ => (0, 0),
-                    };
-                    (Some(upstream_name), a, b)
-                }
-                Err(_) => (None, 0, 0),
-            }
+            upstream_ahead_behind(&repo, &branch)?
         } else {
             (None, 0, 0)
         };
