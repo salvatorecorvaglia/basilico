@@ -1,7 +1,11 @@
 import type { StateCreator } from "zustand";
 import type { RecentRepo, RepoInfo, RepoTab } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
-import { INITIAL_LOADING_STATES, type RepoState } from "../types";
+import {
+  INITIAL_LOADING_STATES,
+  PER_TAB_RESET_STATE,
+  type RepoState,
+} from "../types";
 
 export interface TabsSlice {
   tabs: RepoTab[];
@@ -181,38 +185,9 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
           tabs: filtered,
           activeTabId: newActive,
           // Reset all per-tab state to prevent stale data
-          repoInfo: null,
-          status: null,
-          branches: [],
-          tags: [],
-          remotes: [],
-          commits: [],
-          selectedCommitOid: null,
-          commitDiff: [],
-          blameLines: [],
-          fileHistory: [],
-          stashes: [],
-          worktrees: [],
-          submodules: [],
-          commitTree: [],
-          compareDiff: [],
-          compareBase: null,
-          compareTarget: null,
-          selectedCompareFile: null,
-          compareFileDiff: null,
-          conflictStages: null,
-          activeConflictedPath: null,
-          selectedStashIndex: null,
-          stashDiff: [],
-          selectedStashFile: null,
-          selectedStashFileDiff: null,
-          selectedFilePath: null,
-          selectedFileIsStaged: false,
-          localDiff: null,
+          ...PER_TAB_RESET_STATE,
           loadingStates: { ...INITIAL_LOADING_STATES },
           isLoading: false,
-          error: null,
-          errors: {},
           // Increment generation to invalidate in-flight async responses from old tab
           refreshGeneration: get().refreshGeneration + 1,
         });
@@ -254,28 +229,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
         tabs: state.tabs.map((t) => ({ ...t, isActive: t.id === tabId })),
         activeTabId: tabId,
         // Reset per-tab state to prevent stale data from previous tab
-        selectedCommitOid: null,
-        commitDiff: [],
-        blameLines: [],
-        fileHistory: [],
-        stashes: [],
-        commitTree: [],
-        compareDiff: [],
-        compareBase: null,
-        compareTarget: null,
-        selectedCompareFile: null,
-        compareFileDiff: null,
-        conflictStages: null,
-        activeConflictedPath: null,
-        selectedStashIndex: null,
-        stashDiff: [],
-        selectedStashFile: null,
-        selectedStashFileDiff: null,
-        selectedFilePath: null,
-        selectedFileIsStaged: false,
-        localDiff: null,
-        error: null,
-        errors: {},
+        ...PER_TAB_RESET_STATE,
         // Increment generation to invalidate in-flight async responses from old tab
         refreshGeneration: state.refreshGeneration + 1,
       }));

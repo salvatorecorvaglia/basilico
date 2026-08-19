@@ -63,6 +63,16 @@ export function CommitGraph({
     });
   }, [theme]);
 
+  // Merge-commit node interiors are filled with the panel background so the
+  // ring reads as "hollow" against whatever theme is active — must track the
+  // theme like laneColors above, not a hardcoded dark color that only looks
+  // right in dark mode.
+  const nodeFillColor = useMemo(() => {
+    if (typeof window === "undefined" || !theme) return "#0d1117";
+    const docStyle = getComputedStyle(document.documentElement);
+    return docStyle.getPropertyValue("--bg-surface").trim() || "#0d1117";
+  }, [theme]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -163,7 +173,7 @@ export function CommitGraph({
         if (isMerge) {
           ctx.strokeStyle = color;
           ctx.lineWidth = 2;
-          ctx.fillStyle = "#0d1117";
+          ctx.fillStyle = nodeFillColor;
           ctx.fill();
           ctx.stroke();
         } else {
@@ -184,6 +194,7 @@ export function CommitGraph({
     commits,
     commitIndices,
     laneColors,
+    nodeFillColor,
     rowHeight,
     graphWidth,
     scrollOffset,

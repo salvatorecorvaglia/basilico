@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use crate::git::helpers::get_or_fallback_signature;
 use crate::git::hooks;
 use git2::{Repository, Signature};
 use serde::Serialize;
@@ -55,12 +56,7 @@ pub async fn create_commit(
         let tree = repo.find_tree(tree_id)?;
 
         // Get committer signature (user's git config identity)
-        let committer_sig = repo.signature().map_err(|_| {
-            AppError::invalid_state(
-                "Git author name and email are not configured. \
-                 Please set them in Settings or via 'git config user.name' and 'git config user.email'.",
-            )
-        })?;
+        let committer_sig = get_or_fallback_signature(&repo)?;
 
         // Create author signature. When amending without an explicit override,
         // the original author is preserved — `git commit --amend` keeps
@@ -114,18 +110,12 @@ pub async fn create_commit(
 
         let commit_id = if should_sign {
             // GPG sign commit
-            let commit_content_buf = repo.commit_create_buffer(
-                &sig,
-                &committer_sig,
-                &message,
-                &tree,
-                &parent_refs,
-            )?;
+            let commit_content_buf =
+                repo.commit_create_buffer(&sig, &committer_sig, &message, &tree, &parent_refs)?;
             let commit_content = std::str::from_utf8(&commit_content_buf)
                 .map_err(|_| AppError::invalid_state("Commit buffer is not valid UTF-8"))?;
 
-            let signature =
-                crate::git::helpers::gpg_sign(commit_content, signing_key.as_deref())?;
+            let signature = crate::git::helpers::gpg_sign(commit_content, signing_key.as_deref())?;
             let commit_oid = repo.commit_signed(commit_content, &signature, Some("gpgsig"))?;
 
             // Update HEAD

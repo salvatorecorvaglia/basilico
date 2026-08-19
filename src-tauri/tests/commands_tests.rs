@@ -110,6 +110,26 @@ async fn test_create_rename_delete_branch() {
 }
 
 #[tokio::test]
+async fn test_delete_remote_branch_rejects_malformed_name() {
+    let repo = TempRepo::new();
+    repo.write_file("test.txt", "hello");
+    repo.commit("initial commit");
+
+    let path = repo.path_str().to_string();
+    let app = tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap()
+        .handle()
+        .clone();
+
+    // A remote-tracking branch name must be "remote/branch". Without a slash
+    // there is no remote to push the deletion to; silently returning Ok would
+    // make the caller believe the branch was deleted when nothing happened.
+    let result = delete_branch(app, path, "no-slash-name".to_string(), true).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
 async fn test_list_merged_branches() {
     let repo = TempRepo::new();
     repo.write_file("test.txt", "hello");

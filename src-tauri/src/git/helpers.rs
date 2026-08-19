@@ -5,7 +5,9 @@ use git2::{Commit, Repository, Signature};
 use std::io::Write;
 use std::process::Stdio;
 
-/// Get the repository signature, falling back to a default "Basilico User" if not configured.
+/// Get the repository signature, rejecting with a descriptive error if `user.name`/
+/// `user.email` are not configured — every commit-like operation (commits, stashes,
+/// tags, merges) must use this rather than fabricating a placeholder identity.
 pub fn get_or_fallback_signature(repo: &Repository) -> Result<Signature<'static>, AppError> {
     repo.signature().map_err(|_| {
         AppError::invalid_state(

@@ -38,6 +38,63 @@ export const INITIAL_LOADING_STATES: LoadingStates = {
 };
 
 /**
+ * Every field that holds data scoped to a single repository tab. Applied by
+ * both `switchTab` and `closeTab` so the two can never drift apart again —
+ * previously each hand-maintained its own list, and both silently omitted the
+ * rebase/bisect/search fields, letting a rebase plan built against one repo
+ * be carried over and applied to whichever repo tab is active next.
+ *
+ * `settings`/`tabs`/`activeTabId`/`recentRepos`/`hasRestored` are intentionally
+ * excluded: they are global, not per-tab.
+ */
+export const PER_TAB_RESET_STATE: Partial<RepoState> = {
+  // GitDataSlice
+  repoInfo: null,
+  status: null,
+  branches: [],
+  tags: [],
+  remotes: [],
+  commits: [],
+  selectedCommitOid: null,
+  commitDiff: [],
+  blameLines: [],
+  fileHistory: [],
+  hasMoreCommits: true,
+  // StagingSlice
+  stashes: [],
+  selectedStashIndex: null,
+  stashDiff: [],
+  selectedStashFile: null,
+  selectedStashFileDiff: null,
+  selectedFilePath: null,
+  selectedFileIsStaged: false,
+  localDiff: null,
+  conflictStages: null,
+  activeConflictedPath: null,
+  // CollaborationSlice
+  commitTree: [],
+  compareDiff: [],
+  compareBase: null,
+  compareTarget: null,
+  selectedCompareFile: null,
+  compareFileDiff: null,
+  // RebaseBisectSlice
+  rebaseTodoItems: [],
+  rebaseStatus: null,
+  rebaseUpstream: null,
+  bisectState: null,
+  // WorktreeSubmoduleSlice
+  worktrees: [],
+  submodules: [],
+  // SearchSlice
+  commitSearchResults: [],
+  grepSearchResults: [],
+  // Shared surface
+  error: null,
+  errors: {},
+};
+
+/**
  * The assembled store: the shared loading/error surface plus every domain slice.
  *
  * Composed from the slice interfaces rather than restating their fields, so a

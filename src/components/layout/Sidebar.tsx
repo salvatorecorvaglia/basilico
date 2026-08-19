@@ -85,6 +85,22 @@ export function Sidebar() {
   const [worktreeModalOpen, setWorktreeModalOpen] = useState(false);
   const [submoduleModalOpen, setSubmoduleModalOpen] = useState(false);
 
+  // These sub-components internally call hooks (useState/useMemo/store selectors), so they
+  // must be called unconditionally on every render — never after a conditional early return —
+  // or React sees a different number of hooks between the loading and loaded renders and throws.
+  const branchTree = BranchTree({ branches });
+  const remoteTree = RemoteTree({ branches, remotes });
+  const tagTree = TagTree({ tags });
+  const stashTree = StashTree({ stashes });
+  const worktreeTree = WorktreeTree({
+    worktrees,
+    onOpenModal: () => setWorktreeModalOpen(true),
+  });
+  const submoduleTree = SubmoduleTree({
+    submodules,
+    onOpenModal: () => setSubmoduleModalOpen(true),
+  });
+
   // Render loading skeleton
   if (isLoading && branches.length === 0) {
     return (
@@ -149,20 +165,6 @@ export function Sidebar() {
       </div>
     );
   }
-
-  // Delegate to sub-components which return { count, icon, action?, content }
-  const branchTree = BranchTree({ branches });
-  const remoteTree = RemoteTree({ branches, remotes });
-  const tagTree = TagTree({ tags });
-  const stashTree = StashTree({ stashes });
-  const worktreeTree = WorktreeTree({
-    worktrees,
-    onOpenModal: () => setWorktreeModalOpen(true),
-  });
-  const submoduleTree = SubmoduleTree({
-    submodules,
-    onOpenModal: () => setSubmoduleModalOpen(true),
-  });
 
   return (
     <div className="sidebar">

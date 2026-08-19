@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use crate::git::helpers::get_or_fallback_signature;
 use crate::git::repository;
 
 #[tauri::command]
@@ -30,9 +31,7 @@ pub async fn create_tag(
         let target = repo.find_object(oid, None)?;
 
         if let Some(msg) = message {
-            let sig = repo
-                .signature()
-                .or_else(|_| git2::Signature::now("Basilico", "basilico@example.com"))?;
+            let sig = get_or_fallback_signature(&repo)?;
             repo.tag(&name, &target, &sig, &msg, force)?;
         } else {
             repo.tag_lightweight(&name, &target, force)?;

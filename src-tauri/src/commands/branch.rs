@@ -47,26 +47,28 @@ pub async fn delete_branch<R: tauri::Runtime>(
         if is_remote {
             // name is formatted as "remote_name/branch_name" (e.g. "origin/my-feature")
             let parts: Vec<&str> = name.splitn(2, '/').collect();
-            if parts.len() == 2 {
-                let remote_name = parts[0];
-                let branch_name = parts[1];
+            let [remote_name, branch_name] = parts[..] else {
+                return Err(AppError::invalid_state(format!(
+                    "Invalid remote branch name \"{}\": expected \"remote/branch\"",
+                    name
+                )));
+            };
 
-                // 1. Push deletion spec to remote repository
-                let mut remote_obj = repo.find_remote(remote_name)?;
-                let refspec = format!(":refs/heads/{}", branch_name);
+            // 1. Push deletion spec to remote repository
+            let mut remote_obj = repo.find_remote(remote_name)?;
+            let refspec = format!(":refs/heads/{}", branch_name);
 
-                let rejections = crate::git::credentials::new_push_rejections();
-                let mut push_opts = git2::PushOptions::new();
-                push_opts.remote_callbacks(crate::git::credentials::make_push_callbacks(
-                    ssh_key_path,
-                    rejections.clone(),
-                ));
+            let rejections = crate::git::credentials::new_push_rejections();
+            let mut push_opts = git2::PushOptions::new();
+            push_opts.remote_callbacks(crate::git::credentials::make_push_callbacks(
+                ssh_key_path,
+                rejections.clone(),
+            ));
 
-                remote_obj.push(&[refspec.as_str()], Some(&mut push_opts))?;
-                // A rejected deletion must not be followed by dropping the local
-                // tracking ref — that would hide a branch that still exists.
-                crate::git::credentials::check_push_rejections(&rejections)?;
-            }
+            remote_obj.push(&[refspec.as_str()], Some(&mut push_opts))?;
+            // A rejected deletion must not be followed by dropping the local
+            // tracking ref — that would hide a branch that still exists.
+            crate::git::credentials::check_push_rejections(&rejections)?;
 
             // 2. Delete the local remote-tracking reference
             let ref_name = format!("refs/remotes/{}", name);

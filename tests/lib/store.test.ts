@@ -7,9 +7,9 @@ vi.mock("@tauri-apps/api/core", () => ({
     invokeMock(cmd, args),
 }));
 
+import type { GraphCommit } from "../../src/lib/git-types";
 import { useRepoStore } from "../../src/store/repo-store";
 import { INITIAL_LOADING_STATES } from "../../src/store/types";
-import type { GraphCommit } from "../../src/lib/git-types";
 
 function resetStore() {
   useRepoStore.setState({
@@ -191,7 +191,9 @@ describe("repo store — per-domain errors", () => {
   });
 
   it("removes the key when an error is cleared rather than storing null", async () => {
-    const { setError, clearError } = await import("../../src/store/store-helpers");
+    const { setError, clearError } = await import(
+      "../../src/store/store-helpers"
+    );
     const get = () => useRepoStore.getState();
     const set = (s: object) => useRepoStore.setState(s);
 
@@ -286,5 +288,97 @@ describe("repo store — commit pagination", () => {
       "b",
       "c",
     ]);
+  });
+});
+
+describe("repo store — tab switch/close clears per-tab state", () => {
+  beforeEach(() => {
+    invokeMock.mockReset();
+    invokeMock.mockResolvedValue([]);
+    resetStore();
+    localStorage.clear();
+  });
+
+  const commit = (oid: string): GraphCommit => ({
+    oid,
+    shortOid: oid,
+    message: oid,
+    authorName: "T",
+    authorEmail: "t@t.t",
+    authorDate: 0,
+    committerName: "T",
+    committerDate: 0,
+    parentOids: [],
+    refs: [],
+    lane: 0,
+    edges: [],
+  });
+
+  // A rebase plan or bisect session staged against one repo must never be
+  // usable against another — startRebase/markBisect act on whatever is in
+  // the store for the *current* activeTabId, regardless of which tab it was
+  // built for.
+  function dirtyPerTabState() {
+    useRepoStore.setState({
+      rebaseTodoItems: [{ action: "pick", oid: "abc", summary: "do a thing" }],
+      rebaseStatus: {
+        status: "planning",
+        currentOid: null,
+        message: "in progress",
+      },
+      rebaseUpstream: "main",
+      bisectState: {
+        isBisecting: true,
+        message: "bisecting",
+        currentOid: "abc",
+        stepsRemaining: 3,
+      },
+      commitSearchResults: [commit("search-hit")],
+      grepSearchResults: [
+        { filePath: "a.ts", lineNumber: 1, content: "needle" },
+      ],
+    });
+  }
+
+  it("clears rebase/bisect/search state left over from the previous tab on switchTab", () => {
+    useRepoStore.setState({
+      tabs: [
+        { id: "/repo-a", path: "/repo-a", name: "a", isActive: true },
+        { id: "/repo-b", path: "/repo-b", name: "b", isActive: false },
+      ],
+      activeTabId: "/repo-a",
+    });
+    dirtyPerTabState();
+
+    useRepoStore.getState().switchTab("/repo-b");
+
+    const state = useRepoStore.getState();
+    expect(state.rebaseTodoItems).toEqual([]);
+    expect(state.rebaseStatus).toBeNull();
+    expect(state.rebaseUpstream).toBeNull();
+    expect(state.bisectState).toBeNull();
+    expect(state.commitSearchResults).toEqual([]);
+    expect(state.grepSearchResults).toEqual([]);
+  });
+
+  it("clears rebase/bisect/search state left over from the closed tab on closeTab", () => {
+    useRepoStore.setState({
+      tabs: [
+        { id: "/repo-a", path: "/repo-a", name: "a", isActive: true },
+        { id: "/repo-b", path: "/repo-b", name: "b", isActive: false },
+      ],
+      activeTabId: "/repo-a",
+    });
+    dirtyPerTabState();
+
+    useRepoStore.getState().closeTab("/repo-a");
+
+    const state = useRepoStore.getState();
+    expect(state.rebaseTodoItems).toEqual([]);
+    expect(state.rebaseStatus).toBeNull();
+    expect(state.rebaseUpstream).toBeNull();
+    expect(state.bisectState).toBeNull();
+    expect(state.commitSearchResults).toEqual([]);
+    expect(state.grepSearchResults).toEqual([]);
   });
 });
