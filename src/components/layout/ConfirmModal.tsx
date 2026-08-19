@@ -1,6 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AlertTriangle, Info, X } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useUIStore } from "../../store/ui-store";
 import "./ConfirmModal.css";
@@ -12,20 +12,34 @@ export function ConfirmModal() {
       closeConfirm: s.closeConfirm,
     })),
   );
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleCancel = useCallback(() => {
+    if (isSubmitting) return;
     if (confirmOptions?.onCancel) {
       confirmOptions.onCancel();
     }
     closeConfirm();
-  }, [confirmOptions, closeConfirm]);
+  }, [confirmOptions, closeConfirm, isSubmitting]);
 
-  const handleConfirm = useCallback(() => {
-    if (confirmOptions) {
-      confirmOptions.onConfirm();
+  // Stay open and keep the buttons disabled until the action settles — closing
+  // immediately (the previous behavior) let a slow or failing confirm action
+  // hide behind a dialog that was already gone, with only an easy-to-miss
+  // toast to show for it, and let a double-click fire the action twice.
+  const handleConfirm = useCallback(async () => {
+    if (!confirmOptions || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await confirmOptions.onConfirm();
       closeConfirm();
+    } catch {
+      // The action's own error handling (or invokeCommand's built-in toast)
+      // already surfaced the failure; keep the dialog open so the user can
+      // retry or cancel instead of silently losing their place.
+    } finally {
+      setIsSubmitting(false);
     }
-  }, [confirmOptions, closeConfirm]);
+  }, [confirmOptions, closeConfirm, isSubmitting]);
 
   const isOpen = !!confirmOptions;
 
@@ -58,6 +72,7 @@ export function ConfirmModal() {
                     type="button"
                     className="confirm-close-btn"
                     aria-label="Close dialog"
+                    disabled={isSubmitting}
                   >
                     <X size={16} />
                   </button>
@@ -77,6 +92,7 @@ export function ConfirmModal() {
                   type="button"
                   className="confirm-btn confirm-btn-outline"
                   onClick={handleCancel}
+                  disabled={isSubmitting}
                 >
                   {confirmOptions.cancelLabel ?? "Cancel"}
                 </button>
@@ -88,7 +104,11 @@ export function ConfirmModal() {
                       : "confirm-btn-primary"
                   }`}
                   onClick={handleConfirm}
+                  disabled={isSubmitting}
                 >
+                  {isSubmitting ? (
+                    <span className="animate-spin mr-2">⏳</span>
+                  ) : null}
                   {confirmOptions.confirmLabel ?? "Confirm"}
                 </button>
               </div>

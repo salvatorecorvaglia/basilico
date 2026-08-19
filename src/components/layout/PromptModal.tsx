@@ -14,6 +14,7 @@ export function PromptModal() {
     })),
   );
   const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRefs = useRef<
     Record<string, HTMLInputElement | HTMLTextAreaElement | null>
   >({});
@@ -23,15 +24,20 @@ export function PromptModal() {
   }, []);
 
   const handleCancel = useCallback(() => {
+    if (isSubmitting) return;
     if (promptOptions?.onCancel) {
       promptOptions.onCancel();
     }
     closePrompt();
-  }, [promptOptions, closePrompt]);
+  }, [promptOptions, closePrompt, isSubmitting]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Stay open and keep the fields/buttons disabled until the action settles —
+  // closing immediately (the previous behavior) let a slow or failing submit
+  // hide behind a dialog that was already gone, with only an easy-to-miss
+  // toast to show for it, and let a double-click fire the action twice.
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!promptOptions) return;
+    if (!promptOptions || isSubmitting) return;
 
     // Validate required fields
     let valid = true;
@@ -41,9 +47,18 @@ export function PromptModal() {
       }
     });
 
-    if (valid) {
-      promptOptions.onSubmit(formValues);
+    if (!valid) return;
+
+    setIsSubmitting(true);
+    try {
+      await promptOptions.onSubmit(formValues);
       closePrompt();
+    } catch {
+      // The action's own error handling (or invokeCommand's built-in toast)
+      // already surfaced the failure; keep the dialog open so the user can
+      // retry or cancel instead of silently losing their input.
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -100,6 +115,7 @@ export function PromptModal() {
                     type="button"
                     className="prompt-close-btn"
                     aria-label="Close dialog"
+                    disabled={isSubmitting}
                   >
                     <X size={16} />
                   </button>
@@ -192,14 +208,18 @@ export function PromptModal() {
                   type="button"
                   className="prompt-btn prompt-btn-outline"
                   onClick={handleCancel}
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   className="prompt-btn prompt-btn-primary"
-                  disabled={!isFormValid}
+                  disabled={!isFormValid || isSubmitting}
                 >
+                  {isSubmitting ? (
+                    <span className="animate-spin mr-2">⏳</span>
+                  ) : null}
                   {promptOptions.submitLabel ?? "Submit"}
                 </button>
               </div>

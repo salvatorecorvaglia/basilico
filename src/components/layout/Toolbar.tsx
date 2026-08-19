@@ -3,10 +3,12 @@
    Top action bar with repository selector, branch popover, and actions
    ═══════════════════════════════════════════════════════ */
 
+import * as ContextMenu from "@radix-ui/react-context-menu";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as Popover from "@radix-ui/react-popover";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
+  AlertTriangle,
   ArrowDownToLine,
   ArrowUpFromLine,
   Check,
@@ -69,6 +71,7 @@ export function Toolbar() {
     activeView,
     setActiveView,
     addNotification,
+    openConfirm,
   } = useUIStore(
     useShallow((s) => ({
       toggleCommandPalette: s.toggleCommandPalette,
@@ -76,6 +79,7 @@ export function Toolbar() {
       activeView: s.activeView,
       setActiveView: s.setActiveView,
       addNotification: s.addNotification,
+      openConfirm: s.openConfirm,
     })),
   );
 
@@ -200,6 +204,17 @@ export function Toolbar() {
     } finally {
       setIsPushing(false);
     }
+  };
+
+  const handleForcePush = () => {
+    if (!status?.branch) return;
+    openConfirm({
+      title: "Force Push",
+      message: `Force push "${status.branch}" to origin? This overwrites the remote branch with your local history. Basilico refuses if origin has moved since your last fetch, so fetch first if you suspect someone else has pushed.`,
+      confirmLabel: "Force Push",
+      isDanger: true,
+      onConfirm: () => handlePush(true),
+    });
   };
 
   const totalModifications = status
@@ -409,16 +424,32 @@ export function Toolbar() {
           >
             <ArrowDownToLine size={13} />
           </button>
-          <button
-            type="button"
-            className={`toolbar-icon-btn ${isPushing ? "spinning" : ""}`}
-            onClick={() => handlePush(false)}
-            title="Push to remote (origin)"
-            aria-label="Push to remote (origin)"
-            disabled={!status?.branch || isAnySyncing}
-          >
-            <ArrowUpFromLine size={13} />
-          </button>
+          <ContextMenu.Root>
+            <ContextMenu.Trigger>
+              <button
+                type="button"
+                className={`toolbar-icon-btn ${isPushing ? "spinning" : ""}`}
+                onClick={() => handlePush(false)}
+                title="Push to remote (origin) — right-click for force push"
+                aria-label="Push to remote (origin) — right-click for force push"
+                disabled={!status?.branch || isAnySyncing}
+              >
+                <ArrowUpFromLine size={13} />
+              </button>
+            </ContextMenu.Trigger>
+            <ContextMenu.Portal>
+              <ContextMenu.Content className="radix-context-menu">
+                <ContextMenu.Item
+                  className="context-menu-item danger"
+                  onSelect={handleForcePush}
+                  disabled={!status?.branch || isAnySyncing}
+                >
+                  <AlertTriangle size={12} />
+                  <span>Force Push (with lease)...</span>
+                </ContextMenu.Item>
+              </ContextMenu.Content>
+            </ContextMenu.Portal>
+          </ContextMenu.Root>
         </div>
       </div>
 
