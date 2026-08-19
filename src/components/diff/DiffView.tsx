@@ -237,19 +237,27 @@ export function DiffView() {
       return;
     }
 
+    // Guard against an older request for a previously-selected file resolving
+    // after a newer one — without this, rapidly clicking through files could
+    // silently overwrite the editor with the wrong file's content while the
+    // header still showed the newly-selected path.
+    let cancelled = false;
     setLoadingContents(true);
     setSelectedLines({});
     getFileContentPair(activeTabId, selectedFilePath, selectedFileIsStaged)
       .then((data) => {
-        setContents(data);
+        if (!cancelled) setContents(data);
       })
       .catch((err) => {
         console.error("Failed to load file contents:", err);
-        setContents(null);
+        if (!cancelled) setContents(null);
       })
       .finally(() => {
-        setLoadingContents(false);
+        if (!cancelled) setLoadingContents(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [activeTabId, selectedFilePath, selectedFileIsStaged]);
 
   if (!selectedFilePath) {

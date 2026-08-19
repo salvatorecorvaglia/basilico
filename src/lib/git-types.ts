@@ -251,6 +251,7 @@ export interface UserSettings {
   bypassHooks?: boolean;
   externalEditor?: string | null;
   vimModeEnabled?: boolean;
+  checkGithubCiStatus?: boolean;
 }
 
 export interface DoctorReport {

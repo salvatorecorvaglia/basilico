@@ -2,6 +2,21 @@
    Basilico — Utility Functions
    ═══════════════════════════════════════════════════════ */
 
+/**
+ * Open an external URL in the system browser. Refuses anything that isn't
+ * `https://` — forge-link builders always produce an https URL, but this is
+ * the last line of defense against a malformed/attacker-controlled remote
+ * URL producing something like a `javascript:` URL. Passes `noopener,noreferrer`
+ * so the opened page cannot reach back into this window via `window.opener`.
+ */
+export function openExternalUrl(url: string): void {
+  if (!url.startsWith("https://")) {
+    console.error(`Refusing to open non-https URL: ${url}`);
+    return;
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 /** Format a Unix timestamp as a relative time string (e.g., "2 hours ago") */
 export function formatRelativeTime(timestamp: number): string {
   const now = Math.floor(Date.now() / 1000);

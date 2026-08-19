@@ -141,3 +141,25 @@ jobs:
       - name: Dependency Review
         uses: actions/dependency-review-action@v4
 
+  # ──────────────────────────────────────────────
+  # Rust Dependency Security Audit
+  # `pnpm audit` above only covers the npm side; git2 vendors OpenSSL and the
+  # crate tree has its own advisory surface that needs the same coverage.
+  # ──────────────────────────────────────────────
+  rust-audit:
+    name: Rust Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Audit Rust dependencies
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          manifest-path: src-tauri/Cargo.toml
+

@@ -19,6 +19,7 @@ import { useShallow } from "zustand/react/shallow";
 import { getCreatePrUrl } from "../../lib/forge-links";
 import type { BranchInfo } from "../../lib/git-types";
 import { validateBranchName } from "../../lib/git-validation";
+import { openExternalUrl } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 
@@ -345,7 +346,7 @@ export function BranchTree({ branches }: BranchTreeProps) {
                   onSelect={() => {
                     if (remotes[0]?.url) {
                       const url = getCreatePrUrl(remotes[0].url, branch.name);
-                      if (url) window.open(url, "_blank");
+                      if (url) openExternalUrl(url);
                     }
                   }}
                 >

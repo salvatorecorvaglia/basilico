@@ -40,6 +40,7 @@ import { validateTagName } from "../../lib/git-validation";
 import {
   formatRelativeTime,
   getInitials,
+  openExternalUrl,
   stringToColor,
 } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
@@ -911,7 +912,7 @@ export function CommitList() {
                                 remotes[0].url,
                                 commit.oid,
                               );
-                              if (url) window.open(url, "_blank");
+                              if (url) openExternalUrl(url);
                             }
                           }}
                         >

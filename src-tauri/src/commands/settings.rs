@@ -26,6 +26,10 @@ pub struct UserSettings {
     pub bypass_hooks: Option<bool>,
     pub external_editor: Option<String>,
     pub vim_mode_enabled: Option<bool>,
+    /// Off by default: a desktop Git client should render correctly offline,
+    /// and this makes an unauthenticated request to api.github.com on every
+    /// branch switch. Opt-in only.
+    pub check_github_ci_status: Option<bool>,
 }
 
 impl Default for UserSettings {
@@ -55,6 +59,7 @@ impl Default for UserSettings {
             bypass_hooks: Some(false),
             external_editor: Some("code".to_string()),
             vim_mode_enabled: Some(false),
+            check_github_ci_status: Some(false),
         }
     }
 }

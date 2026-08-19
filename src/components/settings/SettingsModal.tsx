@@ -353,6 +353,45 @@ export function SettingsModal() {
                       <div className="settings-section-title">
                         GitHub Integration
                       </div>
+                      <div
+                        className="settings-field-row"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          marginBottom: "var(--space-4)",
+                        }}
+                      >
+                        <input
+                          id="settings-check-ci-status"
+                          type="checkbox"
+                          checked={!!draft.checkGithubCiStatus}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              checkGithubCiStatus: e.target.checked,
+                            })
+                          }
+                        />
+                        <label
+                          htmlFor="settings-check-ci-status"
+                          style={{ cursor: "pointer" }}
+                        >
+                          Show GitHub Actions CI status in the status bar
+                        </label>
+                      </div>
+                      <span
+                        className="settings-field-hint"
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--text-tertiary)",
+                          display: "block",
+                          marginBottom: "var(--space-4)",
+                        }}
+                      >
+                        Off by default: enabling this sends the current branch
+                        name to api.github.com on every branch switch.
+                      </span>
                       <div className="settings-field">
                         <label htmlFor="settings-github-pat">
                           GitHub Personal Access Token (PAT)
@@ -370,6 +409,19 @@ export function SettingsModal() {
                             })
                           }
                         />
+                        <span
+                          className="settings-field-hint"
+                          style={{
+                            fontSize: "10px",
+                            color: "var(--text-tertiary)",
+                            marginTop: "4px",
+                            display: "block",
+                          }}
+                        >
+                          Used to authenticate the CI status check above, if
+                          enabled — avoids GitHub's low unauthenticated rate
+                          limit and allows checking private repositories.
+                        </span>
                       </div>
                     </div>
 

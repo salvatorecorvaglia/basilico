@@ -163,6 +163,7 @@ export interface CiStatusResult {
 export async function fetchGitHubCiStatus(
   remoteUrl: string,
   branch = "main",
+  githubPat?: string | null,
 ): Promise<CiStatusResult> {
   const forge = parseRemoteUrl(remoteUrl);
   if (forge?.provider !== "github") {
@@ -171,12 +172,14 @@ export async function fetchGitHubCiStatus(
 
   try {
     const apiUrl = `https://api.github.com/repos/${forge.owner}/${forge.repo}/actions/runs?branch=${encodeURIComponent(branch)}&per_page=1`;
-    const resp = await fetch(apiUrl, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        "User-Agent": "Basilico-Git-Client",
-      },
-    });
+    const headers: Record<string, string> = {
+      Accept: "application/vnd.github+json",
+      "User-Agent": "Basilico-Git-Client",
+    };
+    if (githubPat) {
+      headers.Authorization = `Bearer ${githubPat}`;
+    }
+    const resp = await fetch(apiUrl, { headers });
 
     if (!resp.ok) return { status: "unknown" };
 

@@ -19,18 +19,20 @@ import {
   type CiStatusResult,
   fetchGitHubCiStatus,
 } from "../../lib/forge-links";
+import { openExternalUrl } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import { GitDoctorModal } from "../settings/GitDoctorModal";
 import "./StatusBar.css";
 
 export function StatusBar() {
-  const { status, repoInfo, remotes, isRefreshing } = useRepoStore(
+  const { status, repoInfo, remotes, isRefreshing, settings } = useRepoStore(
     useShallow((s) => ({
       status: s.status,
       repoInfo: s.repoInfo,
       remotes: s.remotes,
       isRefreshing: s.isRefreshing,
+      settings: s.settings,
     })),
   );
   const { setActiveView } = useUIStore(
@@ -55,13 +57,29 @@ export function StatusBar() {
     const remoteUrl = remotes[0]?.url;
     const branch = status?.branch || "main";
 
-    if (!remoteUrl) {
+    if (!settings?.checkGithubCiStatus || !remoteUrl) {
       setCiStatus({ status: "unknown" });
       return;
     }
 
-    fetchGitHubCiStatus(remoteUrl, branch).then(setCiStatus);
-  }, [remotes, status?.branch]);
+    // Guard against a slow response for a previous branch/remote landing
+    // after a newer request already started — without this, switching
+    // branches quickly could display a stale CI badge for the wrong branch.
+    let cancelled = false;
+    fetchGitHubCiStatus(remoteUrl, branch, settings.githubPat).then(
+      (result) => {
+        if (!cancelled) setCiStatus(result);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    remotes,
+    status?.branch,
+    settings?.checkGithubCiStatus,
+    settings?.githubPat,
+  ]);
 
   const totalChanges =
     (status?.staged.length || 0) +
@@ -94,9 +112,7 @@ export function StatusBar() {
                 <button
                   type="button"
                   className="statusbar-item statusbar-btn"
-                  onClick={() =>
-                    ciStatus.url && window.open(ciStatus.url, "_blank")
-                  }
+                  onClick={() => ciStatus.url && openExternalUrl(ciStatus.url)}
                   title={`CI Workflow: ${ciStatus.workflowName || ciStatus.status}`}
                   style={{
                     background: "none",
