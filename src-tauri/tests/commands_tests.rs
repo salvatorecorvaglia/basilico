@@ -13,6 +13,7 @@ use basilico_lib::commands::patch::*;
 use basilico_lib::commands::rebase::*;
 use basilico_lib::commands::reflog::*;
 use basilico_lib::commands::staging::*;
+use basilico_lib::commands::tag::*;
 use basilico_lib::commands::worktree::*;
 use basilico_lib::error::AppError;
 use basilico_lib::test_utils::TempRepo;
@@ -278,6 +279,176 @@ fn test_normalize_git_path() {
     assert_eq!(normalize_git_path("src\\main.rs"), "src/main.rs");
     assert_eq!(normalize_git_path("src/main.rs"), "src/main.rs");
     assert_eq!(normalize_git_path("a\\b\\c.txt"), "a/b/c.txt");
+}
+
+#[test]
+fn test_parse_gpg_status_output_goodsig() {
+    use basilico_lib::commands::gpg::parse_gpg_status_output;
+
+    let output = "[GNUPG:] NEWSIG\n\
+                   [GNUPG:] GOODSIG ABCDEF1234567890 Jane Doe <jane@example.com>\n\
+                   [GNUPG:] VALIDSIG ...\n";
+    let (status, key_id, signer) = parse_gpg_status_output(output, "Fallback Name");
+
+    assert_eq!(status, "Verified");
+    assert_eq!(key_id, "ABCDEF1234567890");
+    assert_eq!(signer, "Jane Doe <jane@example.com>");
+}
+
+#[test]
+fn test_parse_gpg_status_output_badsig() {
+    use basilico_lib::commands::gpg::parse_gpg_status_output;
+
+    let output = "[GNUPG:] BADSIG 1234ABCD Some Signer <s@example.com>\n";
+    let (status, key_id, signer) = parse_gpg_status_output(output, "Fallback Name");
+
+    assert_eq!(status, "BadSignature");
+    assert_eq!(key_id, "1234ABCD");
+    // BADSIG never sets the signer; the fallback author name is kept.
+    assert_eq!(signer, "Fallback Name");
+}
+
+#[test]
+fn test_parse_gpg_status_output_no_pubkey() {
+    use basilico_lib::commands::gpg::parse_gpg_status_output;
+
+    let output = "[GNUPG:] ERRSIG DEADBEEF12345678 1 2 00 1700000000 9\n\
+                   [GNUPG:] NO_PUBKEY DEADBEEF12345678\n";
+    let (status, key_id, signer) = parse_gpg_status_output(output, "Fallback Name");
+
+    assert_eq!(status, "UnknownKey");
+    assert_eq!(key_id, "DEADBEEF12345678");
+    assert_eq!(signer, "Fallback Name");
+}
+
+#[test]
+fn test_parse_gpg_status_output_expired_key() {
+    use basilico_lib::commands::gpg::parse_gpg_status_output;
+
+    let output = "[GNUPG:] EXPKEYSIG 1234ABCD Jane Doe <jane@example.com>\n";
+    let (status, key_id, signer) = parse_gpg_status_output(output, "Fallback Name");
+
+    assert_eq!(status, "ExpiredKey");
+    assert_eq!(key_id, "1234ABCD");
+    assert_eq!(signer, "Jane Doe <jane@example.com>");
+}
+
+#[test]
+fn test_parse_gpg_status_output_no_matching_lines_stays_unverified() {
+    use basilico_lib::commands::gpg::parse_gpg_status_output;
+
+    let (status, key_id, signer) = parse_gpg_status_output("", "Fallback Name");
+
+    assert_eq!(status, "Unverified");
+    assert_eq!(key_id, "GPG Key");
+    // Nothing overrode it, so the caller's supplied author name is used
+    // as-is — this is what lets a missing gpg binary fail safe rather
+    // than presenting an unverifiable signature as trusted.
+    assert_eq!(signer, "Fallback Name");
+}
+
+#[test]
+fn test_parse_gpg_status_output_goodsig_is_not_downgraded_by_a_later_errsig() {
+    use basilico_lib::commands::gpg::parse_gpg_status_output;
+
+    // A GOODSIG followed by an unrelated ERRSIG/NO_PUBKEY line (e.g. from a
+    // second, untrusted signature block) must not downgrade an
+    // already-resolved good signature back to "UnknownKey".
+    let output = "[GNUPG:] GOODSIG ABCDEF1234567890 Jane Doe <jane@example.com>\n\
+                   [GNUPG:] NO_PUBKEY 00000000\n";
+    let (status, key_id, signer) = parse_gpg_status_output(output, "Fallback Name");
+
+    assert_eq!(status, "Verified");
+    assert_eq!(key_id, "ABCDEF1234567890");
+    assert_eq!(signer, "Jane Doe <jane@example.com>");
+}
+
+#[test]
+fn test_user_settings_defaults_are_safe() {
+    use basilico_lib::commands::settings::UserSettings;
+
+    let defaults = UserSettings::default();
+    assert_eq!(defaults.bypass_hooks, Some(false));
+    assert_eq!(defaults.vim_mode_enabled, Some(false));
+    // Must default to off: this makes an unauthenticated request to
+    // api.github.com on every branch switch, and a desktop Git client
+    // should render correctly offline unless the user opts in.
+    assert_eq!(defaults.check_github_ci_status, Some(false));
+    assert_eq!(defaults.github_pat, None);
+    assert!(!defaults.keyboard_shortcuts.is_empty());
+}
+
+#[test]
+fn test_user_settings_round_trips_through_json() {
+    use basilico_lib::commands::settings::UserSettings;
+
+    let original = UserSettings {
+        github_pat: Some("ghp_test".to_string()),
+        check_github_ci_status: Some(true),
+        ..UserSettings::default()
+    };
+
+    let json = serde_json::to_string(&original).unwrap();
+    let parsed: UserSettings = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(parsed.github_pat, original.github_pat);
+    assert_eq!(
+        parsed.check_github_ci_status,
+        original.check_github_ci_status
+    );
+    assert_eq!(parsed.theme, original.theme);
+}
+
+/// A `settings.json` written before a field like `check_github_ci_status`
+/// existed must still load — serde gives `Option<T>` fields an implicit
+/// `None` default when absent, but this pins that behaviour so a future
+/// field addition that accidentally breaks it (e.g. by making the field
+/// required) is caught immediately instead of surfacing as "existing users
+/// can't open Settings" after a release.
+#[test]
+fn test_user_settings_deserializes_a_settings_file_missing_newer_fields() {
+    use basilico_lib::commands::settings::UserSettings;
+
+    let legacy_json = r#"{
+        "theme": "sage-green",
+        "sshKeyPath": null,
+        "gitAuthorName": null,
+        "gitAuthorEmail": null,
+        "keyboardShortcuts": {}
+    }"#;
+
+    let parsed: UserSettings = serde_json::from_str(legacy_json).unwrap();
+    assert_eq!(parsed.theme, "sage-green");
+    assert_eq!(parsed.check_github_ci_status, None);
+    assert_eq!(parsed.vim_mode_enabled, None);
+    assert_eq!(parsed.github_pat, None);
+}
+
+/// `settings.json` holds the GitHub PAT, so it must never be created with
+/// the default (world-readable) umask permissions.
+#[cfg(unix)]
+#[test]
+fn test_write_private_file_sets_0600_permissions() {
+    use basilico_lib::commands::settings::write_private_file;
+    use std::os::unix::fs::PermissionsExt;
+
+    let path = std::env::temp_dir().join(format!(
+        "basilico-settings-test-{}.json",
+        uuid::Uuid::new_v4()
+    ));
+    write_private_file(&path, r#"{"secret":"value"}"#).unwrap();
+
+    let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o600, "got mode {:o}", mode);
+
+    // Reopening an existing file must tighten its permissions too, in case
+    // it was written by an earlier version before this mode was enforced.
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+    write_private_file(&path, r#"{"secret":"value2"}"#).unwrap();
+    let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o600, "got mode {:o}", mode);
+
+    std::fs::remove_file(&path).ok();
 }
 
 #[tokio::test]
@@ -1615,4 +1786,676 @@ async fn test_workdir_reads_and_writes_refuse_symlinked_paths() {
     );
 
     std::fs::remove_file(&secret).ok();
+}
+
+/// Stash indices shift on every push/pop/drop. A UI that captured index 1 for
+/// a stash, then let something else (a CLI stash, a watcher-triggered
+/// refresh) drop an earlier entry, must still land on the right stash by OID
+/// rather than silently acting on whatever ended up at that stale index.
+#[tokio::test]
+async fn test_drop_stash_resolves_shifted_index_by_oid() {
+    use basilico_lib::commands::stash::{drop_stash, list_stashes, save_stash};
+
+    let repo = TempRepo::new();
+    repo.write_file("test.txt", "base");
+    repo.commit("initial commit");
+    let path = repo.path_str().to_string();
+
+    repo.write_file("test.txt", "change one");
+    save_stash(path.clone(), "first".to_string(), false)
+        .await
+        .unwrap();
+
+    repo.write_file("test.txt", "change two");
+    save_stash(path.clone(), "second".to_string(), false)
+        .await
+        .unwrap();
+
+    // git formats the stash commit message as "On <branch>: <message>", so
+    // match on substring rather than the raw message the caller supplied.
+    let stashes = list_stashes(path.clone()).await.unwrap();
+    assert_eq!(stashes.len(), 2);
+    let first_entry = stashes
+        .iter()
+        .find(|s| s.message.contains("first"))
+        .expect("the 'first' stash should still be present");
+    let first_oid = first_entry.oid.clone();
+    assert_eq!(
+        first_entry.index, 1,
+        "'first' should currently be the older, index-1 stash"
+    );
+
+    // Drop the newest stash directly by its current index — this is the
+    // "something else changed the list" step. "first" now shifts to index 0.
+    drop_stash(path.clone(), 0, None).await.unwrap();
+
+    // The caller still believes "first" is at index 1 (its OID, captured
+    // before the shift, is what makes this resolvable).
+    drop_stash(path.clone(), 1, Some(first_oid))
+        .await
+        .expect("a stale index must still resolve correctly via OID");
+
+    let remaining = list_stashes(path).await.unwrap();
+    assert!(
+        remaining.is_empty(),
+        "both stashes should be gone, got: {:?}",
+        remaining
+    );
+}
+
+/// If the stash a caller is targeting has already been removed by the time
+/// the action runs, resolution must fail loudly rather than silently acting
+/// on whatever now occupies that index.
+#[tokio::test]
+async fn test_apply_stash_errors_when_stash_no_longer_exists() {
+    use basilico_lib::commands::stash::{apply_stash, drop_stash, list_stashes, save_stash};
+
+    let repo = TempRepo::new();
+    repo.write_file("test.txt", "base");
+    repo.commit("initial commit");
+    let path = repo.path_str().to_string();
+
+    repo.write_file("test.txt", "change");
+    save_stash(path.clone(), "only".to_string(), false)
+        .await
+        .unwrap();
+    let oid = list_stashes(path.clone()).await.unwrap()[0].oid.clone();
+
+    drop_stash(path.clone(), 0, None).await.unwrap();
+
+    let err = apply_stash(path, 0, Some(oid))
+        .await
+        .expect_err("applying a dropped stash must fail");
+    assert!(
+        err.message.contains("no longer exists"),
+        "got: {}",
+        err.message
+    );
+}
+
+/// The common case — the index the caller supplies still matches the OID it
+/// was captured with — must keep working via the fast path.
+#[tokio::test]
+async fn test_pop_stash_succeeds_when_index_still_matches_oid() {
+    use basilico_lib::commands::stash::{list_stashes, pop_stash, save_stash};
+
+    let repo = TempRepo::new();
+    repo.write_file("test.txt", "base");
+    repo.commit("initial commit");
+    let path = repo.path_str().to_string();
+
+    repo.write_file("test.txt", "change");
+    save_stash(path.clone(), "only".to_string(), false)
+        .await
+        .unwrap();
+    let oid = list_stashes(path.clone()).await.unwrap()[0].oid.clone();
+
+    pop_stash(path.clone(), 0, Some(oid)).await.unwrap();
+
+    assert!(list_stashes(path.clone()).await.unwrap().is_empty());
+    assert_eq!(
+        std::fs::read_to_string(repo.path.join("test.txt")).unwrap(),
+        "change"
+    );
+}
+
+#[tokio::test]
+async fn test_create_lightweight_tag_and_list() {
+    let repo = TempRepo::new();
+    repo.write_file("test.txt", "hello");
+    repo.commit("initial commit");
+    let path = repo.path_str().to_string();
+    let head_oid = repo.repo.head().unwrap().peel_to_commit().unwrap().id();
+
+    create_tag(
+        path.clone(),
+        "v1.0.0".to_string(),
+        head_oid.to_string(),
+        None,
+        false,
+    )
+    .await
+    .unwrap();
+
+    let tags = list_tags(path).await.unwrap();
+    let tag = tags.iter().find(|t| t.name == "v1.0.0").unwrap();
+    assert!(!tag.is_annotated);
+    assert_eq!(tag.oid, head_oid.to_string());
+    assert!(tag.message.is_none());
+    assert!(tag.tagger.is_none());
+}
+
+#[tokio::test]
+async fn test_create_annotated_tag_and_list() {
+    let repo = TempRepo::new();
+    repo.write_file("test.txt", "hello");
+    repo.commit("initial commit");
+    let path = repo.path_str().to_string();
+    let head_oid = repo.repo.head().unwrap().peel_to_commit().unwrap().id();
+
+    create_tag(
+        path.clone(),
+        "v2.0.0".to_string(),
+        head_oid.to_string(),
+        Some("Release 2.0.0".to_string()),
+        false,
+    )
+    .await
+    .unwrap();
+
+    let tags = list_tags(path).await.unwrap();
+    let tag = tags.iter().find(|t| t.name == "v2.0.0").unwrap();
+    assert!(tag.is_annotated);
+    assert_eq!(tag.message.as_deref(), Some("Release 2.0.0"));
+    assert!(tag.tagger.as_deref().unwrap().contains("Test User"));
+}
+
+#[tokio::test]
+async fn test_create_tag_without_force_rejects_existing_name() {
+    let repo = TempRepo::new();
+    repo.write_file("test.txt", "hello");
+    repo.commit("initial commit");
+    let path = repo.path_str().to_string();
+    let head_oid = repo.repo.head().unwrap().peel_to_commit().unwrap().id();
+
+    create_tag(
+        path.clone(),
+        "v1.0.0".to_string(),
+        head_oid.to_string(),
+        None,
+        false,
+    )
+    .await
+    .unwrap();
+
+    let result = create_tag(
+        path.clone(),
+        "v1.0.0".to_string(),
+        head_oid.to_string(),
+        None,
+        false,
+    )
+    .await;
+    assert!(result.is_err());
+
+    // force=true must overwrite it without error
+    create_tag(path, "v1.0.0".to_string(), head_oid.to_string(), None, true)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn test_delete_tag_removes_it() {
+    let repo = TempRepo::new();
+    repo.write_file("test.txt", "hello");
+    repo.commit("initial commit");
+    let path = repo.path_str().to_string();
+    let head_oid = repo.repo.head().unwrap().peel_to_commit().unwrap().id();
+
+    create_tag(
+        path.clone(),
+        "to-delete".to_string(),
+        head_oid.to_string(),
+        None,
+        false,
+    )
+    .await
+    .unwrap();
+    assert!(list_tags(path.clone())
+        .await
+        .unwrap()
+        .iter()
+        .any(|t| t.name == "to-delete"));
+
+    delete_tag(path.clone(), "to-delete".to_string())
+        .await
+        .unwrap();
+
+    assert!(!list_tags(path)
+        .await
+        .unwrap()
+        .iter()
+        .any(|t| t.name == "to-delete"));
+}
+
+#[tokio::test]
+async fn test_cherry_pick_commit_applies_cleanly() {
+    let repo = TempRepo::new();
+    repo.write_file("test.txt", "base");
+    repo.commit("initial commit");
+    let main_branch_name = repo.repo.head().unwrap().shorthand().unwrap().to_string();
+
+    create_branch(repo.path_str().to_string(), "feature".to_string(), None)
+        .await
+        .unwrap();
+    checkout_branch(repo.path_str().to_string(), "feature".to_string())
+        .await
+        .unwrap();
+    repo.write_file("other.txt", "from feature");
+    repo.commit("add other.txt");
+    let feature_oid = repo.repo.head().unwrap().peel_to_commit().unwrap().id();
+
+    checkout_branch(repo.path_str().to_string(), main_branch_name)
+        .await
+        .unwrap();
+
+    let result = cherry_pick_commit(repo.path_str().to_string(), feature_oid.to_string())
+        .await
+        .unwrap();
+    assert_eq!(result, "success");
+    assert_eq!(
+        std::fs::read_to_string(repo.path.join("other.txt")).unwrap(),
+        "from feature"
+    );
+    let head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    assert_eq!(head.message().unwrap(), "add other.txt");
+}
+
+#[tokio::test]
+async fn test_cherry_pick_commit_conflicts_and_abort() {
+    let repo = TempRepo::new();
+    repo.write_file("test.txt", "base");
+    repo.commit("initial commit");
+    let main_branch_name = repo.repo.head().unwrap().shorthand().unwrap().to_string();
+
+    create_branch(repo.path_str().to_string(), "feature".to_string(), None)
+        .await
+        .unwrap();
+    checkout_branch(repo.path_str().to_string(), "feature".to_string())
+        .await
+        .unwrap();
+    repo.write_file("test.txt", "feature change");
+    repo.commit("feature change");
+    let feature_oid = repo.repo.head().unwrap().peel_to_commit().unwrap().id();
+
+    checkout_branch(repo.path_str().to_string(), main_branch_name)
+        .await
+        .unwrap();
+    repo.write_file("test.txt", "main change");
+    repo.commit("main change");
+
+    let result = cherry_pick_commit(repo.path_str().to_string(), feature_oid.to_string())
+        .await
+        .unwrap();
+    assert_eq!(result, "conflicts");
+
+    cherry_pick_abort(repo.path_str().to_string())
+        .await
+        .unwrap();
+
+    assert_eq!(repo.repo.state(), git2::RepositoryState::Clean);
+    assert_eq!(
+        std::fs::read_to_string(repo.path.join("test.txt")).unwrap(),
+        "main change"
+    );
+}
+
+#[tokio::test]
+async fn test_revert_commit_applies_cleanly() {
+    let repo = TempRepo::new();
+    repo.write_file("test.txt", "base");
+    repo.commit("initial commit");
+    repo.write_file("test.txt", "changed");
+    repo.commit("change test.txt");
+    let to_revert = repo.repo.head().unwrap().peel_to_commit().unwrap().id();
+
+    let result = revert_commit(repo.path_str().to_string(), to_revert.to_string())
+        .await
+        .unwrap();
+    assert_eq!(result, "success");
+    assert_eq!(
+        std::fs::read_to_string(repo.path.join("test.txt")).unwrap(),
+        "base"
+    );
+}
+
+#[tokio::test]
+async fn test_revert_commit_conflicts_and_abort() {
+    let repo = TempRepo::new();
+    repo.write_file("test.txt", "base");
+    repo.commit("initial commit");
+    repo.write_file("test.txt", "changed");
+    repo.commit("change test.txt");
+    let to_revert = repo.repo.head().unwrap().peel_to_commit().unwrap().id();
+
+    // Overlapping edit on top of the commit-to-revert makes a clean revert
+    // impossible, forcing the conflict path.
+    repo.write_file("test.txt", "changed again, overlapping the reverted lines");
+    repo.commit("further change");
+
+    let result = revert_commit(repo.path_str().to_string(), to_revert.to_string())
+        .await
+        .unwrap();
+    assert_eq!(result, "conflicts");
+
+    revert_abort(repo.path_str().to_string()).await.unwrap();
+
+    assert_eq!(repo.repo.state(), git2::RepositoryState::Clean);
+    assert_eq!(
+        std::fs::read_to_string(repo.path.join("test.txt")).unwrap(),
+        "changed again, overlapping the reverted lines"
+    );
+}
+
+#[tokio::test]
+async fn test_fetch_updates_remote_tracking_branch_without_touching_local() {
+    use basilico_lib::commands::remote::{fetch, push};
+
+    let repo = TempRepo::new();
+    repo.write_file("f.txt", "one");
+    repo.commit("one");
+    let branch = repo.repo.head().unwrap().shorthand().unwrap().to_string();
+
+    let remote_path = repo
+        .path
+        .parent()
+        .unwrap()
+        .join(format!("remote-{}.git", uuid::Uuid::new_v4()));
+    git2::Repository::init_bare(&remote_path).unwrap();
+    repo.repo
+        .remote("origin", remote_path.to_str().unwrap())
+        .unwrap();
+
+    let app = tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap()
+        .handle()
+        .clone();
+
+    push(
+        app.clone(),
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch.clone(),
+        false,
+        None,
+    )
+    .await
+    .expect("initial push should succeed");
+
+    // Simulate another client pushing a further commit directly to the bare remote.
+    let remote_repo = git2::Repository::open(&remote_path).unwrap();
+    let remote_head = remote_repo.head().unwrap().peel_to_commit().unwrap();
+    let sig = git2::Signature::now("Other", "other@example.com").unwrap();
+    let tree = remote_head.tree().unwrap();
+    let new_remote_oid = remote_repo
+        .commit(
+            Some(&format!("refs/heads/{}", branch)),
+            &sig,
+            &sig,
+            "remote side moved on",
+            &tree,
+            &[&remote_head],
+        )
+        .unwrap();
+
+    fetch(app, repo.path_str().to_string(), "origin".to_string())
+        .await
+        .unwrap();
+
+    let tracking_ref = repo
+        .repo
+        .find_reference(&format!("refs/remotes/origin/{}", branch))
+        .unwrap();
+    assert_eq!(tracking_ref.target().unwrap(), new_remote_oid);
+
+    // Fetch alone must not move the local working branch.
+    let local_head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    assert_eq!(local_head.message().unwrap(), "one");
+}
+
+#[tokio::test]
+async fn test_pull_fast_forwards_local_branch() {
+    use basilico_lib::commands::remote::{pull, push};
+
+    let repo = TempRepo::new();
+    repo.write_file("f.txt", "one");
+    repo.commit("one");
+    let branch = repo.repo.head().unwrap().shorthand().unwrap().to_string();
+
+    let remote_path = repo
+        .path
+        .parent()
+        .unwrap()
+        .join(format!("remote-{}.git", uuid::Uuid::new_v4()));
+    git2::Repository::init_bare(&remote_path).unwrap();
+    repo.repo
+        .remote("origin", remote_path.to_str().unwrap())
+        .unwrap();
+
+    let app = tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap()
+        .handle()
+        .clone();
+
+    push(
+        app.clone(),
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch.clone(),
+        false,
+        None,
+    )
+    .await
+    .expect("initial push should succeed");
+
+    let remote_repo = git2::Repository::open(&remote_path).unwrap();
+    let remote_head = remote_repo.head().unwrap().peel_to_commit().unwrap();
+    let sig = git2::Signature::now("Other", "other@example.com").unwrap();
+    let tree = remote_head.tree().unwrap();
+    remote_repo
+        .commit(
+            Some(&format!("refs/heads/{}", branch)),
+            &sig,
+            &sig,
+            "remote commit 2",
+            &tree,
+            &[&remote_head],
+        )
+        .unwrap();
+
+    let result = pull(
+        app,
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result, "success");
+
+    let local_head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    assert_eq!(local_head.message().unwrap(), "remote commit 2");
+}
+
+#[tokio::test]
+async fn test_pull_reports_conflicts_and_leaves_them_resolvable() {
+    use basilico_lib::commands::remote::{pull, push};
+
+    let repo = TempRepo::new();
+    repo.write_file("test.txt", "base");
+    repo.commit("initial commit");
+    let branch = repo.repo.head().unwrap().shorthand().unwrap().to_string();
+
+    let remote_path = repo
+        .path
+        .parent()
+        .unwrap()
+        .join(format!("remote-{}.git", uuid::Uuid::new_v4()));
+    git2::Repository::init_bare(&remote_path).unwrap();
+    repo.repo
+        .remote("origin", remote_path.to_str().unwrap())
+        .unwrap();
+
+    let app = tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap()
+        .handle()
+        .clone();
+
+    push(
+        app.clone(),
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch.clone(),
+        false,
+        None,
+    )
+    .await
+    .expect("initial push should succeed");
+
+    // Remote side changes test.txt directly on the bare repo.
+    let remote_repo = git2::Repository::open(&remote_path).unwrap();
+    let remote_head = remote_repo.head().unwrap().peel_to_commit().unwrap();
+    let sig = git2::Signature::now("Other", "other@example.com").unwrap();
+    let mut treebuilder = remote_repo.treebuilder(None).unwrap();
+    let blob = remote_repo.blob(b"remote change").unwrap();
+    treebuilder.insert("test.txt", blob, 0o100644).unwrap();
+    let tree_oid = treebuilder.write().unwrap();
+    let tree = remote_repo.find_tree(tree_oid).unwrap();
+    remote_repo
+        .commit(
+            Some(&format!("refs/heads/{}", branch)),
+            &sig,
+            &sig,
+            "remote change",
+            &tree,
+            &[&remote_head],
+        )
+        .unwrap();
+
+    // Local side changes the same file differently, so the merge cannot be clean.
+    repo.write_file("test.txt", "local change");
+    repo.commit("local change");
+
+    let result = pull(
+        app,
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result, "conflicts");
+
+    let conflicts = get_conflicts(repo.path_str().to_string()).await.unwrap();
+    assert_eq!(conflicts, vec!["test.txt".to_string()]);
+
+    abort_merge(repo.path_str().to_string()).await.unwrap();
+}
+
+#[tokio::test]
+async fn test_remove_worktree_removes_it() {
+    let repo = TempRepo::new();
+    repo.write_file("main.txt", "main content");
+    repo.commit("initial commit");
+
+    add_worktree(
+        repo.path_str().to_string(),
+        "wt-remove".to_string(),
+        None,
+        Some("wt-remove-branch".to_string()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        list_worktrees(repo.path_str().to_string())
+            .await
+            .unwrap()
+            .len(),
+        2
+    );
+
+    remove_worktree(repo.path_str().to_string(), "wt-remove".to_string(), false)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        list_worktrees(repo.path_str().to_string())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn test_prune_worktrees_clears_stale_administrative_entries() {
+    let repo = TempRepo::new();
+    repo.write_file("main.txt", "main content");
+    repo.commit("initial commit");
+
+    add_worktree(
+        repo.path_str().to_string(),
+        "wt-prune".to_string(),
+        None,
+        Some("wt-prune-branch".to_string()),
+    )
+    .await
+    .unwrap();
+
+    // Delete the worktree directory directly, without `worktree remove`, so
+    // git's administrative metadata under .git/worktrees/ goes stale.
+    std::fs::remove_dir_all(repo.path.join("wt-prune")).unwrap();
+    assert_eq!(
+        list_worktrees(repo.path_str().to_string())
+            .await
+            .unwrap()
+            .len(),
+        2,
+        "git still reports the stale entry until it is pruned"
+    );
+
+    prune_worktrees(repo.path_str().to_string()).await.unwrap();
+
+    assert_eq!(
+        list_worktrees(repo.path_str().to_string())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn test_lock_worktree_prevents_removal_until_unlocked() {
+    let repo = TempRepo::new();
+    repo.write_file("main.txt", "main content");
+    repo.commit("initial commit");
+
+    add_worktree(
+        repo.path_str().to_string(),
+        "wt-lock".to_string(),
+        None,
+        Some("wt-lock-branch".to_string()),
+    )
+    .await
+    .unwrap();
+
+    lock_worktree(
+        repo.path_str().to_string(),
+        "wt-lock".to_string(),
+        Some("testing lock".to_string()),
+    )
+    .await
+    .unwrap();
+
+    let result = remove_worktree(repo.path_str().to_string(), "wt-lock".to_string(), false).await;
+    assert!(result.is_err(), "a locked worktree must refuse removal");
+
+    unlock_worktree(repo.path_str().to_string(), "wt-lock".to_string())
+        .await
+        .unwrap();
+
+    remove_worktree(repo.path_str().to_string(), "wt-lock".to_string(), false)
+        .await
+        .unwrap();
+    assert_eq!(
+        list_worktrees(repo.path_str().to_string())
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
 }

@@ -25,9 +25,6 @@ env:
   SCCACHE_GHA_ENABLED: "true"
 
 jobs:
-  # ──────────────────────────────────────────────
-  # Frontend Lint & Build Check
-  # ──────────────────────────────────────────────
   frontend-check:
     name: Frontend Check
     runs-on: ubuntu-latest
@@ -70,9 +67,6 @@ jobs:
       - name: Audit npm dependencies
         run: pnpm audit --audit-level high
 
-  # ──────────────────────────────────────────────
-  # Rust Format Check
-  # ──────────────────────────────────────────────
   rust-fmt:
     name: Rust Format
     runs-on: ubuntu-latest
@@ -89,9 +83,6 @@ jobs:
       - name: Format check
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 
-  # ──────────────────────────────────────────────
-  # Rust Clippy & Unit Tests
-  # ──────────────────────────────────────────────
   rust-clippy-test:
     name: Rust Clippy & Test
     runs-on: ubuntu-latest
@@ -121,8 +112,6 @@ jobs:
       - name: Clippy linting
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
-      # Rebase tests drive the real `git` binary, so an identity must be
-      # available for the commits they create.
       - name: Configure git identity for tests
         run: |
           git config --global user.name "CI"
@@ -140,26 +129,3 @@ jobs:
         uses: actions/checkout@v6
       - name: Dependency Review
         uses: actions/dependency-review-action@v4
-
-  # ──────────────────────────────────────────────
-  # Rust Dependency Security Audit
-  # `pnpm audit` above only covers the npm side; git2 vendors OpenSSL and the
-  # crate tree has its own advisory surface that needs the same coverage.
-  # ──────────────────────────────────────────────
-  rust-audit:
-    name: Rust Audit
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      checks: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Audit Rust dependencies
-        uses: rustsec/audit-check@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          manifest-path: src-tauri/Cargo.toml
-

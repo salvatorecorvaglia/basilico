@@ -17,9 +17,6 @@ env:
   NODE_OPTIONS: "--max-old-space-size=6144"
 
 jobs:
-  # ──────────────────────────────────────────────
-  # Validate Tag Ref
-  # ──────────────────────────────────────────────
   validate:
     name: Validate Tag Ref
     runs-on: ubuntu-latest
@@ -33,28 +30,25 @@ jobs:
             echo "::error::Release workflow must be run on a version tag ref starting with 'v' (e.g. refs/tags/v1.0.0)"
             exit 1
           fi
-          
+
           TAG_VERSION="${GITHUB_REF#refs/tags/v}"
-          
-          # Read package.json version
+
           PKG_VERSION=$(jq -r .version package.json)
-          
-          # Read tauri.conf.json version
+
           TAURI_VERSION=$(jq -r .version src-tauri/tauri.conf.json)
-          
-          # Read Cargo.toml version
+
           CARGO_VERSION=$(grep -m 1 '^version = ' src-tauri/Cargo.toml | cut -d '"' -f 2)
-          
+
           echo "Tag version: $TAG_VERSION"
           echo "package.json version: $PKG_VERSION"
           echo "tauri.conf.json version: $TAURI_VERSION"
           echo "Cargo.toml version: $CARGO_VERSION"
-          
+
           if [[ "$TAG_VERSION" != "$PKG_VERSION" ]]; then
             echo "::error::Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
             exit 1
           fi
-          
+
           if [[ "$TAG_VERSION" != "$TAURI_VERSION" ]]; then
             echo "::error::Tag version ($TAG_VERSION) does not match tauri.conf.json version ($TAURI_VERSION)"
             exit 1
@@ -65,9 +59,6 @@ jobs:
             exit 1
           fi
 
-  # ──────────────────────────────────────────────
-  # Build & Publish – Tauri Platforms Matrix
-  # ──────────────────────────────────────────────
   publish-tauri:
     name: Release (${{ matrix.platform }})
     permissions:
@@ -153,9 +144,6 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
-  # ──────────────────────────────────────────────
-  # Finalize – update release description and publish
-  # ──────────────────────────────────────────────
   finalize:
     name: Finalize Release
     runs-on: ubuntu-latest

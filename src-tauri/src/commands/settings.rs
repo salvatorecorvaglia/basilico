@@ -70,7 +70,7 @@ impl Default for UserSettings {
 /// world-readable 0644 on Unix) would expose the token to every local account.
 /// The mode is applied at creation time so there is no window where the file
 /// exists with broader permissions.
-fn write_private_file(path: &PathBuf, content: &str) -> std::io::Result<()> {
+pub fn write_private_file(path: &PathBuf, content: &str) -> std::io::Result<()> {
     use std::io::Write;
 
     let mut opts = fs::OpenOptions::new();
