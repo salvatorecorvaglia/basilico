@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Force-Push Support & Confirmation Modal**: Added right-click context option for force-pushing branches from the toolbar, protected with an explicit danger confirmation modal.
+- **Opt-In GitHub CI Status Check**: Added a dedicated user setting to make GitHub Actions CI status polling strictly opt-in, reducing unnecessary API requests and network activity.
+- **Safe External URL Protocol Sanitization**: Added URL validation in `openExternalUrl` to restrict opened links strictly to approved safe protocols (`http:`, `https:`, `mailto:`).
+- **Expanded Frontend & Backend Test Suites**: Added component test coverage for `DiffView`, `RebaseEditor`, `BranchTree`, `RemoteTree`, `StagingArea`, `StatusBar`, `Toolbar`, `ConfirmModal`, `PromptModal`, and `Sidebar` in `tests/components/`, alongside extensive Rust backend command integration tests in `src-tauri/tests/commands_tests.rs`.
+
+### Changed
+
+- **Commit Search & Pagination Handling**: Refactored the `search_commits` backend command and `git-data-slice` store actions to handle pagination and filtering robustly without stale data retention.
+- **Tab State Scoping & Isolation**: Scoped active tab state in Zustand store to prevent state leakage between separate repository tabs and fixed React hook rule compliance in `Sidebar`.
+- **Git & GPG Workflow Hardening**: Hardened GPG key listing and signing subprocess handlers, centralized Git CLI execution and merge logic in `src-tauri/src/git/helpers.rs`, and updated `git2` method calls to handle `Result` types consistently.
+- **Modal Double-Submission Guards**: Added disabled/submitting state guards to `ConfirmModal` and `PromptModal` to prevent duplicate submissions during asynchronous operations.
+- **Test Suite & Asset Organization**: Moved all frontend unit and component tests to a unified top-level `tests/` directory (`tests/components/`, `tests/lib/`) and relocated static web assets to `resources/` with Vite `publicDir` configuration.
+- **Dependency Upgrades**: Updated frontend and Rust crate dependencies to their latest compatible versions.
+
 ## [1.1.1] - 2026-08-13
 
 ### Fixed
