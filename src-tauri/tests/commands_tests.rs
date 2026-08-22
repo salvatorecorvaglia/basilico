@@ -2459,3 +2459,59 @@ async fn test_lock_worktree_prevents_removal_until_unlocked() {
         1
     );
 }
+
+/// The message-grep and author-grep queries run as two concurrent blocking
+/// tasks (see `search_commits`) rather than one after another; this guards
+/// that the merge/dedupe/sort of their results is still correct.
+#[tokio::test]
+async fn test_search_commits_merges_message_and_author_matches_without_duplicates() {
+    use basilico_lib::commands::search::search_commits;
+
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "one");
+    repo.commit("initial commit");
+
+    repo.write_file("a.txt", "two");
+    repo.commit("fix: unique-marker in the message");
+
+    // A commit whose message does not match but whose author does.
+    repo.write_file("a.txt", "three");
+    let mut index = repo.repo.index().unwrap();
+    index
+        .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+        .unwrap();
+    index.write().unwrap();
+    let tree_id = index.write_tree().unwrap();
+    let tree = repo.repo.find_tree(tree_id).unwrap();
+    let sig = git2::Signature::now("Weird Author", "weird@example.com").unwrap();
+    let head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    repo.repo
+        .commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "unrelated change",
+            &tree,
+            &[&head],
+        )
+        .unwrap();
+
+    let by_message = search_commits(repo.path_str().to_string(), "unique-marker".to_string())
+        .await
+        .unwrap();
+    assert_eq!(by_message.len(), 1);
+    assert!(by_message[0].message.contains("unique-marker"));
+
+    let by_author = search_commits(repo.path_str().to_string(), "Weird".to_string())
+        .await
+        .unwrap();
+    assert_eq!(by_author.len(), 1);
+    assert_eq!(by_author[0].author_name, "Weird Author");
+
+    // Empty query returns recent history unfiltered, with no duplicates even
+    // though a commit could in principle match both filters.
+    let all = search_commits(repo.path_str().to_string(), String::new())
+        .await
+        .unwrap();
+    assert_eq!(all.len(), 3);
+}

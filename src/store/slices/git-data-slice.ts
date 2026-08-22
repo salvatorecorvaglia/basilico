@@ -14,6 +14,12 @@ import * as commands from "../../lib/tauri-commands";
 import { setLoading } from "../store-helpers";
 import type { RepoState } from "../types";
 
+// The initial commit page size. A refresh must fetch at least this many, but
+// if the user has scrolled further via loadMoreCommits, refetching only this
+// many would silently truncate the list back down and lose their place —
+// so refreshes request max(this, what's already loaded) instead.
+const DEFAULT_COMMIT_PAGE_SIZE = 500;
+
 export interface GitDataSlice {
   repoInfo: RepoInfo | null;
   status: RepoStatus | null;
@@ -100,6 +106,7 @@ export const createGitDataSlice: StateCreator<
       firstParentOnly,
       hideRemoteBranches,
       pathFilter,
+      commits: loadedCommits,
     } = get();
     if (!activeTabId) return;
 
@@ -109,7 +116,7 @@ export const createGitDataSlice: StateCreator<
         commands.getStatus(activeTabId, { silent: true }),
         commands.getLog(
           activeTabId,
-          500,
+          Math.max(DEFAULT_COMMIT_PAGE_SIZE, loadedCommits.length),
           firstParentOnly,
           hideRemoteBranches,
           pathFilter,
@@ -157,6 +164,7 @@ export const createGitDataSlice: StateCreator<
       firstParentOnly,
       hideRemoteBranches,
       pathFilter,
+      commits: loadedCommits,
     } = get();
     if (!activeTabId) return;
 
@@ -182,7 +190,7 @@ export const createGitDataSlice: StateCreator<
           safeCall(commands.listRemotes(activeTabId, { silent: true }), []),
           commands.getLog(
             activeTabId,
-            500,
+            Math.max(DEFAULT_COMMIT_PAGE_SIZE, loadedCommits.length),
             firstParentOnly,
             hideRemoteBranches,
             pathFilter,

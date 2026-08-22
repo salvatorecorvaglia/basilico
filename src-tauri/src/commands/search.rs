@@ -76,47 +76,69 @@ pub async fn search_commits(
     repo_path: String,
     query: String,
 ) -> Result<Vec<GraphCommit>, AppError> {
-    let query_trimmed = query.trim();
+    let query_trimmed = query.trim().to_string();
+
     if query_trimmed.is_empty() {
-        return run_git_log(
-            &repo_path,
+        let repo_path = repo_path.clone();
+        return tokio::task::spawn_blocking(move || {
+            run_git_log(
+                &repo_path,
+                &[
+                    "log",
+                    "--all",
+                    "-n",
+                    "200",
+                    "--format=%H%x00%h%x00%s%x00%an%x00%ae%x00%at%x00%cn%x00%ct%x00%P",
+                ],
+            )
+        })
+        .await?;
+    }
+
+    // Message and author are separate `git log` filters that AND together, so
+    // matching "either" requires two invocations. Each is a blocking
+    // subprocess call, so they are run on their own blocking-pool threads
+    // rather than one after another on the same one — the actual git
+    // processes then run concurrently instead of doubling wall-clock latency.
+    let msg_repo_path = repo_path.clone();
+    let msg_query = query_trimmed.clone();
+    let msg_task = tokio::task::spawn_blocking(move || {
+        run_git_log(
+            &msg_repo_path,
             &[
                 "log",
                 "--all",
+                "--grep",
+                &msg_query,
+                "-i",
                 "-n",
                 "200",
                 "--format=%H%x00%h%x00%s%x00%an%x00%ae%x00%at%x00%cn%x00%ct%x00%P",
             ],
-        );
-    }
+        )
+    });
 
-    let mut msg_commits = run_git_log(
-        &repo_path,
-        &[
-            "log",
-            "--all",
-            "--grep",
-            query_trimmed,
-            "-i",
-            "-n",
-            "200",
-            "--format=%H%x00%h%x00%s%x00%an%x00%ae%x00%at%x00%cn%x00%ct%x00%P",
-        ],
-    )?;
+    let author_repo_path = repo_path.clone();
+    let author_query = query_trimmed.clone();
+    let author_task = tokio::task::spawn_blocking(move || {
+        run_git_log(
+            &author_repo_path,
+            &[
+                "log",
+                "--all",
+                "--author",
+                &author_query,
+                "-i",
+                "-n",
+                "200",
+                "--format=%H%x00%h%x00%s%x00%an%x00%ae%x00%at%x00%cn%x00%ct%x00%P",
+            ],
+        )
+    });
 
-    let author_commits = run_git_log(
-        &repo_path,
-        &[
-            "log",
-            "--all",
-            "--author",
-            query_trimmed,
-            "-i",
-            "-n",
-            "200",
-            "--format=%H%x00%h%x00%s%x00%an%x00%ae%x00%at%x00%cn%x00%ct%x00%P",
-        ],
-    )?;
+    let (msg_result, author_result) = tokio::join!(msg_task, author_task);
+    let mut msg_commits = msg_result??;
+    let author_commits = author_result??;
 
     msg_commits.extend(author_commits);
 
@@ -172,49 +194,53 @@ pub async fn grep_code(repo_path: String, query: String) -> Result<Vec<GrepMatch
         return Ok(Vec::new());
     }
 
-    let args = [
-        "grep",
-        "-n",
-        "-I",
-        "--no-color",
-        "--fixed-strings",
-        "-e",
-        query.as_str(),
-    ];
-    let output = crate::commands::git_output(&args, &repo_path)?;
+    tokio::task::spawn_blocking(move || {
+        let args = [
+            "grep",
+            "-n",
+            "-I",
+            "--no-color",
+            "--fixed-strings",
+            "-e",
+            query.as_str(),
+        ];
+        let output = crate::commands::git_output(&args, &repo_path)?;
 
-    // `git grep` exits 1 when there are simply no matches; anything above that
-    // is a real failure that must not be reported to the user as "no results".
-    match output.status.code() {
-        Some(0) | Some(1) => {}
-        _ => {
-            return Err(AppError::git(crate::commands::git_failure_message(
-                &args, &output,
-            )));
+        // `git grep` exits 1 when there are simply no matches; anything above
+        // that is a real failure that must not be reported to the user as "no
+        // results".
+        match output.status.code() {
+            Some(0) | Some(1) => {}
+            _ => {
+                return Err(AppError::git(crate::commands::git_failure_message(
+                    &args, &output,
+                )));
+            }
         }
-    }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
+        let stdout = String::from_utf8_lossy(&output.stdout);
 
-    let mut matches = Vec::new();
-    for line in stdout.lines() {
-        // A broad query over a large repository can match hundreds of
-        // thousands of lines; every one would be serialised over IPC and
-        // rendered into an unwindowed list. Stop at a bound the UI can
-        // actually show, matching the truncation the diff parser already does.
-        if matches.len() >= GREP_MATCH_LIMIT {
-            break;
+        let mut matches = Vec::new();
+        for line in stdout.lines() {
+            // A broad query over a large repository can match hundreds of
+            // thousands of lines; every one would be serialised over IPC and
+            // rendered into an unwindowed list. Stop at a bound the UI can
+            // actually show, matching the truncation the diff parser already does.
+            if matches.len() >= GREP_MATCH_LIMIT {
+                break;
+            }
+            // Paths may contain ':' (and always do on Windows), so anchor the split
+            // on the line-number field rather than taking the first two colons.
+            if let Some((file_path, line_number, content)) = split_grep_line(line) {
+                matches.push(GrepMatch {
+                    file_path,
+                    line_number,
+                    content,
+                });
+            }
         }
-        // Paths may contain ':' (and always do on Windows), so anchor the split
-        // on the line-number field rather than taking the first two colons.
-        if let Some((file_path, line_number, content)) = split_grep_line(line) {
-            matches.push(GrepMatch {
-                file_path,
-                line_number,
-                content,
-            });
-        }
-    }
 
-    Ok(matches)
+        Ok(matches)
+    })
+    .await?
 }

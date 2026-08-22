@@ -289,6 +289,53 @@ describe("repo store — commit pagination", () => {
       "c",
     ]);
   });
+
+  // A mutating action (checkout, commit, push, ...) triggers a refresh that
+  // re-fetches from the top. If that always asked for the default page size,
+  // a user who had scrolled past it via loadMoreCommits would silently lose
+  // everything beyond it on the very next action.
+  it("refreshCommitsAndStatus requests at least as many commits as are already loaded", async () => {
+    const loaded = Array.from({ length: 650 }, (_, i) => commit(String(i)));
+    useRepoStore.setState({ activeTabId: "/repo", commits: loaded });
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === "get_log" || cmd === "get_status"
+        ? Promise.resolve(cmd === "get_log" ? loaded : null)
+        : Promise.resolve([]),
+    );
+
+    await useRepoStore.getState().refreshCommitsAndStatus();
+
+    const call = invokeMock.mock.calls.find((c) => c[0] === "get_log");
+    expect(call?.[1]).toMatchObject({ maxCommits: 650 });
+  });
+
+  it("refreshAll requests at least as many commits as are already loaded", async () => {
+    const loaded = Array.from({ length: 650 }, (_, i) => commit(String(i)));
+    useRepoStore.setState({ activeTabId: "/repo", commits: loaded });
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === "get_log" ? Promise.resolve(loaded) : Promise.resolve([]),
+    );
+
+    await useRepoStore.getState().refreshAll();
+
+    const call = invokeMock.mock.calls.find((c) => c[0] === "get_log");
+    expect(call?.[1]).toMatchObject({ maxCommits: 650 });
+  });
+
+  it("still requests the default page size when fewer commits were loaded", async () => {
+    useRepoStore.setState({
+      activeTabId: "/repo",
+      commits: [commit("a"), commit("b")],
+    });
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === "get_log" ? Promise.resolve([commit("a")]) : Promise.resolve([]),
+    );
+
+    await useRepoStore.getState().refreshAll();
+
+    const call = invokeMock.mock.calls.find((c) => c[0] === "get_log");
+    expect(call?.[1]).toMatchObject({ maxCommits: 500 });
+  });
 });
 
 describe("repo store — tab switch/close clears per-tab state", () => {
