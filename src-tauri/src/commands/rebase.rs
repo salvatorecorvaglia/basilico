@@ -57,6 +57,23 @@ fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', r"'\''"))
 }
 
+/// Confirm `oid` is a well-formed, plain hex commit id.
+///
+/// `oid` is written verbatim into a line of the `git-rebase-todo` file that
+/// `git rebase -i` parses one line at a time. A value that isn't strictly hex
+/// digits — in particular one containing a newline — could inject an
+/// additional todo line (including an `exec` line git would run). Every
+/// caller today sources `oid` from our own `revwalk()`, but this validates
+/// the IPC boundary itself rather than relying on that being true forever.
+fn validate_oid(oid: &str) -> Result<(), AppError> {
+    if oid.is_empty() || oid.len() > 40 || !oid.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(AppError::invalid_state(
+            "Rebase plan contains an invalid commit id.",
+        ));
+    }
+    Ok(())
+}
+
 /// Render the git todo body for `items`.
 ///
 /// Actions that ordinarily require an interactive editor are expressed without
@@ -72,6 +89,8 @@ fn build_todo(items: &[RebaseTodoItem], msg_dir: &Path) -> Result<String, AppErr
     let mut wrote_any = false;
 
     for (idx, item) in items.iter().enumerate() {
+        validate_oid(&item.oid)?;
+
         let action = item.action.to_lowercase();
         if action == "drop" || action == "d" {
             continue;

@@ -33,13 +33,16 @@ export const createWorktreeSubmoduleSlice: StateCreator<
   submodules: [],
 
   loadWorktrees: async () => {
-    const { activeTabId } = get();
+    const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
     setLoading(get, set, "collaboration", true);
     try {
       const list = await commands.listWorktrees(activeTabId, { silent: true });
-      set({ worktrees: list });
+      // Guard: only apply if still the same tab
+      if (get().refreshGeneration === refreshGeneration) {
+        set({ worktrees: list });
+      }
     } catch (err) {
       console.error("Failed to load worktrees:", err);
       set({ error: String(err) });
@@ -103,13 +106,16 @@ export const createWorktreeSubmoduleSlice: StateCreator<
   },
 
   loadSubmodules: async () => {
-    const { activeTabId } = get();
+    const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
     setLoading(get, set, "collaboration", true);
     try {
       const list = await commands.listSubmodules(activeTabId, { silent: true });
-      set({ submodules: list });
+      // Guard: only apply if still the same tab
+      if (get().refreshGeneration === refreshGeneration) {
+        set({ submodules: list });
+      }
     } catch (err) {
       console.error("Failed to load submodules:", err);
       set({ error: String(err) });

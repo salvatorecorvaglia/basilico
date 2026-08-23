@@ -122,7 +122,12 @@ export function RemoteTree({ branches, remotes }: RemoteTreeProps) {
                     onSelect={() => {
                       const activeBranch =
                         branches.find((b) => b.isHead)?.name || "HEAD";
-                      startComparison(branch.name, activeBranch);
+                      startComparison(branch.name, activeBranch).catch((err) =>
+                        addNotification({
+                          type: "error",
+                          message: `Comparison failed: ${err}`,
+                        }),
+                      );
                       setActiveView("compare");
                     }}
                   >

@@ -113,11 +113,18 @@ pub async fn save_merged_resolution(
 }
 
 #[tauri::command]
-pub async fn launch_external_merge_tool(
+pub async fn launch_external_merge_tool<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     repo_path: String,
     file_path: String,
     tool_name: String,
 ) -> Result<(), AppError> {
+    // The built-in presets below only ever select among a fixed set of known
+    // program names, so `tool_name` is safe to use for that match. The
+    // "custom command" fallback executes whatever program it resolves to,
+    // so that branch uses the value stored in settings rather than trusting
+    // the IPC parameter itself — see `get_merge_tool`.
+    let stored_merge_tool = crate::commands::settings::get_merge_tool(&app);
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
         let stages = extract_conflict_stages(&repo, &file_path)?;
@@ -233,8 +240,17 @@ pub async fn launch_external_merge_tool(
                 ],
             )
         } else {
-            // Assume it's a custom command configuration with placeholders
-            let parts: Vec<&str> = tool_name.split_whitespace().collect();
+            // Assume it's a custom command configuration with placeholders.
+            // Use the command stored in settings, not the raw `tool_name`
+            // argument, so an IPC caller can't run an arbitrary program by
+            // simply passing one in.
+            let configured = stored_merge_tool.as_deref().unwrap_or("");
+            if configured != tool_name {
+                return Err(AppError::invalid_state(
+                    "Merge tool does not match the one configured in settings.",
+                ));
+            }
+            let parts: Vec<&str> = configured.split_whitespace().collect();
             if parts.is_empty() {
                 return Err(AppError::invalid_state(
                     "Merge tool command configuration is empty",

@@ -101,12 +101,16 @@ pub fn create_merge_commit(
         let signature = gpg_sign(commit_content, signing_key.as_deref())?;
         let commit_oid = repo.commit_signed(commit_content, &signature, Some("gpgsig"))?;
 
+        // Reflog entries are one per line; use just the summary, mirroring
+        // what `repo.commit()` builds automatically for the unsigned path.
+        let reflog_summary = message.lines().next().unwrap_or_default();
+
         // Update HEAD
         let head_ref = repo.head()?;
         if head_ref.is_branch() {
             if let Ok(refname) = head_ref.name() {
                 let mut r = repo.find_reference(refname)?;
-                r.set_target(commit_oid, &format!("commit (signed): {}", message))?;
+                r.set_target(commit_oid, &format!("commit (signed): {}", reflog_summary))?;
                 repo.set_head(refname)?;
             }
         } else {

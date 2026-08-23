@@ -36,6 +36,10 @@ log = "0.4"
 env_logger = "0.11"
 uuid = { version = "1.24.1", features = ["v4"] }
 dirs = "6"
+sha1 = "0.11.0"
+hmac = "0.13.0"
+sha2 = "0.11.0"
+base64 = "0.23.1"
 
 [dev-dependencies]
 # Self-dependency so `cargo test`/`cargo clippy --all-targets` turn on

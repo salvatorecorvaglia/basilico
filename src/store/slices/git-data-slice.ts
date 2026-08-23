@@ -279,8 +279,11 @@ export const createGitDataSlice: StateCreator<
       const diff = await commands.getCommitDiff(activeTabId, oid, {
         silent: true,
       });
-      // Guard: only apply if still the same tab
-      if (get().refreshGeneration === refreshGeneration) {
+      // Guard: only apply if still the same tab and this commit is still selected
+      if (
+        get().refreshGeneration === refreshGeneration &&
+        get().selectedCommitOid === oid
+      ) {
         set({ commitDiff: diff });
       }
     } catch (err) {

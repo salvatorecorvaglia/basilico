@@ -70,6 +70,7 @@ export const createStagingSlice: StateCreator<
   activeConflictedPath: null,
 
   selectLocalFile: async (path, isStaged) => {
+    const { refreshGeneration } = get();
     set({
       selectedFilePath: path,
       selectedFileIsStaged: isStaged,
@@ -86,7 +87,13 @@ export const createStagingSlice: StateCreator<
       const diff = await commands.getFileDiff(activeTabId, path, isStaged, {
         silent: true,
       });
-      set({ localDiff: diff });
+      // Guard: only apply if still the same tab and the same file is still selected
+      if (
+        get().refreshGeneration === refreshGeneration &&
+        get().selectedFilePath === path
+      ) {
+        set({ localDiff: diff });
+      }
     } catch (err) {
       console.error("Failed to load local file diff:", err);
       set({ error: String(err) });
@@ -295,7 +302,7 @@ export const createStagingSlice: StateCreator<
   },
 
   loadStashDetail: async (index) => {
-    const { activeTabId, stashes } = get();
+    const { activeTabId, stashes, refreshGeneration } = get();
     if (!activeTabId) return;
 
     setLoading(get, set, "stashes", true);
@@ -314,6 +321,13 @@ export const createStagingSlice: StateCreator<
       const diff = await commands.getStashDiff(activeTabId, stash.oid, {
         silent: true,
       });
+      // Guard: only apply if still the same tab and the same stash is still selected
+      if (
+        get().refreshGeneration !== refreshGeneration ||
+        get().selectedStashIndex !== index
+      ) {
+        return;
+      }
       set({ stashDiff: diff });
 
       // Automatically select first file
@@ -378,7 +392,7 @@ export const createStagingSlice: StateCreator<
   },
 
   loadConflictStages: async (filePath: string) => {
-    const { activeTabId } = get();
+    const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
     setLoading(get, set, "staging", true);
@@ -391,7 +405,13 @@ export const createStagingSlice: StateCreator<
       const stages = await commands.getConflictStages(activeTabId, filePath, {
         silent: true,
       });
-      set({ conflictStages: stages });
+      // Guard: only apply if still the same tab and the same file is still active
+      if (
+        get().refreshGeneration === refreshGeneration &&
+        get().activeConflictedPath === filePath
+      ) {
+        set({ conflictStages: stages });
+      }
     } catch (err) {
       console.error("Failed to load conflict stages:", err);
       set({ error: String(err) });

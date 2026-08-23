@@ -68,6 +68,7 @@ export function SettingsModal() {
   const { isCopied, markCopied } = useCopyFeedback();
   const copied = isCopied();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Load settings on open
   useEffect(() => {
@@ -88,7 +89,8 @@ export function SettingsModal() {
   }, [settings]);
 
   const handleSave = useCallback(async () => {
-    if (!draft) return;
+    if (!draft || isSaving) return;
+    setIsSaving(true);
     try {
       await saveSettings(draft);
       // Apply accent color to CSS root dynamically
@@ -97,8 +99,10 @@ export function SettingsModal() {
       toggleSettings();
     } catch {
       addNotification({ type: "error", message: "Failed to save settings" });
+    } finally {
+      setIsSaving(false);
     }
-  }, [draft, saveSettings, addNotification, toggleSettings]);
+  }, [draft, isSaving, saveSettings, addNotification, toggleSettings]);
 
   const handleGenerateSshKey = async () => {
     if (!sshComment.trim()) return;
@@ -659,6 +663,7 @@ export function SettingsModal() {
                   type="button"
                   className="settings-btn settings-btn-outline"
                   onClick={toggleSettings}
+                  disabled={isSaving}
                 >
                   Cancel
                 </button>
@@ -666,8 +671,9 @@ export function SettingsModal() {
                   type="button"
                   className="settings-btn"
                   onClick={handleSave}
+                  disabled={isSaving}
                 >
-                  Save Settings
+                  {isSaving ? "Saving…" : "Save Settings"}
                 </button>
               </div>
             </>

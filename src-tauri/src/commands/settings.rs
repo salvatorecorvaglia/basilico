@@ -128,6 +128,25 @@ pub fn get_custom_ssh_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Opti
     cached.as_ref().and_then(|s| s.ssh_key_path.clone())
 }
 
+/// The user's configured merge-tool command, read from settings rather than
+/// trusted from an IPC parameter.
+///
+/// `launch_external_merge_tool` executes this value as a program (plus
+/// substituted arguments) when it doesn't match a built-in preset name, so it
+/// must come from storage the renderer can only reach through `save_settings`
+/// — not from a `tool_name` argument a compromised or buggy renderer could
+/// set to anything.
+pub fn get_merge_tool<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Option<String> {
+    let state = app.try_state::<crate::state::AppState>()?;
+    let mut cached = state.settings.lock();
+    if cached.is_none() {
+        if let Ok(settings) = load_settings_from_disk(app) {
+            *cached = Some(settings);
+        }
+    }
+    cached.as_ref().and_then(|s| s.merge_tool.clone())
+}
+
 #[tauri::command]
 pub async fn get_settings<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,

@@ -372,12 +372,19 @@ function App() {
         setActiveView("staging");
       } else if (matchesShortcut(e, shortcuts?.refresh || "CmdOrCtrl+R")) {
         e.preventDefault();
-        refreshAll().then(() =>
-          addNotification({
-            type: "success",
-            message: "Repository refreshed successfully",
-          }),
-        );
+        refreshAll()
+          .then(() =>
+            addNotification({
+              type: "success",
+              message: "Repository refreshed successfully",
+            }),
+          )
+          .catch((err) =>
+            addNotification({
+              type: "error",
+              message: `Refresh failed: ${err}`,
+            }),
+          );
       }
     };
     window.addEventListener("keydown", handler);

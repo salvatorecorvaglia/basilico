@@ -175,6 +175,41 @@ pub fn make_callbacks<'a>(custom_ssh_path: Option<String>) -> RemoteCallbacks<'a
         Err(git2::Error::from_str("no credentials available"))
     });
 
+    callbacks.certificate_check(|cert, hostname| {
+        let Some(hostkey) = cert.as_hostkey() else {
+            // Not an SSH host-key certificate (e.g. HTTPS/X.509) — nothing
+            // for this callback to check.
+            return Ok(git2::CertificateCheckStatus::CertificatePassthrough);
+        };
+
+        match crate::git::known_hosts::verify(
+            hostname,
+            hostkey.hash_sha256(),
+            hostkey.hash_sha1(),
+            hostkey.hostkey(),
+        ) {
+            crate::git::known_hosts::HostKeyVerdict::Match => {
+                Ok(git2::CertificateCheckStatus::CertificateOk)
+            }
+            // No known_hosts entry to compare against: nothing this callback
+            // can verify one way or the other, so defer rather than block a
+            // host the user has simply never connected to from this machine.
+            crate::git::known_hosts::HostKeyVerdict::Unknown => {
+                Ok(git2::CertificateCheckStatus::CertificatePassthrough)
+            }
+            crate::git::known_hosts::HostKeyVerdict::Mismatch => {
+                Err(git2::Error::from_str(&format!(
+                    "The SSH host key presented by {hostname} does not match the one recorded \
+                     in your known_hosts file. This can happen after a legitimate host key \
+                     rotation, but it is also the classic sign of a man-in-the-middle attack. \
+                     Verify the new fingerprint out of band before continuing — for example by \
+                     running `ssh-keygen -R {hostname}` and then connecting once with `ssh` \
+                     yourself to confirm and record the new key."
+                )))
+            }
+        }
+    });
+
     callbacks.transfer_progress(|stats| {
         log::debug!(
             "Transfer: {}/{} objects, {} bytes",

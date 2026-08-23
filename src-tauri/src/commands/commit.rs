@@ -118,6 +118,12 @@ pub async fn create_commit(
             let signature = crate::git::helpers::gpg_sign(commit_content, signing_key.as_deref())?;
             let commit_oid = repo.commit_signed(commit_content, &signature, Some("gpgsig"))?;
 
+            // The reflog file is one entry per line; a multi-line commit
+            // message would otherwise corrupt it, so mirror the summary-only
+            // reflog message `repo.commit()` builds automatically for the
+            // unsigned path below.
+            let reflog_summary = message.lines().next().unwrap_or_default();
+
             // Update HEAD
             let head_ref = repo.head();
             match head_ref {
@@ -125,7 +131,10 @@ pub async fn create_commit(
                     if head.is_branch() {
                         if let Ok(refname) = head.name() {
                             let mut r = repo.find_reference(refname)?;
-                            r.set_target(commit_oid, &format!("commit (signed): {}", message))?;
+                            r.set_target(
+                                commit_oid,
+                                &format!("commit (signed): {}", reflog_summary),
+                            )?;
                             repo.set_head(refname)?;
                         }
                     } else {
@@ -142,7 +151,7 @@ pub async fn create_commit(
                                 target,
                                 commit_oid,
                                 true,
-                                &format!("commit (signed): {}", message),
+                                &format!("commit (signed): {}", reflog_summary),
                             )?;
                             repo.set_head(target)?;
                         } else {

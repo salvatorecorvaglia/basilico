@@ -382,7 +382,7 @@ export const createCollaborationSlice: StateCreator<
   },
 
   loadCommitTree: async (oid: string) => {
-    const { activeTabId } = get();
+    const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
     await withLoading(
@@ -395,13 +395,19 @@ export const createCollaborationSlice: StateCreator<
         const tree = await commands.getCommitTree(activeTabId, oid, {
           silent: true,
         });
-        set({ commitTree: tree });
+        // Guard: only apply if still the same tab and this commit is still selected
+        if (
+          get().refreshGeneration === refreshGeneration &&
+          get().selectedCommitOid === oid
+        ) {
+          set({ commitTree: tree });
+        }
       },
     );
   },
 
   startComparison: async (base: string, target: string) => {
-    const { activeTabId } = get();
+    const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
     await withLoading(
@@ -420,6 +426,14 @@ export const createCollaborationSlice: StateCreator<
         const diffs = await commands.getCompareDiff(activeTabId, base, target, {
           silent: true,
         });
+        // Guard: only apply if still the same tab and comparison is still current
+        if (
+          get().refreshGeneration !== refreshGeneration ||
+          get().compareBase !== base ||
+          get().compareTarget !== target
+        ) {
+          return;
+        }
         set({ compareDiff: diffs });
 
         // Auto select first file if available

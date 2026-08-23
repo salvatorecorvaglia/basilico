@@ -318,7 +318,12 @@ export function BranchTree({ branches }: BranchTreeProps) {
               onSelect={() => {
                 const activeBranch =
                   branches.find((b) => b.isHead)?.name || "HEAD";
-                startComparison(branch.name, activeBranch);
+                startComparison(branch.name, activeBranch).catch((err) =>
+                  addNotification({
+                    type: "error",
+                    message: `Comparison failed: ${err}`,
+                  }),
+                );
                 setActiveView("compare");
               }}
             >

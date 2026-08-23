@@ -172,6 +172,11 @@ export function CommitList() {
     return () => observer.disconnect();
   }, []);
 
+  const maxLane = useMemo(
+    () => commits.reduce((max, c) => Math.max(max, c.lane), 0),
+    [commits],
+  );
+
   // TanStack's column-value generic is invariant, so a heterogeneous column
   // array cannot be typed with `unknown` — each accessor would have to match
   // exactly. `any` is the library's own idiom for this position; the accessors
@@ -627,8 +632,6 @@ export function CommitList() {
     );
   }
 
-  const maxLane = commits.reduce((max, c) => Math.max(max, c.lane), 0);
-
   return (
     <div className="commit-list-container">
       {/* Controls */}
@@ -924,9 +927,14 @@ export function CommitList() {
                     <ContextMenu.Item
                       className="context-menu-item"
                       onSelect={() => {
-                        startComparison(commit.oid, "HEAD").then(() =>
-                          setActiveView("compare"),
-                        );
+                        startComparison(commit.oid, "HEAD")
+                          .then(() => setActiveView("compare"))
+                          .catch((err) =>
+                            addNotification({
+                              type: "error",
+                              message: `Comparison failed: ${err}`,
+                            }),
+                          );
                       }}
                     >
                       <ArrowLeftRight size={12} />
@@ -936,9 +944,14 @@ export function CommitList() {
                       <ContextMenu.Item
                         className="context-menu-item"
                         onSelect={() => {
-                          startComparison(selectedCommitOid, commit.oid).then(
-                            () => setActiveView("compare"),
-                          );
+                          startComparison(selectedCommitOid, commit.oid)
+                            .then(() => setActiveView("compare"))
+                            .catch((err) =>
+                              addNotification({
+                                type: "error",
+                                message: `Comparison failed: ${err}`,
+                              }),
+                            );
                         }}
                       >
                         <ArrowLeftRight size={12} />
