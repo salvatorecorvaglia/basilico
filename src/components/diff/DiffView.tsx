@@ -101,6 +101,11 @@ export function DiffView() {
     Record<number, Set<number>>
   >({});
 
+  // Fired from the Monaco glyph-margin onMouseDown handlers below — Monaco
+  // doesn't expose the glyph margin as a focusable/keyboard-operable target,
+  // so single-line staging here is mouse-only. The "Hunks" view (viewMode
+  // toggle above) is the deliberate keyboard-accessible equivalent: it lists
+  // the same lines as real checkboxes a keyboard user can Tab to and toggle.
   const handleGutterClick = async (lineNumber: number, isOriginal: boolean) => {
     if (!localDiff || !selectedFilePath) return;
 
@@ -448,7 +453,7 @@ export function DiffView() {
               type="button"
               className={`diff-control-btn ${viewMode === "hunk" ? "active" : ""}`}
               onClick={() => setViewMode("hunk")}
-              title="Granular Hunk Staging"
+              title="Granular hunk staging — stage individual lines with checkboxes. This is the keyboard-accessible way to stage a single line; the gutter click-to-stage in Full View has no keyboard equivalent."
             >
               <FileCode size={13} />
               <span>Hunks</span>
@@ -690,6 +695,7 @@ export function DiffView() {
                                 type="checkbox"
                                 className="hunk-line-checkbox"
                                 checked={linesChecked.has(lineIdx)}
+                                aria-label={`Select line for staging: ${line.content}`}
                                 onChange={(e) =>
                                   handleLineCheck(
                                     hunkIdx,

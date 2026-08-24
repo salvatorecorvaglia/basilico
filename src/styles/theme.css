@@ -161,6 +161,12 @@
   --scrim-sunken: rgba(13, 17, 23, 0.2);
   --scrim-border: rgba(48, 54, 61, 0.2);
   --scrim-border-strong: rgba(48, 54, 61, 0.1);
+  /* Full-page dimming behind a centered dialog — same "fixed dark by design"
+     reasoning: a modal backdrop darkens whatever is behind it regardless of
+     the app's own light/dark theme. Two weights because a couple of modals
+     (file viewer, welcome screen) sit over busier content and dim harder. */
+  --scrim-backdrop: rgba(0, 0, 0, 0.4);
+  --scrim-backdrop-heavy: rgba(0, 0, 0, 0.6);
 
   /* Blame uses a GitHub-derived set; kept separate so neither palette shifts. */
   --blame-fg: #c9d1d9;

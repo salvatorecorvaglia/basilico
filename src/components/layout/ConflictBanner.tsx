@@ -50,7 +50,7 @@ export const ConflictBanner: React.FC = () => {
   };
 
   return (
-    <div className="conflict-banner">
+    <div className="conflict-banner" role="alert">
       <div className="conflict-banner-info">
         <div className="conflict-banner-icon">
           <AlertTriangle size={18} />

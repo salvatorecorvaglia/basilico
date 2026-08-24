@@ -308,6 +308,7 @@ export function StashInspector() {
                     className={`stash-file-item ${isSelected ? "active" : ""}`}
                     onClick={() => selectStashFile(filePath)}
                     title={filePath}
+                    aria-pressed={isSelected}
                   >
                     <ChevronRight size={12} className="chevron" />
                     <span className="file-name truncate">{filePath}</span>

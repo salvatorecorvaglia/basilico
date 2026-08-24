@@ -150,6 +150,7 @@ export function TagTree({ tags }: TagTreeProps) {
             onClick={() => setSelectedTag(tag.name)}
             onDoubleClick={() => handleCheckoutTag(tag.name)}
             title={tag.message || tag.name}
+            aria-pressed={selectedTag === tag.name}
           >
             <Tag size={11} className="sidebar-item-tag-icon" />
             <span className="sidebar-item-name truncate">{tag.name}</span>

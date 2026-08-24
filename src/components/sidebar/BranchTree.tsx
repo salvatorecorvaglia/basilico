@@ -263,6 +263,8 @@ export function BranchTree({ branches }: BranchTreeProps) {
             onClick={() => setSelectedBranch(branch.name)}
             onDoubleClick={() => handleCheckout(branch.name)}
             title={branch.name}
+            aria-current={branch.isHead ? "true" : undefined}
+            aria-pressed={selectedBranch === branch.name}
             draggable={true}
             onDragStart={(e) =>
               e.dataTransfer.setData("text/plain", branch.name)

@@ -102,6 +102,7 @@ export function RemoteTree({ branches, remotes }: RemoteTreeProps) {
                   onClick={() => setSelectedBranch(branch.name)}
                   onDoubleClick={() => handleCheckout(branch.name)}
                   title={branch.name}
+                  aria-pressed={selectedBranch === branch.name}
                 >
                   <span className="sidebar-item-name truncate">
                     {branch.name.replace(`${remote.name}/`, "")}
