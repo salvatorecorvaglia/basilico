@@ -75,7 +75,6 @@ export const createStagingSlice: StateCreator<
       selectedFilePath: path,
       selectedFileIsStaged: isStaged,
       localDiff: null,
-      error: null,
     });
     if (!path) return;
 
@@ -96,7 +95,6 @@ export const createStagingSlice: StateCreator<
       }
     } catch (err) {
       console.error("Failed to load local file diff:", err);
-      set({ error: String(err) });
       throw err;
     } finally {
       setLoading(get, set, "diff", false);
@@ -235,7 +233,6 @@ export const createStagingSlice: StateCreator<
       set({ stashes: list });
     } catch (err) {
       console.error("Failed to load stashes:", err);
-      set({ error: String(err) });
     }
   },
 
@@ -311,7 +308,6 @@ export const createStagingSlice: StateCreator<
       stashDiff: [],
       selectedStashFile: null,
       selectedStashFileDiff: null,
-      error: null,
     });
     try {
       const stash = stashes.find((s) => s.index === index);
@@ -339,7 +335,6 @@ export const createStagingSlice: StateCreator<
       }
     } catch (err) {
       console.error("Failed to load stash diff:", err);
-      set({ error: String(err) });
       throw err;
     } finally {
       setLoading(get, set, "stashes", false);
@@ -399,7 +394,6 @@ export const createStagingSlice: StateCreator<
     set({
       conflictStages: null,
       activeConflictedPath: filePath,
-      error: null,
     });
     try {
       const stages = await commands.getConflictStages(activeTabId, filePath, {
@@ -414,7 +408,6 @@ export const createStagingSlice: StateCreator<
       }
     } catch (err) {
       console.error("Failed to load conflict stages:", err);
-      set({ error: String(err) });
       throw err;
     } finally {
       setLoading(get, set, "staging", false);

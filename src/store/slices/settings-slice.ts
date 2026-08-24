@@ -28,7 +28,6 @@ export const createSettingsSlice: StateCreator<
       applyThemeToDOM(settings.theme);
     } catch (err) {
       console.error("Failed to load settings:", err);
-      set({ error: String(err) });
       throw err;
     }
   },
@@ -43,7 +42,6 @@ export const createSettingsSlice: StateCreator<
       applyThemeToDOM(settings.theme);
     } catch (err) {
       console.error("Failed to save settings:", err);
-      set({ error: String(err) });
       throw err;
     }
   },
@@ -56,7 +54,6 @@ export const createSettingsSlice: StateCreator<
       return pubKey;
     } catch (err) {
       console.error("Failed to generate SSH key:", err);
-      set({ error: String(err) });
       throw err;
     }
   },

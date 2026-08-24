@@ -8,6 +8,10 @@ pub struct AppState {
     pub repos: Mutex<HashMap<String, String>>,
     /// Cached user settings to avoid disk reads on every git command
     pub settings: Mutex<Option<crate::commands::settings::UserSettings>>,
+    /// Commit-graph lane assignments carried across "load more" pages, so
+    /// paging through history doesn't repeat lane computation from scratch.
+    pub graph_lane_cache:
+        Mutex<HashMap<crate::git::graph::LaneCacheKey, crate::git::graph::LaneCacheEntry>>,
 }
 
 impl AppState {
@@ -15,6 +19,7 @@ impl AppState {
         Self {
             repos: Mutex::new(HashMap::new()),
             settings: Mutex::new(None),
+            graph_lane_cache: Mutex::new(HashMap::new()),
         }
     }
 
@@ -31,6 +36,8 @@ impl AppState {
     pub fn remove_repo(&self, path: &str) {
         let mut repos = self.repos.lock();
         repos.remove(path);
+        let mut cache = self.graph_lane_cache.lock();
+        cache.retain(|key, _| key.path() != path);
     }
 
     pub fn get_watcher_id(&self, path: &str) -> Option<String> {

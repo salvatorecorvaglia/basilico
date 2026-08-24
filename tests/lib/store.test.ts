@@ -29,8 +29,6 @@ function resetStore() {
     loadingStates: { ...INITIAL_LOADING_STATES },
     isLoading: false,
     isRefreshing: false,
-    error: null,
-    errors: {},
   });
 }
 
@@ -181,30 +179,43 @@ describe("repo store — stale response handling", () => {
 
     expect(useRepoStore.getState().commits).toEqual(fresh);
   });
-});
 
-describe("repo store — per-domain errors", () => {
-  beforeEach(() => {
-    invokeMock.mockReset();
-    resetStore();
-    localStorage.clear();
-  });
+  // selectCommit used to guard only on refreshGeneration (tab identity), so
+  // clicking commit A then quickly commit B in the *same* tab let A's
+  // late-arriving diff clobber B's once A finally resolved.
+  it("discards a commit diff for a commit that's no longer selected", async () => {
+    useRepoStore.setState({
+      activeTabId: "/repo-a",
+      selectedCommitOid: null,
+      commitDiff: [],
+    });
 
-  it("removes the key when an error is cleared rather than storing null", async () => {
-    const { setError, clearError } = await import(
-      "../../src/store/store-helpers"
+    let releaseA: (value: unknown) => void = () => {};
+    const pendingA = new Promise((resolve) => {
+      releaseA = resolve;
+    });
+
+    invokeMock.mockImplementation(
+      (cmd: string, args?: Record<string, unknown>) => {
+        if (cmd === "get_commit_diff" && args?.oid === "commit-a") {
+          return pendingA;
+        }
+        if (cmd === "get_commit_diff" && args?.oid === "commit-b") {
+          return Promise.resolve([{ newPath: "b.txt" }]);
+        }
+        return Promise.resolve([]);
+      },
     );
-    const get = () => useRepoStore.getState();
-    const set = (s: object) => useRepoStore.setState(s);
 
-    setError(get, set, "staging", "boom");
-    expect(useRepoStore.getState().errors).toEqual({ staging: "boom" });
+    const inFlightA = useRepoStore.getState().selectCommit("commit-a");
+    // Select a different commit in the same tab before A's diff resolves.
+    await useRepoStore.getState().selectCommit("commit-b");
 
-    clearError(get, set, "staging");
-    // A null placeholder would make `Object.keys(errors).length` misreport a
-    // healthy store as having failures.
-    expect(useRepoStore.getState().errors).toEqual({});
-    expect("staging" in useRepoStore.getState().errors).toBe(false);
+    releaseA([{ newPath: "a.txt" }]);
+    await inFlightA;
+
+    expect(useRepoStore.getState().selectedCommitOid).toBe("commit-b");
+    expect(useRepoStore.getState().commitDiff).toEqual([{ newPath: "b.txt" }]);
   });
 });
 
@@ -427,5 +438,90 @@ describe("repo store — tab switch/close clears per-tab state", () => {
     expect(state.bisectState).toBeNull();
     expect(state.commitSearchResults).toEqual([]);
     expect(state.grepSearchResults).toEqual([]);
+  });
+});
+
+describe("repo store — opening repositories", () => {
+  beforeEach(() => {
+    invokeMock.mockReset();
+    invokeMock.mockResolvedValue([]);
+    resetStore();
+    localStorage.clear();
+  });
+
+  function repoInfo(path: string) {
+    return {
+      path,
+      name: path,
+      headBranch: "main",
+      isBare: false,
+      isEmpty: false,
+      state: "Clean",
+    };
+  }
+
+  it("only calls open_repo once for two concurrent opens of the same path", async () => {
+    let releaseOpen: (value: unknown) => void = () => {};
+    const pendingOpen = new Promise((resolve) => {
+      releaseOpen = resolve;
+    });
+
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "open_repo") return pendingOpen;
+      return Promise.resolve([]);
+    });
+
+    const first = useRepoStore.getState().openRepository("/repo-a");
+    const second = useRepoStore.getState().openRepository("/repo-a");
+
+    releaseOpen(repoInfo("/repo-a"));
+    await Promise.all([first, second]);
+
+    expect(
+      invokeMock.mock.calls.filter((c) => c[0] === "open_repo"),
+    ).toHaveLength(1);
+    expect(useRepoStore.getState().tabs.map((t) => t.id)).toEqual(["/repo-a"]);
+  });
+
+  it("keeps a repository opened by hand while restoration is still in flight", async () => {
+    let releaseRestoreOpen: (value: unknown) => void = () => {};
+    const pendingRestoreOpen = new Promise((resolve) => {
+      releaseRestoreOpen = resolve;
+    });
+
+    invokeMock.mockImplementation(
+      (cmd: string, args?: Record<string, unknown>) => {
+        if (cmd === "open_repo" && args?.path === "/restored") {
+          return pendingRestoreOpen;
+        }
+        if (cmd === "open_repo" && args?.path === "/manual") {
+          return Promise.resolve(repoInfo("/manual"));
+        }
+        return Promise.resolve([]);
+      },
+    );
+
+    const restoring = useRepoStore
+      .getState()
+      .restoreRepositories(["/restored"], "/restored");
+
+    // A manual open completes entirely while restoration is still waiting on
+    // its own open_repo call.
+    await useRepoStore.getState().openRepository("/manual");
+    expect(useRepoStore.getState().tabs.map((t) => t.id)).toEqual(["/manual"]);
+
+    releaseRestoreOpen(repoInfo("/restored"));
+    await restoring;
+
+    // The previous unconditional `set` in restoreRepositories was built only
+    // from its own accumulator and would have overwritten /manual here.
+    const tabIds = useRepoStore
+      .getState()
+      .tabs.map((t) => t.id)
+      .sort();
+    expect(tabIds).toEqual(["/manual", "/restored"]);
+    // The manually-opened tab is a more recent, deliberate choice than the
+    // persisted one, so it keeps focus.
+    expect(useRepoStore.getState().activeTabId).toBe("/manual");
   });
 });

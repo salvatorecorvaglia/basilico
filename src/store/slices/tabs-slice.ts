@@ -81,7 +81,6 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
 
       set({
         loadingStates: { ...get().loadingStates, global: true },
-        error: null,
       });
 
       try {
@@ -127,9 +126,6 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
           // Load all data
           await get().refreshAll();
         }
-      } catch (err) {
-        set({ error: String(err) });
-        throw err;
       } finally {
         set({ loadingStates: { ...get().loadingStates, global: false } });
         pendingOpens.delete(path);
@@ -139,7 +135,6 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
     cloneRepository: async (url: string, path: string) => {
       set({
         loadingStates: { ...get().loadingStates, global: true },
-        error: null,
       });
       try {
         const info = await commands.cloneRepo(url, path, {
@@ -147,9 +142,6 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
         });
         // Automatically open the cloned repo
         await get().openRepository(info.path);
-      } catch (err) {
-        set({ error: String(err) });
-        throw err;
       } finally {
         set({ loadingStates: { ...get().loadingStates, global: false } });
       }
@@ -158,7 +150,6 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
     initializeRepository: async (path: string) => {
       set({
         loadingStates: { ...get().loadingStates, global: true },
-        error: null,
       });
       try {
         await commands.initRepo(path, {
@@ -166,9 +157,6 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
         });
         // Automatically open the initialized repo
         await get().openRepository(path);
-      } catch (err) {
-        set({ error: String(err) });
-        throw err;
       } finally {
         set({ loadingStates: { ...get().loadingStates, global: false } });
       }
@@ -209,7 +197,6 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
             .refreshAll()
             .catch((err) => {
               console.error("Failed to refresh after tab close:", err);
-              set({ error: String(err) });
             });
         }
       } else {
@@ -242,7 +229,6 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
         .refreshAll()
         .catch((err) => {
           console.error("Failed to refresh after tab switch:", err);
-          set({ error: String(err) });
         });
     },
 
@@ -254,7 +240,6 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
 
       set({
         loadingStates: { ...get().loadingStates, global: true },
-        error: null,
       });
 
       const openedTabs: RepoTab[] = [];
@@ -369,7 +354,6 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
         await get().refreshAll();
       } catch (err) {
         console.error("Failed to refresh repositories after restoration:", err);
-        set({ error: String(err) });
       }
     },
 

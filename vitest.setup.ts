@@ -7,6 +7,47 @@ globalThis.ResizeObserver = class ResizeObserver {
   disconnect() {}
 };
 
+// jsdom never lays out content, so every element reports 0x0. @tanstack/
+// react-virtual reads offsetWidth/offsetHeight to size its viewport, and
+// with 0 it renders zero rows — a virtualized list would look empty (and
+// its rows unqueryable) in any test, regardless of what it's actually
+// rendering. A fixed non-zero size is a stand-in for "the window is big
+// enough to show content", which is all a test needs.
+if (typeof HTMLElement !== "undefined") {
+  Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+    configurable: true,
+    value: 600,
+  });
+  Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+    configurable: true,
+    value: 800,
+  });
+}
+
+// jsdom doesn't implement scrollIntoView at all; anything that calls it
+// (keyboard-navigated lists scrolling the active row into view) throws.
+if (
+  typeof HTMLElement !== "undefined" &&
+  !HTMLElement.prototype.scrollIntoView
+) {
+  HTMLElement.prototype.scrollIntoView = vi.fn();
+}
+
+// jsdom doesn't implement matchMedia either; the app's own dark-mode
+// detection (and Monaco's, if it ever mounts unmocked) reads it.
+if (typeof window !== "undefined" && !window.matchMedia) {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })) as unknown as typeof window.matchMedia;
+}
+
 if (typeof HTMLCanvasElement !== "undefined") {
   HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
     fillRect: vi.fn(),

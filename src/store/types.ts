@@ -89,13 +89,10 @@ export const PER_TAB_RESET_STATE: Partial<RepoState> = {
   // SearchSlice
   commitSearchResults: [],
   grepSearchResults: [],
-  // Shared surface
-  error: null,
-  errors: {},
 };
 
 /**
- * The assembled store: the shared loading/error surface plus every domain slice.
+ * The assembled store: the shared loading surface plus every domain slice.
  *
  * Composed from the slice interfaces rather than restating their fields, so a
  * slice and the store type cannot drift apart — the previous hand-written copy
@@ -110,10 +107,8 @@ export interface RepoState
     WorktreeSubmoduleSlice,
     SearchSlice,
     SettingsSlice {
-  // ── Shared loading & error surface ──
+  // ── Shared loading surface ──
   loadingStates: LoadingStates;
   isLoading: boolean;
   isRefreshing: boolean;
-  error: string | null;
-  errors: Record<string, string>;
 }

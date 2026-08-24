@@ -31,7 +31,6 @@ export const createSearchSlice: StateCreator<RepoState, [], [], SearchSlice> = (
     }
 
     setLoading(get, set, "search", true);
-    set({ error: null });
     try {
       const results = await commands.searchCommits(activeTabId, query, {
         errorPrefix: "Failed to search commits",
@@ -41,7 +40,6 @@ export const createSearchSlice: StateCreator<RepoState, [], [], SearchSlice> = (
       }
     } catch (err) {
       console.error("Failed to search commits:", err);
-      set({ error: String(err) });
     } finally {
       setLoading(get, set, "search", false);
     }
@@ -55,7 +53,6 @@ export const createSearchSlice: StateCreator<RepoState, [], [], SearchSlice> = (
     }
 
     setLoading(get, set, "search", true);
-    set({ error: null });
     try {
       const results = await commands.grepCode(activeTabId, query, {
         errorPrefix: "Failed to search code",
@@ -65,7 +62,6 @@ export const createSearchSlice: StateCreator<RepoState, [], [], SearchSlice> = (
       }
     } catch (err) {
       console.error("Failed to grep code:", err);
-      set({ error: String(err) });
     } finally {
       setLoading(get, set, "search", false);
     }

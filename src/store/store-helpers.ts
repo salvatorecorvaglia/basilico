@@ -37,41 +37,12 @@ export function setLoading(
   });
 }
 
-/** Helper to set a per-domain error */
-export function setError(
-  get: () => RepoState,
-  set: (s: Partial<RepoState>) => void,
-  domain: string,
-  message: string | null,
-) {
-  if (message === null) {
-    clearError(get, set, domain);
-    return;
-  }
-
-  set({
-    error: message, // backward compat: also set the global error
-    errors: { ...get().errors, [domain]: message },
-  });
-}
-
-/** Helper to clear a per-domain error */
-export function clearError(
-  get: () => RepoState,
-  set: (s: Partial<RepoState>) => void,
-  domain: string,
-) {
-  // The key is removed rather than set to null, so `errors` only ever contains
-  // domains that are actually failing and callers can count its entries.
-  const { [domain]: _cleared, ...rest } = get().errors;
-  set({ errors: rest });
-}
-
 /**
- * Wrapper that handles the loading/error/finally boilerplate for store actions.
+ * Wrapper that handles the loading/finally boilerplate for store actions.
  *
- * Sets loading flag, clears error, runs the action, catches errors,
- * and resets loading flag in finally block.
+ * Sets loading flag, runs the action, logs and rethrows on failure (the
+ * caller is expected to surface it via a toast notification — this store has
+ * no error state of its own to display), and resets loading flag in finally.
  */
 export async function withLoading<T>(
   get: () => RepoState,
@@ -81,12 +52,10 @@ export async function withLoading<T>(
   fn: () => Promise<T>,
 ): Promise<T> {
   setLoading(get, set, domain, true);
-  clearError(get, set, domain);
   try {
     return await fn();
   } catch (err) {
     console.error(`${errorLabel}:`, err);
-    setError(get, set, domain, String(err));
     throw err;
   } finally {
     setLoading(get, set, domain, false);

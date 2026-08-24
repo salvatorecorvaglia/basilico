@@ -448,7 +448,7 @@ export const createCollaborationSlice: StateCreator<
   },
 
   selectCompareFile: async (filePath: string | null) => {
-    set({ selectedCompareFile: filePath, compareFileDiff: null, error: null });
+    set({ selectedCompareFile: filePath, compareFileDiff: null });
     if (!filePath) return;
     const { activeTabId, compareBase, compareTarget } = get();
     if (!activeTabId || !compareBase || !compareTarget) return;
@@ -462,7 +462,6 @@ export const createCollaborationSlice: StateCreator<
       }
     } catch (err) {
       console.error("Failed to select compare file:", err);
-      set({ error: String(err) });
       throw err;
     }
   },

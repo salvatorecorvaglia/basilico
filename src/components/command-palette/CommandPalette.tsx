@@ -314,14 +314,15 @@ export function CommandPalette() {
     setSelectedIndex(0);
   }, [query]);
 
-  // Handle global key events for toggling command palette (Cmd/Ctrl+Shift+P or Cmd/Ctrl+K)
+  // Cmd/Ctrl+K is a fixed secondary shortcut owned entirely by this
+  // component. The primary, user-configurable shortcut (default
+  // Cmd/Ctrl+Shift+P) is handled once, centrally, in App.tsx — duplicating
+  // it here made every press toggle the palette twice (once per listener),
+  // which canceled out and made the shortcut appear to do nothing at all.
   useEffect(() => {
     const handleKeyDownGlobal = (e: KeyboardEvent) => {
       const isCmdK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k";
-      const isCmdShiftP =
-        (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "p";
-
-      if (isCmdK || isCmdShiftP) {
+      if (isCmdK) {
         e.preventDefault();
         toggleCommandPalette();
       }

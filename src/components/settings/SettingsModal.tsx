@@ -70,7 +70,10 @@ export function SettingsModal() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Load settings on open
+  // Load settings on open, and reset local UI state left over from the
+  // previous time the modal was open — otherwise a stale generated key or
+  // comment can look freshly made, and the modal lands on whatever tab was
+  // last active instead of a sane default.
   useEffect(() => {
     if (settingsOpen) {
       loadSettings();
@@ -78,6 +81,9 @@ export function SettingsModal() {
         .listSshKeys()
         .then(setSshKeys)
         .catch(() => setSshKeys([]));
+      setActiveTab("appearance");
+      setSshComment("");
+      setGeneratedPubKey(null);
     }
   }, [settingsOpen, loadSettings]);
 

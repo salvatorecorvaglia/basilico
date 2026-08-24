@@ -1,4 +1,5 @@
 use git2::{Repository, Sort};
+use parking_lot::Mutex;
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -335,85 +336,365 @@ pub fn compute_lanes(commits: &mut [GraphCommit]) {
         .filter_map(|c| git2::Oid::from_str(&c.oid).ok())
         .collect();
 
-    // Active lanes: each lane tracks which oid it's expecting next
     let mut active_lanes: Vec<Option<String>> = Vec::new();
 
     for commit in commits.iter_mut() {
-        let oid = commit.oid.clone();
-        let parent_oids = commit.parent_oids.clone();
+        assign_lane(commit, &mut active_lanes, |parent_oid, _is_first| {
+            let parent_git_oid = git2::Oid::from_str(parent_oid).unwrap_or(git2::Oid::ZERO_SHA1);
+            !walked_oids.contains(&parent_git_oid)
+        });
+    }
+}
 
-        // Find existing lane for this commit
-        let lane = active_lanes
-            .iter()
-            .position(|l| l.as_deref() == Some(&oid))
-            .unwrap_or_else(|| {
-                // Allocate new lane
-                let free = active_lanes.iter().position(|l| l.is_none());
-                match free {
-                    Some(idx) => idx,
-                    None => {
-                        active_lanes.push(None);
-                        active_lanes.len() - 1
-                    }
+/// Assign a lane and parent edges to a single commit, given the lanes
+/// currently active going into it. Shared by [`compute_lanes`] (one-shot,
+/// whole-history-known) and the incremental cache in [`build_graph_page_cached`]
+/// (state carried across paginated calls).
+///
+/// `is_boundary(parent_oid, is_first_parent)` decides whether a parent should
+/// be treated as outside the walked set (lane terminates) or still-pending
+/// (lane stays reserved for it). The two callers use different definitions of
+/// "boundary" — see the caller-side comments for why.
+fn assign_lane(
+    commit: &mut GraphCommit,
+    active_lanes: &mut Vec<Option<String>>,
+    is_boundary: impl Fn(&str, bool) -> bool,
+) {
+    let oid = commit.oid.clone();
+    let parent_oids = std::mem::take(&mut commit.parent_oids);
+
+    let lane = active_lanes
+        .iter()
+        .position(|l| l.as_deref() == Some(oid.as_str()))
+        .unwrap_or_else(|| {
+            let free = active_lanes.iter().position(|l| l.is_none());
+            match free {
+                Some(idx) => idx,
+                None => {
+                    active_lanes.push(None);
+                    active_lanes.len() - 1
                 }
-            });
+            }
+        });
 
-        commit.lane = lane;
+    commit.lane = lane;
 
-        // Clear all lanes pointing to this commit
-        for l in active_lanes.iter_mut() {
-            if l.as_deref() == Some(&oid) {
-                *l = None;
+    for l in active_lanes.iter_mut() {
+        if l.as_deref() == Some(oid.as_str()) {
+            *l = None;
+        }
+    }
+
+    let mut edges = Vec::with_capacity(parent_oids.len());
+
+    for (p_idx, parent_oid) in parent_oids.iter().enumerate() {
+        let boundary = is_boundary(parent_oid, p_idx == 0);
+
+        let target_lane = if p_idx == 0 {
+            if !boundary {
+                active_lanes[lane] = Some(parent_oid.clone());
+            } else {
+                active_lanes[lane] = None;
+            }
+            lane
+        } else {
+            let existing = active_lanes
+                .iter()
+                .position(|l| l.as_deref() == Some(parent_oid.as_str()));
+            match existing {
+                Some(l) => l,
+                None => {
+                    let free = active_lanes.iter().position(|l| l.is_none());
+                    let new_lane = match free {
+                        Some(idx) => idx,
+                        None => {
+                            active_lanes.push(None);
+                            active_lanes.len() - 1
+                        }
+                    };
+                    if !boundary {
+                        active_lanes[new_lane] = Some(parent_oid.clone());
+                    }
+                    new_lane
+                }
+            }
+        };
+
+        edges.push(GraphEdge {
+            from_lane: lane,
+            to_lane: target_lane,
+            to_oid: parent_oid.clone(),
+            is_merge: p_idx > 0,
+        });
+    }
+
+    commit.parent_oids = parent_oids;
+    commit.edges = edges;
+}
+
+/// Key identifying one paginated graph "session" — a repo path plus the walk
+/// parameters that change which commits are reachable at all.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct LaneCacheKey {
+    path: String,
+    first_parent: bool,
+    hide_remotes: bool,
+}
+
+impl LaneCacheKey {
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+}
+
+/// Lane state carried across "load more" calls for one [`LaneCacheKey`].
+pub struct LaneCacheEntry {
+    /// Sorted `refname\toid` pairs for every ref in scope (HEAD + every
+    /// branch/tag tip). Identical inputs make libgit2's topological walk
+    /// deterministic, so an unchanged fingerprint means both the previously
+    /// walked prefix and the ref labels attached to it are still exactly
+    /// what a fresh walk would produce. Kept per-ref rather than deduped by
+    /// target oid so that, say, tagging the current HEAD commit — a new ref
+    /// pointing at an oid already in scope — still invalidates the cache;
+    /// deduping by oid alone would miss it and serve a commit's cached refs
+    /// without the new tag.
+    fingerprint: Vec<String>,
+    /// Commits walked so far, in walk order. Metadata fields are left empty
+    /// (never needed once a commit has scrolled past the requested page) —
+    /// only oid/parent_oids/lane/edges are kept.
+    topo: Vec<GraphCommit>,
+    active_lanes: Vec<Option<String>>,
+    /// How many entries of `topo`, from the start, already have a final
+    /// lane/edges assignment. Only the tail beyond this needs processing.
+    lanes_assigned: usize,
+}
+
+pub type LaneCache = Mutex<HashMap<LaneCacheKey, LaneCacheEntry>>;
+
+/// Build one page of the commit graph, reusing lane-assignment state cached
+/// from previous pages of the same paginated session instead of recomputing
+/// it from commit zero every time.
+///
+/// Falls back to the uncached [`build_graph_page`] when a path filter is
+/// active — the scan-limit bookkeeping in the path-filtered walk doesn't line
+/// up 1:1 with raw walk position, and file-history views don't page deep
+/// enough for the cost to matter.
+pub fn build_graph_page_cached(
+    path: &str,
+    skip: usize,
+    max_commits: usize,
+    first_parent: bool,
+    hide_remotes: bool,
+    path_filter: Option<&str>,
+    cache: &LaneCache,
+) -> Result<Vec<GraphCommit>, AppError> {
+    if path_filter.is_some() {
+        return build_graph_page(
+            path,
+            skip,
+            max_commits,
+            first_parent,
+            hide_remotes,
+            path_filter,
+        );
+    }
+
+    let repo = Repository::open(path)?;
+    let ref_map = build_ref_map(&repo, hide_remotes)?;
+
+    let mut revwalk = repo.revwalk()?;
+    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
+    if first_parent {
+        let _ = revwalk.simplify_first_parent();
+    }
+    let _ = revwalk.push_head();
+
+    let mut push_oids: std::collections::HashSet<git2::Oid> = std::collections::HashSet::new();
+    let mut fingerprint: Vec<String> = Vec::new();
+    if let Ok(head) = repo.head() {
+        if let Some(oid) = head.target() {
+            push_oids.insert(oid);
+            fingerprint.push(format!("HEAD\t{oid}"));
+        }
+    }
+    for r in repo.references()?.flatten() {
+        let is_remote = r
+            .name()
+            .map(|n| n.starts_with("refs/remotes/"))
+            .unwrap_or(false);
+        if hide_remotes && is_remote {
+            continue;
+        }
+        if let Ok(commit_ref) = r.peel(git2::ObjectType::Commit) {
+            let oid = commit_ref.id();
+            fingerprint.push(format!("{}\t{oid}", r.name().unwrap_or("")));
+            if push_oids.insert(oid) {
+                let _ = revwalk.push(oid);
             }
         }
+    }
+    fingerprint.sort_unstable();
 
-        // Assign parents to lanes
-        let mut edges = Vec::new();
+    let key = LaneCacheKey {
+        path: path.to_string(),
+        first_parent,
+        hide_remotes,
+    };
 
-        for (p_idx, parent_oid) in parent_oids.iter().enumerate() {
-            let parent_git_oid = git2::Oid::from_str(parent_oid).unwrap_or(git2::Oid::ZERO_SHA1);
-            let is_boundary = !walked_oids.contains(&parent_git_oid);
+    let mut cache = cache.lock();
+    let mut entry = match cache.remove(&key) {
+        Some(entry) if entry.fingerprint == fingerprint => entry,
+        _ => LaneCacheEntry {
+            fingerprint: fingerprint.clone(),
+            topo: Vec::new(),
+            active_lanes: Vec::new(),
+            lanes_assigned: 0,
+        },
+    };
 
-            let target_lane = if p_idx == 0 {
-                // First parent takes current lane
-                if !is_boundary {
-                    active_lanes[lane] = Some(parent_oid.clone());
-                } else {
-                    active_lanes[lane] = None;
-                }
-                lane
+    let budget = skip.saturating_add(max_commits);
+
+    // Fast-forward past the cached prefix: just confirm the walk still
+    // yields the oids we already have, without touching the repo again.
+    let mut walker = revwalk;
+    let mut cache_valid = true;
+    for cached in &entry.topo {
+        match walker.next() {
+            Some(Ok(oid)) if oid.to_string() == cached.oid => {}
+            _ => {
+                cache_valid = false;
+                break;
+            }
+        }
+    }
+    if !cache_valid {
+        entry = LaneCacheEntry {
+            fingerprint,
+            topo: Vec::new(),
+            active_lanes: Vec::new(),
+            lanes_assigned: 0,
+        };
+        // Rebuild the walker from scratch since the previous one was consumed
+        // partway through an invalid fast-forward.
+        let mut fresh = repo.revwalk()?;
+        fresh.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
+        if first_parent {
+            let _ = fresh.simplify_first_parent();
+        }
+        let _ = fresh.push_head();
+        for r in repo.references()?.flatten() {
+            let is_remote = r
+                .name()
+                .map(|n| n.starts_with("refs/remotes/"))
+                .unwrap_or(false);
+            if hide_remotes && is_remote {
+                continue;
+            }
+            if let Ok(commit_ref) = r.peel(git2::ObjectType::Commit) {
+                let _ = fresh.push(commit_ref.id());
+            }
+        }
+        walker = fresh;
+    }
+
+    // Extend the cached prefix up to `budget` with newly-walked commits.
+    while entry.topo.len() < budget {
+        let Some(oid_result) = walker.next() else {
+            break;
+        };
+        let oid = oid_result?;
+        let commit = repo.find_commit(oid)?;
+        let oid_str = oid.to_string();
+        let parent_oids: Vec<String> = commit.parent_ids().map(|p| p.to_string()).collect();
+
+        let idx = entry.topo.len();
+        let include_fields = idx >= skip;
+        let refs = if include_fields {
+            ref_map.get(&oid_str).cloned().unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        let (message, author_name, author_email, author_date, committer_name, committer_date) =
+            if include_fields {
+                let author = commit.author();
+                let committer = commit.committer();
+                (
+                    commit
+                        .message()
+                        .unwrap_or("")
+                        .lines()
+                        .next()
+                        .unwrap_or("")
+                        .to_string(),
+                    author.name().unwrap_or("").to_string(),
+                    author.email().unwrap_or("").to_string(),
+                    author.when().seconds(),
+                    committer.name().unwrap_or("").to_string(),
+                    committer.when().seconds(),
+                )
             } else {
-                // Merge parents get a new or free lane
-                let existing = active_lanes
-                    .iter()
-                    .position(|l| l.as_deref() == Some(parent_oid));
-                match existing {
-                    Some(l) => l,
-                    None => {
-                        let free = active_lanes.iter().position(|l| l.is_none());
-                        let new_lane = match free {
-                            Some(idx) => idx,
-                            None => {
-                                active_lanes.push(None);
-                                active_lanes.len() - 1
-                            }
-                        };
-                        if !is_boundary {
-                            active_lanes[new_lane] = Some(parent_oid.clone());
-                        }
-                        new_lane
-                    }
-                }
+                (
+                    String::new(),
+                    String::new(),
+                    String::new(),
+                    0,
+                    String::new(),
+                    0,
+                )
             };
 
-            edges.push(GraphEdge {
-                from_lane: lane,
-                to_lane: target_lane,
-                to_oid: parent_oid.clone(),
-                is_merge: p_idx > 0,
-            });
-        }
-
-        commit.edges = edges;
+        entry.topo.push(GraphCommit {
+            short_oid: oid_str[..7.min(oid_str.len())].to_string(),
+            oid: oid_str,
+            message,
+            author_name,
+            author_email,
+            author_date,
+            committer_name,
+            committer_date,
+            parent_oids,
+            refs,
+            lane: 0,
+            edges: Vec::new(),
+        });
     }
+
+    // Assign lanes only for the newly-appended tail; everything before it
+    // keeps the lane state already recorded in the cache.
+    //
+    // Unlike `compute_lanes`'s whole-history-known walked_oids check, a
+    // parent that hasn't been walked *yet* here might simply be on a page
+    // that hasn't loaded — not actually outside the walk. Treating it as a
+    // hard boundary would prematurely free its lane, so a later page's
+    // commit would land in a different lane than the edge drawn for it
+    // earlier promised, a visible discontinuity in the graph. Checking that
+    // the object exists at all (vs. having been walked already) avoids that:
+    // the lane stays reserved until the commit is actually reached, however
+    // many pages later that is. Under first_parent mode, a non-first parent
+    // is never walked at all (simplify_first_parent prunes it), so that one
+    // case is still a genuine, permanent boundary.
+    for commit in entry.topo[entry.lanes_assigned..].iter_mut() {
+        assign_lane(commit, &mut entry.active_lanes, |parent_oid, is_first| {
+            if first_parent && !is_first {
+                return true;
+            }
+            match git2::Oid::from_str(parent_oid) {
+                Ok(oid) => repo.find_commit(oid).is_err(),
+                Err(_) => true,
+            }
+        });
+    }
+    entry.lanes_assigned = entry.topo.len();
+
+    let result: Vec<GraphCommit> = entry
+        .topo
+        .iter()
+        .skip(skip)
+        .take(max_commits)
+        .cloned()
+        .collect();
+
+    cache.insert(key, entry);
+
+    Ok(result)
 }

@@ -670,3 +670,126 @@ fn test_paginated_graph_preserves_lanes_across_a_merge() {
         assert_eq!(got.edges.len(), want.edges.len());
     }
 }
+
+#[test]
+fn test_cached_graph_matches_uncached_across_pages() {
+    let repo = TempRepo::new();
+    for i in 0..25 {
+        repo.write_file(&format!("f{}.txt", i), &format!("v{}", i));
+        repo.commit(&format!("commit {}", i));
+    }
+
+    let whole = build_graph(repo.path_str(), 100, false, false, None).unwrap();
+    assert_eq!(whole.len(), 25);
+
+    let cache: LaneCache = parking_lot::Mutex::new(std::collections::HashMap::new());
+    let mut assembled = Vec::new();
+    for page in 0..whole.len().div_ceil(3) {
+        let chunk =
+            build_graph_page_cached(repo.path_str(), page * 3, 3, false, false, None, &cache)
+                .unwrap();
+        assembled.extend(chunk);
+    }
+
+    assert_eq!(assembled.len(), whole.len());
+    for (got, want) in assembled.iter().zip(whole.iter()) {
+        assert_eq!(got.oid, want.oid);
+        assert_eq!(got.message, want.message);
+        assert_eq!(got.lane, want.lane, "lane drifted for {}", got.oid);
+        assert_eq!(got.author_name, want.author_name);
+        assert_eq!(got.parent_oids, want.parent_oids);
+    }
+}
+
+/// Regression test for the exact bug the incremental cache had to avoid: a
+/// naive "reuse lane state, recompute boundary from what's cached so far"
+/// design frees a lane as soon as a linear chain's parent hasn't been walked
+/// *yet*, so the next page's commit — which really is that same parent — has
+/// no reserved lane to land in and gets shunted onto a different one, a
+/// visible jump in the graph. Page size 1 forces every single commit to
+/// cross a page boundary, so this would fail immediately if the bug were
+/// still present.
+#[test]
+fn test_cached_graph_preserves_lanes_across_a_merge_with_page_size_one() {
+    let repo = TempRepo::new();
+    repo.write_file("base.txt", "base");
+    repo.commit("base");
+    let base = repo.repo.head().unwrap().target().unwrap();
+
+    repo.write_file("side.txt", "side");
+    repo.commit("side work");
+    let side = repo.repo.head().unwrap().target().unwrap();
+
+    repo.repo.set_head_detached(base).unwrap();
+    repo.write_file("main.txt", "main");
+    repo.commit("main work");
+
+    let head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    let side_commit = repo.repo.find_commit(side).unwrap();
+    let sig = repo.repo.signature().unwrap();
+    let tree = head.tree().unwrap();
+    repo.repo
+        .commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "merge side",
+            &tree,
+            &[&head, &side_commit],
+        )
+        .unwrap();
+
+    let whole = build_graph(repo.path_str(), 100, false, false, None).unwrap();
+
+    let cache: LaneCache = parking_lot::Mutex::new(std::collections::HashMap::new());
+    let mut assembled = Vec::new();
+    for page in 0..whole.len() {
+        assembled.extend(
+            build_graph_page_cached(repo.path_str(), page, 1, false, false, None, &cache).unwrap(),
+        );
+    }
+
+    assert_eq!(assembled.len(), whole.len());
+    for (got, want) in assembled.iter().zip(whole.iter()) {
+        assert_eq!(got.oid, want.oid);
+        assert_eq!(got.lane, want.lane, "lane drifted for {}", got.oid);
+        assert_eq!(got.edges.len(), want.edges.len());
+        for (got_edge, want_edge) in got.edges.iter().zip(want.edges.iter()) {
+            assert_eq!(
+                got_edge.to_lane, want_edge.to_lane,
+                "edge target drifted for {}",
+                got.oid
+            );
+        }
+    }
+}
+
+/// A new tag pointing at a commit that's already in scope (HEAD, already
+/// covered by the walk) mustn't be missed by the cache's invalidation check —
+/// deduping the fingerprint by target oid alone would hide the new tag behind
+/// HEAD's already-cached oid and silently serve a commit's stale ref labels.
+#[test]
+fn test_cached_graph_picks_up_a_new_ref_pointing_at_an_already_cached_commit() {
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "a");
+    repo.commit("first");
+    let head_oid = repo.repo.head().unwrap().target().unwrap();
+
+    let cache: LaneCache = parking_lot::Mutex::new(std::collections::HashMap::new());
+    let first =
+        build_graph_page_cached(repo.path_str(), 0, 10, false, false, None, &cache).unwrap();
+    assert!(first[0].refs.iter().all(|r| r.name != "release"));
+
+    let head_commit = repo.repo.find_commit(head_oid).unwrap();
+    let sig = repo.repo.signature().unwrap();
+    repo.repo
+        .tag("release", head_commit.as_object(), &sig, "release", false)
+        .unwrap();
+
+    let second =
+        build_graph_page_cached(repo.path_str(), 0, 10, false, false, None, &cache).unwrap();
+    assert!(
+        second[0].refs.iter().any(|r| r.name == "release"),
+        "new tag on an already-cached commit should invalidate the cache"
+    );
+}

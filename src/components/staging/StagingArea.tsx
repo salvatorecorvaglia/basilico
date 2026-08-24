@@ -4,6 +4,7 @@
    ═══════════════════════════════════════════════════════ */
 
 import * as ContextMenu from "@radix-ui/react-context-menu";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   AlertTriangle,
   Calendar,
@@ -15,8 +16,9 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import type { FileStatus } from "../../lib/git-types";
 import {
   getDirectory,
   getFileName,
@@ -27,6 +29,19 @@ import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import { CommitBox } from "./CommitBox";
 import "./StagingArea.css";
+
+const ESTIMATED_ROW_HEIGHT = 34;
+
+type Row =
+  | { id: string; kind: "header-conflicted"; count: number }
+  | { id: string; kind: "conflicted-file"; file: string }
+  | { id: string; kind: "header-staged"; count: number }
+  | { id: string; kind: "empty-staged" }
+  | { id: string; kind: "staged-file"; file: FileStatus }
+  | { id: string; kind: "header-unstaged"; count: number }
+  | { id: string; kind: "empty-unstaged" }
+  | { id: string; kind: "unstaged-file"; file: FileStatus }
+  | { id: string; kind: "untracked-file"; file: string };
 
 export function StagingArea() {
   const {
@@ -69,6 +84,98 @@ export function StagingArea() {
 
   const [stagedOpen, setStagedOpen] = useState(true);
   const [unstagedOpen, setUnstagedOpen] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const staged = status?.staged ?? [];
+  const unstaged = status?.unstaged ?? [];
+  const untracked = status?.untracked ?? [];
+  const conflicted = status?.conflicted ?? [];
+  const totalUnstaged = unstaged.length + untracked.length;
+
+  // Sections are flattened into one row list so a single virtualizer covers
+  // the whole scroll area — otherwise a large merge or a `.gitignore` change
+  // that re-tracks thousands of files renders every row as a real DOM node.
+  const rows = useMemo<Row[]>(() => {
+    const result: Row[] = [];
+
+    if (conflicted.length > 0) {
+      result.push({
+        id: "header-conflicted",
+        kind: "header-conflicted",
+        count: conflicted.length,
+      });
+      for (const file of conflicted) {
+        result.push({
+          id: `conflicted:${file}`,
+          kind: "conflicted-file",
+          file,
+        });
+      }
+    }
+
+    result.push({
+      id: "header-staged",
+      kind: "header-staged",
+      count: staged.length,
+    });
+    if (stagedOpen) {
+      if (staged.length === 0) {
+        result.push({ id: "empty-staged", kind: "empty-staged" });
+      } else {
+        for (const file of staged) {
+          result.push({
+            id: `staged:${file.path}`,
+            kind: "staged-file",
+            file,
+          });
+        }
+      }
+    }
+
+    result.push({
+      id: "header-unstaged",
+      kind: "header-unstaged",
+      count: totalUnstaged,
+    });
+    if (unstagedOpen) {
+      if (totalUnstaged === 0) {
+        result.push({ id: "empty-unstaged", kind: "empty-unstaged" });
+      } else {
+        for (const file of unstaged) {
+          result.push({
+            id: `unstaged:${file.path}`,
+            kind: "unstaged-file",
+            file,
+          });
+        }
+        for (const file of untracked) {
+          result.push({
+            id: `untracked:${file}`,
+            kind: "untracked-file",
+            file,
+          });
+        }
+      }
+    }
+
+    return result;
+  }, [
+    conflicted,
+    staged,
+    unstaged,
+    untracked,
+    totalUnstaged,
+    stagedOpen,
+    unstagedOpen,
+  ]);
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    overscan: 15,
+    getItemKey: (index) => rows[index]?.id ?? index,
+  });
 
   const handleSaveStashPrompt = () => {
     openPrompt({
@@ -187,9 +294,6 @@ export function StagingArea() {
       </div>
     );
   }
-
-  const { staged, unstaged, untracked, conflicted } = status;
-  const totalUnstaged = unstaged.length + untracked.length;
 
   const handleStageAll = () => {
     const allUnstaged = [...unstaged.map((f) => f.path), ...untracked];
@@ -437,6 +541,319 @@ export function StagingArea() {
     </ContextMenu.Portal>
   );
 
+  const renderRow = (row: Row) => {
+    switch (row.kind) {
+      case "header-conflicted":
+        return (
+          <div className="staging-section-header">
+            <span className="staging-section-title">
+              <AlertTriangle size={14} className="text-warning" />
+              Merge Conflicts
+            </span>
+            <span className="staging-count badge-warning">{row.count}</span>
+          </div>
+        );
+
+      case "conflicted-file":
+        return (
+          <ContextMenu.Root>
+            <ContextMenu.Trigger>
+              <div
+                className={`staging-file-row ${selectedFilePath === row.file ? "selected" : ""}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => handleFileClick(row.file, false, true)}
+                onKeyDown={createKeyDownHandler(row.file, false, true)}
+              >
+                <span
+                  className="staging-file-status"
+                  style={{ color: "var(--color-warning)" }}
+                >
+                  !
+                </span>
+                <div className="staging-file-paths truncate">
+                  <span className="file-name">{getFileName(row.file)}</span>
+                  <span className="file-dir">{getDirectory(row.file)}</span>
+                </div>
+              </div>
+            </ContextMenu.Trigger>
+            {renderContextMenuContent(row.file, false, false, true)}
+          </ContextMenu.Root>
+        );
+
+      case "header-staged":
+        return (
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={stagedOpen}
+            className="staging-section-header"
+            onClick={() => setStagedOpen(!stagedOpen)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setStagedOpen(!stagedOpen);
+              }
+            }}
+          >
+            <button type="button" className="staging-chevron">
+              {stagedOpen ? (
+                <ChevronDown size={14} />
+              ) : (
+                <ChevronRight size={14} />
+              )}
+            </button>
+            <span className="staging-section-title">Staged Changes</span>
+            <span className="staging-count">{row.count}</span>
+            <button
+              type="button"
+              className="staging-action-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSaveStashPrompt();
+              }}
+              title="Stash staged and unstaged changes"
+              style={{ marginLeft: row.count > 0 ? "8px" : "auto" }}
+            >
+              Stash...
+            </button>
+            {row.count > 0 && (
+              <button
+                type="button"
+                className="staging-action-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleUnstageAll();
+                }}
+                style={{ marginLeft: "8px" }}
+              >
+                Unstage All
+              </button>
+            )}
+          </div>
+        );
+
+      case "empty-staged":
+        return (
+          // biome-ignore lint/a11y/noStaticElementInteractions: drop target only; the Stage/Unstage buttons and row key handlers are the keyboard path
+          <div
+            role="presentation"
+            className="staging-empty-text"
+            onDragOver={handleDragOver}
+            onDrop={handleDropOnStaged}
+          >
+            No staged changes (drag unstaged files here to stage)
+          </div>
+        );
+
+      case "staged-file":
+        return (
+          <ContextMenu.Root>
+            <ContextMenu.Trigger>
+              <div
+                className={`staging-file-row ${selectedFilePath === row.file.path ? "selected" : ""}`}
+                role="button"
+                tabIndex={0}
+                draggable
+                onDragStart={(e) => handleDragStart(e, row.file.path, true)}
+                onDragOver={handleDragOver}
+                onDrop={handleDropOnStaged}
+                onClick={() => handleFileClick(row.file.path, true)}
+                onKeyDown={createKeyDownHandler(row.file.path, true, false)}
+              >
+                <input
+                  type="checkbox"
+                  checked={true}
+                  onChange={() => handleCheckboxChange(row.file.path, true)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <span
+                  className="staging-file-status"
+                  style={{ color: getStatusColor(row.file.status) }}
+                >
+                  {getStatusIcon(row.file.status)}
+                </span>
+                <div className="staging-file-paths truncate">
+                  <span className="file-name">
+                    {getFileName(row.file.path)}
+                  </span>
+                  <span className="file-dir">
+                    {getDirectory(row.file.path)}
+                  </span>
+                </div>
+              </div>
+            </ContextMenu.Trigger>
+            {renderContextMenuContent(row.file.path, true, false, false)}
+          </ContextMenu.Root>
+        );
+
+      case "header-unstaged":
+        return (
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={unstagedOpen}
+            className="staging-section-header"
+            onClick={() => setUnstagedOpen(!unstagedOpen)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setUnstagedOpen(!unstagedOpen);
+              }
+            }}
+          >
+            <button type="button" className="staging-chevron">
+              {unstagedOpen ? (
+                <ChevronDown size={14} />
+              ) : (
+                <ChevronRight size={14} />
+              )}
+            </button>
+            <span className="staging-section-title">Unstaged Changes</span>
+            <span className="staging-count">{row.count}</span>
+            {row.count > 0 && (
+              <button
+                type="button"
+                className="staging-action-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStageAll();
+                }}
+              >
+                Stage All
+              </button>
+            )}
+          </div>
+        );
+
+      case "empty-unstaged":
+        return (
+          // biome-ignore lint/a11y/noStaticElementInteractions: drop target only; the Stage/Unstage buttons and row key handlers are the keyboard path
+          <div
+            role="presentation"
+            className="staging-empty-text"
+            onDragOver={handleDragOver}
+            onDrop={handleDropOnUnstaged}
+          >
+            No unstaged changes
+          </div>
+        );
+
+      case "unstaged-file":
+        return (
+          <ContextMenu.Root>
+            <ContextMenu.Trigger>
+              <div
+                className={`staging-file-row ${selectedFilePath === row.file.path ? "selected" : ""}`}
+                role="button"
+                tabIndex={0}
+                draggable
+                onDragStart={(e) => handleDragStart(e, row.file.path, false)}
+                onDragOver={handleDragOver}
+                onDrop={handleDropOnUnstaged}
+                onClick={() => handleFileClick(row.file.path, false)}
+                onKeyDown={createKeyDownHandler(row.file.path, false, false)}
+              >
+                <input
+                  type="checkbox"
+                  checked={false}
+                  onChange={() => handleCheckboxChange(row.file.path, false)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <span
+                  className="staging-file-status"
+                  style={{ color: getStatusColor(row.file.status) }}
+                >
+                  {getStatusIcon(row.file.status)}
+                </span>
+                <div className="staging-file-paths truncate">
+                  <span className="file-name">
+                    {getFileName(row.file.path)}
+                  </span>
+                  <span className="file-dir">
+                    {getDirectory(row.file.path)}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="staging-discard-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openConfirm({
+                      title: "Discard Changes",
+                      message: `Are you sure you want to discard all changes in ${getFileName(row.file.path)}? This action cannot be undone.`,
+                      confirmLabel: "Discard",
+                      isDanger: true,
+                      onConfirm: () => discardChanges([row.file.path]),
+                    });
+                  }}
+                  title="Discard changes"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            </ContextMenu.Trigger>
+            {renderContextMenuContent(row.file.path, false, false, false)}
+          </ContextMenu.Root>
+        );
+
+      case "untracked-file":
+        return (
+          <ContextMenu.Root>
+            <ContextMenu.Trigger>
+              <div
+                className={`staging-file-row ${selectedFilePath === row.file ? "selected" : ""}`}
+                role="button"
+                tabIndex={0}
+                onDragOver={handleDragOver}
+                onDrop={handleDropOnUnstaged}
+                onClick={() => handleFileClick(row.file, false)}
+                onKeyDown={createKeyDownHandler(row.file, false, false)}
+              >
+                <input
+                  type="checkbox"
+                  checked={false}
+                  onChange={() => handleCheckboxChange(row.file, false)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <span
+                  className="staging-file-status"
+                  style={{ color: "var(--color-success)" }}
+                >
+                  ?
+                </span>
+                <div className="staging-file-paths truncate">
+                  <span className="file-name">{getFileName(row.file)}</span>
+                  <span className="file-dir">{getDirectory(row.file)}</span>
+                </div>
+                <button
+                  type="button"
+                  className="staging-discard-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openConfirm({
+                      title: "Delete File",
+                      message: `Are you sure you want to delete ${getFileName(row.file)}? This will permanently delete the file.`,
+                      confirmLabel: "Delete",
+                      isDanger: true,
+                      onConfirm: () => discardChanges([row.file]),
+                    });
+                  }}
+                  title="Delete file"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            </ContextMenu.Trigger>
+            {renderContextMenuContent(row.file, false, true, false)}
+          </ContextMenu.Root>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="staging-area">
       <div className="staging-lists">
@@ -478,325 +895,46 @@ export function StagingArea() {
           </div>
         )}
 
-        {/* Conflicted Files */}
-        {conflicted.length > 0 && (
-          <div className="staging-section conflicted">
-            <div className="staging-section-header">
-              <span className="staging-section-title">
-                <AlertTriangle size={14} className="text-warning" />
-                Merge Conflicts
-              </span>
-              <span className="staging-count badge-warning">
-                {conflicted.length}
-              </span>
-            </div>
-            <div className="staging-list">
-              {conflicted.map((file) => (
-                <ContextMenu.Root key={file}>
-                  <ContextMenu.Trigger>
-                    <div
-                      className={`staging-file-row ${selectedFilePath === file ? "selected" : ""}`}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => handleFileClick(file, false, true)}
-                      onKeyDown={createKeyDownHandler(file, false, true)}
-                    >
-                      <span
-                        className="staging-file-status"
-                        style={{ color: "var(--color-warning)" }}
-                      >
-                        !
-                      </span>
-                      <div className="staging-file-paths truncate">
-                        <span className="file-name">{getFileName(file)}</span>
-                        <span className="file-dir">{getDirectory(file)}</span>
-                      </div>
-                    </div>
-                  </ContextMenu.Trigger>
-                  {renderContextMenuContent(file, false, false, true)}
-                </ContextMenu.Root>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Staged Changes */}
-        <div className="staging-section">
+        <div ref={scrollRef} className="staging-lists-virtual">
           <div
-            role="button"
-            tabIndex={0}
-            aria-expanded={stagedOpen}
-            className="staging-section-header"
-            onClick={() => setStagedOpen(!stagedOpen)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setStagedOpen(!stagedOpen);
-              }
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
             }}
           >
-            <button type="button" className="staging-chevron">
-              {stagedOpen ? (
-                <ChevronDown size={14} />
-              ) : (
-                <ChevronRight size={14} />
-              )}
-            </button>
-            <span className="staging-section-title">Staged Changes</span>
-            <span className="staging-count">{staged.length}</span>
-            <button
-              type="button"
-              className="staging-action-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleSaveStashPrompt();
-              }}
-              title="Stash staged and unstaged changes"
-              style={{ marginLeft: staged.length > 0 ? "8px" : "auto" }}
-            >
-              Stash...
-            </button>
-            {staged.length > 0 && (
-              <button
-                type="button"
-                className="staging-action-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleUnstageAll();
-                }}
-                style={{ marginLeft: "8px" }}
-              >
-                Unstage All
-              </button>
-            )}
-          </div>
-
-          {stagedOpen && (
-            // biome-ignore lint/a11y/noStaticElementInteractions: drop target only; the Stage/Unstage buttons and row key handlers are the keyboard path
-            <div
-              role="presentation"
-              className="staging-list"
-              onDragOver={handleDragOver}
-              onDrop={handleDropOnStaged}
-            >
-              {staged.length === 0 ? (
-                <div className="staging-empty-text">
-                  No staged changes (drag unstaged files here to stage)
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const row = rows[virtualRow.index];
+              if (!row) return null;
+              const isFileRow =
+                row.kind !== "header-conflicted" &&
+                row.kind !== "header-staged" &&
+                row.kind !== "header-unstaged" &&
+                row.kind !== "empty-staged" &&
+                row.kind !== "empty-unstaged";
+              return (
+                <div
+                  key={row.id}
+                  ref={virtualizer.measureElement}
+                  data-index={virtualRow.index}
+                  className={
+                    isFileRow
+                      ? "staging-virtual-row-item"
+                      : "staging-virtual-row-section"
+                  }
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  {renderRow(row)}
                 </div>
-              ) : (
-                staged.map((file) => (
-                  <ContextMenu.Root key={file.path}>
-                    <ContextMenu.Trigger>
-                      <div
-                        className={`staging-file-row ${selectedFilePath === file.path ? "selected" : ""}`}
-                        role="button"
-                        tabIndex={0}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, file.path, true)}
-                        onClick={() => handleFileClick(file.path, true)}
-                        onKeyDown={createKeyDownHandler(file.path, true, false)}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={true}
-                          onChange={() => handleCheckboxChange(file.path, true)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <span
-                          className="staging-file-status"
-                          style={{ color: getStatusColor(file.status) }}
-                        >
-                          {getStatusIcon(file.status)}
-                        </span>
-                        <div className="staging-file-paths truncate">
-                          <span className="file-name">
-                            {getFileName(file.path)}
-                          </span>
-                          <span className="file-dir">
-                            {getDirectory(file.path)}
-                          </span>
-                        </div>
-                      </div>
-                    </ContextMenu.Trigger>
-                    {renderContextMenuContent(file.path, true, false, false)}
-                  </ContextMenu.Root>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Unstaged Changes */}
-        <div className="staging-section">
-          <div
-            role="button"
-            tabIndex={0}
-            aria-expanded={unstagedOpen}
-            className="staging-section-header"
-            onClick={() => setUnstagedOpen(!unstagedOpen)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setUnstagedOpen(!unstagedOpen);
-              }
-            }}
-          >
-            <button type="button" className="staging-chevron">
-              {unstagedOpen ? (
-                <ChevronDown size={14} />
-              ) : (
-                <ChevronRight size={14} />
-              )}
-            </button>
-            <span className="staging-section-title">Unstaged Changes</span>
-            <span className="staging-count">{totalUnstaged}</span>
-            {totalUnstaged > 0 && (
-              <button
-                type="button"
-                className="staging-action-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleStageAll();
-                }}
-              >
-                Stage All
-              </button>
-            )}
+              );
+            })}
           </div>
-
-          {unstagedOpen && (
-            // biome-ignore lint/a11y/noStaticElementInteractions: drop target only; the Stage/Unstage buttons and row key handlers are the keyboard path
-            <div
-              role="presentation"
-              className="staging-list"
-              onDragOver={handleDragOver}
-              onDrop={handleDropOnUnstaged}
-            >
-              {totalUnstaged === 0 ? (
-                <div className="staging-empty-text">No unstaged changes</div>
-              ) : (
-                <>
-                  {/* Modified / Deleted files */}
-                  {unstaged.map((file) => (
-                    <ContextMenu.Root key={file.path}>
-                      <ContextMenu.Trigger>
-                        <div
-                          className={`staging-file-row ${selectedFilePath === file.path ? "selected" : ""}`}
-                          role="button"
-                          tabIndex={0}
-                          draggable
-                          onDragStart={(e) =>
-                            handleDragStart(e, file.path, false)
-                          }
-                          onClick={() => handleFileClick(file.path, false)}
-                          onKeyDown={createKeyDownHandler(
-                            file.path,
-                            false,
-                            false,
-                          )}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={false}
-                            onChange={() =>
-                              handleCheckboxChange(file.path, false)
-                            }
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                          <span
-                            className="staging-file-status"
-                            style={{ color: getStatusColor(file.status) }}
-                          >
-                            {getStatusIcon(file.status)}
-                          </span>
-                          <div className="staging-file-paths truncate">
-                            <span className="file-name">
-                              {getFileName(file.path)}
-                            </span>
-                            <span className="file-dir">
-                              {getDirectory(file.path)}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            className="staging-discard-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openConfirm({
-                                title: "Discard Changes",
-                                message: `Are you sure you want to discard all changes in ${getFileName(file.path)}? This action cannot be undone.`,
-                                confirmLabel: "Discard",
-                                isDanger: true,
-                                onConfirm: () => discardChanges([file.path]),
-                              });
-                            }}
-                            title="Discard changes"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </ContextMenu.Trigger>
-                      {renderContextMenuContent(file.path, false, false, false)}
-                    </ContextMenu.Root>
-                  ))}
-
-                  {/* Untracked files */}
-                  {untracked.map((file) => (
-                    <ContextMenu.Root key={file}>
-                      <ContextMenu.Trigger>
-                        <div
-                          className={`staging-file-row ${selectedFilePath === file ? "selected" : ""}`}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => handleFileClick(file, false)}
-                          onKeyDown={createKeyDownHandler(file, false, false)}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={false}
-                            onChange={() => handleCheckboxChange(file, false)}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                          <span
-                            className="staging-file-status"
-                            style={{ color: "var(--color-success)" }}
-                          >
-                            ?
-                          </span>
-                          <div className="staging-file-paths truncate">
-                            <span className="file-name">
-                              {getFileName(file)}
-                            </span>
-                            <span className="file-dir">
-                              {getDirectory(file)}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            className="staging-discard-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openConfirm({
-                                title: "Delete File",
-                                message: `Are you sure you want to delete ${getFileName(file)}? This will permanently delete the file.`,
-                                confirmLabel: "Delete",
-                                isDanger: true,
-                                onConfirm: () => discardChanges([file]),
-                              });
-                            }}
-                            title="Delete file"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </ContextMenu.Trigger>
-                      {renderContextMenuContent(file, false, true, false)}
-                    </ContextMenu.Root>
-                  ))}
-                </>
-              )}
-            </div>
-          )}
         </div>
       </div>
 

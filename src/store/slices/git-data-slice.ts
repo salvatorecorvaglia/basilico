@@ -83,7 +83,7 @@ export const createGitDataSlice: StateCreator<
     const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
-    set({ isRefreshing: true, error: null });
+    set({ isRefreshing: true });
     try {
       const status = await commands.getStatus(activeTabId, { silent: true });
       // Guard: only apply if still the same tab
@@ -92,7 +92,6 @@ export const createGitDataSlice: StateCreator<
       }
     } catch (err) {
       console.error("Failed to refresh status:", err);
-      set({ error: String(err) });
       throw err;
     } finally {
       set({ isRefreshing: false });
@@ -110,7 +109,7 @@ export const createGitDataSlice: StateCreator<
     } = get();
     if (!activeTabId) return;
 
-    set({ isRefreshing: true, error: null });
+    set({ isRefreshing: true });
     try {
       const [status, commits] = await Promise.all([
         commands.getStatus(activeTabId, { silent: true }),
@@ -129,7 +128,6 @@ export const createGitDataSlice: StateCreator<
       }
     } catch (err) {
       console.error("Failed to refresh commits and status:", err);
-      set({ error: String(err) });
       throw err;
     } finally {
       set({ isRefreshing: false });
@@ -140,7 +138,6 @@ export const createGitDataSlice: StateCreator<
     const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
-    set({ error: null });
     try {
       const [branches, tags] = await Promise.all([
         commands.listBranches(activeTabId, { silent: true }),
@@ -152,7 +149,6 @@ export const createGitDataSlice: StateCreator<
       }
     } catch (err) {
       console.error("Failed to refresh branches:", err);
-      set({ error: String(err) });
       throw err;
     }
   },
@@ -168,7 +164,7 @@ export const createGitDataSlice: StateCreator<
     } = get();
     if (!activeTabId) return;
 
-    set({ isRefreshing: true, error: null });
+    set({ isRefreshing: true });
     try {
       const safeCall = async <T>(
         promise: Promise<T>,
@@ -233,7 +229,6 @@ export const createGitDataSlice: StateCreator<
       }
     } catch (err) {
       console.error("Failed to refresh:", err);
-      set({ error: String(err) });
       throw err;
     } finally {
       set({ isRefreshing: false });
@@ -244,7 +239,7 @@ export const createGitDataSlice: StateCreator<
     const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
-    set({ isRefreshing: true, error: null });
+    set({ isRefreshing: true });
     try {
       // Only refresh status + branches on filesystem change, NOT the full commit log.
       // The commit log is expensive (500 commits + graph layout) and doesn't change on file saves.
@@ -260,14 +255,13 @@ export const createGitDataSlice: StateCreator<
       }
     } catch (err) {
       console.error("Failed to refresh on file change:", err);
-      set({ error: String(err) });
     } finally {
       set({ isRefreshing: false });
     }
   },
 
   selectCommit: async (oid: string | null) => {
-    set({ selectedCommitOid: oid, commitDiff: [], error: null });
+    set({ selectedCommitOid: oid, commitDiff: [] });
 
     if (!oid) return;
 
@@ -288,7 +282,6 @@ export const createGitDataSlice: StateCreator<
       }
     } catch (err) {
       console.error("Failed to load commit diff:", err);
-      set({ error: String(err) });
       throw err;
     } finally {
       setLoading(get, set, "diff", false);
@@ -309,7 +302,6 @@ export const createGitDataSlice: StateCreator<
     if (!activeTabId || loadingStates.commits || !hasMoreCommits) return;
 
     setLoading(get, set, "commits", true);
-    set({ error: null });
     try {
       // Request only the next page. The backend still walks the preceding
       // commits to keep graph lanes aligned, but no longer re-serialises them,
@@ -344,7 +336,6 @@ export const createGitDataSlice: StateCreator<
       });
     } catch (err) {
       console.error("Failed to load more commits:", err);
-      set({ error: String(err) });
       throw err;
     } finally {
       setLoading(get, set, "commits", false);
@@ -370,7 +361,6 @@ export const createGitDataSlice: StateCreator<
       });
     } catch (err) {
       console.error("Failed to list merged branches:", err);
-      set({ error: String(err) });
       return [];
     }
   },
@@ -380,7 +370,7 @@ export const createGitDataSlice: StateCreator<
     if (!activeTabId) return;
 
     setLoading(get, set, "blame", true);
-    set({ blameLines: [], error: null });
+    set({ blameLines: [] });
     try {
       const lines = await commands.getFileBlame(
         activeTabId,
@@ -392,7 +382,6 @@ export const createGitDataSlice: StateCreator<
       }
     } catch (err) {
       console.error("Failed to load file blame:", err);
-      set({ error: String(err) });
       throw err;
     } finally {
       setLoading(get, set, "blame", false);
@@ -404,7 +393,7 @@ export const createGitDataSlice: StateCreator<
     if (!activeTabId) return;
 
     setLoading(get, set, "history", true);
-    set({ fileHistory: [], error: null });
+    set({ fileHistory: [] });
     try {
       const history = await commands.getFileHistory(activeTabId, filePath);
       if (get().refreshGeneration === refreshGeneration) {
@@ -412,7 +401,6 @@ export const createGitDataSlice: StateCreator<
       }
     } catch (err) {
       console.error("Failed to load file history:", err);
-      set({ error: String(err) });
       throw err;
     } finally {
       setLoading(get, set, "history", false);

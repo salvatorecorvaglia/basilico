@@ -45,7 +45,6 @@ export const createWorktreeSubmoduleSlice: StateCreator<
       }
     } catch (err) {
       console.error("Failed to load worktrees:", err);
-      set({ error: String(err) });
     } finally {
       setLoading(get, set, "collaboration", false);
     }
@@ -118,7 +117,6 @@ export const createWorktreeSubmoduleSlice: StateCreator<
       }
     } catch (err) {
       console.error("Failed to load submodules:", err);
-      set({ error: String(err) });
     } finally {
       setLoading(get, set, "collaboration", false);
     }

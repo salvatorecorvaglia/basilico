@@ -50,13 +50,11 @@ function mergeSlices(
 export const useRepoStore = create<RepoState>(
   (set, get, store) =>
     mergeSlices([
-      // Shared loading & error surface, checked for collisions like any slice.
+      // Shared loading surface, checked for collisions like any slice.
       {
         loadingStates: { ...INITIAL_LOADING_STATES },
         isLoading: false,
         isRefreshing: false,
-        error: null,
-        errors: {},
       },
       createTabsSlice(set, get, store),
       createGitDataSlice(set, get, store),
