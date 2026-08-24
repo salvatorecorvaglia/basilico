@@ -8,6 +8,7 @@ import { ArrowLeftRight, CircleDot, Globe, Trash } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { BranchInfo, RemoteInfo } from "../../lib/git-types";
+import { useGitAction } from "../../lib/use-git-action";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 
@@ -16,7 +17,7 @@ interface RemoteTreeProps {
   remotes: RemoteInfo[];
 }
 
-export function RemoteTree({ branches, remotes }: RemoteTreeProps) {
+export function useRemoteTree({ branches, remotes }: RemoteTreeProps) {
   const { checkoutBranch, deleteBranch, startComparison } = useRepoStore(
     useShallow((s) => ({
       checkoutBranch: s.checkoutBranch,
@@ -31,6 +32,7 @@ export function RemoteTree({ branches, remotes }: RemoteTreeProps) {
       openConfirm: s.openConfirm,
     })),
   );
+  const runGitAction = useGitAction();
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
 
   // Memoize remote branch filtering
@@ -39,20 +41,11 @@ export function RemoteTree({ branches, remotes }: RemoteTreeProps) {
     [branches],
   );
 
-  const handleCheckout = async (name: string) => {
-    try {
-      await checkoutBranch(name);
-      addNotification({
-        type: "success",
-        message: `Checked out branch "${name}"`,
-      });
-    } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to checkout branch: ${err}`,
-      });
-    }
-  };
+  const handleCheckout = (name: string) =>
+    runGitAction(() => checkoutBranch(name), {
+      successMessage: `Checked out branch "${name}"`,
+      errorPrefix: "Failed to checkout branch",
+    });
 
   const handleDeleteRemoteBranch = (name: string) => {
     openConfirm({
@@ -60,20 +53,11 @@ export function RemoteTree({ branches, remotes }: RemoteTreeProps) {
       message: `Are you sure you want to delete remote branch "${name}"? This action cannot be undone.`,
       confirmLabel: "Delete Branch",
       isDanger: true,
-      onConfirm: async () => {
-        try {
-          await deleteBranch(name, true);
-          addNotification({
-            type: "success",
-            message: `Deleted branch "${name}"`,
-          });
-        } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to delete branch: ${err}`,
-          });
-        }
-      },
+      onConfirm: () =>
+        runGitAction(() => deleteBranch(name, true), {
+          successMessage: `Deleted branch "${name}"`,
+          errorPrefix: "Failed to delete branch",
+        }),
     });
   };
 

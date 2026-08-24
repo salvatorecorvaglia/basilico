@@ -8,7 +8,7 @@ vi.mock("@tauri-apps/api/core", () => ({
     invokeMock(cmd, args),
 }));
 
-import { RemoteTree } from "../../../src/components/sidebar/RemoteTree";
+import { useRemoteTree } from "../../../src/components/sidebar/RemoteTree";
 import type { BranchInfo, RemoteInfo } from "../../../src/lib/git-types";
 import { useRepoStore } from "../../../src/store/repo-store";
 import { useUIStore } from "../../../src/store/ui-store";
@@ -47,9 +47,9 @@ const REMOTES: RemoteInfo[] = [
   { name: "origin", url: "https://example.com/repo.git", pushUrl: null },
 ];
 
-// RemoteTree, like BranchTree, is a plain function that calls hooks and
-// returns `{ count, icon, content }` rather than JSX (see Sidebar.tsx). It
-// needs a minimal host component to be called under React's rules of hooks.
+// useRemoteTree is a hook, like useBranchTree — it returns
+// `{ count, icon, content }` rather than JSX (see Sidebar.tsx). It needs a
+// minimal host component to be called under React's rules of hooks.
 function Harness({
   branches,
   remotes,
@@ -57,11 +57,11 @@ function Harness({
   branches: BranchInfo[];
   remotes: RemoteInfo[];
 }) {
-  const { content } = RemoteTree({ branches, remotes });
+  const { content } = useRemoteTree({ branches, remotes });
   return <div>{content}</div>;
 }
 
-describe("RemoteTree", () => {
+describe("useRemoteTree", () => {
   beforeEach(() => {
     invokeMock.mockReset();
     invokeMock.mockResolvedValue(undefined);

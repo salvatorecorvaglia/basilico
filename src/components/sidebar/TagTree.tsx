@@ -8,6 +8,7 @@ import { Globe, Plus, Tag, Trash } from "lucide-react";
 import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { TagInfo } from "../../lib/git-types";
+import { useGitAction } from "../../lib/use-git-action";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 
@@ -15,7 +16,7 @@ interface TagTreeProps {
   tags: TagInfo[];
 }
 
-export function TagTree({ tags }: TagTreeProps) {
+export function useTagTree({ tags }: TagTreeProps) {
   const { checkoutBranch, deleteTag, createTag, pushTag, selectedCommitOid } =
     useRepoStore(
       useShallow((s) => ({
@@ -26,29 +27,20 @@ export function TagTree({ tags }: TagTreeProps) {
         selectedCommitOid: s.selectedCommitOid,
       })),
     );
-  const { addNotification, openPrompt, openConfirm } = useUIStore(
+  const { openPrompt, openConfirm } = useUIStore(
     useShallow((s) => ({
-      addNotification: s.addNotification,
       openPrompt: s.openPrompt,
       openConfirm: s.openConfirm,
     })),
   );
+  const runGitAction = useGitAction();
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
-  const handleCheckoutTag = async (name: string) => {
-    try {
-      await checkoutBranch(`refs/tags/${name}`);
-      addNotification({
-        type: "success",
-        message: `Checked out tag "${name}" (detached HEAD)`,
-      });
-    } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to checkout tag: ${err}`,
-      });
-    }
-  };
+  const handleCheckoutTag = (name: string) =>
+    runGitAction(() => checkoutBranch(`refs/tags/${name}`), {
+      successMessage: `Checked out tag "${name}" (detached HEAD)`,
+      errorPrefix: "Failed to checkout tag",
+    });
 
   const handleCreateTagPrompt = () => {
     openPrompt({
@@ -74,18 +66,10 @@ export function TagTree({ tags }: TagTreeProps) {
         const name = values.name.trim();
         const msg = values.message.trim();
         const target = selectedCommitOid || "HEAD";
-        try {
-          await createTag(name, target, msg || null);
-          addNotification({
-            type: "success",
-            message: `Created tag "${name}" at ${target.slice(0, 7)}`,
-          });
-        } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to create tag: ${err}`,
-          });
-        }
+        await runGitAction(() => createTag(name, target, msg || null), {
+          successMessage: `Created tag "${name}" at ${target.slice(0, 7)}`,
+          errorPrefix: "Failed to create tag",
+        });
       },
     });
   };
@@ -96,37 +80,19 @@ export function TagTree({ tags }: TagTreeProps) {
       message: `Are you sure you want to delete tag "${name}"?`,
       confirmLabel: "Delete Tag",
       isDanger: true,
-      onConfirm: async () => {
-        try {
-          await deleteTag(name);
-          addNotification({
-            type: "success",
-            message: `Deleted tag "${name}"`,
-          });
-        } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to delete tag: ${err}`,
-          });
-        }
-      },
+      onConfirm: () =>
+        runGitAction(() => deleteTag(name), {
+          successMessage: `Deleted tag "${name}"`,
+          errorPrefix: "Failed to delete tag",
+        }),
     });
   };
 
-  const handlePushTag = async (name: string) => {
-    try {
-      await pushTag("origin", name);
-      addNotification({
-        type: "success",
-        message: `Successfully pushed tag "${name}" to remote`,
-      });
-    } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to push tag: ${err}`,
-      });
-    }
-  };
+  const handlePushTag = (name: string) =>
+    runGitAction(() => pushTag("origin", name), {
+      successMessage: `Successfully pushed tag "${name}" to remote`,
+      errorPrefix: "Failed to push tag",
+    });
 
   return {
     count: tags.length,

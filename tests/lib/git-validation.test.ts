@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { validateBranchName, validateTagName } from "../../src/lib/git-validation";
+import {
+  validateBranchName,
+  validateTagName,
+} from "../../src/lib/git-validation";
 
 describe("git-validation", () => {
   describe("validateBranchName", () => {

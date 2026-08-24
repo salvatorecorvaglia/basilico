@@ -8,12 +8,12 @@ import { useState } from "react";
 import { useRepoStore } from "../../store/repo-store";
 import { SubmoduleModal } from "../modals/SubmoduleModal";
 import { WorktreeModal } from "../modals/WorktreeModal";
-import { BranchTree } from "../sidebar/BranchTree";
-import { RemoteTree } from "../sidebar/RemoteTree";
-import { StashTree } from "../sidebar/StashTree";
-import { SubmoduleTree } from "../sidebar/SubmoduleTree";
-import { TagTree } from "../sidebar/TagTree";
-import { WorktreeTree } from "../sidebar/WorktreeTree";
+import { useBranchTree } from "../sidebar/BranchTree";
+import { useRemoteTree } from "../sidebar/RemoteTree";
+import { useStashTree } from "../sidebar/StashTree";
+import { useSubmoduleTree } from "../sidebar/SubmoduleTree";
+import { useTagTree } from "../sidebar/TagTree";
+import { useWorktreeTree } from "../sidebar/WorktreeTree";
 import "./Sidebar.css";
 
 interface TreeSectionProps {
@@ -85,18 +85,19 @@ export function Sidebar() {
   const [worktreeModalOpen, setWorktreeModalOpen] = useState(false);
   const [submoduleModalOpen, setSubmoduleModalOpen] = useState(false);
 
-  // These sub-components internally call hooks (useState/useMemo/store selectors), so they
-  // must be called unconditionally on every render — never after a conditional early return —
-  // or React sees a different number of hooks between the loading and loaded renders and throws.
-  const branchTree = BranchTree({ branches });
-  const remoteTree = RemoteTree({ branches, remotes });
-  const tagTree = TagTree({ tags });
-  const stashTree = StashTree({ stashes });
-  const worktreeTree = WorktreeTree({
+  // These are hooks (they call useState/useMemo/store selectors internally),
+  // so — like any hook — they must run unconditionally on every render, never
+  // after a conditional early return, or React sees a different number of
+  // hooks between the loading and loaded renders and throws.
+  const branchTree = useBranchTree({ branches });
+  const remoteTree = useRemoteTree({ branches, remotes });
+  const tagTree = useTagTree({ tags });
+  const stashTree = useStashTree({ stashes });
+  const worktreeTree = useWorktreeTree({
     worktrees,
     onOpenModal: () => setWorktreeModalOpen(true),
   });
-  const submoduleTree = SubmoduleTree({
+  const submoduleTree = useSubmoduleTree({
     submodules,
     onOpenModal: () => setSubmoduleModalOpen(true),
   });

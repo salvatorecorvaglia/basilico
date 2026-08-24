@@ -7,6 +7,7 @@ import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Archive, Check, RotateCcw, Trash } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import type { StashInfo } from "../../lib/git-types";
+import { useGitAction } from "../../lib/use-git-action";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 
@@ -14,7 +15,7 @@ interface StashTreeProps {
   stashes: StashInfo[];
 }
 
-export function StashTree({ stashes }: StashTreeProps) {
+export function useStashTree({ stashes }: StashTreeProps) {
   const { applyStash, popStash, dropStash, loadStashDetail } = useRepoStore(
     useShallow((s) => ({
       applyStash: s.applyStash,
@@ -23,48 +24,30 @@ export function StashTree({ stashes }: StashTreeProps) {
       loadStashDetail: s.loadStashDetail,
     })),
   );
-  const { addNotification, setActiveView, openConfirm } = useUIStore(
+  const { setActiveView, openConfirm } = useUIStore(
     useShallow((s) => ({
-      addNotification: s.addNotification,
       setActiveView: s.setActiveView,
       openConfirm: s.openConfirm,
     })),
   );
+  const runGitAction = useGitAction();
 
   const handleStashSelect = async (index: number) => {
     await loadStashDetail(index);
     setActiveView("stash-inspector");
   };
 
-  const handleApplyStash = async (index: number) => {
-    try {
-      await applyStash(index);
-      addNotification({
-        type: "success",
-        message: `Stash applied successfully`,
-      });
-    } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to apply stash: ${err}`,
-      });
-    }
-  };
+  const handleApplyStash = (index: number) =>
+    runGitAction(() => applyStash(index), {
+      successMessage: "Stash applied successfully",
+      errorPrefix: "Failed to apply stash",
+    });
 
-  const handlePopStash = async (index: number) => {
-    try {
-      await popStash(index);
-      addNotification({
-        type: "success",
-        message: `Stash popped successfully`,
-      });
-    } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to pop stash: ${err}`,
-      });
-    }
-  };
+  const handlePopStash = (index: number) =>
+    runGitAction(() => popStash(index), {
+      successMessage: "Stash popped successfully",
+      errorPrefix: "Failed to pop stash",
+    });
 
   const handleDropStash = (index: number) => {
     openConfirm({
@@ -72,20 +55,11 @@ export function StashTree({ stashes }: StashTreeProps) {
       message: `Are you sure you want to drop stash@{${index}}? This action cannot be undone.`,
       confirmLabel: "Drop Stash",
       isDanger: true,
-      onConfirm: async () => {
-        try {
-          await dropStash(index);
-          addNotification({
-            type: "success",
-            message: `Stash dropped successfully`,
-          });
-        } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to drop stash: ${err}`,
-          });
-        }
-      },
+      onConfirm: () =>
+        runGitAction(() => dropStash(index), {
+          successMessage: "Stash dropped successfully",
+          errorPrefix: "Failed to drop stash",
+        }),
     });
   };
 

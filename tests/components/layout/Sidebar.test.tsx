@@ -77,8 +77,8 @@ describe("Sidebar", () => {
     invokeMock.mockResolvedValue(undefined);
   });
 
-  // Sidebar delegates to BranchTree/RemoteTree/etc., which internally call
-  // hooks (useState/useMemo/store selectors). Those calls must happen on
+  // Sidebar delegates to useBranchTree/useRemoteTree/etc., which internally
+  // call hooks (useState/useMemo/store selectors). Those calls must happen on
   // every render, never only after the loading guard clears — otherwise
   // React sees a different number of hooks between the loading and loaded
   // renders and throws "Rendered more hooks than during the previous

@@ -19,6 +19,7 @@ import { useShallow } from "zustand/react/shallow";
 import { getCreatePrUrl } from "../../lib/forge-links";
 import type { BranchInfo } from "../../lib/git-types";
 import { validateBranchName } from "../../lib/git-validation";
+import { useGitAction } from "../../lib/use-git-action";
 import { openExternalUrl } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
@@ -27,7 +28,7 @@ interface BranchTreeProps {
   branches: BranchInfo[];
 }
 
-export function BranchTree({ branches }: BranchTreeProps) {
+export function useBranchTree({ branches }: BranchTreeProps) {
   const {
     checkoutBranch,
     createBranch,
@@ -56,8 +57,31 @@ export function BranchTree({ branches }: BranchTreeProps) {
         openConfirm: s.openConfirm,
       })),
     );
+  const runGitAction = useGitAction();
 
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+
+  // A merge can resolve cleanly or land in conflicts — that's a fork in
+  // which notification to show, not just a message string, so both merge
+  // call sites (drag-to-merge and the context-menu action) share this rather
+  // than each duplicating the branch.
+  const mergeAndNotify = (dragged: string, target: string) =>
+    runGitAction(() => mergeBranch(dragged), {
+      errorPrefix: "Merge failed",
+      successMessage: (result) => {
+        if (result === "conflicts") {
+          addNotification({
+            type: "warning",
+            message:
+              "Merge conflict in workspace! Please resolve conflicts in the staging area.",
+          });
+          return null;
+        }
+        return target
+          ? `Merged branch "${dragged}" into "${target}" successfully`
+          : `Merged branch "${dragged}" successfully`;
+      },
+    });
 
   const handleBranchDrop = (dragged: string, target: string) => {
     openConfirm({
@@ -66,28 +90,10 @@ export function BranchTree({ branches }: BranchTreeProps) {
       confirmLabel: `Merge ${dragged}`,
       cancelLabel: "Cancel",
       onConfirm: async () => {
-        try {
-          if (branches.find((b) => b.name === target)?.isHead === false) {
-            await handleCheckout(target);
-          }
-          const result = await mergeBranch(dragged);
-          if (result === "conflicts") {
-            addNotification({
-              type: "warning",
-              message: `Merge conflict in workspace! Please resolve conflicts in the staging area.`,
-            });
-          } else {
-            addNotification({
-              type: "success",
-              message: `Merged branch "${dragged}" into "${target}" successfully`,
-            });
-          }
-        } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Merge failed: ${err}`,
-          });
+        if (branches.find((b) => b.name === target)?.isHead === false) {
+          await handleCheckout(target);
         }
+        await mergeAndNotify(dragged, target);
       },
     });
   };
@@ -98,20 +104,11 @@ export function BranchTree({ branches }: BranchTreeProps) {
     [branches],
   );
 
-  const handleCheckout = async (name: string) => {
-    try {
-      await checkoutBranch(name);
-      addNotification({
-        type: "success",
-        message: `Checked out branch "${name}"`,
-      });
-    } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to checkout branch: ${err}`,
-      });
-    }
-  };
+  const handleCheckout = (name: string) =>
+    runGitAction(() => checkoutBranch(name), {
+      successMessage: `Checked out branch "${name}"`,
+      errorPrefix: "Failed to checkout branch",
+    });
 
   const handleCreateBranch = () => {
     openPrompt({
@@ -134,18 +131,10 @@ export function BranchTree({ branches }: BranchTreeProps) {
           addNotification({ type: "error", message: validationError });
           return;
         }
-        try {
-          await createBranch(name);
-          addNotification({
-            type: "success",
-            message: `Created branch "${name}"`,
-          });
-        } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to create branch: ${err}`,
-          });
-        }
+        await runGitAction(() => createBranch(name), {
+          successMessage: `Created branch "${name}"`,
+          errorPrefix: "Failed to create branch",
+        });
       },
     });
   };
@@ -156,20 +145,11 @@ export function BranchTree({ branches }: BranchTreeProps) {
       message: `Are you sure you want to delete local branch "${name}"? This action cannot be undone.`,
       confirmLabel: "Delete Branch",
       isDanger: true,
-      onConfirm: async () => {
-        try {
-          await deleteBranch(name, false);
-          addNotification({
-            type: "success",
-            message: `Deleted branch "${name}"`,
-          });
-        } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to delete branch: ${err}`,
-          });
-        }
-      },
+      onConfirm: () =>
+        runGitAction(() => deleteBranch(name, false), {
+          successMessage: `Deleted branch "${name}"`,
+          errorPrefix: "Failed to delete branch",
+        }),
     });
   };
 
@@ -196,18 +176,10 @@ export function BranchTree({ branches }: BranchTreeProps) {
           addNotification({ type: "error", message: validationError });
           return;
         }
-        try {
-          await renameBranch(name, newName);
-          addNotification({
-            type: "success",
-            message: `Renamed branch to "${newName}"`,
-          });
-        } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to rename branch: ${err}`,
-          });
-        }
+        await runGitAction(() => renameBranch(name, newName), {
+          successMessage: `Renamed branch to "${newName}"`,
+          errorPrefix: "Failed to rename branch",
+        });
       },
     });
   };
@@ -218,25 +190,7 @@ export function BranchTree({ branches }: BranchTreeProps) {
       message: `Are you sure you want to merge branch "${name}" into the active branch?`,
       confirmLabel: "Merge Branch",
       onConfirm: async () => {
-        try {
-          const result = await mergeBranch(name);
-          if (result === "conflicts") {
-            addNotification({
-              type: "warning",
-              message: `Merge conflict in workspace! Please resolve conflicts in the staging area.`,
-            });
-          } else {
-            addNotification({
-              type: "success",
-              message: `Merged branch "${name}" successfully`,
-            });
-          }
-        } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to merge: ${err}`,
-          });
-        }
+        await mergeAndNotify(name, "");
       },
     });
   };

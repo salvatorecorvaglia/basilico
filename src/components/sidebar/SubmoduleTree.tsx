@@ -7,15 +7,18 @@ import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Download, FolderOpen, Package, Plus, RefreshCw } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import type { SubmoduleInfo } from "../../lib/git-types";
+import { useGitAction } from "../../lib/use-git-action";
 import { useRepoStore } from "../../store/repo-store";
-import { useUIStore } from "../../store/ui-store";
 
 interface SubmoduleTreeProps {
   submodules: SubmoduleInfo[];
   onOpenModal: () => void;
 }
 
-export function SubmoduleTree({ submodules, onOpenModal }: SubmoduleTreeProps) {
+export function useSubmoduleTree({
+  submodules,
+  onOpenModal,
+}: SubmoduleTreeProps) {
   const { openRepository, initSubmodules, updateSubmodules, syncSubmodules } =
     useRepoStore(
       useShallow((s) => ({
@@ -25,9 +28,32 @@ export function SubmoduleTree({ submodules, onOpenModal }: SubmoduleTreeProps) {
         syncSubmodules: s.syncSubmodules,
       })),
     );
-  const { addNotification } = useUIStore(
-    useShallow((s) => ({ addNotification: s.addNotification })),
-  );
+  const runGitAction = useGitAction();
+
+  const handleOpenSubmodule = (path: string) => {
+    const repoPath = useRepoStore.getState().repoInfo?.path;
+    if (repoPath) {
+      openRepository(`${repoPath}/${path}`);
+    }
+  };
+
+  const handleInitSubmodule = (path: string) =>
+    runGitAction(() => initSubmodules([path]), {
+      successMessage: "Submodule initialized",
+      errorPrefix: "Init failed",
+    });
+
+  const handleUpdateSubmodule = (path: string) =>
+    runGitAction(() => updateSubmodules([path], true), {
+      successMessage: "Submodule updated",
+      errorPrefix: "Update failed",
+    });
+
+  const handleSyncSubmodule = (path: string) =>
+    runGitAction(() => syncSubmodules([path]), {
+      successMessage: "Submodule synced",
+      errorPrefix: "Sync failed",
+    });
 
   return {
     count: submodules.length,
@@ -53,12 +79,7 @@ export function SubmoduleTree({ submodules, onOpenModal }: SubmoduleTreeProps) {
                 type="button"
                 className="sidebar-item"
                 title={sm.url || sm.path}
-                onDoubleClick={() => {
-                  const repoPath = useRepoStore.getState().repoInfo?.path;
-                  if (repoPath) {
-                    openRepository(`${repoPath}/${sm.path}`);
-                  }
-                }}
+                onDoubleClick={() => handleOpenSubmodule(sm.path)}
               >
                 <Package size={11} className="sidebar-item-dot" />
                 <span className="sidebar-item-name truncate">{sm.name}</span>
@@ -85,72 +106,28 @@ export function SubmoduleTree({ submodules, onOpenModal }: SubmoduleTreeProps) {
               <ContextMenu.Content className="radix-context-menu">
                 <ContextMenu.Item
                   className="context-menu-item"
-                  onSelect={() => {
-                    const repoPath = useRepoStore.getState().repoInfo?.path;
-                    if (repoPath) {
-                      openRepository(`${repoPath}/${sm.path}`);
-                    }
-                  }}
+                  onSelect={() => handleOpenSubmodule(sm.path)}
                 >
                   <FolderOpen size={12} />
                   <span>Open in New Tab</span>
                 </ContextMenu.Item>
                 <ContextMenu.Item
                   className="context-menu-item"
-                  onSelect={async () => {
-                    try {
-                      await initSubmodules([sm.path]);
-                      addNotification({
-                        type: "success",
-                        message: `Submodule initialized`,
-                      });
-                    } catch (err) {
-                      addNotification({
-                        type: "error",
-                        message: `Init failed: ${err}`,
-                      });
-                    }
-                  }}
+                  onSelect={() => handleInitSubmodule(sm.path)}
                 >
                   <Download size={12} />
                   <span>Init Submodule</span>
                 </ContextMenu.Item>
                 <ContextMenu.Item
                   className="context-menu-item"
-                  onSelect={async () => {
-                    try {
-                      await updateSubmodules([sm.path], true);
-                      addNotification({
-                        type: "success",
-                        message: `Submodule updated`,
-                      });
-                    } catch (err) {
-                      addNotification({
-                        type: "error",
-                        message: `Update failed: ${err}`,
-                      });
-                    }
-                  }}
+                  onSelect={() => handleUpdateSubmodule(sm.path)}
                 >
                   <RefreshCw size={12} />
                   <span>Update Submodule</span>
                 </ContextMenu.Item>
                 <ContextMenu.Item
                   className="context-menu-item"
-                  onSelect={async () => {
-                    try {
-                      await syncSubmodules([sm.path]);
-                      addNotification({
-                        type: "success",
-                        message: `Submodule synced`,
-                      });
-                    } catch (err) {
-                      addNotification({
-                        type: "error",
-                        message: `Sync failed: ${err}`,
-                      });
-                    }
-                  }}
+                  onSelect={() => handleSyncSubmodule(sm.path)}
                 >
                   <RefreshCw size={12} />
                   <span>Sync Submodule</span>

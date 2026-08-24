@@ -8,7 +8,7 @@ vi.mock("@tauri-apps/api/core", () => ({
     invokeMock(cmd, args),
 }));
 
-import { BranchTree } from "../../../src/components/sidebar/BranchTree";
+import { useBranchTree } from "../../../src/components/sidebar/BranchTree";
 import type { BranchInfo } from "../../../src/lib/git-types";
 import { useRepoStore } from "../../../src/store/repo-store";
 import { useUIStore } from "../../../src/store/ui-store";
@@ -43,16 +43,15 @@ const BRANCHES: BranchInfo[] = [
   },
 ];
 
-// BranchTree is not itself a JSX component — it's called as a plain function
-// that internally uses hooks and returns `{ count, icon, action, content }`
-// (see Sidebar.tsx). A minimal host component is required to call it under
-// React's rules of hooks.
+// useBranchTree is a hook, not a JSX component — it returns
+// `{ count, icon, action, content }` (see Sidebar.tsx), not an element. A
+// minimal host component is required to call it under React's rules of hooks.
 function Harness({ branches }: { branches: BranchInfo[] }) {
-  const { content } = BranchTree({ branches });
+  const { content } = useBranchTree({ branches });
   return <div>{content}</div>;
 }
 
-describe("BranchTree", () => {
+describe("useBranchTree", () => {
   beforeEach(() => {
     invokeMock.mockReset();
     invokeMock.mockResolvedValue(undefined);
