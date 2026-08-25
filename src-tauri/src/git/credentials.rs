@@ -323,7 +323,7 @@ fn resolve_helpers(config: &git2::Config, url: &str) -> Vec<String> {
     if let Ok(mut entries) = config.multivar("credential.helper", None) {
         while let Some(entry_res) = entries.next() {
             if let Ok(entry) = entry_res {
-                if let Some(val) = entry.value() {
+                if let Ok(val) = entry.value() {
                     if val.is_empty() {
                         helpers.clear();
                     } else {
