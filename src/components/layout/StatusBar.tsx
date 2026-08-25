@@ -49,7 +49,7 @@ export function StatusBar() {
       .then(setVersion)
       .catch((err) => {
         console.error("Failed to get app version:", err);
-        setVersion("1.1.1"); // Fallback
+        setVersion("1.2.0"); // Fallback
       });
   }, []);
 
@@ -183,7 +183,7 @@ export function StatusBar() {
           )}
 
           <span className="statusbar-item statusbar-version">
-            Basilico v{version || "1.1.1"}
+            Basilico v{version || "1.2.0"}
           </span>
         </div>
       </div>

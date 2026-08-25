@@ -69,7 +69,7 @@ We use **Biome** to format and lint our TypeScript, React, and CSS code. Ensure 
 - Format your Rust code with `cargo fmt`.
 - Ensure there are no warnings or errors reported by `cargo clippy`.
 - Follow idiomatic Rust guidelines (explicit error handling, proper ownership and borrowing, avoidance of `unwrap()` in production-ready command handlers).
-- Modularize Tauri commands into domain-specific modules under `src-tauri/src/commands/` (e.g., `doctor.rs`, `ide.rs`, `branch.rs`, `rebase.rs`, `worktree.rs`, `submodule.rs`, `patch.rs`, `reflog.rs`, `hooks.rs`, `conflict_resolver.rs`).
+- Modularize Tauri commands into domain-specific modules under `src-tauri/src/commands/` (e.g., `doctor.rs`, `ide.rs`, `branch.rs`, `rebase.rs`, `worktree.rs`, `submodule.rs`, `patch.rs`, `reflog.rs`, `hooks.rs`, `conflict_resolver.rs`), and Git internals under `src-tauri/src/git/` (e.g., `helpers.rs`, `credentials.rs`, `known_hosts.rs`, `graph.rs`).
 - Errors should be propagated to the frontend via the custom `Error` wrapper in `src-tauri/src/error.rs`.
 
 ---
@@ -83,7 +83,7 @@ Always verify that your changes do not break existing functionality:
   pnpm test
   ```
   We use **Vitest** and **React Testing Library** for frontend testing. When adding features or fixing bugs (in UI components, lib utilities, or Zustand state stores), add or update unit and component tests under the top-level `tests/` directory:
-  - **Component Tests**: `tests/components/` (e.g., `DiffView.test.tsx`, `RebaseEditor.test.tsx`, `BranchTree.test.tsx`, `RemoteTree.test.tsx`, `StagingArea.test.tsx`, `StatusBar.test.tsx`, `Toolbar.test.tsx`, `ConfirmModal.test.tsx`, `PromptModal.test.tsx`, `Sidebar.test.tsx`, `MergedBranchSweeperModal.test.tsx`).
+  - **Component Tests**: `tests/components/` (e.g., `DiffView.test.tsx`, `RebaseEditor.test.tsx`, `BranchTree.test.tsx`, `RemoteTree.test.tsx`, `StagingArea.test.tsx`, `StatusBar.test.tsx`, `Toolbar.test.tsx`, `ConfirmModal.test.tsx`, `PromptModal.test.tsx`, `Sidebar.test.tsx`, `MergedBranchSweeperModal.test.tsx`, `CommandPalette.test.tsx`, `CommitList.test.tsx`, `GitDoctorModal.test.tsx`, `SettingsModal.test.tsx`, `MergeEditor.test.tsx`).
   - **Store & Utility Tests**: `tests/lib/` (e.g., `store.test.ts`, `design-tokens.test.ts`, `shortcuts.test.ts`, `forge-links.test.ts`, `autolink.test.ts`, `signature-status.test.ts`, `git-validation.test.ts`, `error-messages.test.ts`, `command-registry.test.ts`).
 
 - **Run Backend Tests**:
@@ -93,6 +93,8 @@ Always verify that your changes do not break existing functionality:
   cargo test
   ```
   Backend test suites are organized into dedicated test modules in `src-tauri/tests/` (`commands_tests.rs`, `git_tests.rs`, `watcher_tests.rs`, `backend_integration_test.rs`).
+
+  Note: `git_tests.rs` also covers commit-graph lane assignment/caching (`src-tauri/src/git/graph.rs`), and SSH host key verification lives in `src-tauri/src/git/known_hosts.rs`.
 
 *Note: GitHub Actions enforces quality gates in parallel (strict linting with `--error-on-warnings`, formatting, Vitest frontend tests, Rust compilation, and tests).*
 

@@ -7,21 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-25
+
 ### Added
 
 - **Force-Push Support & Confirmation Modal**: Added right-click context option for force-pushing branches from the toolbar, protected with an explicit danger confirmation modal.
 - **Opt-In GitHub CI Status Check**: Added a dedicated user setting to make GitHub Actions CI status polling strictly opt-in, reducing unnecessary API requests and network activity.
 - **Safe External URL Protocol Sanitization**: Added URL validation in `openExternalUrl` to restrict opened links strictly to approved safe protocols (`http:`, `https:`, `mailto:`).
-- **Expanded Frontend & Backend Test Suites**: Added component test coverage for `DiffView`, `RebaseEditor`, `BranchTree`, `RemoteTree`, `StagingArea`, `StatusBar`, `Toolbar`, `ConfirmModal`, `PromptModal`, and `Sidebar` in `tests/components/`, alongside extensive Rust backend command integration tests in `src-tauri/tests/commands_tests.rs`.
+- **SSH Host Key Verification**: Added a `known_hosts` lookup (`src-tauri/src/git/known_hosts.rs`) wired into the SSH `certificate_check` callback, rejecting connections when a host's presented key no longer matches its recorded `known_hosts` entry (a rotated key or a possible MITM).
+- **Virtualized Staging Area Layout**: Integrated `@tanstack/react-virtual` in `StagingArea` to render staged/unstaged file rows in a single virtualized list, keeping large changesets responsive.
+- **`useGitAction` Notification Hook**: Added `src/lib/use-git-action.ts` to standardize running a store action and turning its outcome into a success/error toast.
+- **Expanded Frontend & Backend Test Suites**: Added component test coverage for `DiffView`, `RebaseEditor`, `BranchTree`, `RemoteTree`, `StagingArea`, `StatusBar`, `Toolbar`, `ConfirmModal`, `PromptModal`, `Sidebar`, `CommandPalette`, `CommitList`, `GitDoctorModal`, `SettingsModal`, and `MergeEditor` in `tests/components/`, alongside extensive Rust backend command integration tests in `src-tauri/tests/commands_tests.rs` and `src-tauri/tests/git_tests.rs`.
 
 ### Changed
 
 - **Commit Search & Pagination Handling**: Refactored the `search_commits` backend command and `git-data-slice` store actions to handle pagination and filtering robustly without stale data retention.
 - **Tab State Scoping & Isolation**: Scoped active tab state in Zustand store to prevent state leakage between separate repository tabs and fixed React hook rule compliance in `Sidebar`.
 - **Git & GPG Workflow Hardening**: Hardened GPG key listing and signing subprocess handlers, centralized Git CLI execution and merge logic in `src-tauri/src/git/helpers.rs`, and updated `git2` method calls to handle `Result` types consistently.
+- **External Merge Tool Command Hardening**: Refactored `launch_external_merge_tool` to resolve custom merge-tool commands from stored user settings rather than the IPC `tool_name` argument, preventing a compromised or buggy renderer from executing an arbitrary program.
+- **Commit-Graph Lane Caching**: Added a `graph_lane_cache` to `AppState` so commit-graph lane assignments persist across "load more" pagination instead of being recomputed from scratch, with cache entries cleared when a repository is closed.
+- **Race Condition Fixes**: Guarded `selectLocalFile`, `loadStashDetail`, and commit/status refresh actions in the Zustand store against stale writes from superseded requests during concurrent tab switches or repository opens.
+- **Removed Global Error State**: Removed the shared `error`/`errors` store fields in favor of per-action error handling (toast notifications), simplifying `RepoState` and eliminating stale cross-tab error bleed.
+- **Sidebar Tree Notification Consolidation**: Refactored `BranchTree`, `RemoteTree`, `TagTree`, `StashTree`, `WorktreeTree`, and `SubmoduleTree` to share the new `useGitAction` hook, removing ~400 lines of duplicated try/catch/notify logic.
+- **Accessibility & Modal Backdrop Theming**: Added ARIA attributes across sidebar trees, `DiffView`, and `ConflictBanner`, and standardized modal backdrop dimming via new `--scrim-backdrop` / `--scrim-backdrop-heavy` theme variables.
 - **Modal Double-Submission Guards**: Added disabled/submitting state guards to `ConfirmModal` and `PromptModal` to prevent duplicate submissions during asynchronous operations.
 - **Test Suite & Asset Organization**: Moved all frontend unit and component tests to a unified top-level `tests/` directory (`tests/components/`, `tests/lib/`) and relocated static web assets to `resources/` with Vite `publicDir` configuration.
-- **Dependency Upgrades**: Updated frontend and Rust crate dependencies to their latest compatible versions.
+- **Dependency Upgrades**: Updated frontend and Rust crate dependencies to their latest compatible versions, including new `sha1`, `hmac`, `sha2`, and `base64` crates backing SSH host key verification.
 
 ## [1.1.1] - 2026-08-13
 

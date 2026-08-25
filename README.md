@@ -20,10 +20,12 @@
 - **🧹 Merged Branch Sweeper**: Detect and safely clean up merged branches across your local and remote repositories.
 - **📝 Granular Line-Level Staging**: Stage and unstage individual hunks or specific lines of code directly from unified or side-by-side diff views.
 - **🔏 GPG Signature Verification & Hardened Git Operations**: Check commit authenticity directly in the application with hardened GPG and Git CLI subprocess workflows.
+- **🔒 SSH Host Key Verification**: Detects rotated or mismatched SSH host keys against your `known_hosts` file before connecting, guarding against man-in-the-middle attacks.
 - **🧭 Git Bisect Wizard**: Quickly locate buggy commits with an intuitive step-by-step bisect flow.
 - **⚔️ Conflict Resolution Workflow & Reflog Inspector**: Resolve merge/rebase conflicts with a dedicated `ConflictBanner` and side-based resolution controls, and inspect detailed repository reflog histories in real-time.
 - **🌳 Worktrees & Submodules Modals**: Full visual modals for listing, adding, removing, locking/unlocking with custom reasons, and inspecting Git worktrees and submodules.
 - **📦 Stash Inspector**: Create, list, apply, pop, and inspect stashes with line-by-line diff support.
+- **⚡ Virtualized Staging Area**: Renders staged and unstaged file lists with row virtualization to stay smooth even on repositories with large changesets.
 - **📂 Multi-Repository Management**: Quickly switch between open repositories, or clone/initialize repositories straight from the dashboard.
 - **⚙️ Integrated Settings & Tools**: Generate and manage SSH keys, configure GitHub Personal Access Tokens (PATs), opt-in to GitHub CI status checks, and launch external merge/diff tools.
 
