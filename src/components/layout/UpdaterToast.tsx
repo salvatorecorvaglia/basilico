@@ -46,7 +46,7 @@ export function UpdaterToast() {
       <p className="updater-toast-desc">
         {status === "available" &&
           "A new version of Basilico is ready to download."}
-        {status === "downloading" && `Downloading update files... ${progress}%`}
+        {status === "downloading" && `Downloading update... ${progress}%`}
         {status === "ready" &&
           "Basilico will update when you restart the application."}
         {status === "error" && (error || "An error occurred during update.")}
