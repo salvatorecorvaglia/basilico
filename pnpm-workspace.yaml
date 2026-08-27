@@ -25,6 +25,9 @@ minimumReleaseAgeExclude:
   - '@vitest/spy@4.1.11'
   - '@vitest/utils@4.1.11'
   - vitest@4.1.11
+  - '@tanstack/react-table@9.2.3'
+  - '@tanstack/table-core@9.2.3'
+  - '@types/node@26.4.0'
 
 overrides:
   dompurify: "^3.4.12"
