@@ -140,7 +140,7 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
 /// For a normal repository this is just `.git`. For a linked worktree it is the
 /// worktree's own git directory *and* the shared common directory, since refs
 /// live in the latter while `HEAD` lives in the former.
-fn resolve_git_dirs(repo_path: &Path) -> Vec<std::path::PathBuf> {
+pub fn resolve_git_dirs(repo_path: &Path) -> Vec<std::path::PathBuf> {
     let mut dirs = Vec::new();
 
     match git2::Repository::open(repo_path) {
@@ -208,23 +208,14 @@ pub fn is_significant_path(path_str: &str) -> bool {
         }
     }
 
+    // Shares `is_conventionally_ignored` rather than repeating its list. The
+    // two copies had already drifted: this one never covered `.venv`, `venv`,
+    // `__pycache__`, `Pods`, `bin` or `obj`, so a Python or Xcode project's
+    // build output was excluded from *watching* but still triggered a full
+    // refresh on every write once something else in the tree changed.
     for comp in path.components() {
         let name = comp.as_os_str().to_string_lossy();
-        if name == "node_modules"
-            || name == "target"
-            || name == ".next"
-            || name == ".turbo"
-            || name == "dist"
-            || name == "build"
-            || name == "out"
-            || name == "vendor"
-            || name == "coverage"
-            || name == ".cache"
-            || name == "tmp"
-            || name == "storage"
-            || name == ".idea"
-            || name == ".vscode"
-        {
+        if is_conventionally_ignored(&name) {
             return false;
         }
     }

@@ -5,20 +5,9 @@
 
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import {
-  AlertTriangle,
-  Calendar,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  Plus,
-  Trash2,
-  Undo2,
-} from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import type { FileStatus } from "../../lib/git-types";
 import {
   getDirectory,
   getFileName,
@@ -28,20 +17,16 @@ import {
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import { CommitBox } from "./CommitBox";
+import { StagingContextMenu } from "./StagingContextMenu";
+import {
+  type StagingRow,
+  stagingSections,
+  useStagingRows,
+} from "./use-staging-rows";
+import { useStagingVimKeys } from "./use-staging-vim-keys";
 import "./StagingArea.css";
 
 const ESTIMATED_ROW_HEIGHT = 34;
-
-type Row =
-  | { id: string; kind: "header-conflicted"; count: number }
-  | { id: string; kind: "conflicted-file"; file: string }
-  | { id: string; kind: "header-staged"; count: number }
-  | { id: string; kind: "empty-staged" }
-  | { id: string; kind: "staged-file"; file: FileStatus }
-  | { id: string; kind: "header-unstaged"; count: number }
-  | { id: string; kind: "empty-unstaged" }
-  | { id: string; kind: "unstaged-file"; file: FileStatus }
-  | { id: string; kind: "untracked-file"; file: string };
 
 export function StagingArea() {
   const {
@@ -86,88 +71,10 @@ export function StagingArea() {
   const [unstagedOpen, setUnstagedOpen] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const staged = status?.staged ?? [];
-  const unstaged = status?.unstaged ?? [];
-  const untracked = status?.untracked ?? [];
-  const conflicted = status?.conflicted ?? [];
-  const totalUnstaged = unstaged.length + untracked.length;
+  const sections = stagingSections(status);
+  const { staged, unstaged, untracked } = sections;
 
-  // Sections are flattened into one row list so a single virtualizer covers
-  // the whole scroll area — otherwise a large merge or a `.gitignore` change
-  // that re-tracks thousands of files renders every row as a real DOM node.
-  const rows = useMemo<Row[]>(() => {
-    const result: Row[] = [];
-
-    if (conflicted.length > 0) {
-      result.push({
-        id: "header-conflicted",
-        kind: "header-conflicted",
-        count: conflicted.length,
-      });
-      for (const file of conflicted) {
-        result.push({
-          id: `conflicted:${file}`,
-          kind: "conflicted-file",
-          file,
-        });
-      }
-    }
-
-    result.push({
-      id: "header-staged",
-      kind: "header-staged",
-      count: staged.length,
-    });
-    if (stagedOpen) {
-      if (staged.length === 0) {
-        result.push({ id: "empty-staged", kind: "empty-staged" });
-      } else {
-        for (const file of staged) {
-          result.push({
-            id: `staged:${file.path}`,
-            kind: "staged-file",
-            file,
-          });
-        }
-      }
-    }
-
-    result.push({
-      id: "header-unstaged",
-      kind: "header-unstaged",
-      count: totalUnstaged,
-    });
-    if (unstagedOpen) {
-      if (totalUnstaged === 0) {
-        result.push({ id: "empty-unstaged", kind: "empty-unstaged" });
-      } else {
-        for (const file of unstaged) {
-          result.push({
-            id: `unstaged:${file.path}`,
-            kind: "unstaged-file",
-            file,
-          });
-        }
-        for (const file of untracked) {
-          result.push({
-            id: `untracked:${file}`,
-            kind: "untracked-file",
-            file,
-          });
-        }
-      }
-    }
-
-    return result;
-  }, [
-    conflicted,
-    staged,
-    unstaged,
-    untracked,
-    totalUnstaged,
-    stagedOpen,
-    unstagedOpen,
-  ]);
+  const rows = useStagingRows(sections, stagedOpen, unstagedOpen);
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -216,76 +123,15 @@ export function StagingArea() {
     });
   };
 
-  useEffect(() => {
-    const handleVimKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      const isInput =
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable ||
-          target.closest(".monaco-editor"));
-      if (isInput || !settings?.vimModeEnabled || !status) return;
-
-      const { staged: st, unstaged: un, untracked: ut } = status;
-      const allFiles = [
-        ...un.map((f) => ({ path: f.path, isStaged: false })),
-        ...ut.map((p) => ({ path: p, isStaged: false })),
-        ...st.map((f) => ({ path: f.path, isStaged: true })),
-      ];
-      if (allFiles.length === 0) return;
-
-      const currIdx = allFiles.findIndex((f) => f.path === selectedFilePath);
-
-      if (e.key === "j") {
-        e.preventDefault();
-        const nextIdx = currIdx < allFiles.length - 1 ? currIdx + 1 : 0;
-        selectLocalFile(allFiles[nextIdx].path, allFiles[nextIdx].isStaged);
-      } else if (e.key === "k") {
-        e.preventDefault();
-        const prevIdx = currIdx > 0 ? currIdx - 1 : allFiles.length - 1;
-        selectLocalFile(allFiles[prevIdx].path, allFiles[prevIdx].isStaged);
-      } else if (e.key === "s") {
-        e.preventDefault();
-        if (selectedFilePath) {
-          const fileObj = allFiles.find((f) => f.path === selectedFilePath);
-          if (fileObj && !fileObj.isStaged) {
-            stageFiles([selectedFilePath]);
-          }
-        }
-      } else if (e.key === "u") {
-        e.preventDefault();
-        if (selectedFilePath) {
-          const fileObj = allFiles.find((f) => f.path === selectedFilePath);
-          if (fileObj?.isStaged) {
-            unstageFiles([selectedFilePath]);
-          }
-        }
-      } else if (e.key === "c") {
-        e.preventDefault();
-        const msgBox = document.querySelector(
-          ".commit-box-textarea",
-        ) as HTMLTextAreaElement | null;
-        if (msgBox) {
-          msgBox.focus();
-        }
-      } else if (e.key === "g") {
-        e.preventDefault();
-        setActiveView("graph");
-      }
-    };
-
-    window.addEventListener("keydown", handleVimKey);
-    return () => window.removeEventListener("keydown", handleVimKey);
-  }, [
-    settings?.vimModeEnabled,
+  useStagingVimKeys({
+    enabled: !!settings?.vimModeEnabled,
     status,
     selectedFilePath,
     selectLocalFile,
     stageFiles,
     unstageFiles,
     setActiveView,
-  ]);
+  });
 
   if (!status) {
     return (
@@ -314,9 +160,18 @@ export function StagingArea() {
     isStaged: boolean,
     isConflicted = false,
   ) => {
-    selectLocalFile(path, isStaged);
+    // Both store actions rethrow after logging, so an un-caught call here
+    // produced an unhandled rejection on every failure the user never saw.
+    selectLocalFile(path, isStaged).catch((err) => {
+      console.error("Failed to load diff for", path, err);
+    });
     if (isConflicted) {
-      useRepoStore.getState().loadConflictStages(path);
+      useRepoStore
+        .getState()
+        .loadConflictStages(path)
+        .catch((err) => {
+          console.error("Failed to load conflict stages for", path, err);
+        });
       setActiveView("conflict-resolver");
     }
   };
@@ -430,118 +285,31 @@ export function StagingArea() {
   };
 
   // Shared context menu renderer
+  // Thin wrapper so the four call sites below stay readable: the menu itself
+  // lives in StagingContextMenu.tsx.
   const renderContextMenuContent = (
     filePath: string,
     isStaged: boolean,
     isUntracked: boolean,
     isConflicted: boolean,
   ) => (
-    <ContextMenu.Portal>
-      <ContextMenu.Content className="radix-context-menu">
-        {isConflicted && (
-          <>
-            <ContextMenu.Item
-              className="context-menu-item"
-              onSelect={async () => {
-                try {
-                  await resolveConflictWithSide(filePath, "ours");
-                  addNotification({
-                    type: "success",
-                    message: `Resolved conflict in ${getFileName(filePath)} using Ours (Local)`,
-                  });
-                } catch (err) {
-                  addNotification({
-                    type: "error",
-                    message: `Failed to resolve conflict: ${err}`,
-                  });
-                }
-              }}
-            >
-              <Check size={12} />
-              <span>Accept Ours (Local)</span>
-            </ContextMenu.Item>
-            <ContextMenu.Item
-              className="context-menu-item"
-              onSelect={async () => {
-                try {
-                  await resolveConflictWithSide(filePath, "theirs");
-                  addNotification({
-                    type: "success",
-                    message: `Resolved conflict in ${getFileName(filePath)} using Theirs (Incoming)`,
-                  });
-                } catch (err) {
-                  addNotification({
-                    type: "error",
-                    message: `Failed to resolve conflict: ${err}`,
-                  });
-                }
-              }}
-            >
-              <Check size={12} />
-              <span>Accept Theirs (Incoming)</span>
-            </ContextMenu.Item>
-          </>
-        )}
-        {!isConflicted && (
-          <ContextMenu.Item
-            className="context-menu-item"
-            onSelect={() => {
-              if (isStaged) {
-                unstageFiles([filePath]);
-              } else {
-                stageFiles([filePath]);
-              }
-            }}
-          >
-            {isStaged ? <Undo2 size={12} /> : <Plus size={12} />}
-            <span>{isStaged ? "Unstage File" : "Stage File"}</span>
-          </ContextMenu.Item>
-        )}
-        {!isStaged && !isConflicted && (
-          <ContextMenu.Item
-            className="context-menu-item danger"
-            onSelect={() => {
-              openConfirm({
-                title: isUntracked ? "Delete File" : "Discard Changes",
-                message: isUntracked
-                  ? `Are you sure you want to permanently delete ${getFileName(filePath)}?`
-                  : `Are you sure you want to discard all changes in ${getFileName(filePath)}? This action cannot be undone.`,
-                confirmLabel: isUntracked ? "Delete" : "Discard",
-                isDanger: true,
-                onConfirm: () => discardChanges([filePath]),
-              });
-            }}
-          >
-            <Trash2 size={12} />
-            <span>{isUntracked ? "Delete File" : "Discard Changes"}</span>
-          </ContextMenu.Item>
-        )}
-        <ContextMenu.Separator className="context-menu-divider" />
-        <ContextMenu.Item
-          className="context-menu-item"
-          onSelect={() => {
-            selectLocalFile(filePath, isStaged);
-            setActiveView("blame");
-          }}
-        >
-          <Clock size={12} />
-          <span>View Blame</span>
-        </ContextMenu.Item>
-        <ContextMenu.Item
-          className="context-menu-item"
-          onSelect={() => {
-            selectLocalFile(filePath, isStaged);
-            setActiveView("history");
-          }}
-        >
-          <Calendar size={12} />
-          <span>View File History</span>
-        </ContextMenu.Item>
-      </ContextMenu.Content>
-    </ContextMenu.Portal>
+    <StagingContextMenu
+      filePath={filePath}
+      isStaged={isStaged}
+      isUntracked={isUntracked}
+      isConflicted={isConflicted}
+      stageFiles={stageFiles}
+      unstageFiles={unstageFiles}
+      discardChanges={discardChanges}
+      selectLocalFile={selectLocalFile}
+      resolveConflictWithSide={resolveConflictWithSide}
+      setActiveView={setActiveView}
+      addNotification={addNotification}
+      openConfirm={openConfirm}
+    />
   );
 
-  const renderRow = (row: Row) => {
+  const renderRow = (row: StagingRow) => {
     switch (row.kind) {
       case "header-conflicted":
         return (

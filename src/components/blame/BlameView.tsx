@@ -14,7 +14,6 @@ export function BlameView() {
     selectedCommitOid,
     isLoading,
     openInIde,
-    repoInfo,
     settings,
   } = useRepoStore(
     useShallow((s) => ({
@@ -25,7 +24,6 @@ export function BlameView() {
       selectedCommitOid: s.selectedCommitOid,
       isLoading: s.isLoading,
       openInIde: s.openInIde,
-      repoInfo: s.repoInfo,
       settings: s.settings,
     })),
   );
@@ -73,10 +71,11 @@ export function BlameView() {
 
   const handleOpenInIde = (lineNo?: number) => {
     if (!selectedFilePath) return;
-    const fullPath = repoInfo?.path
-      ? `${repoInfo.path}/${selectedFilePath}`
-      : selectedFilePath;
-    openInIde(fullPath, lineNo);
+    // Repo-relative: Rust joins it against the repository root with the
+    // platform separator rather than a hardcoded "/".
+    openInIde(selectedFilePath, lineNo, true).catch((err) => {
+      console.error("Failed to open file in editor:", err);
+    });
   };
 
   return (

@@ -22,6 +22,7 @@ import { validateBranchName } from "../../lib/git-validation";
 import { useGitAction } from "../../lib/use-git-action";
 import { openExternalUrl } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
+import { selectDefaultRemoteUrl } from "../../store/slices/git-data-slice";
 import { useUIStore } from "../../store/ui-store";
 
 interface BranchTreeProps {
@@ -29,6 +30,10 @@ interface BranchTreeProps {
 }
 
 export function useBranchTree({ branches }: BranchTreeProps) {
+  // The remote whose web UI "Create Pull / Merge Request" should point at —
+  // see `selectDefaultRemoteUrl` for why `remotes[0]` was the wrong choice.
+  const defaultRemoteUrl = useRepoStore(selectDefaultRemoteUrl);
+
   const {
     checkoutBranch,
     createBranch,
@@ -36,7 +41,6 @@ export function useBranchTree({ branches }: BranchTreeProps) {
     renameBranch,
     mergeBranch,
     startComparison,
-    remotes,
   } = useRepoStore(
     useShallow((s) => ({
       checkoutBranch: s.checkoutBranch,
@@ -45,7 +49,6 @@ export function useBranchTree({ branches }: BranchTreeProps) {
       renameBranch: s.renameBranch,
       mergeBranch: s.mergeBranch,
       startComparison: s.startComparison,
-      remotes: s.remotes,
     })),
   );
   const { addNotification, setActiveView, openPrompt, openConfirm } =
@@ -300,15 +303,13 @@ export function useBranchTree({ branches }: BranchTreeProps) {
               <Edit size={12} />
               <span>Rename Branch...</span>
             </ContextMenu.Item>
-            {remotes?.[0]?.url &&
-              getCreatePrUrl(remotes[0].url, branch.name) && (
+            {defaultRemoteUrl &&
+              getCreatePrUrl(defaultRemoteUrl, branch.name) && (
                 <ContextMenu.Item
                   className="context-menu-item"
                   onSelect={() => {
-                    if (remotes[0]?.url) {
-                      const url = getCreatePrUrl(remotes[0].url, branch.name);
-                      if (url) openExternalUrl(url);
-                    }
+                    const url = getCreatePrUrl(defaultRemoteUrl, branch.name);
+                    if (url) openExternalUrl(url);
                   }}
                 >
                   <ExternalLink size={12} />

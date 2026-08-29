@@ -162,14 +162,27 @@ fn count_loose_objects<P: AsRef<Path>>(git_dir: P) -> u64 {
 pub async fn get_repo_health(path: String) -> Result<DoctorReport, AppError> {
     tokio::task::spawn_blocking(move || {
         let repo_path = Path::new(&path);
-        let git_dir = repo_path.join(".git");
 
-        let git_size_bytes = dir_size(&git_dir);
+        // `.git` is a *file* in a linked worktree or a submodule, so joining it
+        // literally measured nothing and reported a perfectly healthy empty
+        // repository. Ask libgit2 where the real directories are — the same
+        // resolution the file watcher already performs.
+        let git_dirs = crate::watcher::resolve_git_dirs(repo_path);
+
+        // Object storage lives in the *common* directory, which for a linked
+        // worktree is the main repository's `.git`, not the worktree's own.
+        let object_store = git_dirs
+            .last()
+            .cloned()
+            .unwrap_or_else(|| repo_path.join(".git"));
+
+        let git_size_bytes = git_dirs.iter().map(dir_size).sum();
         let total_size_bytes = dir_size(repo_path);
-        let loose_objects_count = count_loose_objects(&git_dir);
-        let packfiles_count = count_files_with_ext(git_dir.join("objects").join("pack"), "pack");
-        let lfs_objects_count = if git_dir.join("lfs").exists() {
-            count_all_files(git_dir.join("lfs"))
+        let loose_objects_count = count_loose_objects(&object_store);
+        let packfiles_count =
+            count_files_with_ext(object_store.join("objects").join("pack"), "pack");
+        let lfs_objects_count = if object_store.join("lfs").exists() {
+            count_all_files(object_store.join("lfs"))
         } else {
             0
         };

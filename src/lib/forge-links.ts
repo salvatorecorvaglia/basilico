@@ -10,6 +10,29 @@ export interface ParsedForge {
   owner: string;
   repo: string;
   webBaseUrl: string;
+  /** The remote's hostname, so callers can distinguish github.com from a
+   *  self-hosted forge that merely resembles one. */
+  host: string;
+}
+
+/**
+ * Classify a remote host.
+ *
+ * Everything that is not recognisably GitLab or Bitbucket used to be labelled
+ * "github", which meant a self-hosted GitLab (`git.company.com`), a Gitea
+ * instance, or any other forge was handed GitHub's URL shapes — and, worse,
+ * was treated as a GitHub repository by `fetchGitHubCiStatus`, which then
+ * queried api.github.com for an unrelated `owner/repo` with the user's token
+ * attached. Only github.com is GitHub; anything unrecognised is "generic",
+ * whose URL shapes (`/commit/<sha>`, `/tree/<ref>`) match the widely-used
+ * GitHub-compatible layout Gitea and Forgejo also serve.
+ */
+function detectProvider(host: string): ForgeProvider {
+  const lower = host.toLowerCase();
+  if (lower === "github.com" || lower.endsWith(".github.com")) return "github";
+  if (lower.includes("gitlab")) return "gitlab";
+  if (lower.includes("bitbucket")) return "bitbucket";
+  return "generic";
 }
 
 export function parseRemoteUrl(remoteUrl: string): ParsedForge | null {
@@ -30,16 +53,12 @@ export function parseRemoteUrl(remoteUrl: string): ParsedForge | null {
       if (pathParts.length >= 2) {
         const owner = pathParts[0];
         const repo = pathParts.slice(1).join("/");
-        const provider: ForgeProvider = host.includes("gitlab")
-          ? "gitlab"
-          : host.includes("bitbucket")
-            ? "bitbucket"
-            : "github";
         return {
-          provider,
+          provider: detectProvider(host),
           owner,
           repo,
           webBaseUrl: `https://${host}/${owner}/${repo}`,
+          host,
         };
       }
     }
@@ -53,16 +72,12 @@ export function parseRemoteUrl(remoteUrl: string): ParsedForge | null {
     if (pathParts.length >= 2) {
       const owner = pathParts[0];
       const repo = pathParts.slice(1).join("/");
-      const provider: ForgeProvider = host.includes("gitlab")
-        ? "gitlab"
-        : host.includes("bitbucket")
-          ? "bitbucket"
-          : "github";
       return {
-        provider,
+        provider: detectProvider(host),
         owner,
         repo,
         webBaseUrl: `https://${host}/${owner}/${repo}`,
+        host,
       };
     }
   } catch {
@@ -166,12 +181,24 @@ export async function fetchGitHubCiStatus(
   githubPat?: string | null,
 ): Promise<CiStatusResult> {
   const forge = parseRemoteUrl(remoteUrl);
-  if (forge?.provider !== "github") {
+  // Only github.com is served by api.github.com. Anything else — a self-hosted
+  // GitLab, a Gitea instance, an enterprise host — would otherwise have its
+  // owner/repo pasted into a github.com API path and queried with the user's
+  // personal access token, reporting a stranger's CI status as this repo's.
+  if (
+    forge?.provider !== "github" ||
+    forge.host.toLowerCase() !== "github.com"
+  ) {
     return { status: "unknown" };
   }
 
   try {
-    const apiUrl = `https://api.github.com/repos/${forge.owner}/${forge.repo}/actions/runs?branch=${encodeURIComponent(branch)}&per_page=1`;
+    // Encoded per path segment: `repo` can still contain a slash when the
+    // remote URL has extra path components, and an unencoded one would
+    // silently address a different API endpoint.
+    const owner = encodeURIComponent(forge.owner);
+    const repo = encodeURIComponent(forge.repo);
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/actions/runs?branch=${encodeURIComponent(branch)}&per_page=1`;
     const headers: Record<string, string> = {
       Accept: "application/vnd.github+json",
       "User-Agent": "Basilico-Git-Client",

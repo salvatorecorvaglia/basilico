@@ -793,3 +793,119 @@ fn test_cached_graph_picks_up_a_new_ref_pointing_at_an_already_cached_commit() {
         "new tag on an already-cached commit should invalidate the cache"
     );
 }
+
+/// Regression test for the lane cache serving blanked commit metadata.
+///
+/// The cache used to skip message/author/ref extraction for rows before the
+/// requested page — but those stripped rows were *stored*, so a later request
+/// starting at a lower `skip` found the prefix already present, skipped the
+/// walk entirely, and handed the client a page of commits with no message, no
+/// author, a zero date and no ref badges. Entering the cache at `skip > 0`
+/// while it is cold is what makes those rows stripped in the first place, so
+/// that is the order this exercises.
+#[test]
+fn test_cached_graph_backfills_metadata_when_entered_at_a_nonzero_skip() {
+    let repo = TempRepo::new();
+    for i in 0..10 {
+        repo.write_file(&format!("f{}.txt", i), &format!("v{}", i));
+        repo.commit(&format!("commit {}", i));
+    }
+
+    let whole = build_graph(repo.path_str(), 20, false, false, None).unwrap();
+    assert_eq!(whole.len(), 10);
+
+    let cache: LaneCache = parking_lot::Mutex::new(std::collections::HashMap::new());
+
+    // Cold cache, but the first request is for the *second* page.
+    let tail = build_graph_page_cached(repo.path_str(), 5, 5, false, false, None, &cache).unwrap();
+    assert_eq!(tail.len(), 5);
+
+    // Now ask for the whole thing. The prefix is already cached; it must still
+    // carry real metadata rather than the placeholders the walk used to store.
+    let all = build_graph_page_cached(repo.path_str(), 0, 10, false, false, None, &cache).unwrap();
+    assert_eq!(all.len(), whole.len());
+
+    for (got, want) in all.iter().zip(whole.iter()) {
+        assert_eq!(got.oid, want.oid);
+        assert_eq!(got.message, want.message, "message blanked for {}", got.oid);
+        assert_eq!(
+            got.author_name, want.author_name,
+            "author blanked for {}",
+            got.oid
+        );
+        assert_eq!(
+            got.author_date, want.author_date,
+            "date zeroed for {}",
+            got.oid
+        );
+        assert_eq!(
+            got.refs.len(),
+            want.refs.len(),
+            "refs dropped for {}",
+            got.oid
+        );
+        assert_eq!(got.lane, want.lane);
+    }
+}
+
+/// An untracked file must produce a diff. `get_file_diff` omitted
+/// `include_untracked`, so every newly-created file the user clicked in the
+/// staging list came back as `NotFound` with no stats and an empty hunk list.
+#[test]
+fn test_get_file_diff_returns_a_delta_for_an_untracked_file() {
+    let repo = TempRepo::new();
+    repo.write_file("tracked.txt", "tracked\n");
+    repo.commit("initial");
+
+    repo.write_file("brand-new.txt", "hello\nworld\n");
+
+    let diff = get_file_diff(repo.path_str(), "brand-new.txt", false)
+        .expect("an untracked file should still produce a diff");
+
+    assert_eq!(diff.new_path.as_deref(), Some("brand-new.txt"));
+    assert_eq!(diff.status, "untracked");
+    assert_eq!(diff.stats.additions, 2);
+}
+
+/// The lane cache was only ever pruned when a repository was closed, and its
+/// key includes the graph filter flags — so every open repo, times every
+/// filter combination the user toggled through, pinned a fully-populated copy
+/// of the walked history for the lifetime of the session.
+#[test]
+fn test_lane_cache_is_bounded() {
+    let cache: LaneCache = parking_lot::Mutex::new(std::collections::HashMap::new());
+
+    // Five repositories, each queried under two filter settings: ten distinct
+    // cache keys, more than the cache is allowed to retain.
+    let repos: Vec<TempRepo> = (0..5)
+        .map(|i| {
+            let repo = TempRepo::new();
+            repo.write_file("f.txt", &format!("repo {}", i));
+            repo.commit("initial");
+            repo
+        })
+        .collect();
+
+    for repo in &repos {
+        for first_parent in [false, true] {
+            build_graph_page_cached(repo.path_str(), 0, 10, first_parent, false, None, &cache)
+                .unwrap();
+        }
+    }
+
+    let held = cache.lock().len();
+    assert!(
+        held <= 8,
+        "cache grew to {held} entries; it must evict rather than accumulate one per repo x filter combination"
+    );
+
+    // Eviction must not break correctness — the most recent key still serves
+    // the same result a cold cache would.
+    let last = repos.last().unwrap();
+    let cached =
+        build_graph_page_cached(last.path_str(), 0, 10, false, false, None, &cache).unwrap();
+    let fresh = build_graph(last.path_str(), 10, false, false, None).unwrap();
+    assert_eq!(cached.len(), fresh.len());
+    assert_eq!(cached[0].oid, fresh[0].oid);
+    assert_eq!(cached[0].message, fresh[0].message);
+}

@@ -9,7 +9,11 @@ export interface SettingsSlice {
   loadSettings: () => Promise<void>;
   saveSettings: (settings: UserSettings) => Promise<void>;
   generateSshKey: (comment: string) => Promise<string>;
-  openInIde: (filePath: string, line?: number | null) => Promise<void>;
+  openInIde: (
+    filePath: string,
+    line?: number | null,
+    repoRelative?: boolean,
+  ) => Promise<void>;
 }
 
 export const createSettingsSlice: StateCreator<
@@ -58,10 +62,13 @@ export const createSettingsSlice: StateCreator<
     }
   },
 
-  openInIde: async (filePath, line) => {
+  openInIde: async (filePath, line, repoRelative = false) => {
     const currentSettings = get().settings;
     const editor = currentSettings?.externalEditor || "code";
-    await commands.openInIde(filePath, line, editor, {
+    // A repo-relative path is joined against the repository root in Rust, so
+    // the separator is the platform's rather than a hardcoded "/".
+    const repoPath = repoRelative ? get().activeTabId : null;
+    await commands.openInIde(filePath, line, editor, repoPath, {
       errorPrefix: `Failed to open file in ${editor}`,
     });
   },

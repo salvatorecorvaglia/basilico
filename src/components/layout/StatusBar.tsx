@@ -21,20 +21,25 @@ import {
 } from "../../lib/forge-links";
 import { openExternalUrl } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
+import { selectDefaultRemoteUrl } from "../../store/slices/git-data-slice";
 import { useUIStore } from "../../store/ui-store";
 import { GitDoctorModal } from "../settings/GitDoctorModal";
 import "./StatusBar.css";
 
 export function StatusBar() {
-  const { status, repoInfo, remotes, isRefreshing, settings } = useRepoStore(
+  const { status, repoInfo, isRefreshing, settings } = useRepoStore(
     useShallow((s) => ({
       status: s.status,
       repoInfo: s.repoInfo,
-      remotes: s.remotes,
       isRefreshing: s.isRefreshing,
       settings: s.settings,
     })),
   );
+  // `remotes[0]` is libgit2's ordering, not a meaningful choice — on a fork
+  // with both `origin` and `upstream` it picked whichever came first and
+  // reported the wrong repository's CI.
+  const defaultRemoteUrl = useRepoStore(selectDefaultRemoteUrl);
+
   const { setActiveView } = useUIStore(
     useShallow((s) => ({ setActiveView: s.setActiveView })),
   );
@@ -54,7 +59,7 @@ export function StatusBar() {
   }, []);
 
   useEffect(() => {
-    const remoteUrl = remotes[0]?.url;
+    const remoteUrl = defaultRemoteUrl;
     const branch = status?.branch || "main";
 
     if (!settings?.checkGithubCiStatus || !remoteUrl) {
@@ -75,7 +80,7 @@ export function StatusBar() {
       cancelled = true;
     };
   }, [
-    remotes,
+    defaultRemoteUrl,
     status?.branch,
     settings?.checkGithubCiStatus,
     settings?.githubPat,

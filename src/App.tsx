@@ -316,13 +316,20 @@ function App() {
 
   // Open repository via file dialog (shared by both shortcut paths)
   const handleOpenRepo = useCallback(async () => {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: "Open Git Repository",
-    });
-    if (selected) {
-      await openRepository(selected as string);
+    // `openRepository` raises its own toast and then rethrows, so without this
+    // catch every failed open also surfaced as an unhandled rejection — and
+    // this handler is invoked from a keydown listener that cannot await it.
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: "Open Git Repository",
+      });
+      if (selected) {
+        await openRepository(selected as string);
+      }
+    } catch (err) {
+      console.error("Failed to open repository:", err);
     }
   }, [openRepository]);
 

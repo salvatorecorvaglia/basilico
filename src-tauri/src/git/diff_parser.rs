@@ -110,6 +110,19 @@ pub fn get_file_diff(path: &str, file_path: &str, is_staged: bool) -> Result<Fil
             repo.diff_tree_to_index(None, None, Some(&mut opts))?
         }
     } else {
+        // Untracked files must be included, exactly as `get_workdir_diff` does.
+        // Without this an untracked path produces no delta at all, so the
+        // `NotFound` below fires for every newly-created file the user clicks
+        // in the staging list.
+        //
+        // `show_untracked_content` is what makes that delta useful: libgit2
+        // otherwise reports the file as changed but emits no hunks, leaving
+        // the granular staging view empty and the +/- counters at zero. It is
+        // safe to pay for here because this diff is scoped to one pathspec,
+        // and `parse_diff` truncates anything oversized.
+        opts.include_untracked(true)
+            .recurse_untracked_dirs(true)
+            .show_untracked_content(true);
         repo.diff_index_to_workdir(None, Some(&mut opts))?
     };
 

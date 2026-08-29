@@ -11,7 +11,19 @@ pub async fn open_in_ide(
     path: String,
     line: Option<u32>,
     editor: Option<String>,
+    repo_path: Option<String>,
 ) -> Result<(), AppError> {
+    // When the caller supplies a repository root, `path` is relative to it and
+    // the two are joined here rather than in the renderer — which used a
+    // literal "/" and so produced a mixed-separator path on Windows.
+    let path = match repo_path {
+        Some(root) if !root.is_empty() => {
+            let joined = std::path::Path::new(&root).join(&path);
+            joined.to_string_lossy().into_owned()
+        }
+        _ => path,
+    };
+
     // A path starting with '-' would be parsed as a flag by every editor CLI
     // below. Anchoring it to the current directory keeps it positional.
     let path = if path.starts_with('-') {

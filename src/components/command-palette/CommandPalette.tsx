@@ -8,6 +8,7 @@ import { ArrowRight, Command, Terminal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useRepoStore } from "../../store/repo-store";
+import { selectDefaultRemote } from "../../store/slices/git-data-slice";
 import { useUIStore } from "../../store/ui-store";
 import "./CommandPalette.css";
 
@@ -20,6 +21,10 @@ interface PaletteItem {
 }
 
 export function CommandPalette() {
+  // The remote sync commands target. Hardcoding "origin" made all three fail
+  // on any repository whose remote is named something else.
+  const defaultRemote = useRepoStore(selectDefaultRemote);
+
   const {
     commandPaletteOpen,
     toggleCommandPalette,
@@ -111,12 +116,19 @@ export function CommandPalette() {
     },
     {
       id: "fetch",
-      name: "Fetch from remote (origin)",
+      name: `Fetch from remote (${defaultRemote ?? "no remote"})`,
       category: "Remote Sync",
       shortcut: "Ctrl+Shift+F",
       action: async () => {
+        if (!defaultRemote) {
+          addNotification({
+            type: "warning",
+            message: "This repository has no remote configured.",
+          });
+          return;
+        }
         try {
-          await fetch("origin");
+          await fetch(defaultRemote);
           addNotification({
             type: "success",
             message: "Fetch completed successfully",
@@ -128,13 +140,20 @@ export function CommandPalette() {
     },
     {
       id: "pull",
-      name: "Pull from remote (origin)",
+      name: `Pull from remote (${defaultRemote ?? "no remote"})`,
       category: "Remote Sync",
       shortcut: "Ctrl+Shift+L",
       action: async () => {
         if (!status?.branch) return;
+        if (!defaultRemote) {
+          addNotification({
+            type: "warning",
+            message: "This repository has no remote configured.",
+          });
+          return;
+        }
         try {
-          const res = await pull("origin", status.branch);
+          const res = await pull(defaultRemote, status.branch);
           if (res === "conflicts") {
             addNotification({
               type: "warning",
@@ -153,13 +172,20 @@ export function CommandPalette() {
     },
     {
       id: "push",
-      name: "Push to remote (origin)",
+      name: `Push to remote (${defaultRemote ?? "no remote"})`,
       category: "Remote Sync",
       shortcut: "Ctrl+Shift+P",
       action: async () => {
         if (!status?.branch) return;
+        if (!defaultRemote) {
+          addNotification({
+            type: "warning",
+            message: "This repository has no remote configured.",
+          });
+          return;
+        }
         try {
-          await push("origin", status.branch, false);
+          await push(defaultRemote, status.branch, false);
           addNotification({
             type: "success",
             message: "Push completed successfully",

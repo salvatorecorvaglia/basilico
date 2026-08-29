@@ -459,9 +459,11 @@ pub struct LaneCacheEntry {
     /// deduping by oid alone would miss it and serve a commit's cached refs
     /// without the new tag.
     fingerprint: Vec<String>,
-    /// Commits walked so far, in walk order. Metadata fields are left empty
-    /// (never needed once a commit has scrolled past the requested page) —
-    /// only oid/parent_oids/lane/edges are kept.
+    /// Commits walked so far, in walk order, fully populated. Metadata used to
+    /// be omitted for rows outside the requested page, but these entries are
+    /// reused: a later request starting at a lower `skip` finds the prefix
+    /// already cached and serves it verbatim, so anything left empty here is
+    /// what the client ultimately renders.
     topo: Vec<GraphCommit>,
     active_lanes: Vec<Option<String>>,
     /// How many entries of `topo`, from the start, already have a final
@@ -470,6 +472,24 @@ pub struct LaneCacheEntry {
 }
 
 pub type LaneCache = Mutex<HashMap<LaneCacheKey, LaneCacheEntry>>;
+
+/// Ceiling on how many commits one cache entry retains.
+///
+/// Entries hold a fully-populated copy of every commit paged through — the
+/// same data the frontend already has — and were only ever dropped when the
+/// repository was closed. Past this point the entry is discarded and the next
+/// page rebuilds from scratch: paging that deep is rare, and paying one rewalk
+/// is better than holding an unbounded second copy of the history for as long
+/// as the tab stays open.
+const MAX_CACHED_COMMITS: usize = 20_000;
+
+/// Ceiling on how many entries the cache holds at once.
+///
+/// The key includes the `first_parent` and `hide_remotes` filter flags, so
+/// toggling filters accumulated a separate full entry per combination on top
+/// of one per open repository. Evicting the oldest keeps that bounded; a
+/// dropped entry costs a rewalk, not correctness.
+const MAX_CACHE_ENTRIES: usize = 8;
 
 /// Build one page of the commit graph, reusing lane-assignment state cached
 /// from previous pages of the same paginated session instead of recomputing
@@ -607,51 +627,32 @@ pub fn build_graph_page_cached(
         let oid_str = oid.to_string();
         let parent_oids: Vec<String> = commit.parent_ids().map(|p| p.to_string()).collect();
 
-        let idx = entry.topo.len();
-        let include_fields = idx >= skip;
-        let refs = if include_fields {
-            ref_map.get(&oid_str).cloned().unwrap_or_default()
-        } else {
-            Vec::new()
-        };
-        let (message, author_name, author_email, author_date, committer_name, committer_date) =
-            if include_fields {
-                let author = commit.author();
-                let committer = commit.committer();
-                (
-                    commit
-                        .message()
-                        .unwrap_or("")
-                        .lines()
-                        .next()
-                        .unwrap_or("")
-                        .to_string(),
-                    author.name().unwrap_or("").to_string(),
-                    author.email().unwrap_or("").to_string(),
-                    author.when().seconds(),
-                    committer.name().unwrap_or("").to_string(),
-                    committer.when().seconds(),
-                )
-            } else {
-                (
-                    String::new(),
-                    String::new(),
-                    String::new(),
-                    0,
-                    String::new(),
-                    0,
-                )
-            };
+        // Every walked commit is fully populated, including the rows before
+        // the requested page. Skipping their metadata looked like a saving,
+        // but `find_commit` above has already loaded the object — and because
+        // these rows are *cached*, a later request that starts at a lower
+        // `skip` finds the prefix already present, skips this loop entirely,
+        // and serves those blanked rows to the client: a page of commits with
+        // no message, no author, a zero date and no ref badges.
+        let refs = ref_map.get(&oid_str).cloned().unwrap_or_default();
+        let author = commit.author();
+        let committer = commit.committer();
 
         entry.topo.push(GraphCommit {
             short_oid: oid_str[..7.min(oid_str.len())].to_string(),
             oid: oid_str,
-            message,
-            author_name,
-            author_email,
-            author_date,
-            committer_name,
-            committer_date,
+            message: commit
+                .message()
+                .unwrap_or("")
+                .lines()
+                .next()
+                .unwrap_or("")
+                .to_string(),
+            author_name: author.name().unwrap_or("").to_string(),
+            author_email: author.email().unwrap_or("").to_string(),
+            author_date: author.when().seconds(),
+            committer_name: committer.name().unwrap_or("").to_string(),
+            committer_date: committer.when().seconds(),
             parent_oids,
             refs,
             lane: 0,
@@ -694,7 +695,24 @@ pub fn build_graph_page_cached(
         .cloned()
         .collect();
 
-    cache.insert(key, entry);
+    // Keep the entry only while it is small enough to be worth holding. A
+    // session that has paged very deep would otherwise pin a second copy of
+    // the whole history for the lifetime of the tab.
+    if entry.topo.len() <= MAX_CACHED_COMMITS {
+        if cache.len() >= MAX_CACHE_ENTRIES && !cache.contains_key(&key) {
+            // Evict the largest entry rather than an arbitrary one: it is the
+            // one actually holding the memory, and re-walking it is the cost
+            // this bound exists to trade against.
+            if let Some(victim) = cache
+                .iter()
+                .max_by_key(|(_, e)| e.topo.len())
+                .map(|(k, _)| k.clone())
+            {
+                cache.remove(&victim);
+            }
+        }
+        cache.insert(key, entry);
+    }
 
     Ok(result)
 }

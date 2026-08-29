@@ -6,89 +6,51 @@
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { flexRender, type SortingState } from "@tanstack/react-table";
 import {
-  legacyCreateColumnHelper as createColumnHelper,
   getCoreRowModel,
   getFilteredRowModel,
   getSortedRowModel,
-  type LegacyColumnDef,
   useLegacyTable as useReactTable,
 } from "@tanstack/react-table/legacy";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
-  ArrowLeftRight,
-  Check,
   ChevronDown,
   ChevronUp,
-  ExternalLink,
   EyeOff,
   Filter,
-  FolderSync,
   GitBranch,
   GitMerge,
-  RotateCcw,
-  Scissors,
   Search,
-  Tag,
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { buildAutolinkSegments } from "../../lib/autolink";
-import { getCommitUrl } from "../../lib/forge-links";
-import type { GraphCommit, RefLabel } from "../../lib/git-types";
-import { validateTagName } from "../../lib/git-validation";
-import {
-  formatRelativeTime,
-  getInitials,
-  openExternalUrl,
-  stringToColor,
-} from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
+import { selectDefaultRemoteUrl } from "../../store/slices/git-data-slice";
 import { useUIStore } from "../../store/ui-store";
 import { MergedBranchSweeperModal } from "../modals/MergedBranchSweeperModal";
+import { useCommitColumns } from "./CommitColumns";
+import { CommitContextMenu } from "./CommitContextMenu";
 import { CommitGraph } from "./CommitGraph";
+import { useCommitActions } from "./use-commit-actions";
 import "./CommitList.css";
 
 const ROW_HEIGHT = 34;
 const GRAPH_WIDTH = 120;
 
-function RefBadge({ ref: refLabel }: { ref: RefLabel }) {
-  const classes = ["commit-ref"];
-  switch (refLabel.kind) {
-    case "Head":
-      classes.push("ref-head");
-      break;
-    case "LocalBranch":
-      classes.push("ref-branch");
-      break;
-    case "RemoteBranch":
-      classes.push("ref-remote");
-      break;
-    case "Tag":
-      classes.push("ref-tag");
-      break;
-  }
-
-  return <span className={classes.join(" ")}>{refLabel.name}</span>;
-}
-
-const columnHelper = createColumnHelper<GraphCommit>();
-
 export function CommitList() {
+  // The remote whose web UI "Open Commit on Web" should point at — see
+  // `selectDefaultRemoteUrl` for why `remotes[0]` was the wrong choice.
+  const defaultRemoteUrl = useRepoStore(selectDefaultRemoteUrl);
+
   const {
     commits,
     selectedCommitOid,
     selectCommit,
     loadMoreCommits,
     checkoutBranch,
-    createBranch,
-    createTag,
-    cherryPickCommit,
-    revertCommit,
     startComparison,
     isLoading,
     settings,
-    remotes,
     firstParentOnly,
     hideRemoteBranches,
     pathFilter,
@@ -100,14 +62,9 @@ export function CommitList() {
       selectCommit: s.selectCommit,
       loadMoreCommits: s.loadMoreCommits,
       checkoutBranch: s.checkoutBranch,
-      createBranch: s.createBranch,
-      createTag: s.createTag,
-      cherryPickCommit: s.cherryPickCommit,
-      revertCommit: s.revertCommit,
       startComparison: s.startComparison,
       isLoading: s.isLoading,
       settings: s.settings,
-      remotes: s.remotes,
       firstParentOnly: s.firstParentOnly,
       hideRemoteBranches: s.hideRemoteBranches,
       pathFilter: s.pathFilter,
@@ -115,21 +72,23 @@ export function CommitList() {
     })),
   );
 
+  const { openResetModal, addNotification, setActiveView, openConfirm } =
+    useUIStore(
+      useShallow((s) => ({
+        openResetModal: s.openResetModal,
+        addNotification: s.addNotification,
+        setActiveView: s.setActiveView,
+        openConfirm: s.openConfirm,
+      })),
+    );
+
   const {
-    openResetModal,
-    addNotification,
-    setActiveView,
-    openPrompt,
-    openConfirm,
-  } = useUIStore(
-    useShallow((s) => ({
-      openResetModal: s.openResetModal,
-      addNotification: s.addNotification,
-      setActiveView: s.setActiveView,
-      openPrompt: s.openPrompt,
-      openConfirm: s.openConfirm,
-    })),
-  );
+    handleCheckoutCommit,
+    handleCherryPick,
+    handleRevert,
+    handleCreateBranchPrompt,
+    handleCreateTagPrompt,
+  } = useCommitActions();
 
   const parentRef = useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = useState(600);
@@ -178,123 +137,10 @@ export function CommitList() {
   );
 
   // TanStack's column-value generic is invariant, so a heterogeneous column
-  // array cannot be typed with `unknown` — each accessor would have to match
-  // exactly. `any` is the library's own idiom for this position; the accessors
-  // below remain individually type-checked against GraphCommit.
-  // biome-ignore lint/suspicious/noExplicitAny: invariant generic, see above
-  const columns = useMemo<LegacyColumnDef<GraphCommit, any>[]>(
-    () => [
-      columnHelper.accessor("shortOid", {
-        id: "sha",
-        header: "SHA",
-        cell: (info) => (
-          <span className="commit-col-sha-cell">{info.getValue()}</span>
-        ),
-        size: 70,
-      }),
-      columnHelper.accessor("message", {
-        id: "message",
-        header: "Message",
-        cell: (info) => {
-          const message = info.getValue();
-          const segments = buildAutolinkSegments(
-            message,
-            settings?.autolinkPattern,
-            settings?.autolinkUrl,
-          );
 
-          return (
-            <span className="commit-message truncate">
-              {segments.map((segment, idx) =>
-                segment.url ? (
-                  <a
-                    // Segments are positional; the index is the stable identity
-                    // for a given message render.
-                    key={`${idx}-${segment.text}`}
-                    href={segment.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="autolink"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {segment.text}
-                  </a>
-                ) : (
-                  segment.text
-                ),
-              )}
-            </span>
-          );
-        },
-        size: 280,
-      }),
-      columnHelper.display({
-        id: "branch",
-        header: "Branch",
-        cell: (info) => {
-          const commit = info.row.original;
-          const branchRefs = commit.refs.filter(
-            (r) =>
-              r.kind === "LocalBranch" ||
-              r.kind === "RemoteBranch" ||
-              r.kind === "Head",
-          );
-          return (
-            <div className="commit-ref-list">
-              {branchRefs.map((ref, idx) => (
-                <RefBadge key={idx} ref={ref} />
-              ))}
-            </div>
-          );
-        },
-        size: 110,
-      }),
-      columnHelper.display({
-        id: "tags",
-        header: "Tags",
-        cell: (info) => {
-          const commit = info.row.original;
-          const tagRefs = commit.refs.filter((r) => r.kind === "Tag");
-          return (
-            <div className="commit-ref-list">
-              {tagRefs.map((ref, idx) => (
-                <RefBadge key={idx} ref={ref} />
-              ))}
-            </div>
-          );
-        },
-        size: 90,
-      }),
-      columnHelper.accessor("authorName", {
-        id: "author",
-        header: "Author",
-        cell: (info) => (
-          <div className="commit-col-author-cell">
-            <span
-              className="commit-avatar"
-              style={{ background: stringToColor(info.getValue()) }}
-            >
-              {getInitials(info.getValue())}
-            </span>
-            <span className="commit-author-name truncate">
-              {info.getValue()}
-            </span>
-          </div>
-        ),
-        size: 130,
-      }),
-      columnHelper.accessor("authorDate", {
-        id: "date",
-        header: "Date",
-        cell: (info) => (
-          <span className="commit-col-date-cell">
-            {formatRelativeTime(info.getValue())}
-          </span>
-        ),
-        size: 95,
-      }),
-    ],
-    [settings?.autolinkPattern, settings?.autolinkUrl],
+  const columns = useCommitColumns(
+    settings?.autolinkPattern,
+    settings?.autolinkUrl,
   );
 
   const table = useReactTable({
@@ -480,130 +326,6 @@ export function CommitList() {
       </div>
     );
   }
-
-  const handleCheckoutCommit = async (oid: string) => {
-    try {
-      await checkoutBranch(oid);
-      addNotification({
-        type: "success",
-        message: `Checked out commit ${oid.slice(0, 7)} (detached HEAD)`,
-      });
-    } catch (err) {
-      addNotification({ type: "error", message: `Checkout failed: ${err}` });
-    }
-  };
-
-  const handleCherryPick = async (oid: string) => {
-    try {
-      const res = await cherryPickCommit(oid);
-      if (res === "conflicts") {
-        addNotification({
-          type: "warning",
-          message: `Cherry-pick conflict at commit ${oid.slice(0, 7)}. Please resolve conflicts in staging.`,
-        });
-      } else {
-        addNotification({
-          type: "success",
-          message: `Successfully cherry-picked commit ${oid.slice(0, 7)}`,
-        });
-      }
-    } catch (err) {
-      addNotification({ type: "error", message: `Cherry-pick failed: ${err}` });
-    }
-  };
-
-  const handleRevert = async (oid: string) => {
-    try {
-      const res = await revertCommit(oid);
-      if (res === "conflicts") {
-        addNotification({
-          type: "warning",
-          message: `Revert conflict at commit ${oid.slice(0, 7)}. Please resolve conflicts in staging.`,
-        });
-      } else {
-        addNotification({
-          type: "success",
-          message: `Successfully reverted commit ${oid.slice(0, 7)}`,
-        });
-      }
-    } catch (err) {
-      addNotification({ type: "error", message: `Revert failed: ${err}` });
-    }
-  };
-
-  const handleCreateBranchPrompt = (oid: string) => {
-    openPrompt({
-      title: "Create Branch",
-      description: `Create a new branch at commit ${oid.slice(0, 7)}.`,
-      fields: [
-        {
-          name: "name",
-          label: "Branch Name",
-          placeholder: "e.g. feature/checkout-fix",
-          required: true,
-        },
-      ],
-      submitLabel: "Create Branch",
-      onSubmit: async (values) => {
-        const name = values.name.trim();
-        try {
-          await createBranch(name, oid);
-          addNotification({
-            type: "success",
-            message: `Created branch "${name}" at ${oid.slice(0, 7)}`,
-          });
-        } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to create branch: ${err}`,
-          });
-        }
-      },
-    });
-  };
-
-  const handleCreateTagPrompt = (oid: string) => {
-    openPrompt({
-      title: "Create Tag",
-      description: `Create a new tag at commit ${oid.slice(0, 7)}.`,
-      fields: [
-        {
-          name: "name",
-          label: "Tag Name",
-          placeholder: "e.g. v1.1.2",
-          required: true,
-        },
-        {
-          name: "message",
-          label: "Tag Message (optional)",
-          placeholder: "e.g. Tag release at commit OID",
-          type: "textarea",
-        },
-      ],
-      submitLabel: "Create Tag",
-      onSubmit: async (values) => {
-        const name = values.name.trim();
-        const message = values.message.trim();
-        const validationError = validateTagName(name);
-        if (validationError) {
-          addNotification({ type: "error", message: validationError });
-          return;
-        }
-        try {
-          await createTag(name, oid, message || null);
-          addNotification({
-            type: "success",
-            message: `Created tag "${name}" at ${oid.slice(0, 7)}`,
-          });
-        } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to create tag: ${err}`,
-          });
-        }
-      },
-    });
-  };
 
   if (commits.length === 0 && !isLoading) {
     return (
@@ -875,106 +597,20 @@ export function CommitList() {
                   </div>
                 </ContextMenu.Trigger>
 
-                <ContextMenu.Portal>
-                  <ContextMenu.Content className="radix-context-menu commit-context-menu">
-                    <ContextMenu.Item
-                      className="context-menu-item"
-                      onSelect={() => handleCheckoutCommit(commit.oid)}
-                    >
-                      <Check size={12} />
-                      <span>Checkout Commit (Detached HEAD)</span>
-                    </ContextMenu.Item>
-                    <ContextMenu.Item
-                      className="context-menu-item"
-                      onSelect={() => handleCherryPick(commit.oid)}
-                    >
-                      <Scissors size={12} />
-                      <span>Cherry-Pick Commit</span>
-                    </ContextMenu.Item>
-                    <ContextMenu.Item
-                      className="context-menu-item"
-                      onSelect={() => handleRevert(commit.oid)}
-                    >
-                      <RotateCcw size={12} />
-                      <span>Revert Commit</span>
-                    </ContextMenu.Item>
-                    <ContextMenu.Item
-                      className="context-menu-item"
-                      onSelect={() => openResetModal(commit.oid)}
-                    >
-                      <FolderSync size={12} />
-                      <span>Reset current branch here...</span>
-                    </ContextMenu.Item>
-                    {remotes?.[0]?.url &&
-                      getCommitUrl(remotes[0].url, commit.oid) && (
-                        <ContextMenu.Item
-                          className="context-menu-item"
-                          onSelect={() => {
-                            if (remotes[0]?.url) {
-                              const url = getCommitUrl(
-                                remotes[0].url,
-                                commit.oid,
-                              );
-                              if (url) openExternalUrl(url);
-                            }
-                          }}
-                        >
-                          <ExternalLink size={12} />
-                          <span>Open Commit on Web</span>
-                        </ContextMenu.Item>
-                      )}
-                    <ContextMenu.Separator className="context-menu-divider" />
-                    <ContextMenu.Item
-                      className="context-menu-item"
-                      onSelect={() => {
-                        startComparison(commit.oid, "HEAD")
-                          .then(() => setActiveView("compare"))
-                          .catch((err) =>
-                            addNotification({
-                              type: "error",
-                              message: `Comparison failed: ${err}`,
-                            }),
-                          );
-                      }}
-                    >
-                      <ArrowLeftRight size={12} />
-                      <span>Compare with HEAD</span>
-                    </ContextMenu.Item>
-                    {selectedCommitOid && selectedCommitOid !== commit.oid && (
-                      <ContextMenu.Item
-                        className="context-menu-item"
-                        onSelect={() => {
-                          startComparison(selectedCommitOid, commit.oid)
-                            .then(() => setActiveView("compare"))
-                            .catch((err) =>
-                              addNotification({
-                                type: "error",
-                                message: `Comparison failed: ${err}`,
-                              }),
-                            );
-                        }}
-                      >
-                        <ArrowLeftRight size={12} />
-                        <span>Compare with Selected Commit</span>
-                      </ContextMenu.Item>
-                    )}
-                    <ContextMenu.Separator className="context-menu-divider" />
-                    <ContextMenu.Item
-                      className="context-menu-item"
-                      onSelect={() => handleCreateBranchPrompt(commit.oid)}
-                    >
-                      <GitBranch size={12} />
-                      <span>Create Branch here...</span>
-                    </ContextMenu.Item>
-                    <ContextMenu.Item
-                      className="context-menu-item"
-                      onSelect={() => handleCreateTagPrompt(commit.oid)}
-                    >
-                      <Tag size={12} />
-                      <span>Create Tag here...</span>
-                    </ContextMenu.Item>
-                  </ContextMenu.Content>
-                </ContextMenu.Portal>
+                <CommitContextMenu
+                  commit={commit}
+                  defaultRemoteUrl={defaultRemoteUrl}
+                  handleCheckoutCommit={handleCheckoutCommit}
+                  handleCherryPick={handleCherryPick}
+                  handleRevert={handleRevert}
+                  handleCreateBranchPrompt={handleCreateBranchPrompt}
+                  handleCreateTagPrompt={handleCreateTagPrompt}
+                  openResetModal={openResetModal}
+                  startComparison={startComparison}
+                  setActiveView={setActiveView}
+                  selectedCommitOid={selectedCommitOid}
+                  addNotification={addNotification}
+                />
               </ContextMenu.Root>
             );
           })}

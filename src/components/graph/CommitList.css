@@ -270,3 +270,30 @@
 .commit-context-menu {
   min-width: 240px;
 }
+
+/* ── Autolinked issue/ticket references in a commit message ──
+   A button rather than an anchor, so the click goes through
+   `openExternalUrl`'s https-only guard like every other outbound link. These
+   rules restore the inline-link appearance the default anchor styling used to
+   provide. */
+.autolink {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--accent-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.autolink:hover {
+  color: var(--accent-primary-hover);
+}
+
+.autolink:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}

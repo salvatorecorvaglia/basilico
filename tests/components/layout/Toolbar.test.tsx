@@ -44,6 +44,11 @@ describe("Toolbar — force push", () => {
       fetch: vi.fn().mockResolvedValue(undefined),
       pull: vi.fn().mockResolvedValue("success"),
       push,
+      // The toolbar targets whichever remote `selectDefaultRemote` picks, so a
+      // repository with no remotes at all leaves the sync buttons disabled.
+      remotes: [
+        { name: "origin", url: "git@github.com:o/r.git", pushUrl: null },
+      ],
       branches: [],
       checkoutBranch: vi.fn().mockResolvedValue(undefined),
       tabs: [{ id: "/repo", path: "/repo", name: "repo", isActive: true }],
@@ -103,5 +108,132 @@ describe("Toolbar — force push", () => {
         false,
       );
     });
+  });
+});
+
+describe("Toolbar — remote selection", () => {
+  function seed(
+    overrides: Partial<Parameters<typeof useRepoStore.setState>[0]>,
+  ) {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    useRepoStore.setState({
+      status: {
+        branch: "main",
+        ahead: 0,
+        behind: 0,
+        staged: [],
+        unstaged: [],
+        untracked: [],
+        conflicted: [],
+        state: "Clean",
+      },
+      isRefreshing: false,
+      refreshAll: vi.fn().mockResolvedValue(undefined),
+      fetch: vi.fn().mockResolvedValue(undefined),
+      pull: vi.fn().mockResolvedValue("success"),
+      push: vi.fn().mockResolvedValue(undefined),
+      remotes: [],
+      branches: [],
+      checkoutBranch: vi.fn().mockResolvedValue(undefined),
+      tabs: [{ id: "/repo", path: "/repo", name: "repo", isActive: true }],
+      activeTabId: "/repo",
+      switchTab: vi.fn(),
+      openRepository: vi.fn().mockResolvedValue(undefined),
+      ...overrides,
+    });
+    useUIStore.setState({ confirmOptions: null });
+  }
+
+  // Fetch/pull/push were hardcoded to "origin", so a repository whose remote
+  // is named anything else could not sync from the toolbar at all.
+  it("pushes to the only remote even when it is not named origin", async () => {
+    const user = userEvent.setup();
+    seed({
+      remotes: [
+        { name: "upstream", url: "git@github.com:o/r.git", pushUrl: null },
+      ],
+    });
+    render(<Toolbar />);
+
+    await user.click(screen.getByRole("button", { name: /^Push to remote/ }));
+
+    await waitFor(() => {
+      expect(useRepoStore.getState().push).toHaveBeenCalledWith(
+        "upstream",
+        "main",
+        false,
+      );
+    });
+  });
+
+  it("prefers origin when several remotes are configured", async () => {
+    const user = userEvent.setup();
+    seed({
+      remotes: [
+        { name: "upstream", url: "git@github.com:up/r.git", pushUrl: null },
+        { name: "origin", url: "git@github.com:me/r.git", pushUrl: null },
+      ],
+    });
+    render(<Toolbar />);
+
+    await user.click(
+      screen.getByRole("button", { name: /^Fetch from remote/ }),
+    );
+
+    await waitFor(() => {
+      expect(useRepoStore.getState().fetch).toHaveBeenCalledWith("origin");
+    });
+  });
+
+  it("falls back to the remote the checked-out branch tracks", async () => {
+    const user = userEvent.setup();
+    seed({
+      remotes: [
+        { name: "fork", url: "git@github.com:me/r.git", pushUrl: null },
+        { name: "canonical", url: "git@github.com:up/r.git", pushUrl: null },
+      ],
+      branches: [
+        {
+          name: "main",
+          isHead: true,
+          isRemote: false,
+          upstream: "canonical/main",
+          ahead: 0,
+          behind: 0,
+          oid: "a".repeat(40),
+        },
+      ],
+    });
+    render(<Toolbar />);
+
+    await user.click(
+      screen.getByRole("button", { name: /^Fetch from remote/ }),
+    );
+
+    await waitFor(() => {
+      expect(useRepoStore.getState().fetch).toHaveBeenCalledWith("canonical");
+    });
+  });
+
+  it("disables the sync buttons when the repository has no remote", () => {
+    seed({ remotes: [] });
+    render(<Toolbar />);
+
+    for (const label of [
+      /^Fetch from remote/,
+      /^Pull from remote/,
+      /^Push to remote/,
+    ]) {
+      expect(screen.getByRole("button", { name: label })).toBeDisabled();
+    }
   });
 });

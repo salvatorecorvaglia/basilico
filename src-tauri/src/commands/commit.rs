@@ -339,6 +339,12 @@ pub async fn get_commit_tree(path: String, oid: String) -> Result<Vec<TreeEntryI
         })?;
         let tree = commit.tree()?;
 
+        // `size` was always `None`, so the file-size column the commit tree
+        // renders never appeared. Read it from the object database header,
+        // which reports a blob's size without inflating its contents — the
+        // whole-blob read this would otherwise need is O(content) per entry.
+        let odb = repo.odb()?;
+
         let mut entries = Vec::new();
         tree.walk(git2::TreeWalkMode::PreOrder, |root, entry| {
             let name = entry.name().unwrap_or("").to_string();
@@ -349,7 +355,13 @@ pub async fn get_commit_tree(path: String, oid: String) -> Result<Vec<TreeEntryI
             };
 
             let is_dir = entry.kind() == Some(git2::ObjectType::Tree);
-            let size = None;
+            let size = if is_dir {
+                None
+            } else {
+                odb.read_header(entry.id())
+                    .ok()
+                    .map(|(size, _)| size as u64)
+            };
 
             entries.push(TreeEntryInfo {
                 path: rel_path,

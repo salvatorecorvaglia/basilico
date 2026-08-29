@@ -17,6 +17,7 @@ import type { editor, IDisposable } from "monaco-editor";
 import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { DiffHunkInfo } from "../../lib/git-types";
+import { constructHunkPatch } from "../../lib/hunk-patch";
 import {
   type FileContentPair,
   getFileContentPair,
@@ -41,7 +42,6 @@ export function DiffView() {
     discardChanges,
     applyPatch,
     openInIde,
-    repoInfo,
     settings,
   } = useRepoStore(
     useShallow((s) => ({
@@ -54,7 +54,6 @@ export function DiffView() {
       discardChanges: s.discardChanges,
       applyPatch: s.applyPatch,
       openInIde: s.openInIde,
-      repoInfo: s.repoInfo,
       settings: s.settings,
     })),
   );
@@ -361,66 +360,6 @@ export function DiffView() {
     });
   };
 
-  // Helper to build patch string for hunk/lines
-  const constructHunkPatch = (
-    filePath: string,
-    hunk: DiffHunkInfo,
-    selectedLineIndices?: Set<number>,
-    reverse = false,
-  ): string => {
-    let patch = `diff --git a/${filePath} b/${filePath}\n`;
-    patch += `--- a/${filePath}\n`;
-    patch += `+++ b/${filePath}\n`;
-
-    const oldLines = hunk.oldLines;
-    let newLines = hunk.newLines;
-
-    // Adjust lines count in header if we do selective staging
-    if (selectedLineIndices) {
-      let newLineDelta = 0;
-      hunk.lines.forEach((line, idx) => {
-        const isSelected = selectedLineIndices.has(idx);
-        if (line.origin === "+") {
-          if (!isSelected) newLineDelta--;
-        } else if (line.origin === "-") {
-          if (!isSelected) newLineDelta++;
-        }
-      });
-      newLines = (newLines as number) + newLineDelta;
-    }
-
-    if (reverse) {
-      patch += `@@ -${hunk.newStart},${newLines} +${hunk.oldStart},${oldLines} @@\n`;
-    } else {
-      patch += `@@ -${hunk.oldStart},${oldLines} +${hunk.newStart},${newLines} @@\n`;
-    }
-
-    hunk.lines.forEach((line, idx) => {
-      if (line.origin === " ") {
-        patch += ` ${line.content}`;
-      } else if (line.origin === "+") {
-        const isSelected = selectedLineIndices
-          ? selectedLineIndices.has(idx)
-          : true;
-        if (isSelected) {
-          patch += reverse ? `-${line.content}` : `+${line.content}`;
-        }
-      } else if (line.origin === "-") {
-        const isSelected = selectedLineIndices
-          ? selectedLineIndices.has(idx)
-          : true;
-        if (isSelected) {
-          patch += reverse ? `+${line.content}` : `-${line.content}`;
-        } else {
-          // Unselected deletion: keep original line
-          patch += ` ${line.content}`;
-        }
-      }
-    });
-
-    return patch;
-  };
-
   return (
     <div className="diff-view animate-fade-in">
       {/* Top Bar */}
@@ -488,10 +427,12 @@ export function DiffView() {
               type="button"
               className="diff-btn diff-btn-secondary"
               onClick={() => {
-                const fullPath = repoInfo?.path
-                  ? `${repoInfo.path}/${selectedFilePath}`
-                  : selectedFilePath;
-                openInIde(fullPath);
+                // Passing the path repo-relative lets Rust join it with the
+                // platform separator; the literal "/" used here produced a
+                // mixed-separator path on Windows.
+                openInIde(selectedFilePath, null, true).catch((err) => {
+                  console.error("Failed to open file in editor:", err);
+                });
               }}
               title={`Open file in ${settings?.externalEditor || "code"}`}
             >

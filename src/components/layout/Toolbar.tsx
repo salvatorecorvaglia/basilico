@@ -31,6 +31,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useColorScheme } from "../../lib/color-scheme";
 import { openExternalTool } from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
+import { selectDefaultRemote } from "../../store/slices/git-data-slice";
 import { useUIStore } from "../../store/ui-store";
 import "./Toolbar.css";
 
@@ -82,6 +83,11 @@ export function Toolbar() {
       openConfirm: s.openConfirm,
     })),
   );
+
+  // Which remote sync actions target. Previously hardcoded to "origin", so a
+  // repository whose remote is named anything else could not fetch, pull or
+  // push from the toolbar at all.
+  const defaultRemote = useRepoStore(selectDefaultRemote);
 
   const [isFetching, setIsFetching] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
@@ -141,20 +147,27 @@ export function Toolbar() {
   };
 
   const handleOpenRepo = async () => {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: "Open Git Repository",
-    });
-    if (selected) {
-      await openRepository(selected as string);
+    // `openRepository` raises its own toast and then rethrows, so without this
+    // catch every failed open also surfaced as an unhandled rejection.
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: "Open Git Repository",
+      });
+      if (selected) {
+        await openRepository(selected as string);
+      }
+    } catch (err) {
+      console.error("Failed to open repository:", err);
     }
   };
 
   const handleFetch = async () => {
+    if (!defaultRemote) return;
     setIsFetching(true);
     try {
-      await fetch("origin");
+      await fetch(defaultRemote);
       addNotification({
         type: "success",
         message: "Fetch completed successfully",
@@ -167,10 +180,10 @@ export function Toolbar() {
   };
 
   const handlePull = async () => {
-    if (!status?.branch) return;
+    if (!status?.branch || !defaultRemote) return;
     setIsPulling(true);
     try {
-      const res = await pull("origin", status.branch);
+      const res = await pull(defaultRemote, status.branch);
       if (res === "conflicts") {
         addNotification({
           type: "warning",
@@ -191,10 +204,10 @@ export function Toolbar() {
   };
 
   const handlePush = async (force = false) => {
-    if (!status?.branch) return;
+    if (!status?.branch || !defaultRemote) return;
     setIsPushing(true);
     try {
-      await push("origin", status.branch, force);
+      await push(defaultRemote, status.branch, force);
       addNotification({
         type: "success",
         message: "Push completed successfully",
@@ -207,10 +220,10 @@ export function Toolbar() {
   };
 
   const handleForcePush = () => {
-    if (!status?.branch) return;
+    if (!status?.branch || !defaultRemote) return;
     openConfirm({
       title: "Force Push",
-      message: `Force push "${status.branch}" to origin? This overwrites the remote branch with your local history. Basilico refuses if origin has moved since your last fetch, so fetch first if you suspect someone else has pushed.`,
+      message: `Force push "${status.branch}" to ${defaultRemote}? This overwrites the remote branch with your local history. Basilico refuses if ${defaultRemote} has moved since your last fetch, so fetch first if you suspect someone else has pushed.`,
       confirmLabel: "Force Push",
       isDanger: true,
       onConfirm: () => handlePush(true),
@@ -222,6 +235,10 @@ export function Toolbar() {
     : 0;
 
   const isAnySyncing = isFetching || isPulling || isPushing;
+  // With no remote configured there is nothing to sync with, so say so on the
+  // buttons rather than letting them fail with a raw git error.
+  const remoteLabel = defaultRemote ?? "no remote";
+  const noRemote = !defaultRemote;
 
   const filteredBranches = branches.filter((b) =>
     b.name.toLowerCase().includes(branchSearch.toLowerCase()),
@@ -408,9 +425,13 @@ export function Toolbar() {
             type="button"
             className={`toolbar-icon-btn ${isFetching ? "spinning" : ""}`}
             onClick={handleFetch}
-            title="Fetch from remote (origin)"
-            aria-label="Fetch from remote (origin)"
-            disabled={isAnySyncing}
+            title={
+              noRemote
+                ? "No remote configured for this repository"
+                : `Fetch from remote (${remoteLabel})`
+            }
+            aria-label={`Fetch from remote (${remoteLabel})`}
+            disabled={isAnySyncing || noRemote}
           >
             <RefreshCw size={13} />
           </button>
@@ -418,9 +439,13 @@ export function Toolbar() {
             type="button"
             className={`toolbar-icon-btn ${isPulling ? "spinning" : ""}`}
             onClick={handlePull}
-            title="Pull from remote (origin)"
-            aria-label="Pull from remote (origin)"
-            disabled={!status?.branch || isAnySyncing}
+            title={
+              noRemote
+                ? "No remote configured for this repository"
+                : `Pull from remote (${remoteLabel})`
+            }
+            aria-label={`Pull from remote (${remoteLabel})`}
+            disabled={!status?.branch || isAnySyncing || noRemote}
           >
             <ArrowDownToLine size={13} />
           </button>
@@ -430,9 +455,13 @@ export function Toolbar() {
                 type="button"
                 className={`toolbar-icon-btn ${isPushing ? "spinning" : ""}`}
                 onClick={() => handlePush(false)}
-                title="Push to remote (origin) — right-click for force push"
-                aria-label="Push to remote (origin) — right-click for force push"
-                disabled={!status?.branch || isAnySyncing}
+                title={
+                  noRemote
+                    ? "No remote configured for this repository"
+                    : `Push to remote (${remoteLabel}) — right-click for force push`
+                }
+                aria-label={`Push to remote (${remoteLabel}) — right-click for force push`}
+                disabled={!status?.branch || isAnySyncing || noRemote}
               >
                 <ArrowUpFromLine size={13} />
               </button>
@@ -442,7 +471,7 @@ export function Toolbar() {
                 <ContextMenu.Item
                   className="context-menu-item danger"
                   onSelect={handleForcePush}
-                  disabled={!status?.branch || isAnySyncing}
+                  disabled={!status?.branch || isAnySyncing || noRemote}
                 >
                   <AlertTriangle size={12} />
                   <span>Force Push (with lease)...</span>

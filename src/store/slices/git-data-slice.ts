@@ -20,6 +20,55 @@ import type { RepoState } from "../types";
 // so refreshes request max(this, what's already loaded) instead.
 const DEFAULT_COMMIT_PAGE_SIZE = 500;
 
+/**
+ * The remote that repository-wide actions should target.
+ *
+ * Fetch, pull and push used to be hardcoded to `"origin"`, which meant a
+ * repository whose remote is named anything else — a clone renamed to
+ * `upstream`, a fork layout, a `git remote add` with a custom name — could not
+ * sync at all from the UI. Several read-only surfaces reached for `remotes[0]`
+ * instead, which is libgit2's ordering rather than a meaningful choice and
+ * picks the wrong remote on any fork that has both `origin` and `upstream`.
+ *
+ * Preference order: a remote literally named `origin`, then whichever remote
+ * the checked-out branch actually tracks, then the first remote, then nothing.
+ */
+export function selectDefaultRemote(state: {
+  remotes: RemoteInfo[];
+  branches: BranchInfo[];
+}): string | null {
+  // This runs inside every subscriber's render, so it must not throw: a
+  // partially-populated store (a test fixture, a slice reset mid-flight) would
+  // otherwise take the whole panel down rather than simply reporting "no
+  // remote".
+  const remotes = state.remotes ?? [];
+  const branches = state.branches ?? [];
+  if (remotes.length === 0) return null;
+
+  const origin = remotes.find((r) => r.name === "origin");
+  if (origin) return origin.name;
+
+  // `upstream` on a branch is a remote-tracking name like "origin/main"; the
+  // remote is whichever configured remote its name starts with.
+  const headUpstream = branches.find((b) => b.isHead)?.upstream;
+  if (headUpstream) {
+    const tracked = remotes.find((r) => headUpstream.startsWith(`${r.name}/`));
+    if (tracked) return tracked.name;
+  }
+
+  return remotes[0].name;
+}
+
+/** The fetch URL of [`selectDefaultRemote`], for building forge deep links. */
+export function selectDefaultRemoteUrl(state: {
+  remotes: RemoteInfo[];
+  branches: BranchInfo[];
+}): string | null {
+  const name = selectDefaultRemote(state);
+  if (!name) return null;
+  return (state.remotes ?? []).find((r) => r.name === name)?.url ?? null;
+}
+
 export interface GitDataSlice {
   repoInfo: RepoInfo | null;
   status: RepoStatus | null;

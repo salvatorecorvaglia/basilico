@@ -2515,3 +2515,76 @@ async fn test_search_commits_merges_message_and_author_matches_without_duplicate
         .unwrap();
     assert_eq!(all.len(), 3);
 }
+
+/// `get_repo_health` used to hardcode `<repo>/.git`. In a linked worktree that
+/// path is a *file*, so every measurement came back as zero and the Doctor
+/// panel reported a perfectly healthy, empty repository.
+#[tokio::test]
+async fn test_repo_health_measures_a_linked_worktree() {
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "a");
+    repo.commit("initial");
+
+    let worktree_path = repo.path.parent().unwrap().join(format!(
+        "{}-linked",
+        repo.path.file_name().unwrap().to_string_lossy()
+    ));
+
+    add_worktree(
+        repo.path_str().to_string(),
+        worktree_path.to_string_lossy().to_string(),
+        None,
+        Some("linked-branch".to_string()),
+    )
+    .await
+    .expect("worktree should be created");
+
+    let report = get_repo_health(worktree_path.to_string_lossy().to_string())
+        .await
+        .expect("health report for a linked worktree");
+
+    assert!(
+        report.git_size_bytes > 0,
+        "git directory size should be measured through the worktree's gitdir link"
+    );
+    assert!(
+        report.loose_objects_count > 0,
+        "loose objects live in the common directory and must still be counted"
+    );
+
+    let _ = std::fs::remove_dir_all(&worktree_path);
+}
+
+/// `get_commit_tree` always reported `size: None`, so the file-size column the
+/// commit detail view renders was permanently blank.
+#[tokio::test]
+async fn test_commit_tree_reports_blob_sizes() {
+    let repo = TempRepo::new();
+    repo.write_file("small.txt", "12345");
+    repo.write_file("nested/bigger.txt", "0123456789");
+    repo.commit("with files");
+
+    let head = repo.repo.head().unwrap().target().unwrap().to_string();
+    let entries = get_commit_tree(repo.path_str().to_string(), head)
+        .await
+        .expect("commit tree");
+
+    let small = entries
+        .iter()
+        .find(|e| e.path == "small.txt")
+        .expect("small.txt in tree");
+    assert_eq!(small.size, Some(5));
+    assert!(!small.is_dir);
+
+    let nested = entries
+        .iter()
+        .find(|e| e.path == "nested/bigger.txt")
+        .expect("nested file in tree");
+    assert_eq!(nested.size, Some(10));
+
+    let dir = entries
+        .iter()
+        .find(|e| e.is_dir)
+        .expect("a directory entry");
+    assert_eq!(dir.size, None, "directories have no blob size");
+}

@@ -285,6 +285,7 @@ export interface TreeEntryInfo {
   path: string;
   name: string;
   isDir: boolean;
+  /** Blob size in bytes; `null` for directories. */
   size: number | null;
 }
 

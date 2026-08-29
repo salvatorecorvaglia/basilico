@@ -723,12 +723,16 @@ export const getStashDiff = (
 ) =>
   invokeCommand<FileDiff[]>("get_stash_diff", { repoPath, stashOid }, options);
 
+// `repoPath` is optional; when given, `path` is treated as relative to it and
+// the two are joined in Rust with the platform separator.
 export const openInIde = (
   path: string,
   line?: number | null,
   editor?: string | null,
+  repoPath?: string | null,
   options?: InvokeOptions,
-) => invokeCommand<void>("open_in_ide", { path, line, editor }, options);
+) =>
+  invokeCommand<void>("open_in_ide", { path, line, editor, repoPath }, options);
 
 // ── Git Doctor & Lost Work Recovery Commands ──
 
