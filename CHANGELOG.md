@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-29
+
+### Fixed
+
+- **Blank Commit Rows After Paginated Graph Loads**: The commit-graph lane cache (`src-tauri/src/git/graph.rs`) skipped message/author/date/ref extraction for rows before the requested page, then stored those stripped rows in `LaneCacheEntry`. Entering the cache at a non-zero `skip` (scrolling after a CLI commit or fetch invalidated it) and then refreshing from the top served a full page of commits with empty messages, empty authors, a zero timestamp rendered as "56y ago", and no branch/tag badges. Every walked commit is now fully populated.
+- **Untracked Files Produced No Diff**: `get_file_diff` (`src-tauri/src/git/diff_parser.rs`) omitted `include_untracked`, so clicking any newly created file in the staging list returned `NotFound` — the +/- counters stayed blank, the granular hunk view stayed empty, and an unhandled rejection was logged. It now includes untracked entries and their content, matching `get_workdir_diff`.
+- **Selective Unstaging Built a Malformed Patch**: The reverse direction of `constructHunkPatch` applied the forward rule to unselected lines, emitting deletions as context (absent from the reverse patch's pre-image) and dropping additions (present in it), while writing the forward line-count delta into the reversed header's old slot. Unstaging a subset of lines produced a patch Git rejected or applied against mismatched offsets. Rewritten as a single direction-agnostic algorithm in the new `src/lib/hunk-patch.ts`.
+- **Git Doctor Reported Zeros for Worktrees and Submodules**: `get_repo_health` hardcoded `<repo>/.git`, which is a *file* rather than a directory in a linked worktree or submodule, so repository size, loose-object, packfile, and LFS counts all read as zero and the panel reported a healthy empty repository. It now resolves the real git directory (and the shared common directory where objects live) via `watcher::resolve_git_dirs`.
+- **Non-GitHub Remotes Misidentified as GitHub**: `parseRemoteUrl` classified every host that was not recognisably GitLab or Bitbucket as `github`, so a self-hosted GitLab, Gitea, or Forgejo instance received GitHub-shaped deep links — and `fetchGitHubCiStatus` queried `api.github.com` for that repository's `owner/repo` **with the user's Personal Access Token attached**, surfacing an unrelated repository's CI status. Provider detection is now explicit, unknown hosts resolve to `generic`, the CI request requires the host to be literally `github.com`, and the owner/repo path segments are URL-encoded.
+- **Fetch, Pull and Push Hardcoded to `origin`**: The toolbar and command palette always targeted a remote named `origin`, so a repository whose remote is named anything else (a clone renamed to `upstream`, a fork layout, a custom `git remote add`) could not sync at all. All three now use the new `selectDefaultRemote` store selector and are disabled with an explanatory tooltip when no remote is configured.
+- **Unhandled Promise Rejections on Routine Actions**: `handleOpenRepo` (in both `App.tsx` and `Toolbar.tsx`), the staging list's file-click handler, and its Vim `j`/`k`/`s`/`u` navigation all invoked store actions that re-throw after raising their own toast, filling the console with unhandled rejections. Each call site now handles its own failure.
+- **Mixed Path Separators When Opening Files in an External IDE**: `DiffView` and `BlameView` joined the repository root and file path with a literal `/`. The join moved into `open_in_ide`, which uses the platform separator.
+- **Watcher Ignore Lists Had Drifted**: `is_significant_path` carried a second, shorter copy of `is_conventionally_ignored`'s directory list, omitting `.venv`, `venv`, `__pycache__`, `Pods`, `bin`, and `obj` — so writes under a Python, Xcode, or .NET project's build output still triggered a full refresh. The two now share one list.
+
+### Added
+
+- **File Sizes in the Commit Tree**: `get_commit_tree` always returned `size: None`, leaving the file-size column that `CommitDetail` already renders permanently blank. Sizes are now read from the object database header (`Odb::read_header`), which reports a blob's length without inflating its contents.
+- **Default Remote Selection**: Added `selectDefaultRemote` / `selectDefaultRemoteUrl` selectors (`src/store/slices/git-data-slice.ts`), preferring a remote named `origin`, then the remote the checked-out branch tracks, then the first configured remote. These also replace the three `remotes[0]` lookups that drove the CI status badge and the "Open Commit on Web" / "Create Pull Request" deep links, which picked the wrong remote on any fork configured with both `origin` and `upstream`.
+- **Regression Test Coverage for Each Fix**: Added `tests/lib/hunk-patch.test.ts` (forward and reverse, whole-hunk and partial, with header counts asserted against the emitted body), `tests/components/staging/use-staging-rows.test.ts`, remote-selection cases in `tests/components/layout/Toolbar.test.tsx`, non-`github.com` host cases in `tests/lib/forge-links.test.ts`, and Rust coverage for the lane-cache backfill, untracked-file diffs, worktree health reporting, commit-tree blob sizes, the cache bound, and ignore-list agreement.
+
+### Changed
+
+- **Bounded Commit-Graph Lane Cache**: `graph_lane_cache` entries were only ever evicted when a repository was closed, and the cache key includes the graph filter flags — so every open repository, times every filter combination toggled through, pinned a fully-populated copy of the walked history for the lifetime of the session. Entries are now capped by commit count and by entry count, evicting the largest first.
+- **Safe-Scheme Guard on Autolinked References**: Autolinked issue/ticket references in commit messages rendered as bare `<a href>` elements, bypassing the `https://`-only check in `openExternalUrl` that every other outbound link in the app goes through — despite the URL being expanded from a user-supplied autolink template. They now route through the same guard.
+- **Commit List & Staging Area Decomposition**: Split `CommitList.tsx` (985 → 621 lines) into `CommitColumns.tsx`, `CommitContextMenu.tsx`, and a `useCommitActions` hook, and `StagingArea.tsx` (963 → 713 lines) into `StagingContextMenu.tsx`, `use-staging-rows.ts`, and `use-staging-vim-keys.ts`. Behaviour-preserving; the row model is now a pure function and directly testable.
+
 ## [1.2.0] - 2026-08-25
 
 ### Added

@@ -8,17 +8,17 @@
 
 ## ✨ Features
 
-- **🚀 Push & Force-Push with Safety Guards**: Seamlessly push branches with dedicated right-click force-push options protected by danger confirmation dialogs.
+- **🚀 Push & Force-Push with Safety Guards**: Fetch, pull, and push against whichever remote your repository actually uses — `origin`, the remote your branch tracks, or a custom name — with dedicated right-click force-push options protected by danger confirmation dialogs and a `--force-with-lease` equivalent that refuses to overwrite commits pushed since your last fetch.
 - **📊 Beautiful Commit Graph & Topology Filters**: Visualize your project's commit history, branches, and tags with a fluid, theme-aware interactive timeline and topology filters.
 - **🔄 Visual Interactive Rebase & Autosquash**: Squash, fixup, drop, reorder commits, or perform autosquashes (`fixup!`/`squash!`) with inline summary editing.
 - **🔔 Automated Application Updater & Toast**: Integrated app updater (`UpdaterToast` & Zustand store) providing real-time release notifications, download progress, and binary relaunching.
 - **👁️ Gitignore-Aware Repository Watcher**: High-efficiency, `.gitignore`-aware backend file watcher (`git2::is_path_ignored`) that avoids file watch limit exhaustion.
 - **💻 Centralized Monaco Editor Integration**: Optimized Monaco setup (`monaco-setup.ts`) featuring local worker loading, syntax language registration, and dynamic theme synchronization.
-- **🩺 Git Doctor Diagnostics**: Perform full health checks on repository status, SSH setup, OS watch limits, submodules, and environment configurations.
-- **🔗 Forge Deep Links & Autolink Parsing**: Open commits, branches, lines, and issue references directly in GitHub, GitLab, Bitbucket, Azure DevOps, or Codeberg with safe URL protocol sanitization.
-- **⚡ External IDE Integration & Keyboard Shortcuts**: Open repositories and files in external editors (VS Code, Cursor, Zed, etc.), match modular keybindings (`CmdOrCtrl+K`, `CmdOrCtrl+Shift+P`), and navigate commit lists using Vim keybindings (`j`/`k`).
+- **🩺 Git Doctor Diagnostics**: Perform full health checks on repository storage, loose objects, packfiles, and LFS usage — resolved correctly for linked worktrees and submodules — alongside `git gc`, `git fsck`, and dangling-commit recovery.
+- **🔗 Forge Deep Links & Autolink Parsing**: Open commits, branches, lines, and issue references directly in GitHub, GitLab, and Bitbucket — including self-hosted instances — with a GitHub-compatible fallback for other forges such as Gitea, Forgejo, and Codeberg. Every outbound link, autolinked issue references included, passes through the same `https://`-only guard.
+- **⚡ External IDE Integration & Keyboard Shortcuts**: Open repositories and files at the right line in external editors (VS Code, Cursor, WebStorm, IntelliJ IDEA, Sublime Text, and Xcode on macOS), customize keybindings (`CmdOrCtrl+Shift+P`, `CmdOrCtrl+,`, …), and navigate the commit and staging lists using Vim keybindings (`j`/`k`/`s`/`u`).
 - **🧹 Merged Branch Sweeper**: Detect and safely clean up merged branches across your local and remote repositories.
-- **📝 Granular Line-Level Staging**: Stage and unstage individual hunks or specific lines of code directly from unified or side-by-side diff views.
+- **📝 Granular Line-Level Staging**: Stage *and* unstage individual hunks or specific lines of code directly from unified or side-by-side diff views, with untracked files diffed like any other.
 - **🔏 GPG Signature Verification & Hardened Git Operations**: Check commit authenticity directly in the application with hardened GPG and Git CLI subprocess workflows.
 - **🔒 SSH Host Key Verification**: Detects rotated or mismatched SSH host keys against your `known_hosts` file before connecting, guarding against man-in-the-middle attacks.
 - **🧭 Git Bisect Wizard**: Quickly locate buggy commits with an intuitive step-by-step bisect flow.
@@ -63,9 +63,14 @@ To build Basilico from source, you will need the following tools installed on yo
 
 ### Testing
 
-Run frontend unit and component test suites (UI components, state stores, keyboard shortcuts, autolink parsing, and reference validation under `tests/`) using Vitest:
+Run frontend unit and component test suites (UI components, state stores, keyboard shortcuts, patch construction, autolink parsing, and reference validation under `tests/`) using Vitest:
 ```bash
 pnpm test
+```
+
+Type-check the frontend without emitting output:
+```bash
+pnpm exec tsc --noEmit
 ```
 
 Run backend Rust unit and integration test suites (`src-tauri/tests/`):
