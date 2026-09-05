@@ -160,6 +160,22 @@ export function CommitList() {
 
   const { rows } = table.getRowModel();
 
+  /**
+   * Every column was a fixed `size`, so on a wide window the row ended at the
+   * Date column and the rest was dead space — the loading skeleton above
+   * already used `flex-1` for Message, so the real table visibly narrowed once
+   * it loaded. Message now absorbs the leftover width, keeping its declared
+   * size as a floor.
+   *
+   * `columnSizing` only holds columns the user has dragged, so a manual resize
+   * takes the fixed-width branch and keeps working as before.
+   */
+  const columnSizing = table.getState().columnSizing;
+  const columnStyle = (column: { id: string; getSize: () => number }) =>
+    column.id === "message" && columnSizing.message === undefined
+      ? { flex: 1, minWidth: `${column.getSize()}px` }
+      : { width: `${column.getSize()}px` };
+
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
@@ -455,7 +471,7 @@ export function CommitList() {
                   : "none"
             }
             className="commit-list-header-cell"
-            style={{ width: `${header.getSize()}px` }}
+            style={columnStyle(header.column)}
             onClick={header.column.getToggleSortingHandler()}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -586,7 +602,7 @@ export function CommitList() {
                       <div
                         key={cell.id}
                         className="commit-col-cell"
-                        style={{ width: `${cell.column.getSize()}px` }}
+                        style={columnStyle(cell.column)}
                       >
                         {flexRender(
                           cell.column.columnDef.cell,

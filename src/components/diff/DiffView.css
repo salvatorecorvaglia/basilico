@@ -329,6 +329,11 @@
   flex-shrink: 0;
 }
 
+.hunk-line-checkbox:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
 .hunk-line-checkbox:hover {
   border-color: var(--accent-primary);
 }

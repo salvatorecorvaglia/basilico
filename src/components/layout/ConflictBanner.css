@@ -1,7 +1,17 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — Merge Conflict Banner
+
+   The two action buttons now come from the shared `.btn` primitives. They
+   previously had their own geometry and, worse, `rgba(255, 255, 255, …)` fills
+   for the secondary variant — which lighten an already near-white surface in
+   light mode, leaving the button and its hover state all but invisible.
+   ═══════════════════════════════════════════════════════ */
+
 .conflict-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-4);
   background: linear-gradient(
     90deg,
     color-mix(in srgb, var(--color-danger) 15%, transparent),
@@ -9,81 +19,41 @@
   );
   border-bottom: 1px solid
     color-mix(in srgb, var(--color-danger) 30%, transparent);
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
   color: var(--text-primary);
-  font-size: 13px;
-  animation: slideDown 0.2s ease-out;
-  z-index: 40;
+  font-size: var(--font-size-base);
+  animation: slideDown var(--transition-normal) ease-out;
+  z-index: var(--z-sticky);
 }
 
 .conflict-banner-info {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2-5);
+  min-width: 0;
 }
 
 .conflict-banner-icon {
-  color: var(--color-danger);
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  color: var(--color-danger);
 }
 
 .conflict-banner-title {
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   color: var(--color-danger);
 }
 
 .conflict-banner-desc {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .conflict-banner-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.conflict-banner-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  border: 1px solid transparent;
-}
-
-.conflict-banner-btn-primary {
-  background-color: var(--color-danger);
-  color: var(--text-inverse);
-}
-
-.conflict-banner-btn-primary:hover {
-  background-color: var(--color-danger-hover);
-}
-
-.conflict-banner-btn-secondary {
-  background-color: rgba(255, 255, 255, 0.08);
-  color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.15);
-}
-
-.conflict-banner-btn-secondary:hover {
-  background-color: rgba(255, 255, 255, 0.15);
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  gap: var(--space-2);
+  flex-shrink: 0;
 }

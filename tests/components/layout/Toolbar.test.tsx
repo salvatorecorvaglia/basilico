@@ -236,4 +236,23 @@ describe("Toolbar — remote selection", () => {
       expect(screen.getByRole("button", { name: label })).toBeDisabled();
     }
   });
+  it("exposes the view switcher as a tab list", () => {
+    render(<Toolbar />);
+
+    const tablist = screen.getByRole("tablist");
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs).toHaveLength(3);
+    expect(tablist).toContainElement(tabs[0] as HTMLElement);
+    expect(tabs.map((t) => t.textContent)).toEqual([
+      "History",
+      "Staging",
+      "Reflog",
+    ]);
+
+    // History is the default view, so exactly one tab reports selection.
+    expect(
+      tabs.filter((t) => t.getAttribute("aria-selected") === "true"),
+    ).toHaveLength(1);
+    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+  });
 });

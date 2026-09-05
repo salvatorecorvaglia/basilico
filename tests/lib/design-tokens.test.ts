@@ -163,4 +163,175 @@ describe("design tokens", () => {
       "hardcoded colours in inline styles bypass the theme — use var(--token) instead",
     ).toEqual([]);
   });
+  /**
+   * The neutral-alpha exemption above was written to allow shadows and scrims,
+   * but it is matched against the *value* alone, so it also waved through the
+   * exact bug its own comment describes: `rgba(255, 255, 255, 0.08)` used as a
+   * `background` is a lightening overlay, and on the near-white surfaces of
+   * light mode it lightens almost nothing. Hover feedback in the Reflog table,
+   * the conflict banner's secondary button and the Blame gutter all vanished.
+   *
+   * So the exemption is split by *property*: neutral alphas stay legal in a
+   * shadow, where they genuinely are colourless depth, and are rejected as a
+   * fill or a border, where they stand in for a theme surface that has a token.
+   */
+  const SURFACE_PROPERTY =
+    /(?:^|[;{])\s*(background|background-color|border|border-color|border-top|border-right|border-bottom|border-left)\s*:\s*[^;{}]*$/;
+
+  it("keeps neutral alphas out of surface colours", () => {
+    const offenders: string[] = [];
+
+    for (const file of components) {
+      const text = readFileSync(file, "utf8");
+      for (const m of text.matchAll(/\b(?:rgba?|hsla?)\([^)]*\)/g)) {
+        if (!NEUTRAL_RGBA.test(m[0])) continue;
+        const before = text.slice(0, m.index);
+        if (!SURFACE_PROPERTY.test(before)) continue;
+        const line = before.split("\n").length;
+        offenders.push(`${file.replace(ROOT, "")}:${line}: ${m[0]}`);
+      }
+    }
+
+    expect(
+      offenders,
+      "a black/white alpha used as a fill or border is a lightening/darkening overlay that assumes one theme — on the near-white surfaces of light mode it does almost nothing. Use a surface token (--bg-hover, --bg-elevated, --border-hover). Neutral alphas remain allowed in box-shadow.",
+    ).toEqual([]);
+  });
+
+  /**
+   * Three stylesheets had drifted almost entirely off the spacing and type
+   * scales — ReflogInspector.css carried 74 raw pixel values against 89 token
+   * references. They have been normalised; this pins them there. The budget is
+   * a ceiling per file, not a global rule, so the stylesheets that were never
+   * cleaned up are not held to a standard nothing else enforces yet.
+   *
+   * Only properties that have a scale are counted. `width`/`height` are
+   * excluded on purpose: table column widths and icon sizes are geometry, and
+   * there is no token scale for them to snap to.
+   */
+  const SCALED_PROPERTY =
+    /\b(padding|padding-top|padding-right|padding-bottom|padding-left|margin|margin-top|margin-right|margin-bottom|margin-left|gap|row-gap|column-gap|border-radius|font-size|font-weight)\s*:\s*([^;{}]*)/g;
+
+  const PX_BUDGET: Record<string, number> = {
+    "ReflogInspector.css": 0,
+    "RepoSearch.css": 0,
+    "ConflictBanner.css": 0,
+  };
+
+  it("keeps the normalised stylesheets on the spacing and type scales", () => {
+    const over: string[] = [];
+
+    for (const file of components) {
+      const name = file.split("/").pop() as string;
+      const budget = PX_BUDGET[name];
+      if (budget === undefined) continue;
+
+      const text = readFileSync(file, "utf8");
+      let raw = 0;
+      for (const m of text.matchAll(SCALED_PROPERTY)) {
+        if (/\d+px/.test(m[2] ?? "")) raw++;
+      }
+      if (raw > budget) over.push(`${name}: ${raw} raw px (budget ${budget})`);
+    }
+
+    expect(
+      over,
+      "these stylesheets were normalised onto the design tokens — use var(--space-*), var(--radius-*), var(--font-size-*) and var(--weight-*) rather than reintroducing pixel values",
+    ).toEqual([]);
+  });
+  /**
+   * Dark mode is produced two ways — `light-dark()` for engines that support
+   * it, and plain-value blocks for those that do not — and they must not
+   * disagree. They previously did: the fallback keyed off
+   * `@media (prefers-color-scheme: dark)` alone, which reports the *OS* setting
+   * and ignores the inline `color-scheme` an explicit choice writes, so it
+   * outranked the light-dark() result whenever the OS was dark and picking
+   * "Light" changed nothing at all.
+   *
+   * The values now live once as `--dark-*` and the two blocks only assign them,
+   * so a value cannot drift. This pins the remaining risk: one block gaining a
+   * token the other never got.
+   */
+  it("assigns the same tokens in both dark-mode blocks", () => {
+    const theme = readFileSync(join(STYLES, "theme.css"), "utf8");
+
+    const block = (selector: string): Set<string> => {
+      const at = theme.indexOf(selector);
+      expect(at, `${selector} not found in theme.css`).toBeGreaterThan(-1);
+      const open = theme.indexOf("{", at);
+      const close =
+        theme.indexOf("\n  }", open) + 1 || theme.indexOf("\n}", open);
+      const body = theme.slice(open, close);
+      return new Set(
+        [...body.matchAll(/(--[\w-]+)\s*:\s*var\(--dark-/g)].map(
+          (m) => m[1] as string,
+        ),
+      );
+    };
+
+    const media = block(':root:not([data-color-scheme="light"])');
+    const explicit = block(':root[data-color-scheme="dark"] {');
+
+    expect(media.size).toBeGreaterThan(30);
+    expect(
+      [...explicit].sort(),
+      "the OS-dark block and the explicit-dark block must assign the same tokens, or one theme path will be missing a colour",
+    ).toEqual([...media].sort());
+  });
+
+  /**
+   * The fallback block must stay scoped. Unscoped, it beats `light-dark()`
+   * whenever the OS is dark, which is the bug above.
+   */
+  it("scopes the prefers-color-scheme fallback so an explicit light choice wins", () => {
+    const theme = readFileSync(join(STYLES, "theme.css"), "utf8");
+    const media = theme.slice(
+      theme.indexOf("@media (prefers-color-scheme: dark)"),
+    );
+
+    for (const m of media.matchAll(/^\s{2}(:root[^{]*)\{/gm)) {
+      expect(
+        m[1],
+        "every :root rule inside the dark media query must exclude an explicit light choice",
+      ).toContain('data-color-scheme="light"');
+    }
+  });
+  /**
+   * The shared primitives must be owned by primitives.css alone.
+   *
+   * `.btn-secondary` and `.btn-danger` used to be declared inside
+   * ReflogInspector.css with no namespace at all, so they leaked out of that
+   * component and silently styled StashInspector's buttons too — editing the
+   * reflog restyled the stash inspector. This pins the ownership.
+   *
+   * It also guards a subtler hazard: component stylesheets are imported by
+   * their components, which load before styles/index.css, so the primitives are
+   * bundled *last*. A component redeclaring one of these names at the same
+   * specificity would silently lose, rather than override as its author
+   * intended — the override has to be more specific (`.x.btn-secondary`).
+   */
+  it("declares the shared primitives only in primitives.css", () => {
+    const primitives = readFileSync(join(STYLES, "primitives.css"), "utf8");
+    const owned = new Set(
+      [...primitives.matchAll(/^\.([\w-]+)/gm)].map((m) => m[1] as string),
+    );
+    expect(owned.has("btn")).toBe(true);
+    expect(owned.has("empty-state")).toBe(true);
+    expect(owned.has("view-header")).toBe(true);
+
+    const offenders: string[] = [];
+    for (const file of components) {
+      const text = readFileSync(file, "utf8");
+      for (const m of text.matchAll(/^\.([\w-]+)\s*[{,:]/gm)) {
+        if (owned.has(m[1] as string)) {
+          offenders.push(`${file.replace(ROOT, "")}: .${m[1]}`);
+        }
+      }
+    }
+
+    expect(
+      offenders,
+      "these redeclare a shared primitive from a component stylesheet, which leaks the class to every other component using it. Scope the override instead (.your-class.btn-secondary), which is also what makes it win — the primitives are bundled after component styles.",
+    ).toEqual([]);
+  });
 });

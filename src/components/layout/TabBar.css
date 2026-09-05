@@ -107,6 +107,16 @@
   outline: none;
 }
 
+/* The close button is opacity:0 until its tab is hovered, so a keyboard user
+   tabbing onto it saw nothing at all. `!important` for the same reason the
+   `:hover` rule below uses it: `.tabbar-tab:hover .tabbar-tab-close` is
+   equally specific and would otherwise dim a focused button back to 0.5. */
+.tabbar-tab-close:focus-visible {
+  opacity: 1 !important;
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
+}
+
 .tabbar-tab:hover .tabbar-tab-close {
   opacity: 0.5;
 }
@@ -157,4 +167,12 @@
   text-align: left;
   cursor: pointer;
   outline: none;
+}
+
+/* The global :focus-visible ring in index.css is same-specificity as the base
+   rule above and loses to its `outline: none`, so it is restated here. */
+.tabbar-tab-button:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
 }

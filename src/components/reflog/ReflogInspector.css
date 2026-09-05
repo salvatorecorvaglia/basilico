@@ -1,5 +1,12 @@
 /* ═══════════════════════════════════════════════════════
    Basilico — Reflog Inspector Styles
+
+   This stylesheet had drifted furthest from the design system: 74 raw pixel
+   values against 89 token references, its own `transition: all 0.15s ease`,
+   its own modal shell, and a set of `rgba(255, 255, 255, …)` overlays that
+   assume a dark background — in light mode they lighten an already near-white
+   surface, so hover feedback disappeared entirely. It now uses the shared
+   tokens and the primitives in styles/primitives.css.
    ═══════════════════════════════════════════════════════ */
 
 .reflog-container {
@@ -7,81 +14,51 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
-  background-color: var(--bg-primary);
+  background-color: var(--bg-base);
   color: var(--text-primary);
   font-family: inherit;
   overflow: hidden;
 }
 
-/* Header bar */
-.reflog-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 20px;
-  background-color: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
-}
-
+/* ── Header ──
+   The layout comes from `.view-header`, so this view lines up with Blame and
+   File History instead of running 20px taller with its own title block. */
 .reflog-title-section {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.reflog-title-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: var(
-    --accent-gradient,
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--cat-indigo) 20%, transparent),
-      color-mix(in srgb, var(--cat-purple) 20%, transparent)
-    )
-  );
-  color: var(--accent-primary);
-  border: 1px solid color-mix(in srgb, var(--cat-indigo) 30%, transparent);
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .reflog-title {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text-primary);
-  margin: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
 }
 
 .reflog-count-badge {
-  font-size: 11px;
-  font-weight: 500;
-  padding: 2px 8px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
+  padding: var(--space-0-5) var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
   color: var(--text-tertiary);
-}
-
-.reflog-subtitle {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  margin: 2px 0 0 0;
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
 }
 
 .reflog-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2);
 }
 
-/* Controls inputs */
+/* ── Controls ── */
 .reflog-search-wrapper {
   position: relative;
   display: flex;
@@ -91,61 +68,58 @@
 
 .reflog-search-icon {
   position: absolute;
-  left: 10px;
+  left: var(--space-2-5);
   color: var(--text-tertiary);
   pointer-events: none;
 }
 
 .reflog-search-input {
   width: 100%;
-  height: 32px;
-  padding: 0 12px 0 32px;
-  font-size: 12px;
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
-  background-color: var(--bg-tertiary);
+  height: var(--space-8);
+  padding: 0 var(--space-3) 0 var(--space-8);
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-elevated);
   color: var(--text-primary);
-  transition: all 0.15s ease;
-}
-
-.reflog-search-input:focus {
-  outline: none;
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cat-indigo) 20%, transparent);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .reflog-select {
-  height: 32px;
-  padding: 0 10px;
-  font-size: 12px;
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
-  background-color: var(--bg-tertiary);
+  height: var(--space-8);
+  padding: 0 var(--space-2-5);
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-elevated);
   color: var(--text-primary);
   cursor: pointer;
-  outline: none;
 }
 
 .reflog-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
-  background-color: var(--bg-tertiary);
+  gap: var(--space-1-5);
+  height: var(--space-8);
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-sm);
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-elevated);
   color: var(--text-primary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .reflog-btn:hover:not(:disabled) {
-  background-color: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
+  background-color: var(--bg-hover);
+  border-color: var(--border-hover);
 }
 
 .reflog-btn:disabled {
@@ -153,53 +127,54 @@
   cursor: not-allowed;
 }
 
-/* Content Area */
+/* ── Content ── */
 .reflog-content {
   flex: 1;
   overflow-y: auto;
-  padding: 0;
   position: relative;
 }
 
-/* Table */
+/* ── Table ── */
 .reflog-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   text-align: left;
 }
 
 .reflog-table th {
   position: sticky;
   top: 0;
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-surface);
   color: var(--text-tertiary);
-  font-weight: 600;
-  font-size: 11px;
+  font-weight: var(--weight-semibold);
+  font-size: var(--font-size-xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border-color);
-  z-index: 2;
+  padding: var(--space-2-5) var(--space-3);
+  border-bottom: 1px solid var(--border-default);
+  z-index: var(--z-sticky);
 }
 
 .reflog-table td {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border-color);
+  padding: var(--space-2-5) var(--space-3);
+  border-bottom: 1px solid var(--border-default);
   vertical-align: middle;
-  transition: background-color 0.1s ease;
+  transition: background-color var(--transition-fast);
 }
 
 .reflog-row:hover td {
-  background-color: rgba(255, 255, 255, 0.03);
+  background-color: var(--bg-hover);
 }
 
-/* Columns */
+/* ── Columns ──
+   Pixel widths here are table geometry, not spacing: there is no width scale
+   for them to snap to. */
 .col-index {
   width: 90px;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   color: var(--text-tertiary);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 
 .col-action {
@@ -224,7 +199,7 @@
 .col-date {
   width: 120px;
   color: var(--text-tertiary);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 .col-actions {
@@ -232,15 +207,22 @@
   text-align: right;
 }
 
-/* Action Badges */
+/* ── Action badges ──
+   Single line, always. An unrecognised verb used to render the command's whole
+   argument string, which wrapped and grew the row; the classifier now emits a
+   bare verb and this clamps whatever gets through. */
 .reflog-action-badge {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 10.5px;
-  font-weight: 600;
+  max-width: 100%;
+  padding: var(--space-0-5) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .action-checkout {
@@ -273,8 +255,7 @@
   border: 1px solid color-mix(in srgb, var(--cat-cyan) 30%, transparent);
 }
 
-.action-pull,
-.action-fetch {
+.action-pull {
   background: color-mix(in srgb, var(--cat-indigo) 15%, transparent);
   color: var(--cat-indigo);
   border: 1px solid color-mix(in srgb, var(--cat-indigo) 30%, transparent);
@@ -292,20 +273,22 @@
   border: 1px solid color-mix(in srgb, var(--cat-slate) 30%, transparent);
 }
 
-/* SHA badge */
+/* ── SHA badge ── */
 .reflog-sha-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-family: var(--font-mono, monospace);
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background-color: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  padding: var(--space-0-5) var(--space-1-5);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border-default);
   color: var(--accent-primary);
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .reflog-sha-btn:hover {
@@ -313,146 +296,148 @@
   border-color: color-mix(in srgb, var(--cat-indigo) 40%, transparent);
 }
 
-/* Table row actions */
+/* ── Row actions ── */
 .reflog-row-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  font-size: 11px;
-  font-weight: 500;
-  border-radius: 4px;
-  border: 1px solid var(--border-color);
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
   background-color: transparent;
   color: var(--text-primary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .reflog-row-btn:hover {
   background-color: color-mix(in srgb, var(--color-danger) 15%, transparent);
   border-color: color-mix(in srgb, var(--color-danger) 40%, transparent);
-  color: var(--cat-rose);
+  color: var(--color-danger);
 }
 
-/* Empty / Loading States */
-.reflog-empty-state,
-.reflog-loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 300px;
-  color: var(--text-tertiary);
-  gap: 12px;
-  text-align: center;
-}
-
+/* ── Empty & loading ──
+   Layout comes entirely from the shared `.empty-state`, which fills and centres
+   in `.reflog-content`. No local height: the primitives are bundled after the
+   component stylesheets, so a same-specificity override here would lose. */
 .reflog-empty-icon {
   opacity: 0.4;
 }
 
-/* Modal styling */
+/* ── Restore modal ── */
 .reflog-modal-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  animation: reflogFadeIn 0.15s ease-out;
+  background-color: var(--scrim-backdrop);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: var(--z-modal);
+  animation: fadeIn var(--transition-fast) ease-out;
 }
 
 .reflog-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   width: 440px;
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  box-shadow:
-    0 20px 25px -5px rgba(0, 0, 0, 0.5),
-    0 10px 10px -5px rgba(0, 0, 0, 0.3);
+  max-width: calc(100vw - var(--space-8));
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
   overflow: hidden;
-  animation: reflogSlideUp 0.15s ease-out;
+  z-index: var(--z-modal);
+  animation: scaleIn var(--transition-fast) cubic-bezier(0.16, 1, 0.3, 1);
+  /* Radix focuses the content on open; the ring belongs on the controls
+     inside, not the panel itself — same as .reset-modal-content. */
+  outline: none;
 }
 
 .reflog-modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border-color);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-default);
 }
 
 .reflog-modal-title {
-  font-size: 15px;
-  font-weight: 600;
-  margin: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--weight-semibold);
 }
 
 .reflog-modal-close {
-  background: none;
-  border: none;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: var(--space-1);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
 }
 
 .reflog-modal-close:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--bg-hover);
   color: var(--text-primary);
 }
 
 .reflog-modal-body {
-  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
+  padding: var(--space-5);
 }
 
 .reflog-entry-preview {
-  padding: 12px;
-  border-radius: 8px;
-  background-color: var(--bg-tertiary);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border-default);
 }
 
 .reflog-preview-label {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
-  margin-bottom: 4px;
+  margin-bottom: var(--space-1);
 }
 
 .reflog-preview-msg {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--font-size-base);
+  font-weight: var(--weight-medium);
   color: var(--text-primary);
+  word-break: break-word;
 }
 
 .reflog-mode-options {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .reflog-mode-card {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background-color: rgba(255, 255, 255, 0.02);
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-elevated);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .reflog-mode-card:hover {
@@ -462,11 +447,11 @@
 
 .reflog-mode-card.selected {
   border-color: var(--accent-primary);
-  background-color: color-mix(in srgb, var(--cat-indigo) 10%, transparent);
+  background-color: color-mix(in srgb, var(--accent-primary) 10%, transparent);
 }
 
 .reflog-mode-radio {
-  margin-top: 2px;
+  margin-top: var(--space-0-5);
 }
 
 .reflog-mode-info {
@@ -475,74 +460,23 @@
 }
 
 .reflog-mode-name {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--weight-semibold);
   color: var(--text-primary);
 }
 
 .reflog-mode-desc {
-  font-size: 11.5px;
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
-  margin-top: 2px;
+  margin-top: var(--space-0-5);
 }
 
 .reflog-modal-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
-  padding: 14px 20px;
-  background-color: rgba(0, 0, 0, 0.2);
-  border-top: 1px solid var(--border-color);
-}
-
-.btn-secondary {
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
-  background: transparent;
-  color: var(--text-primary);
-  cursor: pointer;
-}
-
-.btn-secondary:hover {
-  background-color: rgba(255, 255, 255, 0.08);
-}
-
-.btn-danger {
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: 6px;
-  border: none;
-  background-color: var(--color-danger);
-  color: var(--text-inverse);
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.btn-danger:hover {
-  background-color: var(--color-danger-hover);
-}
-
-@keyframes reflogFadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes reflogSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  gap: var(--space-2-5);
+  padding: var(--space-3) var(--space-5);
+  background-color: var(--bg-elevated);
+  border-top: 1px solid var(--border-default);
 }

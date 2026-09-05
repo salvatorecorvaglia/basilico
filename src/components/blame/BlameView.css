@@ -87,8 +87,10 @@
   border-bottom: 1px solid var(--scrim-border-strong);
 }
 
+/* `.blame-view` sits on `--bg-inset`, which is near-white in light mode, so a
+   white overlay here made the hover state invisible. */
 .blame-line-row:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-hover);
 }
 
 .blame-gutter {
@@ -152,7 +154,9 @@
   width: 45px;
   text-align: right;
   padding-right: var(--space-3);
-  background: rgba(0, 0, 0, 0.15);
+  /* A theme surface, so it takes a surface token: the gutter needs to read as
+     a distinct band in both themes, which a fixed black alpha cannot do. */
+  background: var(--bg-elevated);
   border-right: 1px solid var(--scrim-border);
   flex-shrink: 0;
   user-select: none;

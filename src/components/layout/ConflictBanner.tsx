@@ -69,7 +69,7 @@ export const ConflictBanner: React.FC = () => {
       <div className="conflict-banner-actions">
         <button
           type="button"
-          className="conflict-banner-btn conflict-banner-btn-primary"
+          className="btn btn-sm btn-danger"
           onClick={handleOpenResolver}
         >
           <GitMerge size={14} />
@@ -77,7 +77,7 @@ export const ConflictBanner: React.FC = () => {
         </button>
         <button
           type="button"
-          className="conflict-banner-btn conflict-banner-btn-secondary"
+          className="btn btn-sm btn-secondary"
           onClick={handleAbort}
         >
           <XCircle size={14} />

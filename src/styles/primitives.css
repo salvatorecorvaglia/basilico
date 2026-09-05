@@ -1,0 +1,137 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — Shared UI Primitives
+
+   The token layer in theme.css was well adopted, but nothing sat above it:
+   twelve component stylesheets each grew their own button (eight different
+   paddings, four font sizes, three radii), eleven re-derived the same centred
+   empty state, and eight view headers landed on five different heights. These
+   are the shapes those variants agree on most often, extracted once.
+
+   Ordering, which matters and is not what the import order suggests: component
+   stylesheets are pulled in by their components, which are imported before
+   `styles/index.css` in main.tsx, so in the built bundle these primitives land
+   *after* every component rule. A component that needs to override one must
+   therefore win on specificity — `.stash-action-btn.btn-secondary` is the
+   pattern — because a bare same-specificity rule will lose.
+
+   New code should reach for these first; existing screens adopt them as they
+   are otherwise edited, rather than in one sweeping rewrite that no visual test
+   suite exists to check.
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Buttons ──
+   The base matches the value that already had the most adopters — .confirm-btn,
+   .prompt-btn, .reset-btn and .settings-btn were already identical — so those
+   can migrate without changing a pixel. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-sm {
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+}
+
+.btn-primary {
+  background: var(--accent-primary);
+  color: var(--text-on-accent);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-primary-hover);
+}
+
+.btn-secondary {
+  background: var(--bg-elevated);
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+.btn-danger {
+  background: var(--color-danger);
+  color: var(--text-inverse);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--color-danger-hover);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* ── Empty & loading states ──
+   The column-centred block that eleven stylesheets each rebuilt, at the shape
+   the majority of them already used. */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  height: 100%;
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--text-tertiary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+}
+
+.empty-state-icon {
+  color: var(--text-tertiary);
+  opacity: 0.6;
+}
+
+.empty-state-text {
+  margin: 0;
+  max-width: 42ch;
+  line-height: var(--leading-normal);
+}
+
+/* ── View headers ──
+   `--toolbar-height` exists precisely so a view's header lines up with the
+   toolbar above it; .blame-header and .file-history-header already used it. */
+.view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-shrink: 0;
+  height: var(--toolbar-height);
+  padding: 0 var(--space-4);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+}

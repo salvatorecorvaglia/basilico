@@ -135,7 +135,7 @@ export function RepoSearch() {
       <div className="search-results custom-scrollbar">
         {searchTab === "commits" ? (
           commitSearchResults.length === 0 ? (
-            <div className="search-empty">
+            <div className="empty-state search-empty">
               <GitCommit size={28} strokeWidth={1} />
               <p>No commits match your query</p>
             </div>
@@ -177,7 +177,7 @@ export function RepoSearch() {
             </div>
           )
         ) : grepSearchResults.length === 0 ? (
-          <div className="search-empty">
+          <div className="empty-state search-empty">
             <FileText size={28} strokeWidth={1} />
             <p>No code matches your query</p>
           </div>

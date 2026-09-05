@@ -78,7 +78,9 @@ export function useCommitColumns(
           );
 
           return (
-            <span className="commit-message truncate">
+            // Truncated with an ellipsis, so the full subject is only
+            // otherwise recoverable by selecting the commit.
+            <span className="commit-message truncate" title={message}>
               {segments.map((segment, idx) => {
                 const url = segment.url;
                 if (!url) return segment.text;
@@ -155,7 +157,11 @@ export function useCommitColumns(
             >
               {getInitials(info.getValue())}
             </span>
-            <span className="commit-author-name truncate">
+            {/* Long author names truncate and are recoverable nowhere else. */}
+            <span
+              className="commit-author-name truncate"
+              title={info.getValue()}
+            >
               {info.getValue()}
             </span>
           </div>

@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **"Light" Choice Did Nothing on a Dark-Mode OS**: The plain-value dark-mode fallback blocks in `theme.css` keyed off `@media (prefers-color-scheme: dark)` alone, which reports the *OS* setting and ignores the inline `color-scheme` property an explicit choice writes. Same `:root` specificity and later in the file, the media block outranked the `light-dark()` result — so picking "Light" on a dark-mode OS changed nothing. The whole scheme now also writes a `data-color-scheme` attribute (`applyColorSchemeToDOM`), the media fallback is scoped to exclude an explicit light choice, and a mirror `[data-color-scheme="dark"]` block honours an explicit dark choice on engines without `light-dark()`.
+- **Dark Values Could Drift Between Theme Paths**: Dark mode was produced two ways — `light-dark()` for supporting engines and a plain-value `@media` block for the rest — with the values duplicated in both, so one path could gain a token the other never got. The dark values now live exactly once as `--dark-*` tokens and both blocks only assign them.
+- **Invisible Hover & Focus Feedback**: Neutral black/white alphas used as fills rendered on the near-white surfaces of light mode — the reflog table hover, the conflict banner's secondary button and the blame gutter all vanished, and focus entirely disappeared from custom checkboxes and tab close buttons (`appearance: none` drops the native ring and a base `outline: none` dropped its replacement). These were replaced with theme surface tokens and explicit `:focus-visible` rings.
+- **Reflog Action Badges Built From Argument Strings**: Git only writes the bare `pull:` prefix when the command has no arguments; `pull --tags origin develop:` matched none of the hardcoded prefixes, fell through to a generic branch that sliced the argument string to 14 characters and uppercased it, so every such row read `PULL -- TAGS OR` and wrapped the badge column. Badges now key off the leading verb and never the argument string.
+- **Reflog Offered Refs the Repository Did Not Have**: The ref dropdown was hardcoded to HEAD/main/master/develop, offering a `master` many repositories lack while their real branches were unreachable. It now lists the repository's own local branches (remote-tracking refs rarely carry a reflog and are excluded) and falls back to HEAD if the selected branch is deleted.
+- **Long Commit Subjects & Authors Were Unrecoverable**: Truncated message and author cells gave no way to see their full value without selecting the commit. Both now expose the full content in a tooltip.
+
+### Added
+
+- **Shared UI Primitives**: Added `src/styles/primitives.css` — the button shapes (`.btn`, `.btn-sm`, `.btn-primary`, `.btn-secondary`, `.btn-danger`, `.btn-ghost`), the column-centred empty state, and the view header extracted from the twelve component stylesheets that each re-derived them (`ConflictBanner` now uses the shared button classes).
+- **Colour Scheme Setting in Settings › Appearance**: A dedicated Light/Dark/System control in the Settings modal, reusing the same single source of truth as the toolbar's quick toggle so the two can never disagree. It applies immediately (unlike the accent grid draft) and survives Cancel.
+- **Centralized Colour Scheme Store**: `useColorScheme` moved from per-component `useState` to a module-level store read through `useSyncExternalStore` (`src/lib/color-scheme.ts`), so the toolbar toggle, the Settings control and `useDarkMode` behind every Monaco view all share one live value — switching the scheme re-renders every consumer, not just the control that did it.
+- **Test Coverage**: Added `tests/lib/color-scheme.test.tsx` (shared-value store and DOM attributes) and `tests/components/reflog/ReflogInspector.test.tsx` (verb badges, dynamic branch list), plus Toolbar/Settings cases for the new tab and scheme controls, and design-token tests pinning dark-mode block parity, fallback scoping, neutral-alpha fills, style-scale budgets, and primitive ownership.
+
+### Changed
+
+- **Commit List Message Column Now Absorbs Leftover Width**: Every column was a fixed size, so on a wide window the table ended at the Date column leaving dead space (the loading skeleton already used `flex-1` for Message, so the real table visibly narrowed on load). Message now flexes to fill, keeping its declared size as a floor; manual drag-resizes still take the fixed-width branch.
+- **Reflog Inspector Now Uses the Shared View Header**: It carried its own taller title block with a gradient icon badge and a subtitle, reading like a different application; it now lines up with Blame and File History via `.view-header`.
+- **Accessibility Across Chrome & Settings**: The toolbar's view switcher and the Settings navigation are now exposed as tab lists (`role="tablist"`/`role="tab"`/`aria-selected`), and the Settings accent swatches gained a neutral theme-independent rim.
+- **Dependency Upgrades**: Bumped `@biomejs/biome` to `2.5.12`, `vitest` to `5.0.0`, `lucide-react` to `1.41.0`, `@tauri-apps/plugin-dialog`/`plugin-updater`, `@types/node`, `@testing-library/user-event`, and patch versions across the Rust `Cargo.lock` (including new `windows-registry`, `system-configuration`, `zlib-rs`, and `core-foundation` transitive deps).
+
 ## [1.3.0] - 2026-08-29
 
 ### Fixed

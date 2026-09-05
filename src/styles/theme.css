@@ -301,79 +301,212 @@
   --accent-primary: light-dark(#2dd4bf, #5eead4);
 }
 
-/* ═══════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════
    Dark-mode fallback for engines without light-dark()
 
-   Engines that support light-dark() resolve the declarations above and
-   this block sets the identical value, so the two paths never disagree.
-   Engines that do not support it fall back to the plain light value above
-   and pick up dark mode here.
-   ═══════════════════════════════════════════════════════ */
+   Two mechanisms produce dark mode, and they must never disagree:
+
+   1. `light-dark()` above, which resolves against the *computed* `color-scheme`
+      — including the inline override `applyColorSchemeToDOM` writes when the
+      user picks a scheme explicitly.
+   2. The blocks below, which are what engines lacking `light-dark()` fall back
+      to: they keep the plain light value from the declarations above and pick
+      dark up here.
+
+   `prefers-color-scheme` reports the *OS* setting and is unaffected by the
+   inline `color-scheme` property. An unguarded `@media (prefers-color-scheme:
+   dark)` block therefore outranked the light-dark() result whenever the OS was
+   dark — same `:root` specificity, later in the file — so choosing "Light" on a
+   dark-mode OS changed nothing at all. The media block is now scoped to "the
+   user has not explicitly asked for light", and a mirror block covers "the user
+   explicitly asked for dark" so fallback engines honour that choice too.
+
+   `applyColorSchemeToDOM` writes the `data-color-scheme` attribute these
+   selectors read. It is absent for the "system" preference, which is what lets
+   the media query drive.
+   ═══════════════════════════════════════════════════ */
+
+/* The dark values exist here exactly once; the two blocks below only assign
+   them, so a value cannot be updated in one path and missed in the other.
+   `design-tokens.test.ts` asserts both blocks assign the same set of tokens. */
+:root {
+  /* Base palette */
+  --dark-bg-base: #09090b;
+  --dark-bg-surface: #0d0d11;
+  --dark-bg-elevated: #16161f;
+  --dark-bg-overlay: #222230;
+  --dark-bg-inset: #050508;
+  --dark-bg-hover: #1c1c27;
+  --dark-bg-active: rgba(99, 102, 241, 0.15);
+  --dark-border-default: #1e1e2d;
+  --dark-border-muted: #141421;
+  --dark-border-subtle: #0a0a0f;
+  --dark-border-accent: rgba(99, 102, 241, 0.35);
+  --dark-text-primary: #f4f4f5;
+  --dark-text-secondary: #a1a1aa;
+  --dark-text-tertiary: #60606a;
+  --dark-text-link: #6366f1;
+  --dark-text-inverse: #09090b;
+  --dark-accent-primary: #3fb950;
+  --dark-accent-primary-hover: color-mix(
+    in srgb,
+    var(--accent-primary) 85%,
+    white
+  );
+  --dark-accent-secondary: #38bdf8;
+  --dark-accent-secondary-hover: #7dd3fc;
+  --dark-accent-teal: #2dd4bf;
+  --dark-accent-teal-hover: #5eead4;
+  --dark-color-success: #10b981;
+  --dark-color-warning: #f59e0b;
+  --dark-color-danger: #ef4444;
+  --dark-color-info: #3b82f6;
+  --dark-diff-add-bg: #062f1d;
+  --dark-diff-add-text: #4ade80;
+  --dark-diff-add-line: #0c4a2e;
+  --dark-diff-del-bg: #3b0712;
+  --dark-diff-del-text: #f87171;
+  --dark-diff-del-line: #5c0f22;
+  --dark-diff-hunk-bg: #0f1e36;
+  --dark-diff-hunk-text: #60a5fa;
+  --dark-scrollbar-thumb: #27273a;
+  --dark-scrollbar-thumb-hover: #3f3f56;
+
+  /* Accent presets */
+  --dark-accent-sage-green: #3fb950;
+  --dark-accent-royal-blue: #38bdf8;
+  --dark-accent-amethyst-purple: #a78bfa;
+  --dark-accent-amber-gold: #fbbf24;
+  --dark-accent-crimson-red: #ff7b72;
+  --dark-accent-ocean-teal: #5eead4;
+}
+
+/* The OS is dark and the user has not overridden it to light. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg-base: #09090b;
-    --bg-surface: #0d0d11;
-    --bg-elevated: #16161f;
-    --bg-overlay: #222230;
-    --bg-inset: #050508;
-    --bg-hover: #1c1c27;
-    --bg-active: rgba(99, 102, 241, 0.15);
-    --border-default: #1e1e2d;
-    --border-muted: #141421;
-    --border-subtle: #0a0a0f;
-    --border-accent: rgba(99, 102, 241, 0.35);
-    --text-primary: #f4f4f5;
-    --text-secondary: #a1a1aa;
-    --text-tertiary: #60606a;
-    --text-link: #6366f1;
-    --text-inverse: #09090b;
-    --accent-primary: #3fb950;
-    --accent-primary-hover: color-mix(
-      in srgb,
-      var(--accent-primary) 85%,
-      white
-    );
-    --accent-secondary: #38bdf8;
-    --accent-secondary-hover: #7dd3fc;
-    --accent-teal: #2dd4bf;
-    --accent-teal-hover: #5eead4;
-    --color-success: #10b981;
-    --color-warning: #f59e0b;
-    --color-danger: #ef4444;
-    --color-info: #3b82f6;
-    --diff-add-bg: #062f1d;
-    --diff-add-text: #4ade80;
-    --diff-add-line: #0c4a2e;
-    --diff-del-bg: #3b0712;
-    --diff-del-text: #f87171;
-    --diff-del-line: #5c0f22;
-    --diff-hunk-bg: #0f1e36;
-    --diff-hunk-text: #60a5fa;
-    --scrollbar-thumb: #27273a;
-    --scrollbar-thumb-hover: #3f3f56;
+  :root:not([data-color-scheme="light"]) {
+    --bg-base: var(--dark-bg-base);
+    --bg-surface: var(--dark-bg-surface);
+    --bg-elevated: var(--dark-bg-elevated);
+    --bg-overlay: var(--dark-bg-overlay);
+    --bg-inset: var(--dark-bg-inset);
+    --bg-hover: var(--dark-bg-hover);
+    --bg-active: var(--dark-bg-active);
+    --border-default: var(--dark-border-default);
+    --border-muted: var(--dark-border-muted);
+    --border-subtle: var(--dark-border-subtle);
+    --border-accent: var(--dark-border-accent);
+    --text-primary: var(--dark-text-primary);
+    --text-secondary: var(--dark-text-secondary);
+    --text-tertiary: var(--dark-text-tertiary);
+    --text-link: var(--dark-text-link);
+    --text-inverse: var(--dark-text-inverse);
+    --accent-primary: var(--dark-accent-primary);
+    --accent-primary-hover: var(--dark-accent-primary-hover);
+    --accent-secondary: var(--dark-accent-secondary);
+    --accent-secondary-hover: var(--dark-accent-secondary-hover);
+    --accent-teal: var(--dark-accent-teal);
+    --accent-teal-hover: var(--dark-accent-teal-hover);
+    --color-success: var(--dark-color-success);
+    --color-warning: var(--dark-color-warning);
+    --color-danger: var(--dark-color-danger);
+    --color-info: var(--dark-color-info);
+    --diff-add-bg: var(--dark-diff-add-bg);
+    --diff-add-text: var(--dark-diff-add-text);
+    --diff-add-line: var(--dark-diff-add-line);
+    --diff-del-bg: var(--dark-diff-del-bg);
+    --diff-del-text: var(--dark-diff-del-text);
+    --diff-del-line: var(--dark-diff-del-line);
+    --diff-hunk-bg: var(--dark-diff-hunk-bg);
+    --diff-hunk-text: var(--dark-diff-hunk-text);
+    --scrollbar-thumb: var(--dark-scrollbar-thumb);
+    --scrollbar-thumb-hover: var(--dark-scrollbar-thumb-hover);
   }
 
-  :root[data-theme="sage-green"] {
-    --accent-primary: #3fb950;
+  :root[data-theme="sage-green"]:not([data-color-scheme="light"]) {
+    --accent-primary: var(--dark-accent-sage-green);
   }
 
-  :root[data-theme="royal-blue"] {
-    --accent-primary: #38bdf8;
+  :root[data-theme="royal-blue"]:not([data-color-scheme="light"]) {
+    --accent-primary: var(--dark-accent-royal-blue);
   }
 
-  :root[data-theme="amethyst-purple"] {
-    --accent-primary: #a78bfa;
+  :root[data-theme="amethyst-purple"]:not([data-color-scheme="light"]) {
+    --accent-primary: var(--dark-accent-amethyst-purple);
   }
 
-  :root[data-theme="amber-gold"] {
-    --accent-primary: #fbbf24;
+  :root[data-theme="amber-gold"]:not([data-color-scheme="light"]) {
+    --accent-primary: var(--dark-accent-amber-gold);
   }
 
-  :root[data-theme="crimson-red"] {
-    --accent-primary: #ff7b72;
+  :root[data-theme="crimson-red"]:not([data-color-scheme="light"]) {
+    --accent-primary: var(--dark-accent-crimson-red);
   }
 
-  :root[data-theme="ocean-teal"] {
-    --accent-primary: #5eead4;
+  :root[data-theme="ocean-teal"]:not([data-color-scheme="light"]) {
+    --accent-primary: var(--dark-accent-ocean-teal);
   }
+}
+
+/* The user explicitly chose dark, whatever the OS reports. */
+:root[data-color-scheme="dark"] {
+  --bg-base: var(--dark-bg-base);
+  --bg-surface: var(--dark-bg-surface);
+  --bg-elevated: var(--dark-bg-elevated);
+  --bg-overlay: var(--dark-bg-overlay);
+  --bg-inset: var(--dark-bg-inset);
+  --bg-hover: var(--dark-bg-hover);
+  --bg-active: var(--dark-bg-active);
+  --border-default: var(--dark-border-default);
+  --border-muted: var(--dark-border-muted);
+  --border-subtle: var(--dark-border-subtle);
+  --border-accent: var(--dark-border-accent);
+  --text-primary: var(--dark-text-primary);
+  --text-secondary: var(--dark-text-secondary);
+  --text-tertiary: var(--dark-text-tertiary);
+  --text-link: var(--dark-text-link);
+  --text-inverse: var(--dark-text-inverse);
+  --accent-primary: var(--dark-accent-primary);
+  --accent-primary-hover: var(--dark-accent-primary-hover);
+  --accent-secondary: var(--dark-accent-secondary);
+  --accent-secondary-hover: var(--dark-accent-secondary-hover);
+  --accent-teal: var(--dark-accent-teal);
+  --accent-teal-hover: var(--dark-accent-teal-hover);
+  --color-success: var(--dark-color-success);
+  --color-warning: var(--dark-color-warning);
+  --color-danger: var(--dark-color-danger);
+  --color-info: var(--dark-color-info);
+  --diff-add-bg: var(--dark-diff-add-bg);
+  --diff-add-text: var(--dark-diff-add-text);
+  --diff-add-line: var(--dark-diff-add-line);
+  --diff-del-bg: var(--dark-diff-del-bg);
+  --diff-del-text: var(--dark-diff-del-text);
+  --diff-del-line: var(--dark-diff-del-line);
+  --diff-hunk-bg: var(--dark-diff-hunk-bg);
+  --diff-hunk-text: var(--dark-diff-hunk-text);
+  --scrollbar-thumb: var(--dark-scrollbar-thumb);
+  --scrollbar-thumb-hover: var(--dark-scrollbar-thumb-hover);
+}
+
+:root[data-color-scheme="dark"][data-theme="sage-green"] {
+  --accent-primary: var(--dark-accent-sage-green);
+}
+
+:root[data-color-scheme="dark"][data-theme="royal-blue"] {
+  --accent-primary: var(--dark-accent-royal-blue);
+}
+
+:root[data-color-scheme="dark"][data-theme="amethyst-purple"] {
+  --accent-primary: var(--dark-accent-amethyst-purple);
+}
+
+:root[data-color-scheme="dark"][data-theme="amber-gold"] {
+  --accent-primary: var(--dark-accent-amber-gold);
+}
+
+:root[data-color-scheme="dark"][data-theme="crimson-red"] {
+  --accent-primary: var(--dark-accent-crimson-red);
+}
+
+:root[data-color-scheme="dark"][data-theme="ocean-teal"] {
+  --accent-primary: var(--dark-accent-ocean-teal);
 }

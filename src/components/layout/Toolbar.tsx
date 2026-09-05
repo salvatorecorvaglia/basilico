@@ -484,9 +484,11 @@ export function Toolbar() {
 
       {/* Center Segmented View Switcher */}
       <div className="toolbar-section toolbar-center">
-        <div className="toolbar-segmented">
+        <div className="toolbar-segmented" role="tablist">
           <button
             type="button"
+            role="tab"
+            aria-selected={activeView === "graph"}
             className={`toolbar-segment-btn ${activeView === "graph" ? "active" : ""}`}
             onClick={() => setActiveView("graph")}
           >
@@ -494,6 +496,8 @@ export function Toolbar() {
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeView === "staging"}
             className={`toolbar-segment-btn ${activeView === "staging" ? "active" : ""}`}
             onClick={() => {
               setActiveView("staging");
@@ -520,6 +524,8 @@ export function Toolbar() {
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeView === "reflog"}
             className={`toolbar-segment-btn ${activeView === "reflog" ? "active" : ""}`}
             onClick={() => setActiveView("reflog")}
           >

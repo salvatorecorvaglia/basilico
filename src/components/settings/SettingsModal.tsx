@@ -10,13 +10,20 @@ import {
   GitBranch,
   Key,
   Keyboard,
+  Monitor as MonitorCog,
+  Moon,
   Palette,
   Plus,
   Shield,
+  Sun,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import {
+  type ColorSchemePreference,
+  useColorScheme,
+} from "../../lib/color-scheme";
 import type { UserSettings } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
 import { applyThemeToDOM, THEME_PRESETS } from "../../lib/theme-presets";
@@ -26,6 +33,26 @@ import "./SettingsModal.css";
 import { useCopyFeedback } from "../../lib/use-copy-feedback";
 
 type SettingsTab = "appearance" | "git" | "ssh" | "shortcuts";
+
+/**
+ * The light/dark/system control. It reuses `useColorScheme`, the same single
+ * source of truth the toolbar's quick toggle reads, so the two cannot disagree.
+ */
+const COLOR_SCHEME_OPTIONS: {
+  value: ColorSchemePreference;
+  label: string;
+  Icon: typeof Sun;
+  hint: string;
+}[] = [
+  { value: "light", label: "Light", Icon: Sun, hint: "Always use light mode" },
+  { value: "dark", label: "Dark", Icon: Moon, hint: "Always use dark mode" },
+  {
+    value: "system",
+    label: "System",
+    Icon: MonitorCog,
+    hint: "Follow the operating system setting",
+  },
+];
 
 const SHORTCUT_LABELS: Record<string, string> = {
   commandPalette: "Command Palette",
@@ -61,6 +88,7 @@ export function SettingsModal() {
   );
 
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
+  const { preference, setPreference } = useColorScheme();
   const [draft, setDraft] = useState<UserSettings | null>(null);
   const [sshKeys, setSshKeys] = useState<string[]>([]);
   const [sshComment, setSshComment] = useState("");
@@ -167,9 +195,11 @@ export function SettingsModal() {
               </div>
 
               {/* Navigation */}
-              <div className="settings-nav">
+              <div className="settings-nav" role="tablist">
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={activeTab === "appearance"}
                   className={`settings-nav-btn ${activeTab === "appearance" ? "active" : ""}`}
                   onClick={() => setActiveTab("appearance")}
                 >
@@ -177,6 +207,8 @@ export function SettingsModal() {
                 </button>
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={activeTab === "git"}
                   className={`settings-nav-btn ${activeTab === "git" ? "active" : ""}`}
                   onClick={() => setActiveTab("git")}
                 >
@@ -184,6 +216,8 @@ export function SettingsModal() {
                 </button>
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={activeTab === "ssh"}
                   className={`settings-nav-btn ${activeTab === "ssh" ? "active" : ""}`}
                   onClick={() => setActiveTab("ssh")}
                 >
@@ -191,6 +225,8 @@ export function SettingsModal() {
                 </button>
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={activeTab === "shortcuts"}
                   className={`settings-nav-btn ${activeTab === "shortcuts" ? "active" : ""}`}
                   onClick={() => setActiveTab("shortcuts")}
                 >
@@ -201,27 +237,69 @@ export function SettingsModal() {
               {/* Body */}
               <div className="settings-body">
                 {activeTab === "appearance" && (
-                  <div className="settings-section">
-                    <div className="settings-section-title">Accent Theme</div>
-                    <div className="theme-presets">
-                      {THEME_PRESETS.map((preset) => (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          className={`theme-preset-btn ${draft.theme === preset.id ? "active" : ""}`}
-                          onClick={() =>
-                            setDraft({ ...draft, theme: preset.id })
-                          }
-                        >
-                          <span
-                            className="theme-swatch"
-                            style={{ background: preset.color }}
-                          />
-                          {preset.name}
-                        </button>
-                      ))}
+                  <>
+                    <div className="settings-section">
+                      <div className="settings-section-title">
+                        Colour Scheme
+                      </div>
+                      <div
+                        className="scheme-options"
+                        role="radiogroup"
+                        aria-label="Colour scheme"
+                      >
+                        {COLOR_SCHEME_OPTIONS.map(
+                          ({ value, label, Icon, hint }) => (
+                            <button
+                              key={value}
+                              type="button"
+                              role="radio"
+                              aria-checked={preference === value}
+                              title={hint}
+                              className={`scheme-option-btn ${
+                                preference === value ? "active" : ""
+                              }`}
+                              onClick={() => setPreference(value)}
+                            >
+                              <Icon size={14} />
+                              {label}
+                            </button>
+                          ),
+                        )}
+                      </div>
+                      {/*
+                        The accent grid below is a draft applied on Save, but
+                        the toolbar's toggle switches the scheme instantly.
+                        Keeping this control immediate too is what stops the
+                        two from ever disagreeing — so say so, rather than
+                        letting Cancel look like it should undo it.
+                      */}
+                      <div className="settings-hint">
+                        Applies immediately, and is not affected by Cancel.
+                      </div>
                     </div>
-                  </div>
+
+                    <div className="settings-section">
+                      <div className="settings-section-title">Accent Theme</div>
+                      <div className="theme-presets">
+                        {THEME_PRESETS.map((preset) => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            className={`theme-preset-btn ${draft.theme === preset.id ? "active" : ""}`}
+                            onClick={() =>
+                              setDraft({ ...draft, theme: preset.id })
+                            }
+                          >
+                            <span
+                              className="theme-swatch"
+                              style={{ background: preset.color }}
+                            />
+                            {preset.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 {activeTab === "git" && (

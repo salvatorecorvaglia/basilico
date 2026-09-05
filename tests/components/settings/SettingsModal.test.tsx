@@ -108,4 +108,54 @@ describe("SettingsModal", () => {
       expect(useUIStore.getState().settingsOpen).toBe(false);
     });
   });
+  it("exposes the settings nav as a tab list", async () => {
+    const user = userEvent.setup();
+    render(<SettingsModal />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Appearance")).toBeInTheDocument();
+    });
+
+    const tabs = screen.getAllByRole("tab");
+    // Each label is preceded by its icon, hence the leading whitespace.
+    expect(tabs.map((t) => t.textContent?.trim())).toEqual([
+      "Appearance",
+      "Git",
+      "SSH Keys",
+      "Shortcuts",
+    ]);
+    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+
+    await user.click(screen.getByText("SSH Keys"));
+
+    // Selection moves with the click; it is not merely a hover-styled button.
+    const after = screen.getAllByRole("tab");
+    expect(after[0]).toHaveAttribute("aria-selected", "false");
+    expect(after[2]).toHaveAttribute("aria-selected", "true");
+  });
+  it("switches the colour scheme immediately, independently of the draft", async () => {
+    const user = userEvent.setup();
+    render(<SettingsModal />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Appearance")).toBeInTheDocument();
+    });
+
+    const light = screen.getByRole("radio", { name: /light/i });
+    await user.click(light);
+
+    // Applied to the document straight away — the accent grid is a draft
+    // applied on Save, but the scheme must match the toolbar's instant toggle.
+    expect(document.documentElement).toHaveAttribute(
+      "data-color-scheme",
+      "light",
+    );
+    expect(document.documentElement.style.colorScheme).toBe("light");
+    expect(light).toHaveAttribute("aria-checked", "true");
+
+    // "System" clears both, letting prefers-color-scheme drive again.
+    await user.click(screen.getByRole("radio", { name: /system/i }));
+    expect(document.documentElement).not.toHaveAttribute("data-color-scheme");
+    expect(document.documentElement.style.colorScheme).toBe("");
+  });
 });
