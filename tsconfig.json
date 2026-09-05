@@ -5,7 +5,10 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     /* Test files read source files from disk to assert cross-language
        invariants, so they need Node's built-ins. */
-    "types": ["node", "vitest/globals", "@testing-library/jest-dom"],
+    /* jest-dom's root types entry only augments the global `jest` namespace
+       (and references the uninstalled `jest` types); the vitest-side matchers
+       come from tests/jest-dom.d.ts instead. */
+    "types": ["node", "vitest/globals"],
     "module": "ESNext",
     "skipLibCheck": true,
 
