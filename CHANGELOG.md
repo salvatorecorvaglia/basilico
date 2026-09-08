@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-08
+
 ### Fixed
 
 - **"Light" Choice Did Nothing on a Dark-Mode OS**: The plain-value dark-mode fallback blocks in `theme.css` keyed off `@media (prefers-color-scheme: dark)` alone, which reports the *OS* setting and ignores the inline `color-scheme` property an explicit choice writes. Same `:root` specificity and later in the file, the media block outranked the `light-dark()` result — so picking "Light" on a dark-mode OS changed nothing. The whole scheme now also writes a `data-color-scheme` attribute (`applyColorSchemeToDOM`), the media fallback is scoped to exclude an explicit light choice, and a mirror `[data-color-scheme="dark"]` block honours an explicit dark choice on engines without `light-dark()`.
