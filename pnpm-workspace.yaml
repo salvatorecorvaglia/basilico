@@ -15,8 +15,8 @@ minimumReleaseAgeExclude:
   - '@biomejs/cli-win32-arm64@2.5.7'
   - '@biomejs/cli-win32-x64@2.5.7'
   - zustand@5.0.15
-  - '@tanstack/react-virtual@3.14.10'
-  - '@tanstack/virtual-core@3.17.8'
+  - '@tanstack/react-virtual@3.14.10 || 3.14.11'
+  - '@tanstack/virtual-core@3.17.8 || 3.17.9'
   - '@vitest/expect@4.1.11'
   - '@vitest/mocker@4.1.11'
   - '@vitest/pretty-format@4.1.11'
