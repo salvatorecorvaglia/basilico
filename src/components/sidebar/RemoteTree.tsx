@@ -7,6 +7,7 @@ import * as ContextMenu from "@radix-ui/react-context-menu";
 import { ArrowLeftRight, CircleDot, Globe, Trash } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { reportError } from "../../lib/git-error";
 import type { BranchInfo, RemoteInfo } from "../../lib/git-types";
 import { useGitAction } from "../../lib/use-git-action";
 import { useRepoStore } from "../../store/repo-store";
@@ -25,9 +26,8 @@ export function useRemoteTree({ branches, remotes }: RemoteTreeProps) {
       startComparison: s.startComparison,
     })),
   );
-  const { addNotification, setActiveView, openConfirm } = useUIStore(
+  const { setActiveView, openConfirm } = useUIStore(
     useShallow((s) => ({
-      addNotification: s.addNotification,
       setActiveView: s.setActiveView,
       openConfirm: s.openConfirm,
     })),
@@ -108,10 +108,7 @@ export function useRemoteTree({ branches, remotes }: RemoteTreeProps) {
                       const activeBranch =
                         branches.find((b) => b.isHead)?.name || "HEAD";
                       startComparison(branch.name, activeBranch).catch((err) =>
-                        addNotification({
-                          type: "error",
-                          message: `Comparison failed: ${err}`,
-                        }),
+                        reportError(err, "Comparison failed"),
                       );
                       setActiveView("compare");
                     }}

@@ -9,6 +9,7 @@ import { getLanguageFromPath } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./FileViewerModal.css";
+import { reportError } from "../../lib/git-error";
 // Registers the bundled Monaco + workers; keeps it off the startup chunk.
 import { disposeModelsOnUnmount } from "../../lib/monaco-setup";
 import { useCopyFeedback } from "../../lib/use-copy-feedback";
@@ -52,22 +53,13 @@ export function FileViewerModal() {
       })
       .catch((err) => {
         console.error("Failed to load file revision content:", err);
-        addNotification({
-          type: "error",
-          message: `Failed to load file content: ${err}`,
-        });
+        reportError(err, "Failed to load file content");
         setContent("");
       })
       .finally(() => {
         setLoading(false);
       });
-  }, [
-    fileViewerOpen,
-    fileViewerPath,
-    fileViewerOid,
-    activeTabId,
-    addNotification,
-  ]);
+  }, [fileViewerOpen, fileViewerPath, fileViewerOid, activeTabId]);
 
   if (!fileViewerOpen || !fileViewerPath || !fileViewerOid) return null;
 

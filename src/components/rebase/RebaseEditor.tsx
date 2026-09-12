@@ -21,6 +21,7 @@ import type { RebaseStatus, RebaseTodoItem } from "../../lib/git-types";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./RebaseEditor.css";
+import { reportError } from "../../lib/git-error";
 
 export function RebaseEditor() {
   const rebaseTodoItems = useRepoStore((s) => s.rebaseTodoItems);
@@ -193,10 +194,7 @@ export function RebaseEditor() {
           const res = await startRebase();
           handleRebaseResult(res);
         } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to start rebase: ${err}`,
-          });
+          reportError(err, "Failed to start rebase");
         }
       },
     });
@@ -233,10 +231,7 @@ export function RebaseEditor() {
             const res = await stepRebase("continue", userMessage);
             handleRebaseResult(res);
           } catch (err) {
-            addNotification({
-              type: "error",
-              message: `Rebase step failed: ${err}`,
-            });
+            reportError(err, "Rebase step failed");
           }
         },
       });
@@ -247,7 +242,7 @@ export function RebaseEditor() {
       const res = await stepRebase(action);
       handleRebaseResult(res);
     } catch (err) {
-      addNotification({ type: "error", message: `Rebase step failed: ${err}` });
+      reportError(err, "Rebase step failed");
     }
   };
 

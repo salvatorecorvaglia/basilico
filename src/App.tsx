@@ -71,6 +71,7 @@ import { matchesShortcut } from "./lib/shortcuts";
 import { useRepoStore } from "./store/repo-store";
 import { useUIStore } from "./store/ui-store";
 import "./App.css";
+import { reportError } from "./lib/git-error";
 
 interface ViewRouterProps {
   activeView: string;
@@ -268,10 +269,7 @@ function App() {
     };
     init().catch((e) => {
       console.error("Startup initialisation failed:", e);
-      useUIStore.getState().addNotification({
-        type: "error",
-        message: `Failed to restore your session: ${e}`,
-      });
+      reportError(e, "Failed to restore your session");
     });
   }, [loadSettings, loadRecentRepos]);
 
@@ -386,12 +384,7 @@ function App() {
               message: "Repository refreshed successfully",
             }),
           )
-          .catch((err) =>
-            addNotification({
-              type: "error",
-              message: `Refresh failed: ${err}`,
-            }),
-          );
+          .catch((err) => reportError(err, "Refresh failed"));
       }
     };
     window.addEventListener("keydown", handler);

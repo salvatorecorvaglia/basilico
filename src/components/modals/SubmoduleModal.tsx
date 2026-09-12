@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { reportError } from "../../lib/git-error";
 import type { SubmoduleInfo } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
@@ -81,10 +82,7 @@ export function SubmoduleModal({ open, onOpenChange }: SubmoduleModalProps) {
       await fetchSubmodules();
       await refreshAll();
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to update submodules: ${err}`,
-      });
+      reportError(err, "Failed to update submodules");
     } finally {
       setUpdating(false);
     }
@@ -101,10 +99,7 @@ export function SubmoduleModal({ open, onOpenChange }: SubmoduleModalProps) {
       });
       await fetchSubmodules();
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to sync submodules: ${err}`,
-      });
+      reportError(err, "Failed to sync submodules");
     } finally {
       setSyncing(false);
     }
@@ -126,10 +121,7 @@ export function SubmoduleModal({ open, onOpenChange }: SubmoduleModalProps) {
       await fetchSubmodules();
       await refreshAll();
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to add submodule: ${err}`,
-      });
+      reportError(err, "Failed to add submodule");
     } finally {
       setAdding(false);
     }

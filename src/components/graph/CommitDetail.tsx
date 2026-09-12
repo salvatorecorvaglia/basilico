@@ -32,6 +32,7 @@ import {
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./CommitDetail.css";
+import { reportError } from "../../lib/git-error";
 import { useCopyFeedback } from "../../lib/use-copy-feedback";
 
 interface TreeNode {
@@ -291,10 +292,7 @@ export function CommitDetail() {
             message: `Created tag "${name}" at ${commit.oid.slice(0, 7)}`,
           });
         } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to create tag: ${err}`,
-          });
+          reportError(err, "Failed to create tag");
         }
       },
     });

@@ -15,6 +15,7 @@ import {
   Tag,
 } from "lucide-react";
 import { getCommitUrl } from "../../lib/forge-links";
+import { reportError } from "../../lib/git-error";
 import type { ActiveView, GraphCommit } from "../../lib/git-types";
 import { openExternalUrl } from "../../lib/utils";
 
@@ -32,10 +33,6 @@ export interface CommitContextMenuProps {
   setActiveView: (view: ActiveView) => void;
   /** The commit currently selected in the list, for "compare with selected". */
   selectedCommitOid: string | null;
-  addNotification: (n: {
-    type: "success" | "error" | "info" | "warning";
-    message: string;
-  }) => void;
 }
 
 /** The right-click menu for a single commit row. */
@@ -51,7 +48,6 @@ export function CommitContextMenu({
   startComparison,
   setActiveView,
   selectedCommitOid,
-  addNotification,
 }: CommitContextMenuProps) {
   return (
     <ContextMenu.Portal>
@@ -102,12 +98,7 @@ export function CommitContextMenu({
           onSelect={() => {
             startComparison(commit.oid, "HEAD")
               .then(() => setActiveView("compare"))
-              .catch((err) =>
-                addNotification({
-                  type: "error",
-                  message: `Comparison failed: ${err}`,
-                }),
-              );
+              .catch((err) => reportError(err, "Comparison failed"));
           }}
         >
           <ArrowLeftRight size={12} />
@@ -119,12 +110,7 @@ export function CommitContextMenu({
             onSelect={() => {
               startComparison(selectedCommitOid, commit.oid)
                 .then(() => setActiveView("compare"))
-                .catch((err) =>
-                  addNotification({
-                    type: "error",
-                    message: `Comparison failed: ${err}`,
-                  }),
-                );
+                .catch((err) => reportError(err, "Comparison failed"));
             }}
           >
             <ArrowLeftRight size={12} />

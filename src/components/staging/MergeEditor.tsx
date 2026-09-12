@@ -16,6 +16,7 @@ import { getLanguageFromPath } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./MergeEditor.css";
+import { reportError } from "../../lib/git-error";
 // Registers the bundled Monaco + workers; keeps it off the startup chunk.
 import { disposeModelsOnUnmount } from "../../lib/monaco-setup";
 
@@ -82,10 +83,7 @@ export function MergeEditor() {
         );
         setMergedValue(contentPair.modified);
       } catch (err) {
-        addNotification({
-          type: "error",
-          message: `Failed to load conflict files: ${err}`,
-        });
+        reportError(err, "Failed to load conflict files");
         setActiveView("staging");
       } finally {
         setLoading(false);
@@ -93,12 +91,7 @@ export function MergeEditor() {
     };
 
     fetchStages();
-  }, [
-    activeConflictedPath,
-    loadConflictStages,
-    setActiveView,
-    addNotification,
-  ]);
+  }, [activeConflictedPath, loadConflictStages, setActiveView]);
 
   // Sync ours and theirs from store
   useEffect(() => {
@@ -187,10 +180,7 @@ export function MergeEditor() {
       });
       setActiveView("staging");
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to save resolution: ${err}`,
-      });
+      reportError(err, "Failed to save resolution");
     }
   };
 
@@ -239,11 +229,7 @@ export function MergeEditor() {
       await refreshAll();
       setActiveView("staging");
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: "Merge tool execution failed",
-        description: String(err),
-      });
+      reportError(err, "Merge tool execution failed");
     } finally {
       setLaunchingExternal(false);
     }

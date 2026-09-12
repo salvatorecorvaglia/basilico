@@ -5,6 +5,7 @@
 
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Calendar, Check, Clock, Plus, Trash2, Undo2 } from "lucide-react";
+import { reportError } from "../../lib/git-error";
 import type { ActiveView } from "../../lib/git-types";
 import { getFileName } from "../../lib/utils";
 
@@ -73,10 +74,7 @@ export function StagingContextMenu({
                     message: `Resolved conflict in ${getFileName(filePath)} using Ours (Local)`,
                   });
                 } catch (err) {
-                  addNotification({
-                    type: "error",
-                    message: `Failed to resolve conflict: ${err}`,
-                  });
+                  reportError(err, "Failed to resolve conflict");
                 }
               }}
             >
@@ -93,10 +91,7 @@ export function StagingContextMenu({
                     message: `Resolved conflict in ${getFileName(filePath)} using Theirs (Incoming)`,
                   });
                 } catch (err) {
-                  addNotification({
-                    type: "error",
-                    message: `Failed to resolve conflict: ${err}`,
-                  });
+                  reportError(err, "Failed to resolve conflict");
                 }
               }}
             >

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { reportError } from "../../lib/git-error";
 import type { DanglingCommitInfo, DoctorReport } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
@@ -94,10 +95,7 @@ export function GitDoctorModal({ open, onOpenChange }: GitDoctorModalProps) {
       await fetchHealth();
       await refreshAll();
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Garbage collection failed: ${err}`,
-      });
+      reportError(err, "Garbage collection failed");
     } finally {
       setRunningGc(false);
     }
@@ -114,10 +112,7 @@ export function GitDoctorModal({ open, onOpenChange }: GitDoctorModalProps) {
         message: "Database integrity check completed",
       });
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Integrity check failed: ${err}`,
-      });
+      reportError(err, "Integrity check failed");
     } finally {
       setRunningFsck(false);
     }
@@ -147,10 +142,7 @@ export function GitDoctorModal({ open, onOpenChange }: GitDoctorModalProps) {
           onOpenChange(false);
           await refreshAll();
         } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to restore commit: ${err}`,
-          });
+          reportError(err, "Failed to restore commit");
         }
       },
     });

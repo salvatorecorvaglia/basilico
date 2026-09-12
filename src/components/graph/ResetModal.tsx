@@ -5,6 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./ResetModal.css";
+import { reportError } from "../../lib/git-error";
 
 type ResetMode = "soft" | "mixed" | "hard";
 
@@ -47,10 +48,7 @@ export function ResetModal() {
       // Reset confirmations
       setConfirmHard(false);
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Reset failed: ${err}`,
-      });
+      reportError(err, "Reset failed");
     } finally {
       setIsSubmitting(false);
     }

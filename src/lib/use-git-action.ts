@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useUIStore } from "../store/ui-store";
+import { reportError } from "./git-error";
 
 interface RunGitActionOptions<T> {
   /**
@@ -44,10 +45,7 @@ export function useGitAction() {
         }
         return result;
       } catch (err) {
-        addNotification({
-          type: "error",
-          message: `${errorPrefix}: ${err}`,
-        });
+        reportError(err, errorPrefix);
         return undefined;
       }
     },

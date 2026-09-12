@@ -26,6 +26,7 @@ import { getLanguageFromPath } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./StashInspector.css";
+import { reportError } from "../../lib/git-error";
 // Registers the bundled Monaco + workers; keeps it off the startup chunk.
 import { disposeModelsOnUnmount } from "../../lib/monaco-setup";
 
@@ -138,10 +139,7 @@ export function StashInspector() {
       });
       setActiveView("graph");
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to pop stash: ${err}`,
-      });
+      reportError(err, "Failed to pop stash");
     }
   };
 
@@ -154,10 +152,7 @@ export function StashInspector() {
       });
       setActiveView("graph");
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to apply stash: ${err}`,
-      });
+      reportError(err, "Failed to apply stash");
     }
   };
 
@@ -176,10 +171,7 @@ export function StashInspector() {
           });
           setActiveView("graph");
         } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to drop stash: ${err}`,
-          });
+          reportError(err, "Failed to drop stash");
         }
       },
     });
@@ -209,10 +201,7 @@ export function StashInspector() {
             });
             setActiveView("graph");
           } catch (err) {
-            addNotification({
-              type: "error",
-              message: `Failed to branch from stash: ${err}`,
-            });
+            reportError(err, "Failed to branch from stash");
           }
         }
       },

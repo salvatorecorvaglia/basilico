@@ -34,6 +34,7 @@ import { useRepoStore } from "../../store/repo-store";
 import { selectDefaultRemote } from "../../store/slices/git-data-slice";
 import { useUIStore } from "../../store/ui-store";
 import "./Toolbar.css";
+import { reportError } from "../../lib/git-error";
 
 export function Toolbar() {
   const {
@@ -103,10 +104,7 @@ export function Toolbar() {
     try {
       await openExternalTool(activeTabId, tool);
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to launch ${tool}: ${err}`,
-      });
+      reportError(err, `Failed to launch ${tool}`);
     }
   };
 
@@ -139,10 +137,7 @@ export function Toolbar() {
       setBranchPopoverOpen(false);
       setBranchSearch("");
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to checkout branch: ${err}`,
-      });
+      reportError(err, "Failed to checkout branch");
     }
   };
 
@@ -173,7 +168,7 @@ export function Toolbar() {
         message: "Fetch completed successfully",
       });
     } catch (err) {
-      addNotification({ type: "error", message: `Fetch failed: ${err}` });
+      reportError(err, "Fetch failed");
     } finally {
       setIsFetching(false);
     }
@@ -197,7 +192,7 @@ export function Toolbar() {
         });
       }
     } catch (err) {
-      addNotification({ type: "error", message: `Pull failed: ${err}` });
+      reportError(err, "Pull failed");
     } finally {
       setIsPulling(false);
     }
@@ -213,7 +208,7 @@ export function Toolbar() {
         message: "Push completed successfully",
       });
     } catch (err) {
-      addNotification({ type: "error", message: `Push failed: ${err}` });
+      reportError(err, "Push failed");
     } finally {
       setIsPushing(false);
     }

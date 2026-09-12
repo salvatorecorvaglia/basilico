@@ -33,6 +33,7 @@ import { CommitContextMenu } from "./CommitContextMenu";
 import { CommitGraph } from "./CommitGraph";
 import { useCommitActions } from "./use-commit-actions";
 import "./CommitList.css";
+import { reportError } from "../../lib/git-error";
 
 const ROW_HEIGHT = 34;
 const GRAPH_WIDTH = 120;
@@ -72,15 +73,13 @@ export function CommitList() {
     })),
   );
 
-  const { openResetModal, addNotification, setActiveView, openConfirm } =
-    useUIStore(
-      useShallow((s) => ({
-        openResetModal: s.openResetModal,
-        addNotification: s.addNotification,
-        setActiveView: s.setActiveView,
-        openConfirm: s.openConfirm,
-      })),
-    );
+  const { openResetModal, setActiveView, openConfirm } = useUIStore(
+    useShallow((s) => ({
+      openResetModal: s.openResetModal,
+      setActiveView: s.setActiveView,
+      openConfirm: s.openConfirm,
+    })),
+  );
 
   const {
     handleCheckoutCommit,
@@ -108,10 +107,7 @@ export function CommitList() {
           await checkoutBranch(draggedBranch);
           openResetModal(targetOid);
         } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Action failed: ${err}`,
-          });
+          reportError(err, "Action failed");
         }
       },
     });
@@ -625,7 +621,6 @@ export function CommitList() {
                   startComparison={startComparison}
                   setActiveView={setActiveView}
                   selectedCommitOid={selectedCommitOid}
-                  addNotification={addNotification}
                 />
               </ContextMenu.Root>
             );

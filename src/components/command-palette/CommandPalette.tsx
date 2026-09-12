@@ -11,6 +11,7 @@ import { useRepoStore } from "../../store/repo-store";
 import { selectDefaultRemote } from "../../store/slices/git-data-slice";
 import { useUIStore } from "../../store/ui-store";
 import "./CommandPalette.css";
+import { reportError } from "../../lib/git-error";
 
 interface PaletteItem {
   id: string;
@@ -134,7 +135,7 @@ export function CommandPalette() {
             message: "Fetch completed successfully",
           });
         } catch (err) {
-          addNotification({ type: "error", message: `Fetch failed: ${err}` });
+          reportError(err, "Fetch failed");
         }
       },
     },
@@ -166,7 +167,7 @@ export function CommandPalette() {
             });
           }
         } catch (err) {
-          addNotification({ type: "error", message: `Pull failed: ${err}` });
+          reportError(err, "Pull failed");
         }
       },
     },
@@ -191,7 +192,7 @@ export function CommandPalette() {
             message: "Push completed successfully",
           });
         } catch (err) {
-          addNotification({ type: "error", message: `Push failed: ${err}` });
+          reportError(err, "Push failed");
         }
       },
     },
@@ -221,10 +222,7 @@ export function CommandPalette() {
                 message: `Created branch "${name}"`,
               });
             } catch (err) {
-              addNotification({
-                type: "error",
-                message: `Failed to create branch: ${err}`,
-              });
+              reportError(err, "Failed to create branch");
             }
           },
         });
@@ -256,10 +254,7 @@ export function CommandPalette() {
               setActiveView("rebase");
               addNotification({ type: "info", message: "Rebase initialized" });
             } catch (err) {
-              addNotification({
-                type: "error",
-                message: `Failed to initialize rebase: ${err}`,
-              });
+              reportError(err, "Failed to initialize rebase");
             }
           },
         });
@@ -297,10 +292,7 @@ export function CommandPalette() {
               setActiveView("bisect");
               addNotification({ type: "info", message: "Bisect started" });
             } catch (err) {
-              addNotification({
-                type: "error",
-                message: `Failed to start bisect: ${err}`,
-              });
+              reportError(err, "Failed to start bisect");
             }
           },
         });
@@ -318,10 +310,7 @@ export function CommandPalette() {
             message: "Bisect reset successfully",
           });
         } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to reset bisect: ${err}`,
-          });
+          reportError(err, "Failed to reset bisect");
         }
       },
     },

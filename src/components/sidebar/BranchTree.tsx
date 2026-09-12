@@ -17,6 +17,7 @@ import {
 import { useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { getCreatePrUrl } from "../../lib/forge-links";
+import { reportError } from "../../lib/git-error";
 import type { BranchInfo } from "../../lib/git-types";
 import { validateBranchName } from "../../lib/git-validation";
 import { useGitAction } from "../../lib/use-git-action";
@@ -278,10 +279,7 @@ export function useBranchTree({ branches }: BranchTreeProps) {
                 const activeBranch =
                   branches.find((b) => b.isHead)?.name || "HEAD";
                 startComparison(branch.name, activeBranch).catch((err) =>
-                  addNotification({
-                    type: "error",
-                    message: `Comparison failed: ${err}`,
-                  }),
+                  reportError(err, "Comparison failed"),
                 );
                 setActiveView("compare");
               }}

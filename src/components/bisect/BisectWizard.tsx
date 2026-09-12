@@ -16,6 +16,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./BisectWizard.css";
+import { reportError } from "../../lib/git-error";
 
 export function BisectWizard() {
   const { bisectState, startBisect, markBisect, resetBisect, commits } =
@@ -56,10 +57,7 @@ export function BisectWizard() {
       await startBisect(badCommit.trim() || "HEAD", goodCommit.trim());
       addNotification({ type: "success", message: "Bisect session started!" });
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to start bisect: ${err}`,
-      });
+      reportError(err, "Failed to start bisect");
     } finally {
       setIsStarting(false);
     }
@@ -73,10 +71,7 @@ export function BisectWizard() {
         message: `Marked commit as ${status.toUpperCase()}`,
       });
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to mark commit: ${err}`,
-      });
+      reportError(err, "Failed to mark commit");
     }
   };
 
@@ -91,10 +86,7 @@ export function BisectWizard() {
           await resetBisect();
           addNotification({ type: "success", message: "Bisect session reset" });
         } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to reset bisect: ${err}`,
-          });
+          reportError(err, "Failed to reset bisect");
         }
       },
     });
@@ -105,10 +97,7 @@ export function BisectWizard() {
       await resetBisect();
       addNotification({ type: "success", message: "Bisect session closed" });
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to exit bisect: ${err}`,
-      });
+      reportError(err, "Failed to exit bisect");
     }
   };
 

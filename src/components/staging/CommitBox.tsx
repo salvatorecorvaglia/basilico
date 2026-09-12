@@ -8,8 +8,8 @@ import type React from "react";
 import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useRepoStore } from "../../store/repo-store";
-import { useUIStore } from "../../store/ui-store";
 import "./CommitBox.css";
+import { reportError } from "../../lib/git-error";
 
 const CONVENTIONAL_TYPES = [
   { label: "feat", desc: "New feature" },
@@ -29,9 +29,6 @@ export function CommitBox() {
       commit: s.commit,
       isLoading: s.isLoading,
     })),
-  );
-  const { addNotification } = useUIStore(
-    useShallow((s) => ({ addNotification: s.addNotification })),
   );
   const [summary, setSummary] = useState("");
   const [description, setDescription] = useState("");
@@ -93,7 +90,7 @@ export function CommitBox() {
       setUserSummaryBackup("");
       setUserDescriptionBackup("");
     } catch (err) {
-      addNotification({ type: "error", message: `Failed to commit: ${err}` });
+      reportError(err, "Failed to commit");
     }
   };
 

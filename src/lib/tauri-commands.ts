@@ -5,6 +5,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useUIStore } from "../store/ui-store";
 import { friendlyErrorMessage } from "./error-messages";
+import { GitCommandError } from "./git-error";
 import type {
   AppError,
   BisectState,
@@ -76,17 +77,26 @@ async function invokeCommand<T>(
     const appError = parseAppError(err);
     console.error(`[Tauri Command Error] ${cmd}:`, appError);
 
+    // Convert raw git errors to user-friendly messages. Computed whether or not
+    // a toast is raised here, because it also becomes the thrown error's
+    // message — a caller that catches and reports it should show the same text
+    // this would have.
+    const friendly = friendlyErrorMessage(appError.message);
+
     if (!options?.silent) {
       const prefix = options?.errorPrefix ? `${options.errorPrefix}: ` : "";
-      // Convert raw git errors to user-friendly messages
-      const friendly = friendlyErrorMessage(appError.message);
       useUIStore.getState().addNotification({
         type: "error",
         message: `${prefix}${friendly}`,
       });
     }
 
-    throw appError;
+    throw new GitCommandError(
+      friendly,
+      appError.kind,
+      appError.message,
+      !options?.silent,
+    );
   }
 }
 

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { reportError } from "../../lib/git-error";
 import type { WorktreeInfo } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
@@ -80,10 +81,7 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
       });
       onOpenChange(false);
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to open worktree tab: ${err}`,
-      });
+      reportError(err, "Failed to open worktree tab");
     }
   };
 
@@ -95,10 +93,7 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
         message: `Opened worktree "${wtPath}" in external editor`,
       });
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to open worktree in editor: ${err}`,
-      });
+      reportError(err, "Failed to open worktree in editor");
     }
   };
 
@@ -121,10 +116,7 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
           await fetchWorktrees();
           await refreshAll();
         } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to remove worktree: ${err}`,
-          });
+          reportError(err, "Failed to remove worktree");
         }
       },
     });
@@ -150,10 +142,7 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
       await fetchWorktrees();
       await refreshAll();
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to add worktree: ${err}`,
-      });
+      reportError(err, "Failed to add worktree");
     } finally {
       setAdding(false);
     }

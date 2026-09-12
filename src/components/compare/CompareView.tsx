@@ -13,6 +13,7 @@ import {
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./CompareView.css";
+import { reportError } from "../../lib/git-error";
 // Registers the bundled Monaco + workers; keeps it off the startup chunk.
 import { disposeModelsOnUnmount } from "../../lib/monaco-setup";
 
@@ -102,7 +103,7 @@ export function CompareView() {
         });
       })
       .catch((err: unknown) => {
-        addNotification({ type: "error", message: `Swap failed: ${err}` });
+        reportError(err, "Swap failed");
       });
   };
 

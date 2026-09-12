@@ -25,6 +25,7 @@ import {
 } from "./use-staging-rows";
 import { useStagingVimKeys } from "./use-staging-vim-keys";
 import "./StagingArea.css";
+import { reportError } from "../../lib/git-error";
 
 const ESTIMATED_ROW_HEIGHT = 34;
 
@@ -114,10 +115,7 @@ export function StagingArea() {
             message: "Stash saved successfully",
           });
         } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to save stash: ${err}`,
-          });
+          reportError(err, "Failed to save stash");
         }
       },
     });
@@ -268,7 +266,7 @@ export function StagingArea() {
         message: "Cherry-pick aborted successfully",
       });
     } catch (err) {
-      addNotification({ type: "error", message: `Abort failed: ${err}` });
+      reportError(err, "Abort failed");
     }
   };
 
@@ -280,7 +278,7 @@ export function StagingArea() {
         message: "Revert aborted successfully",
       });
     } catch (err) {
-      addNotification({ type: "error", message: `Abort failed: ${err}` });
+      reportError(err, "Abort failed");
     }
   };
 

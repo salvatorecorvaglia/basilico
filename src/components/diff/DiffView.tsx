@@ -29,6 +29,7 @@ import { useUIStore } from "../../store/ui-store";
 import "./DiffView.css";
 // Registers the bundled Monaco + workers; keeps it off the startup chunk.
 import "../../lib/monaco-setup";
+import { reportError } from "../../lib/git-error";
 
 export function DiffView() {
   const isDark = useDarkMode();
@@ -156,10 +157,7 @@ export function DiffView() {
         message: `${selectedFileIsStaged ? "Unstaged" : "Staged"} line ${lineNumber} in ${selectedFilePath.split("/").pop()}`,
       });
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to stage line: ${err}`,
-      });
+      reportError(err, "Failed to stage line");
     }
   };
 
@@ -305,10 +303,10 @@ export function DiffView() {
     try {
       await applyPatch(patch, "index");
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to ${selectedFileIsStaged ? "unstage" : "stage"} hunk: ${err}`,
-      });
+      reportError(
+        err,
+        `Failed to ${selectedFileIsStaged ? "unstage" : "stage"} hunk`,
+      );
     }
   };
 
@@ -334,10 +332,10 @@ export function DiffView() {
         [hunkIndex]: new Set(),
       }));
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to ${selectedFileIsStaged ? "unstage" : "stage"} selected lines: ${err}`,
-      });
+      reportError(
+        err,
+        `Failed to ${selectedFileIsStaged ? "unstage" : "stage"} selected lines`,
+      );
     }
   };
 

@@ -21,6 +21,7 @@ import { getReflog, restoreReflogEntry } from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./ReflogInspector.css";
+import { reportError } from "../../lib/git-error";
 import { useCopyFeedback } from "../../lib/use-copy-feedback";
 
 /**
@@ -115,15 +116,12 @@ export function ReflogInspector() {
       const data = await getReflog(activeTabId, refTarget, maxCount);
       setEntries(data || []);
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to load reflog: ${err}`,
-      });
+      reportError(err, "Failed to load reflog");
       setEntries([]);
     } finally {
       setIsLoading(false);
     }
-  }, [activeTabId, refTarget, maxCount, addNotification]);
+  }, [activeTabId, refTarget, maxCount]);
 
   useEffect(() => {
     fetchReflogEntries();
@@ -155,10 +153,7 @@ export function ReflogInspector() {
       await refreshAll();
       await fetchReflogEntries();
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `Failed to restore reflog entry: ${err}`,
-      });
+      reportError(err, "Failed to restore reflog entry");
     } finally {
       setIsRestoring(false);
     }

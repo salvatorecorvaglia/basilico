@@ -4,6 +4,7 @@
    ═══════════════════════════════════════════════════════ */
 
 import { useShallow } from "zustand/react/shallow";
+import { reportError } from "../../lib/git-error";
 import { validateTagName } from "../../lib/git-validation";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
@@ -47,7 +48,7 @@ export function useCommitActions() {
         message: `Checked out commit ${oid.slice(0, 7)} (detached HEAD)`,
       });
     } catch (err) {
-      addNotification({ type: "error", message: `Checkout failed: ${err}` });
+      reportError(err, "Checkout failed");
     }
   };
 
@@ -66,7 +67,7 @@ export function useCommitActions() {
         });
       }
     } catch (err) {
-      addNotification({ type: "error", message: `Cherry-pick failed: ${err}` });
+      reportError(err, "Cherry-pick failed");
     }
   };
 
@@ -85,7 +86,7 @@ export function useCommitActions() {
         });
       }
     } catch (err) {
-      addNotification({ type: "error", message: `Revert failed: ${err}` });
+      reportError(err, "Revert failed");
     }
   };
 
@@ -111,10 +112,7 @@ export function useCommitActions() {
             message: `Created branch "${name}" at ${oid.slice(0, 7)}`,
           });
         } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to create branch: ${err}`,
-          });
+          reportError(err, "Failed to create branch");
         }
       },
     });
@@ -154,10 +152,7 @@ export function useCommitActions() {
             message: `Created tag "${name}" at ${oid.slice(0, 7)}`,
           });
         } catch (err) {
-          addNotification({
-            type: "error",
-            message: `Failed to create tag: ${err}`,
-          });
+          reportError(err, "Failed to create tag");
         }
       },
     });

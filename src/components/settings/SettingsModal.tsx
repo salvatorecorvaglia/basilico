@@ -30,6 +30,7 @@ import { applyThemeToDOM, THEME_PRESETS } from "../../lib/theme-presets";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./SettingsModal.css";
+import { reportError } from "../../lib/git-error";
 import { useCopyFeedback } from "../../lib/use-copy-feedback";
 
 type SettingsTab = "appearance" | "git" | "ssh" | "shortcuts";
@@ -152,10 +153,7 @@ export function SettingsModal() {
         message: "SSH key generated successfully",
       });
     } catch (err) {
-      addNotification({
-        type: "error",
-        message: `SSH key generation failed: ${err}`,
-      });
+      reportError(err, "SSH key generation failed");
     } finally {
       setIsGenerating(false);
     }
