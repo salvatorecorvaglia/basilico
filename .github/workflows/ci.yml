@@ -64,6 +64,12 @@ jobs:
       - name: Typecheck
         run: pnpm exec tsc --noEmit
 
+      # `tsc --noEmit` does not exercise the bundler. Without this, a broken
+      # dynamic import or Vite plugin surfaces during a release build instead
+      # of on the pull request that introduced it.
+      - name: Production build
+        run: pnpm run build
+
       - name: Audit npm dependencies
         run: pnpm audit --audit-level high
 

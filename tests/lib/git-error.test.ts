@@ -7,7 +7,7 @@ vi.mock("@tauri-apps/api/core", () => ({
     invokeMock(cmd, args),
 }));
 
-import { GitCommandError, reportError } from "../../src/lib/git-error";
+import { type GitCommandError, reportError } from "../../src/lib/git-error";
 import { getStatus } from "../../src/lib/tauri-commands";
 import { useUIStore } from "../../src/store/ui-store";
 

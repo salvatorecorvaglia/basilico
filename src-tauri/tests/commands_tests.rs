@@ -2649,3 +2649,112 @@ async fn test_commit_tree_reports_blob_sizes() {
         .expect("a directory entry");
     assert_eq!(dir.size, None, "directories have no blob size");
 }
+
+/// `open_in_ide` joined a renderer-supplied path onto the repository root and
+/// launched an editor on the result. `Path::join` discards the root entirely
+/// when the joined path is absolute, and `..` was never rejected, so any path
+/// on disk could be opened regardless of which repository was claimed.
+#[tokio::test]
+async fn test_open_in_ide_rejects_paths_outside_the_repository() {
+    use basilico_lib::commands::ide::open_in_ide;
+
+    let repo = TempRepo::new();
+    let root = repo.path_str().to_string();
+
+    // Absolute: `Path::join` would silently drop the repo root.
+    let result = open_in_ide(
+        "/etc/passwd".to_string(),
+        None,
+        Some("code".to_string()),
+        Some(root.clone()),
+    )
+    .await;
+    let err = result.expect_err("an absolute path must not escape the repo root");
+    assert!(
+        err.message.contains("Absolute paths are not allowed"),
+        "must be refused by path validation, not merely fail to launch an \
+         editor that isn't installed (got: {})",
+        err.message
+    );
+
+    // Traversal.
+    let result = open_in_ide(
+        "../../../etc/passwd".to_string(),
+        None,
+        Some("code".to_string()),
+        Some(root),
+    )
+    .await;
+    let err = result.expect_err("`..` must not escape the repo root");
+    assert!(
+        err.message.contains("Path traversal is not allowed"),
+        "must be refused by path validation (got: {})",
+        err.message
+    );
+}
+
+/// The force-push lease sliced `expected_remote_oid` at byte 7 to build its
+/// error message. A multi-byte value landed mid-character and panicked, so the
+/// single guard protecting an irreversible overwrite reported an opaque
+/// "Task join error" instead of refusing cleanly.
+#[tokio::test]
+async fn test_force_push_rejects_a_non_oid_lease_without_panicking() {
+    use basilico_lib::commands::remote::push;
+
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "one");
+    repo.commit("initial commit");
+    // Without a remote, `push` returns at find_remote and never reaches the
+    // lease check this test is about. The URL is never contacted: the lease is
+    // verified against local refs, before any network access.
+    repo.repo
+        .remote("origin", "https://example.invalid/repo.git")
+        .unwrap();
+    // A remote-tracking ref, so the lease gets as far as comparing values. With
+    // none, `push` returns "no local tracking ref" first and the comparison --
+    // and the byte-slicing in its message -- is never reached.
+    let head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    repo.repo
+        .reference(
+            "refs/remotes/origin/main",
+            head.id(),
+            true,
+            "test tracking ref",
+        )
+        .unwrap();
+
+    for bogus in [
+        "\u{e9}\u{e9}\u{e9}\u{e9}\u{e9}\u{e9}\u{e9}\u{e9}",
+        "not-an-oid",
+        "",
+        "  ",
+    ] {
+        let app = tauri::test::mock_builder()
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap()
+            .handle()
+            .clone();
+
+        let result = push(
+            app,
+            repo.path_str().to_string(),
+            "origin".to_string(),
+            "main".to_string(),
+            true,
+            Some(bogus.to_string()),
+        )
+        .await;
+
+        let err = result.expect_err("a non-OID lease must be refused");
+        assert!(
+            !err.message.contains("Task join error"),
+            "refusal should be a clean error, not a panic surfacing as a join error (got: {})",
+            err.message
+        );
+        assert!(
+            err.message.contains("Refusing to force push"),
+            "must be refused by the lease check itself (got: {})",
+            err.message
+        );
+    }
+}

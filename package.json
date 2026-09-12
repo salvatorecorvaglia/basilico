@@ -11,9 +11,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "lint": "biome check src --max-diagnostics=100 --error-on-warnings",
-    "lint:fix": "biome check --write src --max-diagnostics=100",
-    "format": "biome format --write src",
+    "lint": "biome check src tests --max-diagnostics=100 --error-on-warnings",
+    "lint:fix": "biome check --write src tests --max-diagnostics=100",
+    "format": "biome format --write src tests",
     "test": "vitest run"
   },
   "dependencies": {
