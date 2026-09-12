@@ -22,6 +22,42 @@ pub fn validate_path(base_path: &Path, user_path: &Path) -> Result<PathBuf, AppE
     Ok(base_path.join(user_path))
 }
 
+/// Reject `user_path` if any component between `base_path` and the target is a
+/// symlink. `include_leaf` decides whether the final component counts.
+///
+/// A path that does not exist yet is fine — the caller may be creating it.
+/// Anything else is a real IO problem, so let the caller's own open/read
+/// surface it with better context.
+fn reject_symlinked_components(
+    base_path: &Path,
+    user_path: &Path,
+    include_leaf: bool,
+) -> Result<(), AppError> {
+    let total = user_path.components().count();
+    let mut current = base_path.to_path_buf();
+
+    for (index, component) in user_path.components().enumerate() {
+        current.push(component);
+
+        let is_leaf = index + 1 == total;
+        if is_leaf && !include_leaf {
+            break;
+        }
+
+        if let Ok(meta) = std::fs::symlink_metadata(&current) {
+            if meta.file_type().is_symlink() {
+                return Err(AppError::invalid_state(format!(
+                    "Refusing to follow the symbolic link at '{}'. \
+                     Symlinked paths can point outside the repository.",
+                    current.display()
+                )));
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// [`validate_path`], plus a guarantee that nothing along the resolved path is
 /// a symlink escaping `base_path`.
 ///
@@ -32,27 +68,25 @@ pub fn validate_path(base_path: &Path, user_path: &Path) -> Result<PathBuf, AppE
 /// Every caller that touches the filesystem directly must use this instead.
 pub fn validate_path_no_symlink(base_path: &Path, user_path: &Path) -> Result<PathBuf, AppError> {
     let joined = validate_path(base_path, user_path)?;
+    reject_symlinked_components(base_path, user_path, true)?;
+    Ok(joined)
+}
 
-    // Walk each ancestor between the base and the target: a symlinked *parent*
-    // directory redirects the leaf just as effectively as a symlinked leaf.
-    let mut current = base_path.to_path_buf();
-    for component in user_path.components() {
-        current.push(component);
-        match std::fs::symlink_metadata(&current) {
-            Ok(meta) if meta.file_type().is_symlink() => {
-                return Err(AppError::invalid_state(format!(
-                    "Refusing to follow the symbolic link at '{}'. \
-                     Symlinked paths can point outside the repository.",
-                    current.display()
-                )));
-            }
-            // A path that does not exist yet is fine — the caller may be
-            // creating it. Anything else is a real IO problem, so let the
-            // caller's own open/read surface it with better context.
-            _ => {}
-        }
-    }
-
+/// [`validate_path`], plus a guarantee that no *parent* directory along the way
+/// is a symlink — while allowing the final component to be one.
+///
+/// This is the variant for deleting an untracked entry. Removing a symlink is
+/// legitimate and is what `git clean` does: `fs::remove_file` unlinks the link
+/// itself rather than its target, so a symlinked leaf is safe. A symlinked
+/// *parent*, however, redirects the whole operation outside the working tree —
+/// with `link -> /Users/me` committed in the repo, discarding
+/// `link/.ssh/id_rsa` would delete the real key.
+pub fn validate_path_symlinked_leaf_ok(
+    base_path: &Path,
+    user_path: &Path,
+) -> Result<PathBuf, AppError> {
+    let joined = validate_path(base_path, user_path)?;
+    reject_symlinked_components(base_path, user_path, false)?;
     Ok(joined)
 }
 

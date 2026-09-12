@@ -131,8 +131,16 @@ pub async fn discard_changes(path: String, files: Vec<String>) -> Result<(), App
         }
 
         // 2. Delete untracked files from disk
+        //
+        // `validate_path` is purely syntactic, so on its own it would still let
+        // a symlinked *parent* redirect these deletions outside the working
+        // tree: with `link -> /Users/me` in the repo, discarding
+        // `link/.ssh/id_rsa` unlinked the real key. The leaf is still allowed to
+        // be a symlink — `remove_file` unlinks the link, not its target, which
+        // is exactly what discarding an untracked symlink should do.
         for file in untracked_files {
-            let validated_full_path = crate::git::utils::validate_path(workdir, Path::new(file))?;
+            let validated_full_path =
+                crate::git::utils::validate_path_symlinked_leaf_ok(workdir, Path::new(file))?;
             if std::fs::symlink_metadata(&validated_full_path).is_ok() {
                 if validated_full_path.is_dir() && !validated_full_path.is_symlink() {
                     std::fs::remove_dir_all(&validated_full_path)?;

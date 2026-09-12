@@ -287,12 +287,71 @@ fn test_parse_gpg_status_output_goodsig() {
 
     let output = "[GNUPG:] NEWSIG\n\
                    [GNUPG:] GOODSIG ABCDEF1234567890 Jane Doe <jane@example.com>\n\
-                   [GNUPG:] VALIDSIG ...\n";
+                   [GNUPG:] VALIDSIG ...\n\
+                   [GNUPG:] TRUST_ULTIMATE 0 pgp\n";
     let (status, key_id, signer) = parse_gpg_status_output(output, "Fallback Name");
 
     assert_eq!(status, "Verified");
     assert_eq!(key_id, "ABCDEF1234567890");
     assert_eq!(signer, "Jane Doe <jane@example.com>");
+}
+
+/// GOODSIG means the signature checks out against *some* key in the keyring,
+/// not that the key is trusted. Anyone who can get a key into the user's
+/// keyring could otherwise earn a green "Verified" badge under a UID of their
+/// own choosing.
+#[test]
+fn test_parse_gpg_status_output_good_but_untrusted_is_not_verified() {
+    use basilico_lib::commands::gpg::parse_gpg_status_output;
+
+    let output = "[GNUPG:] GOODSIG ABCDEF1234567890 Mallory <m@example.com>\n\
+                   [GNUPG:] VALIDSIG ...\n\
+                   [GNUPG:] TRUST_UNDEFINED 0 pgp\n";
+    let (status, key_id, signer) = parse_gpg_status_output(output, "Fallback Name");
+
+    assert_eq!(status, "UntrustedKey");
+    assert_eq!(key_id, "ABCDEF1234567890");
+    assert_eq!(signer, "Mallory <m@example.com>");
+}
+
+/// gpg always emits a TRUST_* line after a good signature, so its absence means
+/// this is not output we understand well enough to call verified.
+#[test]
+fn test_parse_gpg_status_output_goodsig_without_trust_line_is_untrusted() {
+    use basilico_lib::commands::gpg::parse_gpg_status_output;
+
+    let output = "[GNUPG:] GOODSIG ABCDEF1234567890 Jane Doe <jane@example.com>\n\
+                   [GNUPG:] VALIDSIG ...\n";
+    let (status, _, _) = parse_gpg_status_output(output, "Fallback Name");
+
+    assert_eq!(status, "UntrustedKey");
+}
+
+#[test]
+fn test_parse_gpg_status_output_revoked_key() {
+    use basilico_lib::commands::gpg::parse_gpg_status_output;
+
+    let output = "[GNUPG:] REVKEYSIG 1234ABCD Jane Doe <jane@example.com>\n";
+    let (status, key_id, signer) = parse_gpg_status_output(output, "Fallback Name");
+
+    assert_eq!(status, "RevokedKey");
+    assert_eq!(key_id, "1234ABCD");
+    assert_eq!(signer, "Jane Doe <jane@example.com>");
+}
+
+/// A trailing EXPKEYSIG used to overwrite an already-resolved status because
+/// the parser assigned as it went. Resolution now happens once, at the end.
+#[test]
+fn test_parse_gpg_status_output_expired_outranks_accompanying_goodsig() {
+    use basilico_lib::commands::gpg::parse_gpg_status_output;
+
+    let output = "[GNUPG:] GOODSIG 1234ABCD Jane Doe <jane@example.com>\n\
+                   [GNUPG:] VALIDSIG ...\n\
+                   [GNUPG:] TRUST_ULTIMATE 0 pgp\n\
+                   [GNUPG:] EXPKEYSIG 1234ABCD Jane Doe <jane@example.com>\n";
+    let (status, _, _) = parse_gpg_status_output(output, "Fallback Name");
+
+    assert_eq!(status, "ExpiredKey");
 }
 
 #[test]
@@ -355,6 +414,8 @@ fn test_parse_gpg_status_output_goodsig_is_not_downgraded_by_a_later_errsig() {
     // second, untrusted signature block) must not downgrade an
     // already-resolved good signature back to "UnknownKey".
     let output = "[GNUPG:] GOODSIG ABCDEF1234567890 Jane Doe <jane@example.com>\n\
+                   [GNUPG:] VALIDSIG ...\n\
+                   [GNUPG:] TRUST_ULTIMATE 0 pgp\n\
                    [GNUPG:] NO_PUBKEY 00000000\n";
     let (status, key_id, signer) = parse_gpg_status_output(output, "Fallback Name");
 

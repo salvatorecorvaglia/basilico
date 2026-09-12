@@ -60,6 +60,19 @@ pub async fn push<R: tauri::Runtime>(
                     ))
                 })?;
 
+            // The lease is only meaningful if the value really is an object id.
+            // It also has to be ASCII before the truncation below can slice it:
+            // a multi-byte value made `&expected[..7]` land mid-character and
+            // panic, so the one guard standing between the user and an
+            // irreversible overwrite reported an opaque "Task join error".
+            if expected.len() != 40 || !expected.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Err(AppError::invalid_state(format!(
+                    "Refusing to force push: '{}' is not a valid commit id for {}/{}, \
+                     so the remote tip cannot be verified. Fetch first.",
+                    expected, remote, branch
+                )));
+            }
+
             let remote_ref = format!("refs/remotes/{}/{}", remote, branch);
             let actual = repo
                 .find_reference(&remote_ref)
@@ -80,8 +93,8 @@ pub async fn push<R: tauri::Runtime>(
                      (expected {}, found {}). Fetch and review the new commits first.",
                     remote,
                     branch,
-                    &expected[..7.min(expected.len())],
-                    &actual[..7.min(actual.len())]
+                    expected.chars().take(7).collect::<String>(),
+                    actual.chars().take(7).collect::<String>()
                 )));
             }
         }

@@ -20,10 +20,12 @@ export interface SignatureDescriptor {
 }
 
 /**
- * A signature that merely exists is not a trusted one. Only an explicit
- * GOODSIG from gpg earns the verified treatment — every other state (gpg not
- * installed, key not in the local keyring, expired, forged) must be visually
- * distinct so a green check never implies trust the app has not established.
+ * A signature that merely exists is not a trusted one, and neither is one that
+ * merely verifies. Only a good signature from a key gpg reports as *trusted*
+ * earns the verified treatment — every other state (gpg not installed, key not
+ * in the local keyring, valid but untrusted, revoked, expired, forged) must be
+ * visually distinct so a green check never implies trust the app has not
+ * established.
  */
 export function describeSignature(status: string): SignatureDescriptor {
   switch (status) {
@@ -47,6 +49,20 @@ export function describeSignature(status: string): SignatureDescriptor {
         tone: "invalid",
         icon: ShieldAlert,
         hint: "The signature is valid but the signing key has expired.",
+      };
+    case "UntrustedKey":
+      return {
+        label: "Untrusted key",
+        tone: "unknown",
+        icon: ShieldQuestion,
+        hint: "The signature is cryptographically valid, but the signing key is not trusted in your GPG keyring — anyone can create a key with any name on it. Sign the key or set its trust level to confirm who it belongs to.",
+      };
+    case "RevokedKey":
+      return {
+        label: "Revoked key",
+        tone: "invalid",
+        icon: ShieldAlert,
+        hint: "The signature is valid but the signing key has been revoked. Treat this commit as untrusted.",
       };
     case "UnknownKey":
       return {

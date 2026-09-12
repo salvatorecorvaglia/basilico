@@ -16,10 +16,21 @@ pub async fn open_in_ide(
     // When the caller supplies a repository root, `path` is relative to it and
     // the two are joined here rather than in the renderer — which used a
     // literal "/" and so produced a mixed-separator path on Windows.
+    //
+    // The join is validated rather than trusted. `Path::join` silently discards
+    // `root` when `path` is absolute, and it does not reject `..`, so an
+    // unvalidated join let any renderer-supplied path open an arbitrary file —
+    // `/Users/me/.ssh/id_ed25519`, say — in the user's editor regardless of
+    // which repository the request claimed to be for. `validate_path_no_symlink`
+    // is the same guard `blame`, `diff` and the conflict resolver already use.
     let path = match repo_path {
         Some(root) if !root.is_empty() => {
-            let joined = std::path::Path::new(&root).join(&path);
-            joined.to_string_lossy().into_owned()
+            let root_path = std::path::Path::new(&root);
+            let validated = crate::git::utils::validate_path_no_symlink(
+                root_path,
+                std::path::Path::new(&path),
+            )?;
+            validated.to_string_lossy().into_owned()
         }
         _ => path,
     };

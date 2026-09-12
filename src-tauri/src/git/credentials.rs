@@ -197,6 +197,16 @@ pub fn make_callbacks<'a>(custom_ssh_path: Option<String>) -> RemoteCallbacks<'a
             crate::git::known_hosts::HostKeyVerdict::Unknown => {
                 Ok(git2::CertificateCheckStatus::CertificatePassthrough)
             }
+            // An `@revoked` entry exists precisely so that presenting this key
+            // is an error. Refuse without the "this may be a legitimate
+            // rotation" hedging the mismatch message carries.
+            crate::git::known_hosts::HostKeyVerdict::Revoked => {
+                Err(git2::Error::from_str(&format!(
+                    "The SSH host key presented by {hostname} is marked @revoked in your \
+                     known_hosts file. Refusing to connect. If you believe this is wrong, \
+                     remove the @revoked line yourself after verifying the key out of band."
+                )))
+            }
             crate::git::known_hosts::HostKeyVerdict::Mismatch => {
                 Err(git2::Error::from_str(&format!(
                     "The SSH host key presented by {hostname} does not match the one recorded \

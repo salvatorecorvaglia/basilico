@@ -193,6 +193,81 @@ fn test_validate_path_traversal() {
     assert!(validate_path(base, unsafe_path).is_err());
 }
 
+/// `discard_changes` deletes untracked entries straight off the filesystem, and
+/// `validate_path` alone is only syntactic — so a symlinked *parent* used to
+/// redirect the deletion outside the working tree entirely. With
+/// `link -> <outside>` committed in the repo, discarding `link/secret.txt`
+/// unlinked the real file.
+#[cfg(unix)]
+#[test]
+fn test_validate_path_symlinked_leaf_ok_rejects_a_symlinked_parent() {
+    use basilico_lib::git::utils::validate_path_symlinked_leaf_ok;
+    use std::fs;
+
+    let tmp = std::env::temp_dir().join(format!("basilico-symlink-parent-{}", std::process::id()));
+    let workdir = tmp.join("repo");
+    let outside = tmp.join("outside");
+    let _ = fs::remove_dir_all(&tmp);
+    fs::create_dir_all(&workdir).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    fs::write(outside.join("secret.txt"), b"do not delete").unwrap();
+
+    std::os::unix::fs::symlink(&outside, workdir.join("link")).unwrap();
+
+    let err = validate_path_symlinked_leaf_ok(&workdir, Path::new("link/secret.txt"));
+    assert!(
+        err.is_err(),
+        "a symlinked parent directory must not be followed"
+    );
+    // The real file is untouched.
+    assert!(outside.join("secret.txt").exists());
+
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// The leaf itself may still be a symlink: removing one is what discarding an
+/// untracked symlink means, and `remove_file` unlinks the link rather than its
+/// target. Rejecting it would make those entries impossible to discard.
+#[cfg(unix)]
+#[test]
+fn test_validate_path_symlinked_leaf_ok_allows_a_symlinked_leaf() {
+    use basilico_lib::git::utils::validate_path_symlinked_leaf_ok;
+    use std::fs;
+
+    let tmp = std::env::temp_dir().join(format!("basilico-symlink-leaf-{}", std::process::id()));
+    let workdir = tmp.join("repo");
+    let _ = fs::remove_dir_all(&tmp);
+    fs::create_dir_all(&workdir).unwrap();
+    fs::write(tmp.join("target.txt"), b"elsewhere").unwrap();
+
+    std::os::unix::fs::symlink(tmp.join("target.txt"), workdir.join("alias.txt")).unwrap();
+
+    assert!(validate_path_symlinked_leaf_ok(&workdir, Path::new("alias.txt")).is_ok());
+
+    let _ = fs::remove_dir_all(&tmp);
+}
+
+/// The stricter variant, used by every caller that *reads or writes through*
+/// the path, still refuses a symlinked leaf.
+#[cfg(unix)]
+#[test]
+fn test_validate_path_no_symlink_rejects_a_symlinked_leaf() {
+    use basilico_lib::git::utils::validate_path_no_symlink;
+    use std::fs;
+
+    let tmp = std::env::temp_dir().join(format!("basilico-symlink-strict-{}", std::process::id()));
+    let workdir = tmp.join("repo");
+    let _ = fs::remove_dir_all(&tmp);
+    fs::create_dir_all(&workdir).unwrap();
+    fs::write(tmp.join("target.txt"), b"elsewhere").unwrap();
+
+    std::os::unix::fs::symlink(tmp.join("target.txt"), workdir.join("alias.txt")).unwrap();
+
+    assert!(validate_path_no_symlink(&workdir, Path::new("alias.txt")).is_err());
+
+    let _ = fs::remove_dir_all(&tmp);
+}
+
 #[test]
 fn test_validate_relative_path() {
     assert!(validate_relative_path("foo/bar.txt").is_ok());
