@@ -17,7 +17,7 @@ import {
   Layers,
   Tag,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { SignatureInfo, TreeEntryInfo } from "../../lib/git-types";
 import { describeSignature } from "../../lib/signature-status";
@@ -259,6 +259,13 @@ export function CommitDetail() {
     setActiveTab("changes");
   }, [selectedCommitOid]);
 
+  // Memoised: buildFileTree walks every entry, does an O(n) child lookup per
+  // path segment and then sorts the whole tree recursively. `commitTree` is a
+  // commit's *full* tree — thousands of entries on a real repository — and this
+  // ran on every render of the detail panel, including while the Changes tab is
+  // showing and the result is never read.
+  const nestedTree = useMemo(() => buildFileTree(commitTree), [commitTree]);
+
   if (!commit) {
     return (
       <div className="commit-detail-empty">
@@ -310,8 +317,6 @@ export function CommitDetail() {
       },
     });
   };
-
-  const nestedTree = buildFileTree(commitTree);
 
   return (
     <div className="commit-detail">

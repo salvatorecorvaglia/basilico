@@ -561,15 +561,26 @@ pub fn build_graph_page_cached(
         hide_remotes,
     };
 
-    let mut cache = cache.lock();
-    let mut entry = match cache.remove(&key) {
-        Some(entry) if entry.fingerprint == fingerprint => entry,
-        _ => LaneCacheEntry {
-            fingerprint: fingerprint.clone(),
-            topo: Vec::new(),
-            active_lanes: Vec::new(),
-            lanes_assigned: 0,
-        },
+    // Take the entry out under the lock, then release it for the walk below.
+    //
+    // The guard used to live until this function returned, so the whole revwalk
+    // — including a `find_commit` per commit and another per parent inside
+    // `assign_lane` — ran while holding one global mutex. With
+    // MAX_CACHED_COMMITS at 20,000 that is seconds of object-database I/O, and
+    // because the lock covers the entire map rather than one key, `get_log` in
+    // every open tab serialised behind it. The entry is owned from here on, so
+    // nothing needs the lock until it is put back.
+    let mut entry = {
+        let mut cache = cache.lock();
+        match cache.remove(&key) {
+            Some(entry) if entry.fingerprint == fingerprint => entry,
+            _ => LaneCacheEntry {
+                fingerprint: fingerprint.clone(),
+                topo: Vec::new(),
+                active_lanes: Vec::new(),
+                lanes_assigned: 0,
+            },
+        }
     };
 
     let budget = skip.saturating_add(max_commits);
@@ -699,6 +710,7 @@ pub fn build_graph_page_cached(
     // session that has paged very deep would otherwise pin a second copy of
     // the whole history for the lifetime of the tab.
     if entry.topo.len() <= MAX_CACHED_COMMITS {
+        let mut cache = cache.lock();
         if cache.len() >= MAX_CACHE_ENTRIES && !cache.contains_key(&key) {
             // Evict the largest entry rather than an arbitrary one: it is the
             // one actually holding the memory, and re-walking it is the cost

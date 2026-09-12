@@ -19,15 +19,20 @@ vi.mock("@tauri-apps/api/event", () => ({
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 
-// App unconditionally mounts FileViewerModal (behind Suspense, returns null
-// until a file is open) — its real Monaco import still gets pulled in during
-// that mount and crashes in jsdom, so stub it exactly like MergeEditor's test
-// does.
+// Monaco does not run in jsdom, so stub it and the setup module it pulls in.
 vi.mock("@monaco-editor/react", () => ({
   default: () => null,
 }));
 vi.mock("../src/lib/monaco-setup", () => ({
   disposeModelsOnUnmount: () => {},
+}));
+
+// Stands in for the real FileViewerModal so the test can tell whether App
+// mounted it at all. Asserting on *mounting* rather than on module loading
+// matters: a module mock's factory runs once and is then cached, so a
+// load-counting spy stops discriminating after the first test in the file.
+vi.mock("../src/components/graph/FileViewerModal", () => ({
+  FileViewerModal: () => <div data-testid="file-viewer-mounted" />,
 }));
 
 import App from "../src/App";
@@ -70,6 +75,42 @@ describe("App", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  /**
+   * React.lazy fires its import when the component is *rendered*, not when it
+   * becomes visible, and FileViewerModal's own `return null` guard is inside
+   * the component. Rendering it unconditionally therefore pulled its chunk —
+   * and the 2.6 MB monaco-setup chunk it imports — on first paint, defeating
+   * every lazy boundary in App and the bundling work those boundaries exist for.
+   */
+  it("does not mount the Monaco-backed file viewer until it is opened", async () => {
+    useUIStore.setState({
+      fileViewerOpen: false,
+      fileViewerPath: null,
+      fileViewerOid: null,
+    });
+
+    const { queryByTestId, findByTestId } = render(<App />);
+    await waitFor(() => {
+      expect(listenMock).toHaveBeenCalled();
+    });
+
+    // Let any pending React.lazy import settle before asserting absence —
+    // otherwise this passes trivially, because the lazy boundary has not
+    // resolved yet whether or not it was ever going to.
+    for (let i = 0; i < 5; i++) {
+      await act(async () => {
+        await Promise.resolve();
+      });
+    }
+    expect(queryByTestId("file-viewer-mounted")).toBeNull();
+
+    // Opening the viewer is what should pull it in.
+    await act(async () => {
+      useUIStore.getState().openFileViewer("src/main.rs", "a".repeat(40));
+    });
+    expect(await findByTestId("file-viewer-mounted")).toBeTruthy();
   });
 
   it("only refreshes on a repo:changed event for the active tab, and coalesces rapid events through the debounce", async () => {

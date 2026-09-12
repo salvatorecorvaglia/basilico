@@ -21,26 +21,36 @@ interface PaletteItem {
   action: () => void | Promise<void>;
 }
 
+/**
+ * Gate around the palette's body.
+ *
+ * `CommandPaletteContent` subscribes to `status` and `selectDefaultRemote` just
+ * to build three command *labels*, and rebuilds its whole command array and the
+ * filtered view on every render — none of it memoised. Mounted unconditionally,
+ * that meant every file save in the repository (watcher → refreshOnFileSystemChange
+ * → new `status`) re-rendered a component that was not on screen. Reading one
+ * boolean out here keeps that work behind the open state.
+ */
 export function CommandPalette() {
+  const commandPaletteOpen = useUIStore((s) => s.commandPaletteOpen);
+  if (!commandPaletteOpen) return null;
+  return <CommandPaletteContent />;
+}
+
+function CommandPaletteContent() {
   // The remote sync commands target. Hardcoding "origin" made all three fail
   // on any repository whose remote is named something else.
   const defaultRemote = useRepoStore(selectDefaultRemote);
 
-  const {
-    commandPaletteOpen,
-    toggleCommandPalette,
-    setActiveView,
-    addNotification,
-    openPrompt,
-  } = useUIStore(
-    useShallow((s) => ({
-      commandPaletteOpen: s.commandPaletteOpen,
-      toggleCommandPalette: s.toggleCommandPalette,
-      setActiveView: s.setActiveView,
-      addNotification: s.addNotification,
-      openPrompt: s.openPrompt,
-    })),
-  );
+  const { toggleCommandPalette, setActiveView, addNotification, openPrompt } =
+    useUIStore(
+      useShallow((s) => ({
+        toggleCommandPalette: s.toggleCommandPalette,
+        setActiveView: s.setActiveView,
+        addNotification: s.addNotification,
+        openPrompt: s.openPrompt,
+      })),
+    );
 
   const {
     refreshAll,
@@ -381,7 +391,7 @@ export function CommandPalette() {
   }, [selectedIndex]);
 
   return (
-    <Dialog.Root open={commandPaletteOpen} onOpenChange={toggleCommandPalette}>
+    <Dialog.Root open onOpenChange={toggleCommandPalette}>
       <Dialog.Portal>
         <Dialog.Overlay className="radix-dialog-overlay" />
         <Dialog.Content

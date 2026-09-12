@@ -7,7 +7,6 @@ import { listen } from "@tauri-apps/api/event";
 import { ArrowLeft, Wrench } from "lucide-react";
 import React, { lazy, Suspense, useCallback, useEffect } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
-import { BisectWizard } from "./components/bisect/BisectWizard";
 import { CommandPalette } from "./components/command-palette/CommandPalette";
 import { CommitDetail } from "./components/graph/CommitDetail";
 import { CommitList } from "./components/graph/CommitList";
@@ -18,10 +17,6 @@ import { Sidebar } from "./components/layout/Sidebar";
 import { StatusBar } from "./components/layout/StatusBar";
 import { TabBar } from "./components/layout/TabBar";
 import { Toolbar } from "./components/layout/Toolbar";
-import { RebaseEditor } from "./components/rebase/RebaseEditor";
-import { ReflogInspector } from "./components/reflog/ReflogInspector";
-import { RepoSearch } from "./components/search/RepoSearch";
-import { SettingsModal } from "./components/settings/SettingsModal";
 import { StagingArea } from "./components/staging/StagingArea";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 
@@ -57,6 +52,35 @@ const MergeEditor = lazy(() =>
 const StashInspector = lazy(() =>
   import("./components/staging/StashInspector").then((m) => ({
     default: m.StashInspector,
+  })),
+);
+
+// Rarely-opened screens, each reached only by an explicit user action, so
+// they do not belong in the startup chunk. ViewRouter already sits inside a
+// Suspense boundary; SettingsModal gets its own below.
+const BisectWizard = lazy(() =>
+  import("./components/bisect/BisectWizard").then((m) => ({
+    default: m.BisectWizard,
+  })),
+);
+const RebaseEditor = lazy(() =>
+  import("./components/rebase/RebaseEditor").then((m) => ({
+    default: m.RebaseEditor,
+  })),
+);
+const ReflogInspector = lazy(() =>
+  import("./components/reflog/ReflogInspector").then((m) => ({
+    default: m.ReflogInspector,
+  })),
+);
+const RepoSearch = lazy(() =>
+  import("./components/search/RepoSearch").then((m) => ({
+    default: m.RepoSearch,
+  })),
+);
+const SettingsModal = lazy(() =>
+  import("./components/settings/SettingsModal").then((m) => ({
+    default: m.SettingsModal,
   })),
 );
 
@@ -214,6 +238,7 @@ function App() {
   const {
     sidebarVisible,
     activeView,
+    fileViewerOpen,
     toggleSettings,
     toggleCommandPalette,
     setActiveView,
@@ -222,6 +247,7 @@ function App() {
     useShallow((s) => ({
       sidebarVisible: s.sidebarVisible,
       activeView: s.activeView,
+      fileViewerOpen: s.fileViewerOpen,
       toggleSettings: s.toggleSettings,
       toggleCommandPalette: s.toggleCommandPalette,
       setActiveView: s.setActiveView,
@@ -418,17 +444,28 @@ function App() {
       <CommandPalette />
 
       {/* Settings Modal */}
-      <SettingsModal />
+      <Suspense fallback={null}>
+        <SettingsModal />
+      </Suspense>
 
       {/* Reset Modal */}
       <ResetModal />
 
-      {/* File Viewer Modal */}
-      <Suspense fallback={null}>
-        <PanelErrorBoundary>
-          <FileViewerModal />
-        </PanelErrorBoundary>
-      </Suspense>
+      {/* File Viewer Modal
+          Gated on `fileViewerOpen` rather than rendered unconditionally.
+          React.lazy fires its import when the component is *rendered*, not when
+          it becomes visible, and FileViewerModal's own `return null` guard is
+          inside the component — so rendering it always meant its chunk, and the
+          2.6 MB monaco-setup chunk it imports, were fetched on first paint.
+          That silently defeated every React.lazy boundary below, and the work
+          documented in main.tsx and monaco-setup.ts. */}
+      {fileViewerOpen && (
+        <Suspense fallback={null}>
+          <PanelErrorBoundary>
+            <FileViewerModal />
+          </PanelErrorBoundary>
+        </Suspense>
+      )}
 
       {hasOpenRepo ? (
         <>
