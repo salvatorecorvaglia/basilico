@@ -29,16 +29,44 @@ export interface RebaseBisectSlice {
 
 /** Debounce window for persisting the in-progress rebase plan to disk. */
 const PLAN_PERSIST_DELAY_MS = 400;
-let planPersistTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * One pending write per repository.
+ *
+ * This was a single module-level handle shared by every repository, so editing
+ * a rebase plan in one tab cancelled a pending write for another — the second
+ * repository's plan was simply never persisted. Keying by path makes the
+ * debounce per-repository, which is the scope it was always meant to have.
+ */
+const planPersistTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function schedulePlanPersist(repoPath: string, items: RebaseTodoItem[]) {
-  if (planPersistTimer) clearTimeout(planPersistTimer);
-  planPersistTimer = setTimeout(() => {
-    planPersistTimer = null;
-    commands
-      .rebaseWriteTodo(repoPath, items, { silent: true })
-      .catch((err) => console.warn("Failed to persist rebase plan:", err));
-  }, PLAN_PERSIST_DELAY_MS);
+  const pending = planPersistTimers.get(repoPath);
+  if (pending) clearTimeout(pending);
+
+  planPersistTimers.set(
+    repoPath,
+    setTimeout(() => {
+      planPersistTimers.delete(repoPath);
+      commands
+        .rebaseWriteTodo(repoPath, items, { silent: true })
+        .catch((err) => console.warn("Failed to persist rebase plan:", err));
+    }, PLAN_PERSIST_DELAY_MS),
+  );
+}
+
+/**
+ * Drop any pending plan write for a repository.
+ *
+ * Called when a rebase concludes, so a debounced write cannot land against a
+ * repository whose rebase has already finished or been aborted.
+ */
+export function cancelPlanPersist(repoPath: string) {
+  const pending = planPersistTimers.get(repoPath);
+  if (pending) {
+    clearTimeout(pending);
+    planPersistTimers.delete(repoPath);
+  }
 }
 
 export const createRebaseBisectSlice: StateCreator<
@@ -105,6 +133,9 @@ export const createRebaseBisectSlice: StateCreator<
       "collaboration",
       "Failed to start rebase",
       async () => {
+        // The plan is being handed to git now, so any debounced write of it is
+        // redundant at best and, once the rebase rewrites history, stale.
+        cancelPlanPersist(activeTabId);
         const status = await commands.rebaseStart(
           activeTabId,
           rebaseUpstream,
@@ -136,6 +167,7 @@ export const createRebaseBisectSlice: StateCreator<
         );
         set({ rebaseStatus: status });
         if (status.status === "finished" || status.status === "none") {
+          cancelPlanPersist(activeTabId);
           set({ rebaseTodoItems: [], rebaseUpstream: null });
         }
         await get().refreshCommitsAndStatus();

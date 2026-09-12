@@ -60,6 +60,12 @@ export const PER_TAB_RESET_STATE: Partial<RepoState> = {
   blameLines: [],
   fileHistory: [],
   hasMoreCommits: true,
+  // The graph filters are per-tab too: a path filter typed for one repository
+  // was silently applied to the next one's log, with the filter box still
+  // showing it.
+  firstParentOnly: false,
+  hideRemoteBranches: false,
+  pathFilter: "",
   // StagingSlice
   stashes: [],
   selectedStashIndex: null,

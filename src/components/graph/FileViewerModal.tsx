@@ -46,25 +46,35 @@ export function FileViewerModal() {
       return;
     }
 
+    // Guard against an older request resolving after a newer one: reopening the
+    // viewer on a different file or revision while the first fetch is in flight
+    // would otherwise show the wrong content under the right header.
+    let cancelled = false;
     setLoading(true);
     getFileContentAtRevision(activeTabId, fileViewerPath, fileViewerOid)
       .then((data) => {
-        setContent(data);
+        if (!cancelled) setContent(data);
       })
       .catch((err) => {
+        if (cancelled) return;
         console.error("Failed to load file revision content:", err);
         reportError(err, "Failed to load file content");
         setContent("");
       })
       .finally(() => {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [fileViewerOpen, fileViewerPath, fileViewerOid, activeTabId]);
 
   if (!fileViewerOpen || !fileViewerPath || !fileViewerOid) return null;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(content);
+    navigator.clipboard
+      .writeText(content)
+      .catch((err) => reportError(err, "Could not copy to clipboard"));
     markCopied();
   };
 

@@ -10,6 +10,7 @@ import { formatDateTime } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./RepoSearch.css";
+import { reportError } from "../../lib/git-error";
 
 export function RepoSearch() {
   const {
@@ -68,7 +69,9 @@ export function RepoSearch() {
 
   const handleGrepClick = (filePath: string) => {
     // Open the selected file in blame view
-    selectLocalFile(filePath, false);
+    selectLocalFile(filePath, false).catch((err) =>
+      reportError(err, "Failed to load file"),
+    );
     setActiveView("blame");
   };
 

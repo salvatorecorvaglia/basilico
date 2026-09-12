@@ -7,10 +7,13 @@ import { formatDateTime, getLanguageFromPath } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./FileHistory.css";
+import { reportError } from "../../lib/git-error";
 // Registers the bundled Monaco + workers; keeps it off the startup chunk.
 import { disposeModelsOnUnmount } from "../../lib/monaco-setup";
+import { useDarkMode } from "../../lib/use-dark-mode";
 
 export function FileHistory() {
+  const isDark = useDarkMode();
   const {
     activeTabId,
     selectedFilePath,
@@ -40,7 +43,9 @@ export function FileHistory() {
 
   useEffect(() => {
     if (selectedFilePath) {
-      loadFileHistory(selectedFilePath);
+      loadFileHistory(selectedFilePath).catch((err) =>
+        reportError(err, "Failed to load file history"),
+      );
       setSelectedCommitOid(null);
     }
   }, [selectedFilePath, loadFileHistory]);
@@ -60,6 +65,10 @@ export function FileHistory() {
       return;
     }
 
+    // Guard against an older request resolving after a newer one: clicking
+    // through the timeline quickly could show one commit's content under
+    // another commit's heading.
+    let cancelled = false;
     setLoadingDiff(true);
     const selectedEntry = fileHistory.find(
       (h) => h.commitOid === selectedCommitOid,
@@ -83,17 +92,22 @@ export function FileHistory() {
 
     Promise.all([originalPromise, modifiedPromise])
       .then(([orig, mod]) => {
+        if (cancelled) return;
         setOriginalContent(orig);
         setModifiedContent(mod);
       })
       .catch((err) => {
+        if (cancelled) return;
         console.error("Failed to load history diff content:", err);
         setOriginalContent("");
         setModifiedContent("");
       })
       .finally(() => {
-        setLoadingDiff(false);
+        if (!cancelled) setLoadingDiff(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [activeTabId, selectedFilePath, selectedCommitOid, fileHistory]);
 
   if (!selectedFilePath) {
@@ -199,7 +213,7 @@ export function FileHistory() {
               original={originalContent}
               modified={modifiedContent}
               language={getLanguageFromPath(selectedFilePath)}
-              theme="vs-dark"
+              theme={isDark ? "basilico-dark" : "basilico-light"}
               height="100%"
               options={{
                 renderSideBySide: true,

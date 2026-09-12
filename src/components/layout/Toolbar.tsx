@@ -550,7 +550,12 @@ export function Toolbar() {
         <button
           type="button"
           className={`toolbar-icon-btn ${isRefreshing ? "spinning" : ""}`}
-          onClick={refreshAll}
+          onClick={() => {
+            // Not `onClick={refreshAll}`: the store action rethrows, so binding
+            // it directly leaves an unhandled rejection on every failed refresh
+            // (and hands it the click event as its first argument).
+            refreshAll().catch((err) => reportError(err, "Refresh failed"));
+          }}
           title="Refresh repository"
           aria-label="Refresh repository"
         >

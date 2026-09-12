@@ -274,9 +274,13 @@ export function DiffView() {
 
   const handleStageFile = () => {
     if (selectedFileIsStaged) {
-      unstageFiles([selectedFilePath]);
+      unstageFiles([selectedFilePath]).catch((err) =>
+        reportError(err, "Failed to unstage"),
+      );
     } else {
-      stageFiles([selectedFilePath]);
+      stageFiles([selectedFilePath]).catch((err) =>
+        reportError(err, "Failed to stage"),
+      );
     }
   };
 

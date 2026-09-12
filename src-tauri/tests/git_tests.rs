@@ -331,6 +331,21 @@ fn test_has_conflict_markers() {
     assert!(!has_conflict_markers(
         "note: <<<<<<< is a marker, ======= too, >>>>>>> as well"
     ));
+
+    // merge.conflictStyle = diff3 writes the base section between `|||||||`
+    // and `=======`; zdiff3 can omit the `=======` entirely. Requiring all
+    // three markers let exactly these files be staged with markers intact.
+    let diff3 = "a\n<<<<<<< ours\nours\n||||||| base\nbase\n=======\ntheirs\n>>>>>>> theirs\nb\n";
+    assert!(has_conflict_markers(diff3));
+
+    let zdiff3_without_separator =
+        "a\n<<<<<<< ours\nours\n||||||| base\nbase\ntheirs\n>>>>>>> theirs\nb\n";
+    assert!(has_conflict_markers(zdiff3_without_separator));
+
+    // An opening marker alone is still not a conflict: a closing one is
+    // required, so prose quoting a single marker does not trip the check.
+    assert!(!has_conflict_markers("see <<<<<<< below\n"));
+    assert!(!has_conflict_markers("<<<<<<< HEAD\n"));
 }
 
 #[test]

@@ -87,6 +87,9 @@ export function StashInspector() {
       return;
     }
 
+    // Guard against an older request resolving after a newer one when clicking
+    // quickly through a stash's files.
+    let cancelled = false;
     setLoadingContents(true);
     // Base: stash parent commit (stash.oid + "^1"), empty for untracked files
     // Target: stash merge commit (stash.oid) or stash untracked commit (stash.oid + "^3")
@@ -103,15 +106,19 @@ export function StashInspector() {
       targetRev,
     )
       .then((data) => {
-        setContents(data);
+        if (!cancelled) setContents(data);
       })
       .catch((err) => {
+        if (cancelled) return;
         console.error("Failed to load stash file contents:", err);
         setContents(null);
       })
       .finally(() => {
-        setLoadingContents(false);
+        if (!cancelled) setLoadingContents(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [
     activeTabId,
     selectedStashIndex,

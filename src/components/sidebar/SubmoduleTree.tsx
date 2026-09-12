@@ -6,6 +6,7 @@
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Download, FolderOpen, Package, Plus, RefreshCw } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
+import { reportError } from "../../lib/git-error";
 import type { SubmoduleInfo } from "../../lib/git-types";
 import { useGitAction } from "../../lib/use-git-action";
 import { useRepoStore } from "../../store/repo-store";
@@ -33,7 +34,9 @@ export function useSubmoduleTree({
   const handleOpenSubmodule = (path: string) => {
     const repoPath = useRepoStore.getState().repoInfo?.path;
     if (repoPath) {
-      openRepository(`${repoPath}/${path}`);
+      openRepository(`${repoPath}/${path}`).catch((err) =>
+        reportError(err, "Failed to open repository"),
+      );
     }
   };
 

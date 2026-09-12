@@ -44,6 +44,22 @@ fn plan_path(repo: &Repository) -> PathBuf {
     repo.path().join("basilico-rebase-plan")
 }
 
+/// The JSON sidecar `rebase_write_todo` persists the in-progress plan to.
+///
+/// Named rather than spelled `plan_path(..).with_extension("json")` at the one
+/// call site, because cleanup used to remove `plan_path` only — so every edit
+/// to a rebase plan left a `basilico-rebase-plan.json` behind in `.git/`, and
+/// they accumulated for the life of the repository.
+fn plan_json_path(repo: &Repository) -> PathBuf {
+    plan_path(repo).with_extension("json")
+}
+
+/// Remove both plan artefacts once a rebase has finished or been abandoned.
+fn remove_plan_files(repo: &Repository) {
+    let _ = fs::remove_file(plan_path(repo));
+    let _ = fs::remove_file(plan_json_path(repo));
+}
+
 /// Directory holding commit messages referenced by `exec ... --file=`.
 fn message_dir(repo: &Repository) -> PathBuf {
     repo.path().join("basilico-rebase-messages")
@@ -287,7 +303,7 @@ pub async fn rebase_write_todo(
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
         let json = serde_json::to_string(&items)?;
-        fs::write(plan_path(&repo).with_extension("json"), json)?;
+        fs::write(plan_json_path(&repo), json)?;
         Ok(())
     })
     .await?
@@ -353,7 +369,7 @@ pub async fn rebase_step(
         if git_arg == "--abort" {
             let output = run_rebase_command(&repo_path, &["rebase", "--abort"], None)?;
             let _ = fs::remove_dir_all(message_dir(&repo));
-            let _ = fs::remove_file(plan_path(&repo));
+            remove_plan_files(&repo);
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -399,7 +415,7 @@ pub async fn rebase_step(
 
         if status.status == "finished" {
             let _ = fs::remove_dir_all(message_dir(&repo));
-            let _ = fs::remove_file(plan_path(&repo));
+            remove_plan_files(&repo);
         }
 
         Ok(status)

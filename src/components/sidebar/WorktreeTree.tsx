@@ -6,6 +6,7 @@
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { FolderOpen, FolderTree, Plus, Scissors, Trash } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
+import { reportError } from "../../lib/git-error";
 import type { WorktreeInfo } from "../../lib/git-types";
 import { useGitAction } from "../../lib/use-git-action";
 import { useRepoStore } from "../../store/repo-store";
@@ -75,7 +76,11 @@ export function useWorktreeTree({ worktrees, onOpenModal }: WorktreeTreeProps) {
                 type="button"
                 className="sidebar-item"
                 title={wt.path}
-                onDoubleClick={() => openRepository(wt.path)}
+                onDoubleClick={() =>
+                  openRepository(wt.path).catch((err) =>
+                    reportError(err, "Failed to open repository"),
+                  )
+                }
               >
                 <FolderOpen size={11} className="sidebar-item-dot" />
                 <span className="sidebar-item-name truncate">{wt.name}</span>
@@ -88,7 +93,11 @@ export function useWorktreeTree({ worktrees, onOpenModal }: WorktreeTreeProps) {
               <ContextMenu.Content className="radix-context-menu">
                 <ContextMenu.Item
                   className="context-menu-item"
-                  onSelect={() => openRepository(wt.path)}
+                  onSelect={() =>
+                    openRepository(wt.path).catch((err) =>
+                      reportError(err, "Failed to open repository"),
+                    )
+                  }
                 >
                   <FolderOpen size={12} />
                   <span>Open in New Tab</span>

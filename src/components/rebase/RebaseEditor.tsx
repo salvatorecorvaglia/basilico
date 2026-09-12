@@ -100,11 +100,20 @@ export function RebaseEditor() {
         );
 
         if (targetIdx !== -1) {
-          // Remove fixup/squash item from position i
+          // Remove fixup/squash item from position i.
+          //
+          // `items` is a shallow copy, so its elements are still the objects
+          // held in the store — assigning `removed.action` mutated store state
+          // in place. Its siblings (handleActionChange, handleSummaryChange)
+          // spread; this one didn't, so nothing keyed on item identity saw the
+          // change, and a StrictMode double-invoke applied it twice.
           const [removed] = items.splice(i, 1);
-          removed.action = isFixup ? "fixup" : "squash";
+          const reordered = {
+            ...removed,
+            action: (isFixup ? "fixup" : "squash") as RebaseTodoItem["action"],
+          };
           // Insert directly after targetIdx
-          items.splice(targetIdx + 1, 0, removed);
+          items.splice(targetIdx + 1, 0, reordered);
           count++;
         }
       }

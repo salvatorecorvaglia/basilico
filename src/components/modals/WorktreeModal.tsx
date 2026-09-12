@@ -12,7 +12,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { reportError } from "../../lib/git-error";
 import type { WorktreeInfo } from "../../lib/git-types";
@@ -63,14 +63,26 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
     }
   }, [activeTabId]);
 
+  // Reset the form when the modal opens — and only then.
+  //
+  // `branches` was in the dependency list, and it gets a fresh array identity on
+  // every refreshAll / refreshBranches / refreshOnFileSystemChange. The file
+  // watcher fires those on any save in the repository, so an unrelated save
+  // while the "Add worktree" form was open collapsed the form and discarded the
+  // path the user was part-way through typing. The default branch is read
+  // through a ref so opening still picks up the current list without making
+  // every later change to it re-run this.
+  const branchesRef = useRef(branches);
+  branchesRef.current = branches;
+
   useEffect(() => {
     if (open) {
       fetchWorktrees();
       setShowAddForm(false);
       setNewPath("");
-      setSelectedBranch(branches[0]?.name || "main");
+      setSelectedBranch(branchesRef.current[0]?.name || "main");
     }
-  }, [open, fetchWorktrees, branches]);
+  }, [open, fetchWorktrees]);
 
   const handleSwitchTab = async (wtPath: string) => {
     try {

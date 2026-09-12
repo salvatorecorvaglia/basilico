@@ -161,7 +161,9 @@ export function SettingsModal() {
 
   const handleCopyPubKey = () => {
     if (generatedPubKey) {
-      navigator.clipboard.writeText(generatedPubKey);
+      navigator.clipboard
+        .writeText(generatedPubKey)
+        .catch((err) => reportError(err, "Could not copy to clipboard"));
       markCopied();
     }
   };

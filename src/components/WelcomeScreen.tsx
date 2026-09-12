@@ -23,6 +23,7 @@ import { useShallow } from "zustand/react/shallow";
 import { openExternalTool } from "../lib/tauri-commands";
 import { useRepoStore } from "../store/repo-store";
 import "./WelcomeScreen.css";
+import { reportError } from "../lib/git-error";
 
 export function WelcomeScreen() {
   const {
@@ -55,14 +56,22 @@ export function WelcomeScreen() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const handleOpenRepo = async () => {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: "Open Git Repository",
-    });
+    // `openRepository` raises its own toast and then rethrows, and this is
+    // invoked from a click handler that cannot await it — so without this catch
+    // every failed open is also an unhandled rejection. App.tsx and Toolbar.tsx
+    // already guard their copies of this helper.
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: "Open Git Repository",
+      });
 
-    if (selected) {
-      await openRepository(selected as string);
+      if (selected) {
+        await openRepository(selected as string);
+      }
+    } catch (err) {
+      reportError(err, "Failed to open repository");
     }
   };
 
@@ -246,13 +255,19 @@ export function WelcomeScreen() {
                     tabIndex={0}
                     aria-label={`Open repository ${repo.name}`}
                     className="welcome-recent-card"
-                    onClick={() => openRepository(repo.path)}
+                    onClick={() =>
+                      openRepository(repo.path).catch((err) =>
+                        reportError(err, "Failed to open repository"),
+                      )
+                    }
                     onKeyDown={(e) => {
                       // The card holds its own action buttons, so it cannot be
                       // a <button> itself; activation is wired up by hand.
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        openRepository(repo.path);
+                        openRepository(repo.path).catch((err) =>
+                          reportError(err, "Failed to open repository"),
+                        );
                       }
                     }}
                   >

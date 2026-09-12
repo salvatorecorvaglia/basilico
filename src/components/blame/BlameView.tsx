@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./BlameView.css";
+import { reportError } from "../../lib/git-error";
 
 export function BlameView() {
   const {
@@ -36,7 +37,9 @@ export function BlameView() {
 
   useEffect(() => {
     if (selectedFilePath) {
-      loadFileBlame(selectedFilePath, currentCommitOid);
+      loadFileBlame(selectedFilePath, currentCommitOid).catch((err) =>
+        reportError(err, "Failed to load blame"),
+      );
     }
   }, [selectedFilePath, currentCommitOid, loadFileBlame]);
 
@@ -60,7 +63,7 @@ export function BlameView() {
 
   const handleLineCommitClick = (oid: string) => {
     if (!oid) return;
-    selectCommit(oid);
+    selectCommit(oid).catch((err) => reportError(err, "Failed to load commit"));
     setActiveView("graph");
   };
 

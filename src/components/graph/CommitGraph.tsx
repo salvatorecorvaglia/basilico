@@ -5,7 +5,22 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import type { GraphCommit } from "../../lib/git-types";
+import { useDarkMode } from "../../lib/use-dark-mode";
 import { useRepoStore } from "../../store/repo-store";
+
+/** Used only until the theme's `--lane-*` variables resolve. */
+const FALLBACK_LANE_COLORS = [
+  "#58a6ff",
+  "#3fb950",
+  "#f0883e",
+  "#bc8cff",
+  "#f85149",
+  "#2dd4bf",
+  "#d2a8ff",
+  "#ffa657",
+  "#ff7b72",
+  "#79c0ff",
+];
 
 const NODE_RADIUS = 4;
 const LANE_WIDTH = 16;
@@ -30,6 +45,14 @@ export function CommitGraph({
 }: CommitGraphProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const theme = useRepoStore((s) => s.settings?.theme);
+  // The light/dark scheme is a separate source of truth from the accent preset
+  // (`settings.theme`), so the colour memos below have to track both. Keyed on
+  // the accent alone, toggling light/dark never re-read the CSS variables:
+  // merge-node interiors kept the previous scheme's panel background until the
+  // accent happened to change. `monaco-setup.ts` solves the same problem with a
+  // MutationObserver; here the value is already reactive, so it just belongs in
+  // the dependency list.
+  const isDark = useDarkMode();
 
   // Cache commit indices for O(1) lookup during drawing
   const commitIndices = useMemo(() => {
@@ -40,38 +63,32 @@ export function CommitGraph({
     return map;
   }, [commits]);
 
-  // Fetch theme colors dynamically from CSS variables only when theme changes
+  // Fetch theme colors dynamically from CSS variables only when theme changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `theme` and `isDark` are not read in the body — they are the cache keys. The body reads the DOM, which the linter cannot see changing, so these are exactly the values that must invalidate the memo.
   const laneColors = useMemo(() => {
-    if (typeof window === "undefined" || !theme) return [];
+    // Before settings load there is no accent yet, but the lane variables are
+    // already resolvable — returning [] here made `laneColors[n % 0]` NaN, so
+    // every edge was drawn with an invalid strokeStyle until settings arrived.
+    if (typeof window === "undefined") return FALLBACK_LANE_COLORS;
     const docStyle = getComputedStyle(document.documentElement);
-    const fallbackColors = [
-      "#58a6ff",
-      "#3fb950",
-      "#f0883e",
-      "#bc8cff",
-      "#f85149",
-      "#2dd4bf",
-      "#d2a8ff",
-      "#ffa657",
-      "#ff7b72",
-      "#79c0ff",
-    ];
     return Array.from({ length: 10 }, (_, i) => {
       return (
-        docStyle.getPropertyValue(`--lane-${i}`).trim() || fallbackColors[i]
+        docStyle.getPropertyValue(`--lane-${i}`).trim() ||
+        FALLBACK_LANE_COLORS[i]
       );
     });
-  }, [theme]);
+  }, [theme, isDark]);
 
   // Merge-commit node interiors are filled with the panel background so the
   // ring reads as "hollow" against whatever theme is active — must track the
   // theme like laneColors above, not a hardcoded dark color that only looks
   // right in dark mode.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: as above — `--bg-surface` is a light-dark() token, so the memo must recompute when either the accent or the colour scheme changes.
   const nodeFillColor = useMemo(() => {
-    if (typeof window === "undefined" || !theme) return "#0d1117";
+    if (typeof window === "undefined") return "#0d1117";
     const docStyle = getComputedStyle(document.documentElement);
     return docStyle.getPropertyValue("--bg-surface").trim() || "#0d1117";
-  }, [theme]);
+  }, [theme, isDark]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

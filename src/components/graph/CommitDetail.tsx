@@ -167,9 +167,13 @@ function TreeViewNode({ node, level, onFileClick }: TreeViewNodeProps) {
 
       {node.isDir && (isOpen || level === 0) && hasChildren && (
         <div className="tree-node-children">
-          {node.children.map((child, idx) => (
+          {node.children.map((child) => (
             <TreeViewNode
-              key={idx}
+              // Keyed by path, not index: TreeViewNode holds its own `isOpen`
+              // state, so a positional key let an expanded folder hand its open
+              // state to whatever unrelated folder landed at that index when a
+              // different commit's tree loaded.
+              key={child.path}
               node={child}
               level={level + 1}
               onFileClick={onFileClick}
@@ -225,7 +229,9 @@ export function CommitDetail() {
   // Lazy-load tree when tab changes
   useEffect(() => {
     if (activeTab === "tree" && selectedCommitOid) {
-      loadCommitTree(selectedCommitOid);
+      loadCommitTree(selectedCommitOid).catch((err) =>
+        reportError(err, "Failed to load commit tree"),
+      );
     }
   }, [activeTab, selectedCommitOid, loadCommitTree]);
 
@@ -243,10 +249,15 @@ export function CommitDetail() {
       });
   }, [activeTabId, selectedCommitOid]);
 
-  // Reset tab on commit change
+  // Reset tab on commit change.
+  //
+  // The dependency array was empty, so this only ever ran on mount: selecting a
+  // different commit left the File Tree tab open, showing the previous commit's
+  // tree until loadCommitTree resolved.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `selectedCommitOid` is the trigger, not a value the body reads — this effect exists to reset the tab *when the commit changes*.
   useEffect(() => {
     setActiveTab("changes");
-  }, []);
+  }, [selectedCommitOid]);
 
   if (!commit) {
     return (
@@ -258,7 +269,9 @@ export function CommitDetail() {
   }
 
   const handleCopyOid = () => {
-    navigator.clipboard.writeText(commit.oid);
+    navigator.clipboard
+      .writeText(commit.oid)
+      .catch((err) => reportError(err, "Could not copy to clipboard"));
     markCopied();
   };
 
@@ -475,13 +488,17 @@ export function CommitDetail() {
                           tabIndex={0}
                           className="commit-detail-file"
                           onClick={() => {
-                            selectLocalFile(filePath, false);
+                            selectLocalFile(filePath, false).catch((err) =>
+                              reportError(err, "Failed to load file"),
+                            );
                             setActiveView("staging");
                           }}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" || e.key === " ") {
                               e.preventDefault();
-                              selectLocalFile(filePath, false);
+                              selectLocalFile(filePath, false).catch((err) =>
+                                reportError(err, "Failed to load file"),
+                              );
                               setActiveView("staging");
                             }
                           }}
@@ -515,7 +532,9 @@ export function CommitDetail() {
                           <ContextMenu.Item
                             className="context-menu-item"
                             onSelect={() => {
-                              selectLocalFile(filePath, false);
+                              selectLocalFile(filePath, false).catch((err) =>
+                                reportError(err, "Failed to load file"),
+                              );
                               setActiveView("blame");
                             }}
                           >
@@ -525,7 +544,9 @@ export function CommitDetail() {
                           <ContextMenu.Item
                             className="context-menu-item"
                             onSelect={() => {
-                              selectLocalFile(filePath, false);
+                              selectLocalFile(filePath, false).catch((err) =>
+                                reportError(err, "Failed to load file"),
+                              );
                               setActiveView("history");
                             }}
                           >

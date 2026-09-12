@@ -8,6 +8,7 @@ import { FolderOpen, Plus, X } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useRepoStore } from "../../store/repo-store";
 import "./TabBar.css";
+import { reportError } from "../../lib/git-error";
 
 export function TabBar() {
   const { tabs, activeTabId, switchTab, closeTab, openRepository } =
@@ -22,14 +23,20 @@ export function TabBar() {
     );
 
   const handleOpenRepo = async () => {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: "Open Repository",
-    });
+    // `openRepository` raises its own toast and then rethrows; this handler
+    // cannot await it, so an unguarded call leaves an unhandled rejection.
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: "Open Repository",
+      });
 
-    if (selected) {
-      await openRepository(selected as string);
+      if (selected) {
+        await openRepository(selected as string);
+      }
+    } catch (err) {
+      reportError(err, "Failed to open repository");
     }
   };
 

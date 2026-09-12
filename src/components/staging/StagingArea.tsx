@@ -142,14 +142,18 @@ export function StagingArea() {
   const handleStageAll = () => {
     const allUnstaged = [...unstaged.map((f) => f.path), ...untracked];
     if (allUnstaged.length > 0) {
-      stageFiles(allUnstaged);
+      stageFiles(allUnstaged).catch((err) =>
+        reportError(err, "Failed to stage"),
+      );
     }
   };
 
   const handleUnstageAll = () => {
     const allStaged = staged.map((f) => f.path);
     if (allStaged.length > 0) {
-      unstageFiles(allStaged);
+      unstageFiles(allStaged).catch((err) =>
+        reportError(err, "Failed to unstage"),
+      );
     }
   };
 
@@ -176,9 +180,11 @@ export function StagingArea() {
 
   const handleCheckboxChange = (path: string, currentlyStaged: boolean) => {
     if (currentlyStaged) {
-      unstageFiles([path]);
+      unstageFiles([path]).catch((err) =>
+        reportError(err, "Failed to unstage"),
+      );
     } else {
-      stageFiles([path]);
+      stageFiles([path]).catch((err) => reportError(err, "Failed to stage"));
     }
   };
 

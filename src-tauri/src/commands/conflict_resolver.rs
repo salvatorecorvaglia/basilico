@@ -291,7 +291,18 @@ pub async fn launch_external_merge_tool<R: tauri::Runtime>(
 
         // Staging a file that still contains conflict markers would commit them.
         // Check before clearing the conflict from the index.
-        let merged_text = std::fs::read_to_string(&merged_path).unwrap_or_default();
+        //
+        // A read failure is not "no markers". `unwrap_or_default` turned an
+        // unreadable or non-UTF-8 merge result into an empty string, which sails
+        // through the check below and stages whatever the merge tool actually
+        // left on disk.
+        let merged_text = std::fs::read_to_string(&merged_path).map_err(|e| {
+            AppError::io(format!(
+                "Could not read '{}' back after the merge tool exited, so it \
+                 cannot be checked for leftover conflict markers: {}",
+                file_path, e
+            ))
+        })?;
         if has_conflict_markers(&merged_text) {
             return Err(AppError::conflict(format!(
                 "'{}' still contains conflict markers (<<<<<<<, =======, >>>>>>>). \
@@ -309,20 +320,24 @@ pub async fn launch_external_merge_tool<R: tauri::Runtime>(
 }
 
 /// Detects leftover merge-conflict markers at the start of a line.
+///
+/// Requiring an opening *and* a closing marker keeps a line of `=======` in a
+/// Markdown underline or an ASCII rule from being mistaken for a conflict. The
+/// separator is deliberately not required: `merge.conflictStyle = diff3` (and
+/// `zdiff3`) writes `|||||||` for the base section, so a file left in that
+/// style has `<<<<<<<` and `>>>>>>>` but no `=======` at all — and demanding
+/// all three let exactly those files be staged with their markers intact.
 pub fn has_conflict_markers(content: &str) -> bool {
     let mut has_start = false;
-    let mut has_sep = false;
     let mut has_end = false;
 
     for line in content.lines() {
         if line.starts_with("<<<<<<<") {
             has_start = true;
-        } else if line.starts_with("=======") {
-            has_sep = true;
         } else if line.starts_with(">>>>>>>") {
             has_end = true;
         }
     }
 
-    has_start && has_sep && has_end
+    has_start && has_end
 }

@@ -16,8 +16,10 @@ import "./CompareView.css";
 import { reportError } from "../../lib/git-error";
 // Registers the bundled Monaco + workers; keeps it off the startup chunk.
 import { disposeModelsOnUnmount } from "../../lib/monaco-setup";
+import { useDarkMode } from "../../lib/use-dark-mode";
 
 export function CompareView() {
+  const isDark = useDarkMode();
   const {
     activeTabId,
     compareDiff,
@@ -64,6 +66,9 @@ export function CompareView() {
       return;
     }
 
+    // Guard against an older request resolving after a newer one when clicking
+    // quickly through the changed-file list.
+    let cancelled = false;
     setLoading(true);
     commands
       .getFileContentPairRevisions(
@@ -73,15 +78,19 @@ export function CompareView() {
         compareTarget,
       )
       .then((data) => {
-        setContents(data);
+        if (!cancelled) setContents(data);
       })
       .catch((err) => {
+        if (cancelled) return;
         console.error("Failed to load file contents for comparison:", err);
         setContents(null);
       })
       .finally(() => {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [activeTabId, selectedCompareFile, compareBase, compareTarget]);
 
   if (!compareBase || !compareTarget) {
@@ -246,7 +255,7 @@ export function CompareView() {
                   original={contents.original}
                   modified={contents.modified}
                   language={getLanguageFromPath(selectedCompareFile)}
-                  theme="vs-dark"
+                  theme={isDark ? "basilico-dark" : "basilico-light"}
                   height="100%"
                   options={{
                     renderSideBySide: splitView,

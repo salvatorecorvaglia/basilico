@@ -14,7 +14,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { ReflogEntry } from "../../lib/git-types";
 import { getReflog, restoreReflogEntry } from "../../lib/tauri-commands";
@@ -109,17 +109,26 @@ export function ReflogInspector() {
   );
   const [isRestoring, setIsRestoring] = useState(false);
 
+  // Sequence number rather than a per-effect `cancelled` flag, because this is
+  // also invoked directly by the refresh button: switching `refTarget` quickly
+  // could otherwise let an earlier ref's entries land after a later one's and
+  // be displayed under the wrong ref.
+  const requestSeq = useRef(0);
+
   const fetchReflogEntries = useCallback(async () => {
     if (!activeTabId) return;
+    const seq = ++requestSeq.current;
     setIsLoading(true);
     try {
       const data = await getReflog(activeTabId, refTarget, maxCount);
+      if (seq !== requestSeq.current) return;
       setEntries(data || []);
     } catch (err) {
+      if (seq !== requestSeq.current) return;
       reportError(err, "Failed to load reflog");
       setEntries([]);
     } finally {
-      setIsLoading(false);
+      if (seq === requestSeq.current) setIsLoading(false);
     }
   }, [activeTabId, refTarget, maxCount]);
 
@@ -128,7 +137,9 @@ export function ReflogInspector() {
   }, [fetchReflogEntries]);
 
   const handleCopyOid = (oid: string) => {
-    navigator.clipboard.writeText(oid);
+    navigator.clipboard
+      .writeText(oid)
+      .catch((err) => reportError(err, "Could not copy to clipboard"));
     markCopied(oid);
     addNotification({
       type: "info",

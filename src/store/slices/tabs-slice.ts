@@ -29,6 +29,38 @@ export interface TabsSlice {
 /** Tracks in-flight openRepository calls to prevent duplicate concurrent opens */
 const pendingOpens = new Set<string>();
 
+/**
+ * The state transition every tab activation shares.
+ *
+ * Making a tab active is three things at once: flipping the `isActive` flags,
+ * clearing the per-tab data the previous repository left behind, and bumping
+ * `refreshGeneration` so in-flight responses for that repository are discarded
+ * rather than written into the new one. `switchTab` did all three;
+ * `openRepository` did none of them, so opening a repository that was already
+ * in a tab — clicking it in the recent list, the commonest way to reach it —
+ * left repo A's commits, diffs and rebase plan on screen under repo B's name,
+ * and let a slow request started against A land in B. `commitDiff`, `localDiff`
+ * and `rebaseTodoItems` are not written by `refreshAll`, so they never
+ * corrected themselves.
+ *
+ * `extra` is applied last, so a caller that already has fresh data for the new
+ * tab (an `openRepo` result, say) can keep it rather than have the reset null
+ * it out.
+ */
+function activateTab(
+  state: RepoState,
+  tabId: string,
+  extra?: Partial<RepoState>,
+): Partial<RepoState> {
+  return {
+    tabs: state.tabs.map((t) => ({ ...t, isActive: t.id === tabId })),
+    activeTabId: tabId,
+    ...PER_TAB_RESET_STATE,
+    refreshGeneration: state.refreshGeneration + 1,
+    ...extra,
+  };
+}
+
 export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
   set,
   get,
@@ -96,7 +128,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
 
         if (existingTab) {
           // Switch to existing tab
-          set({ activeTabId: tabId });
+          set((state) => activateTab(state, tabId, { repoInfo: info }));
           localStorage.setItem("basilico-active-repo", tabId);
           await get().refreshAll();
         } else {
@@ -109,12 +141,11 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
           };
 
           set((state) => ({
-            tabs: [
-              ...state.tabs.map((t) => ({ ...t, isActive: false })),
-              newTab,
-            ],
-            activeTabId: tabId,
-            repoInfo: info,
+            ...activateTab(
+              { ...state, tabs: [...state.tabs, newTab] } as RepoState,
+              tabId,
+              { repoInfo: info },
+            ),
           }));
 
           localStorage.setItem(
@@ -212,14 +243,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
     },
 
     switchTab: (tabId: string) => {
-      set((state) => ({
-        tabs: state.tabs.map((t) => ({ ...t, isActive: t.id === tabId })),
-        activeTabId: tabId,
-        // Reset per-tab state to prevent stale data from previous tab
-        ...PER_TAB_RESET_STATE,
-        // Increment generation to invalidate in-flight async responses from old tab
-        refreshGeneration: state.refreshGeneration + 1,
-      }));
+      set((state) => activateTab(state, tabId));
 
       localStorage.setItem("basilico-active-repo", tabId);
 

@@ -204,7 +204,9 @@ export function CommitList() {
     if (!el) return;
 
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 500) {
-      loadMoreCommits(500);
+      loadMoreCommits(500).catch((err) =>
+        reportError(err, "Failed to load more commits"),
+      );
     }
   }, [loadMoreCommits]);
 
@@ -568,7 +570,9 @@ export function CommitList() {
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        selectCommit(commit.oid);
+                        selectCommit(commit.oid).catch((err) =>
+                          reportError(err, "Failed to load commit"),
+                        );
                       }
                     }}
                     onDragOver={(e) => {

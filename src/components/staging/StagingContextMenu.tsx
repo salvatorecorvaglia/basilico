@@ -105,9 +105,13 @@ export function StagingContextMenu({
             className="context-menu-item"
             onSelect={() => {
               if (isStaged) {
-                unstageFiles([filePath]);
+                unstageFiles([filePath]).catch((err) =>
+                  reportError(err, "Failed to unstage"),
+                );
               } else {
-                stageFiles([filePath]);
+                stageFiles([filePath]).catch((err) =>
+                  reportError(err, "Failed to stage"),
+                );
               }
             }}
           >
@@ -138,7 +142,9 @@ export function StagingContextMenu({
         <ContextMenu.Item
           className="context-menu-item"
           onSelect={() => {
-            selectLocalFile(filePath, isStaged);
+            selectLocalFile(filePath, isStaged).catch((err) =>
+              reportError(err, "Failed to load file"),
+            );
             setActiveView("blame");
           }}
         >
@@ -148,7 +154,9 @@ export function StagingContextMenu({
         <ContextMenu.Item
           className="context-menu-item"
           onSelect={() => {
-            selectLocalFile(filePath, isStaged);
+            selectLocalFile(filePath, isStaged).catch((err) =>
+              reportError(err, "Failed to load file"),
+            );
             setActiveView("history");
           }}
         >

@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./ConflictBanner.css";
+import { reportError } from "../../lib/git-error";
 
 export const ConflictBanner: React.FC = () => {
   const { status, abortMerge, cherryPickAbort, revertAbort } = useRepoStore(
@@ -34,18 +35,28 @@ export const ConflictBanner: React.FC = () => {
 
   const handleOpenResolver = () => {
     if (firstConflictedFile) {
-      useRepoStore.getState().loadConflictStages(firstConflictedFile);
+      useRepoStore
+        .getState()
+        .loadConflictStages(firstConflictedFile)
+        .catch((err) => reportError(err, "Failed to load conflict"));
     }
     setActiveView("conflict-resolver");
   };
 
   const handleAbort = async () => {
-    if (status.state.includes("CherryPick")) {
-      await cherryPickAbort();
-    } else if (status.state.includes("Revert")) {
-      await revertAbort();
-    } else {
-      await abortMerge();
+    // Each of these rethrows after raising its own toast, and this is bound
+    // straight to onClick — so without a catch, aborting a conflicted merge
+    // that fails leaves an unhandled rejection.
+    try {
+      if (status.state.includes("CherryPick")) {
+        await cherryPickAbort();
+      } else if (status.state.includes("Revert")) {
+        await revertAbort();
+      } else {
+        await abortMerge();
+      }
+    } catch (err) {
+      reportError(err, "Abort failed");
     }
   };
 

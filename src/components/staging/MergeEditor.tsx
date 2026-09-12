@@ -69,6 +69,11 @@ export function MergeEditor() {
   useEffect(() => {
     if (!activeConflictedPath) return;
 
+    // Guard against an older request resolving after a newer one: switching
+    // conflicted files mid-flight would otherwise load the previous file's
+    // markers into the editor for the newly-selected path — and this editor's
+    // content is what gets written back to disk.
+    let cancelled = false;
     setLoading(true);
     const fetchStages = async () => {
       try {
@@ -81,16 +86,21 @@ export function MergeEditor() {
           activeConflictedPath,
           false,
         );
+        if (cancelled) return;
         setMergedValue(contentPair.modified);
       } catch (err) {
+        if (cancelled) return;
         reportError(err, "Failed to load conflict files");
         setActiveView("staging");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchStages();
+    return () => {
+      cancelled = true;
+    };
   }, [activeConflictedPath, loadConflictStages, setActiveView]);
 
   // Sync ours and theirs from store

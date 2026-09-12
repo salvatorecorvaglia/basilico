@@ -78,13 +78,15 @@ export function PromptModal() {
       });
       setFormValues(initial);
 
-      // Focus the first input field
+      // Focus the first input field. The handle is returned from the effect so
+      // a prompt dismissed inside 50ms doesn't leave the timer pending.
       const firstField = promptOptions.fields[0];
       if (firstField) {
-        setTimeout(() => {
+        const handle = setTimeout(() => {
           const el = inputRefs.current[firstField.name];
           if (el) el.focus();
         }, 50);
+        return () => clearTimeout(handle);
       }
     } else {
       setFormValues({});
