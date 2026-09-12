@@ -22,14 +22,19 @@ const CONVENTIONAL_TYPES = [
 ];
 
 export function CommitBox() {
-  const { commits, status, commit, isLoading } = useRepoStore(
+  const { status, commit, isLoading } = useRepoStore(
     useShallow((s) => ({
-      commits: s.commits,
       status: s.status,
       commit: s.commit,
       isLoading: s.isLoading,
     })),
   );
+  // Only the head commit and whether there is one at all are used here.
+  // Subscribing to the whole `commits` array re-rendered this box on every
+  // "load more" page and every refresh; these two are primitives, so they
+  // only fire when the value actually changes.
+  const lastCommit = useRepoStore((s) => s.commits[0] ?? null);
+  const hasCommits = useRepoStore((s) => s.commits.length > 0);
   const [summary, setSummary] = useState("");
   const [description, setDescription] = useState("");
   const [amend, setAmend] = useState(false);
@@ -46,7 +51,6 @@ export function CommitBox() {
       setUserDescriptionBackup(description);
 
       // Populate with last commit
-      const lastCommit = commits[0];
       if (lastCommit) {
         const lines = lastCommit.message.split("\n");
         const title = lines[0] || "";
@@ -56,7 +60,6 @@ export function CommitBox() {
       }
     } else {
       // Check if user edited the amend message
-      const lastCommit = commits[0];
       let hasEdited = false;
       if (lastCommit) {
         const lines = lastCommit.message.split("\n");
@@ -169,7 +172,7 @@ export function CommitBox() {
             type="checkbox"
             checked={amend}
             onChange={(e) => handleAmendToggle(e.target.checked)}
-            disabled={isLoading || commits.length === 0}
+            disabled={isLoading || !hasCommits}
           />
           <span>Amend last commit</span>
         </label>

@@ -152,12 +152,22 @@ pub async fn get_settings<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, crate::state::AppState>,
 ) -> Result<UserSettings, AppError> {
-    let mut cached = state.settings.lock();
-    if let Some(ref settings) = *cached {
-        return Ok(settings.clone());
+    // Scoped so the lock is not held across the disk read below.
+    {
+        let cached = state.settings.lock();
+        if let Some(ref settings) = *cached {
+            return Ok(settings.clone());
+        }
     }
 
-    let settings = load_settings_from_disk(&app)?;
+    // Read and parse off the async runtime's threads: this is a blocking file
+    // read, and every other command in the app is careful to keep those on the
+    // blocking pool.
+    let settings = tokio::task::spawn_blocking(move || load_settings_from_disk(&app)).await??;
+
+    // A concurrent caller may have populated the cache while this was reading.
+    // Either value came from the same file, so overwriting is harmless.
+    let mut cached = state.settings.lock();
     *cached = Some(settings.clone());
     Ok(settings)
 }
@@ -169,18 +179,23 @@ pub async fn save_settings<R: tauri::Runtime>(
     settings: UserSettings,
 ) -> Result<(), AppError> {
     let path = settings_path(&app)?;
-
-    // Create parent directory if it doesn't exist
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| {
-            AppError::settings(format!("Failed to create settings directory: {}", e))
-        })?;
-    }
-
     let content = serde_json::to_string_pretty(&settings)?;
 
-    write_private_file(&path, &content)
-        .map_err(|e| AppError::settings(format!("Failed to write settings: {}", e)))?;
+    // `write_private_file` ends in an fsync, so this is the one settings
+    // operation that can block for a noticeable time. Keep it off the async
+    // runtime's threads.
+    tokio::task::spawn_blocking(move || -> Result<(), AppError> {
+        // Create parent directory if it doesn't exist
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| {
+                AppError::settings(format!("Failed to create settings directory: {}", e))
+            })?;
+        }
+
+        write_private_file(&path, &content)
+            .map_err(|e| AppError::settings(format!("Failed to write settings: {}", e)))
+    })
+    .await??;
 
     // Update cache
     let mut cached = state.settings.lock();

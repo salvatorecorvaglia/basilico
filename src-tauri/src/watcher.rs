@@ -29,61 +29,101 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
 
         let watch_path = Path::new(&repo_path);
 
-        // 1. Watch root non-recursively to detect root file edits
-        let _ = debouncer
-            .watcher()
-            .watch(watch_path, RecursiveMode::NonRecursive);
-
-        // 2. Watch the git directory recursively to detect ref/branch/commit
-        //    changes. In a linked worktree or a submodule, `.git` is a *file*
-        //    pointing elsewhere, so watching it directly would silently observe
-        //    nothing. Ask libgit2 where the real directory is.
-        for git_dir in resolve_git_dirs(watch_path) {
-            let _ = debouncer
-                .watcher()
-                .watch(&git_dir, RecursiveMode::Recursive);
-        }
-
-        // 3. Watch non-ignored top-level directories recursively.
-        //
-        // The ignore decision comes from the repository's own rules rather than
-        // a hardcoded name list. The old list covered the JS/Rust cases its
-        // author happened to hit — a project with `.venv`, `Pods`, `bin`, `obj`
-        // or any other large ignored directory got it watched recursively,
-        // which is expensive everywhere and can exhaust inotify watches on
-        // Linux. `is_path_ignored` answers for whatever the repo actually
-        // gitignores, so it also stays correct as a project's layout changes.
-        let ignore_repo = git2::Repository::open(watch_path).ok();
-        if let Ok(entries) = std::fs::read_dir(watch_path) {
-            for entry in entries.flatten() {
-                if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                    continue;
+        // Registration failures are logged rather than discarded. On Linux,
+        // exhausting `fs.inotify.max_user_watches` — easy on a large tree — made
+        // every watch call fail silently: the thread then polled forever,
+        // received nothing, and auto-refresh simply never happened, with no log
+        // line and nothing in the UI to explain it.
+        let (registered, failed) = {
+            let mut registered = 0usize;
+            let mut failed = 0usize;
+            let mut note = |result: notify::Result<()>, what: &str| match result {
+                Ok(()) => registered += 1,
+                Err(e) => {
+                    failed += 1;
+                    log::warn!("Failed to watch {}: {}", what, e);
                 }
-                let path = entry.path();
-                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            };
 
-                // `.git` is handled above, with the correct worktree/submodule
-                // resolution; watching it again here would duplicate events.
-                if name == ".git" {
-                    continue;
-                }
+            // 1. Watch root non-recursively to detect root file edits
+            note(
+                debouncer
+                    .watcher()
+                    .watch(watch_path, RecursiveMode::NonRecursive),
+                &watch_path.display().to_string(),
+            );
 
-                let ignored = ignore_repo
-                    .as_ref()
-                    .and_then(|r| r.is_path_ignored(&path).ok())
-                    .unwrap_or_else(|| is_conventionally_ignored(name));
+            // 2. Watch the git directory recursively to detect ref/branch/commit
+            //    changes. In a linked worktree or a submodule, `.git` is a *file*
+            //    pointing elsewhere, so watching it directly would silently observe
+            //    nothing. Ask libgit2 where the real directory is.
+            for git_dir in resolve_git_dirs(watch_path) {
+                note(
+                    debouncer
+                        .watcher()
+                        .watch(&git_dir, RecursiveMode::Recursive),
+                    &git_dir.display().to_string(),
+                );
+            }
 
-                if !ignored {
-                    let _ = debouncer.watcher().watch(&path, RecursiveMode::Recursive);
+            // 3. Watch non-ignored top-level directories recursively.
+            //
+            // The ignore decision comes from the repository's own rules rather than
+            // a hardcoded name list. The old list covered the JS/Rust cases its
+            // author happened to hit — a project with `.venv`, `Pods`, `bin`, `obj`
+            // or any other large ignored directory got it watched recursively,
+            // which is expensive everywhere and can exhaust inotify watches on
+            // Linux. `is_path_ignored` answers for whatever the repo actually
+            // gitignores, so it also stays correct as a project's layout changes.
+            let ignore_repo = git2::Repository::open(watch_path).ok();
+            if let Ok(entries) = std::fs::read_dir(watch_path) {
+                for entry in entries.flatten() {
+                    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                        continue;
+                    }
+                    let path = entry.path();
+                    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+                    // `.git` is handled above, with the correct worktree/submodule
+                    // resolution; watching it again here would duplicate events.
+                    if name == ".git" {
+                        continue;
+                    }
+
+                    let ignored = ignore_repo
+                        .as_ref()
+                        .and_then(|r| r.is_path_ignored(&path).ok())
+                        .unwrap_or_else(|| is_conventionally_ignored(name));
+
+                    if !ignored {
+                        note(
+                            debouncer.watcher().watch(&path, RecursiveMode::Recursive),
+                            &path.display().to_string(),
+                        );
+                    }
                 }
             }
-        }
 
-        log::info!(
-            "Watching repository: {} (session: {})",
-            repo_path,
-            watcher_id
-        );
+            (registered, failed)
+        };
+
+        if registered == 0 {
+            log::error!(
+                "Watching repository {} registered no paths ({} failures); \
+                 auto-refresh will not work for this repository. On Linux this \
+                 usually means fs.inotify.max_user_watches is exhausted.",
+                repo_path,
+                failed
+            );
+        } else {
+            log::info!(
+                "Watching repository: {} (session: {}, {} paths, {} failures)",
+                repo_path,
+                watcher_id,
+                registered,
+                failed
+            );
+        }
 
         loop {
             // Wakes up periodically (1s) to check if the repository is still open in AppState.
