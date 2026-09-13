@@ -20,9 +20,21 @@
    ═══════════════════════════════════════════════════════ */
 
 /* ── Buttons ──
-   The base matches the value that already had the most adopters — .confirm-btn,
-   .prompt-btn, .reset-btn and .settings-btn were already identical — so those
-   can migrate without changing a pixel. */
+   The base matches the values that already had the most adopters for padding,
+   radius, family, size and weight.
+
+   It is NOT a drop-in for the existing bespoke buttons, despite what an earlier
+   version of this comment claimed. `.btn` adds four declarations they do not
+   have: `border: 1px solid transparent`, `gap`, `line-height` and
+   `white-space`. The border is the one that bites — `.confirm-btn-primary`,
+   `.confirm-btn-danger`, `.reset-btn` and `.settings-btn` all set
+   `border: none`, so swapping them to `.btn .btn-primary` makes every one of
+   those buttons 2px wider and 2px taller. That is very likely why adoption
+   stalled at a handful of call sites.
+
+   So a migration is a real visual change and needs checking screen by screen,
+   not a find-and-replace. `tests/lib/ui-primitives.test.ts` ratchets the count
+   of bespoke button rules so the debt cannot grow while that happens. */
 .btn {
   display: inline-flex;
   align-items: center;

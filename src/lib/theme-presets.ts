@@ -30,5 +30,12 @@ export function applyThemeToDOM(themeId: string): void {
   const preset = THEME_PRESETS.find((p) => p.id === themeId);
   if (preset) {
     document.documentElement.setAttribute("data-theme", themeId);
+    return;
   }
+  // An unrecognised id silently left the previous theme in place, so a stale
+  // or misspelled stored value looked like the theme picker simply not working.
+  console.warn(
+    `Unknown theme "${themeId}"; falling back to "${THEME_PRESETS[0].id}".`,
+  );
+  document.documentElement.setAttribute("data-theme", THEME_PRESETS[0].id);
 }

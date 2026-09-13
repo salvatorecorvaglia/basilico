@@ -9,9 +9,20 @@
  * URL producing something like a `javascript:` URL. Passes `noopener,noreferrer`
  * so the opened page cannot reach back into this window via `window.opener`.
  */
+
+import { useUIStore } from "../store/ui-store";
 export function openExternalUrl(url: string): void {
   if (!url.startsWith("https://")) {
+    // Told, not just logged. A silent return looks identical to a dead
+    // button: the user clicks "Open on GitHub", nothing happens, and the
+    // only trace is a console message they will never see.
     console.error(`Refusing to open non-https URL: ${url}`);
+    useUIStore.getState().addNotification({
+      type: "error",
+      message: "Refused to open a link that is not https.",
+      description:
+        "The repository's remote URL may be malformed. Check it in Settings.",
+    });
     return;
   }
   window.open(url, "_blank", "noopener,noreferrer");
