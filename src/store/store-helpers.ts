@@ -5,22 +5,16 @@
 
 import type { RepoState } from "./types";
 
-/** Recalculate whether ANY domain loading flag is set */
+/**
+ * Recalculate whether ANY domain loading flag is set.
+ *
+ * Derived from the object rather than a hand-written list of all twelve
+ * domains: a domain added to `LoadingStates` but forgotten here would have been
+ * silently excluded from `isLoading`, so a spinner bound to it would never
+ * appear and nothing would fail.
+ */
 function computeIsLoading(loadingStates: RepoState["loadingStates"]): boolean {
-  return (
-    loadingStates.global ||
-    loadingStates.commits ||
-    loadingStates.status ||
-    loadingStates.diff ||
-    loadingStates.staging ||
-    loadingStates.branches ||
-    loadingStates.blame ||
-    loadingStates.history ||
-    loadingStates.stashes ||
-    loadingStates.search ||
-    loadingStates.collaboration ||
-    loadingStates.settings
-  );
+  return Object.values(loadingStates).some(Boolean);
 }
 
 /** Helper to update a single loading domain flag and recalculate isLoading */

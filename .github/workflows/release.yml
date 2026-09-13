@@ -164,10 +164,14 @@ jobs:
           if [ -z "$(echo "$NOTES" | tr -d '[:space:]')" ]; then
             NOTES="Basilico release $TAG"
           fi
+          # Random delimiter: CHANGELOG content is arbitrary, and a literal
+          # "EOF" line in it would end the heredoc early and let the rest be
+          # parsed as workflow output.
+          DELIM="notes_$(openssl rand -hex 16)"
           {
-            echo 'notes<<EOF'
+            echo "notes<<${DELIM}"
             echo "$NOTES"
-            echo 'EOF'
+            echo "${DELIM}"
           } >> $GITHUB_OUTPUT
 
       - name: Update Release

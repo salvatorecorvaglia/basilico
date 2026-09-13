@@ -1,5 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { UserSettings } from "../../lib/git-types";
+import { STORAGE_KEYS } from "../../lib/persistence";
 import * as commands from "../../lib/tauri-commands";
 import { applyThemeToDOM } from "../../lib/theme-presets";
 import type { RepoState } from "../types";
@@ -28,7 +29,7 @@ export const createSettingsSlice: StateCreator<
     try {
       const settings = await commands.getSettings({ silent: true });
       set({ settings });
-      localStorage.setItem("basilico-theme", settings.theme);
+      localStorage.setItem(STORAGE_KEYS.theme, settings.theme);
       applyThemeToDOM(settings.theme);
     } catch (err) {
       console.error("Failed to load settings:", err);
@@ -42,7 +43,7 @@ export const createSettingsSlice: StateCreator<
         errorPrefix: "Failed to save settings",
       });
       set({ settings });
-      localStorage.setItem("basilico-theme", settings.theme);
+      localStorage.setItem(STORAGE_KEYS.theme, settings.theme);
       applyThemeToDOM(settings.theme);
     } catch (err) {
       console.error("Failed to save settings:", err);

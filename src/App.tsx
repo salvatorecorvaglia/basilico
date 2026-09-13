@@ -96,6 +96,7 @@ import { useRepoStore } from "./store/repo-store";
 import { useUIStore } from "./store/ui-store";
 import "./App.css";
 import { reportError } from "./lib/git-error";
+import { STORAGE_KEYS } from "./lib/persistence";
 
 interface ViewRouterProps {
   activeView: string;
@@ -274,8 +275,8 @@ function App() {
       }
       loadRecentRepos();
 
-      const savedRepos = localStorage.getItem("basilico-open-repos");
-      const savedActive = localStorage.getItem("basilico-active-repo");
+      const savedRepos = localStorage.getItem(STORAGE_KEYS.openRepos);
+      const savedActive = localStorage.getItem(STORAGE_KEYS.activeRepo);
       if (savedRepos) {
         try {
           const parsed = JSON.parse(savedRepos);

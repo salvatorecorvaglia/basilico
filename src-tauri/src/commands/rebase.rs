@@ -302,7 +302,11 @@ pub async fn rebase_write_todo(
 ) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
-        let json = serde_json::to_string(&items)?;
+        // Mapped explicitly: the blanket `From<serde_json::Error>` tags every
+        // JSON failure as a SettingsError, which is right for settings.rs and
+        // wrong here — a frontend branching on `kind` would mis-handle it.
+        let json = serde_json::to_string(&items)
+            .map_err(|e| AppError::invalid_state(format!("Failed to encode rebase plan: {}", e)))?;
         fs::write(plan_json_path(&repo), json)?;
         Ok(())
     })

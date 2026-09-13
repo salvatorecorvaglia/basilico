@@ -84,10 +84,23 @@ impl fmt::Display for AppError {
 impl std::error::Error for AppError {}
 
 impl From<git2::Error> for AppError {
+    /// Map libgit2's own error code onto an [`ErrorKind`] where one fits.
+    ///
+    /// Everything used to collapse into `GitError`, so the frontend could not
+    /// tell "no such branch" from "authentication failed" except by matching on
+    /// the message text — which is exactly what `error-messages.ts` ended up
+    /// doing. The message is still carried through unchanged; this only makes
+    /// the kind informative.
     fn from(err: git2::Error) -> Self {
+        let kind = match err.code() {
+            git2::ErrorCode::NotFound => ErrorKind::NotFound,
+            git2::ErrorCode::Conflict | git2::ErrorCode::Unmerged => ErrorKind::ConflictError,
+            git2::ErrorCode::Auth | git2::ErrorCode::Certificate => ErrorKind::GitError,
+            _ => ErrorKind::GitError,
+        };
         AppError {
             message: err.message().to_string(),
-            kind: ErrorKind::GitError,
+            kind,
         }
     }
 }

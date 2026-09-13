@@ -164,7 +164,12 @@ pub async fn create_commit(
             }
 
             if !amend && repo.find_reference("MERGE_HEAD").is_ok() {
-                let _ = repo.cleanup_state();
+                // Logged rather than discarded: a failure here leaves MERGE_HEAD on
+                // disk after a successful commit, so the repository keeps reporting
+                // as mid-merge with nothing to explain why.
+                if let Err(e) = repo.cleanup_state() {
+                    log::warn!("Failed to clear merge state after commit: {}", e);
+                }
             }
 
             commit_oid
@@ -195,7 +200,12 @@ pub async fn create_commit(
                 )?;
 
                 if has_merge_head {
-                    let _ = repo.cleanup_state();
+                    // Logged rather than discarded: a failure here leaves MERGE_HEAD on
+                    // disk after a successful commit, so the repository keeps reporting
+                    // as mid-merge with nothing to explain why.
+                    if let Err(e) = repo.cleanup_state() {
+                        log::warn!("Failed to clear merge state after commit: {}", e);
+                    }
                 }
                 commit_oid
             }

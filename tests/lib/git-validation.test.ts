@@ -86,3 +86,19 @@ describe("git-validation", () => {
     });
   });
 });
+
+describe("leading hyphen", () => {
+  it("rejects a name git would read as a flag", () => {
+    // The backend's validate_git_argument is the real gate; this keeps the two
+    // validators from disagreeing, so the user is told while typing.
+    for (const name of ["-f", "--exec=touch /tmp/x", "-"]) {
+      expect(validateBranchName(name)).not.toBeNull();
+      expect(validateTagName(name)).not.toBeNull();
+    }
+  });
+
+  it("still allows a hyphen elsewhere in the name", () => {
+    expect(validateBranchName("feature/my-branch")).toBeNull();
+    expect(validateTagName("v1.0.0-rc1")).toBeNull();
+  });
+});

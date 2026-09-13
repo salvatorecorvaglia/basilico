@@ -4,10 +4,11 @@
    ═══════════════════════════════════════════════════════ */
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { STORAGE_KEYS } from "./persistence";
 
 export type ColorSchemePreference = "light" | "dark" | "system";
 
-export const COLOR_SCHEME_STORAGE_KEY = "basilico-color-scheme";
+export const COLOR_SCHEME_STORAGE_KEY = STORAGE_KEYS.colorScheme;
 
 /**
  * There used to be three answers to "is the app dark right now", and two of

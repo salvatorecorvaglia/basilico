@@ -117,7 +117,14 @@ fn load_settings_from_disk<R: tauri::Runtime>(
     Ok(serde_json::from_str(&content)?)
 }
 
-pub fn get_custom_ssh_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Option<String> {
+/// Read one field out of the cached settings, populating the cache on first use.
+///
+/// `get_custom_ssh_path` and `get_merge_tool` were byte-for-byte identical
+/// except for the final field access.
+fn with_cached_settings<R: tauri::Runtime, T>(
+    app: &tauri::AppHandle<R>,
+    read: impl FnOnce(&UserSettings) -> Option<T>,
+) -> Option<T> {
     let state = app.try_state::<crate::state::AppState>()?;
     let mut cached = state.settings.lock();
     if cached.is_none() {
@@ -125,7 +132,11 @@ pub fn get_custom_ssh_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Opti
             *cached = Some(settings);
         }
     }
-    cached.as_ref().and_then(|s| s.ssh_key_path.clone())
+    cached.as_ref().and_then(read)
+}
+
+pub fn get_custom_ssh_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Option<String> {
+    with_cached_settings(app, |s| s.ssh_key_path.clone())
 }
 
 /// The user's configured merge-tool command, read from settings rather than
@@ -137,14 +148,7 @@ pub fn get_custom_ssh_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Opti
 /// — not from a `tool_name` argument a compromised or buggy renderer could
 /// set to anything.
 pub fn get_merge_tool<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Option<String> {
-    let state = app.try_state::<crate::state::AppState>()?;
-    let mut cached = state.settings.lock();
-    if cached.is_none() {
-        if let Ok(settings) = load_settings_from_disk(app) {
-            *cached = Some(settings);
-        }
-    }
-    cached.as_ref().and_then(|s| s.merge_tool.clone())
+    with_cached_settings(app, |s| s.merge_tool.clone())
 }
 
 #[tauri::command]

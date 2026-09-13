@@ -19,6 +19,14 @@ function validateRefFormat(
     return `${refType} name cannot start or end with spaces.`;
   }
 
+  // Cannot begin with "-": git parses a leading hyphen as a flag, and several
+  // subcommands expose flags that run arbitrary commands. The backend's
+  // `validate_git_argument` is the real gate, but rejecting it here too means
+  // the user is told while typing rather than after the operation fails.
+  if (name.startsWith("-")) {
+    return `${refType} name cannot start with "-".`;
+  }
+
   // Cannot begin or end with /
   if (name.startsWith("/") || name.endsWith("/")) {
     return `${refType} name cannot start or end with "/".`;

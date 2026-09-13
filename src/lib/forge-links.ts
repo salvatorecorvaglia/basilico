@@ -30,8 +30,13 @@ export interface ParsedForge {
 function detectProvider(host: string): ForgeProvider {
   const lower = host.toLowerCase();
   if (lower === "github.com" || lower.endsWith(".github.com")) return "github";
-  if (lower.includes("gitlab")) return "gitlab";
-  if (lower.includes("bitbucket")) return "bitbucket";
+  // Matched on host *labels* rather than substrings. `includes` classified
+  // `gitlab.evil.com` and `not-bitbucket.example.com` as those forges and
+  // handed them the matching URL shapes; a self-hosted instance still matches,
+  // because its hostname genuinely contains the label (`gitlab.company.com`).
+  const labels = lower.split(".");
+  if (labels.includes("gitlab")) return "gitlab";
+  if (labels.includes("bitbucket")) return "bitbucket";
   return "generic";
 }
 
@@ -135,17 +140,21 @@ export function getFileBlameUrl(
   if (!forge) return null;
 
   const encodedPath = filePath.split("/").map(encodeURIComponent).join("/");
+  // Encoded like `getBranchUrl` does. A ref is a path segment here, and branch
+  // names may legally contain `#`, `?` and other characters that silently
+  // truncate or redirect the URL when pasted in raw.
+  const encodedRef = encodeURIComponent(refOrBranch);
   const lineHash = line ? `#L${line}` : "";
 
   switch (forge.provider) {
     case "github":
-      return `${forge.webBaseUrl}/blame/${refOrBranch}/${encodedPath}${lineHash}`;
+      return `${forge.webBaseUrl}/blame/${encodedRef}/${encodedPath}${lineHash}`;
     case "gitlab":
-      return `${forge.webBaseUrl}/-/blame/${refOrBranch}/${encodedPath}${lineHash}`;
+      return `${forge.webBaseUrl}/-/blame/${encodedRef}/${encodedPath}${lineHash}`;
     case "bitbucket":
-      return `${forge.webBaseUrl}/annotate/${refOrBranch}/${encodedPath}${lineHash}`;
+      return `${forge.webBaseUrl}/annotate/${encodedRef}/${encodedPath}${lineHash}`;
     default:
-      return `${forge.webBaseUrl}/blame/${refOrBranch}/${encodedPath}${lineHash}`;
+      return `${forge.webBaseUrl}/blame/${encodedRef}/${encodedPath}${lineHash}`;
   }
 }
 

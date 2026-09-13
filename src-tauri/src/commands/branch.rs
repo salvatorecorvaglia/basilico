@@ -135,7 +135,12 @@ pub async fn checkout_branch(path: String, name: String) -> Result<(), AppError>
                     let remote_reference = repo.find_reference(&remote_ref)?;
                     let commit = remote_reference.peel_to_commit()?;
                     let mut new_branch = repo.branch(local_name, &commit, false)?;
-                    new_branch.set_upstream(Some(&name)).ok();
+                    // Logged rather than discarded: without an upstream the
+                    // branch shows 0/0 ahead-behind forever, which reads as
+                    // "in sync" rather than "not tracked".
+                    if let Err(e) = new_branch.set_upstream(Some(&name)) {
+                        log::warn!("Failed to set upstream for '{}': {}", local_name, e);
+                    }
                     new_branch.get().name().unwrap_or("").to_string()
                 }
             } else {

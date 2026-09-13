@@ -1,5 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { RecentRepo, RepoInfo, RepoTab } from "../../lib/git-types";
+import { STORAGE_KEYS } from "../../lib/persistence";
 import * as commands from "../../lib/tauri-commands";
 import {
   INITIAL_LOADING_STATES,
@@ -66,7 +67,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
   get,
 ) => {
   const addRepoToRecent = (info: RepoInfo) => {
-    const recentStr = localStorage.getItem("basilico-recent-repos");
+    const recentStr = localStorage.getItem(STORAGE_KEYS.recentRepos);
     let currentRecents: RecentRepo[] = [];
     if (recentStr) {
       try {
@@ -97,7 +98,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
     });
 
     set({ recentRepos: nextRecents });
-    localStorage.setItem("basilico-recent-repos", JSON.stringify(nextRecents));
+    localStorage.setItem(STORAGE_KEYS.recentRepos, JSON.stringify(nextRecents));
   };
 
   return {
@@ -129,7 +130,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
         if (existingTab) {
           // Switch to existing tab
           set((state) => activateTab(state, tabId, { repoInfo: info }));
-          localStorage.setItem("basilico-active-repo", tabId);
+          localStorage.setItem(STORAGE_KEYS.activeRepo, tabId);
           await get().refreshAll();
         } else {
           // Create new tab
@@ -149,10 +150,10 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
           }));
 
           localStorage.setItem(
-            "basilico-open-repos",
+            STORAGE_KEYS.openRepos,
             JSON.stringify(get().tabs.map((t) => t.path)),
           );
-          localStorage.setItem("basilico-active-repo", tabId);
+          localStorage.setItem(STORAGE_KEYS.activeRepo, tabId);
 
           // Load all data
           await get().refreshAll();
@@ -212,13 +213,13 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
         });
 
         localStorage.setItem(
-          "basilico-open-repos",
+          STORAGE_KEYS.openRepos,
           JSON.stringify(filtered.map((t) => t.path)),
         );
         if (newActive) {
-          localStorage.setItem("basilico-active-repo", newActive);
+          localStorage.setItem(STORAGE_KEYS.activeRepo, newActive);
         } else {
-          localStorage.removeItem("basilico-active-repo");
+          localStorage.removeItem(STORAGE_KEYS.activeRepo);
         }
 
         // If there's a new active tab, reload its data
@@ -233,7 +234,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
       } else {
         set({ tabs: filtered });
         localStorage.setItem(
-          "basilico-open-repos",
+          STORAGE_KEYS.openRepos,
           JSON.stringify(filtered.map((t) => t.path)),
         );
       }
@@ -245,7 +246,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
     switchTab: (tabId: string) => {
       set((state) => activateTab(state, tabId));
 
-      localStorage.setItem("basilico-active-repo", tabId);
+      localStorage.setItem(STORAGE_KEYS.activeRepo, tabId);
 
       // Reload data for the new active tab
       // Surface errors to user instead of swallowing them silently
@@ -302,8 +303,8 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
 
       if (openedTabs.length === 0) {
         set({ loadingStates: { ...get().loadingStates, global: false } });
-        localStorage.removeItem("basilico-open-repos");
-        localStorage.removeItem("basilico-active-repo");
+        localStorage.removeItem(STORAGE_KEYS.openRepos);
+        localStorage.removeItem(STORAGE_KEYS.activeRepo);
         return;
       }
 
@@ -366,11 +367,11 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
 
       // Save the list of successfully opened tabs back to localStorage (cleaning up any invalid/missing ones)
       localStorage.setItem(
-        "basilico-open-repos",
+        STORAGE_KEYS.openRepos,
         JSON.stringify(finalTabs.map((t) => t.path)),
       );
       if (finalActiveTabId) {
-        localStorage.setItem("basilico-active-repo", finalActiveTabId);
+        localStorage.setItem(STORAGE_KEYS.activeRepo, finalActiveTabId);
       }
 
       // Refresh all data
@@ -391,17 +392,17 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
         return b.lastOpened - a.lastOpened;
       });
       set({ recentRepos: updated });
-      localStorage.setItem("basilico-recent-repos", JSON.stringify(updated));
+      localStorage.setItem(STORAGE_KEYS.recentRepos, JSON.stringify(updated));
     },
 
     removeRecentRepo: (path: string) => {
       const updated = get().recentRepos.filter((r) => r.path !== path);
       set({ recentRepos: updated });
-      localStorage.setItem("basilico-recent-repos", JSON.stringify(updated));
+      localStorage.setItem(STORAGE_KEYS.recentRepos, JSON.stringify(updated));
     },
 
     loadRecentRepos: () => {
-      const recentStr = localStorage.getItem("basilico-recent-repos");
+      const recentStr = localStorage.getItem(STORAGE_KEYS.recentRepos);
       if (recentStr) {
         try {
           const recents = JSON.parse(recentStr) as RecentRepo[];

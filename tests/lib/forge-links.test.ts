@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   fetchGitHubCiStatus,
   getCommitUrl,
+  getFileBlameUrl,
   parseRemoteUrl,
 } from "../../src/lib/forge-links";
 
@@ -124,5 +125,48 @@ describe("forge-links — hosts that are not github.com", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe("forge host classification and encoding", () => {
+  it("matches the forge name as a host label, not a substring", () => {
+    // `includes` classified any host with the name anywhere in it. Matching
+    // labels means a host merely containing the word no longer inherits that
+    // provider's URL shapes.
+    expect(
+      parseRemoteUrl("https://not-bitbucket.example.com/o/r")?.provider,
+    ).toBe("generic");
+    expect(parseRemoteUrl("https://mygitlab-mirror.com/o/r")?.provider).toBe(
+      "generic",
+    );
+
+    // A host that really does carry the label is still that forge, and cannot
+    // be told apart from a legitimate self-hosted instance by hostname alone —
+    // which is why the CI-status call is separately hard-gated on github.com
+    // rather than relying on this classification.
+    expect(parseRemoteUrl("https://gitlab.evil.com/o/r")?.provider).toBe(
+      "gitlab",
+    );
+  });
+
+  it("still recognises a self-hosted instance", () => {
+    expect(parseRemoteUrl("https://gitlab.company.com/o/r")?.provider).toBe(
+      "gitlab",
+    );
+    expect(parseRemoteUrl("https://bitbucket.company.com/o/r")?.provider).toBe(
+      "bitbucket",
+    );
+  });
+
+  it("encodes the ref in a blame URL, like getBranchUrl already did", () => {
+    const url = getFileBlameUrl(
+      "https://github.com/o/r.git",
+      "feature/a?b#c",
+      "src/main.rs",
+      12,
+    );
+    // The ref must not introduce a query or fragment of its own.
+    expect(url).toContain("feature%2Fa%3Fb%23c");
+    expect(url?.endsWith("#L12")).toBe(true);
   });
 });

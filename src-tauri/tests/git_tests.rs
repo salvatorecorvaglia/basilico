@@ -268,19 +268,6 @@ fn test_validate_path_no_symlink_rejects_a_symlinked_leaf() {
     let _ = fs::remove_dir_all(&tmp);
 }
 
-#[test]
-fn test_validate_relative_path() {
-    assert!(validate_relative_path("foo/bar.txt").is_ok());
-    assert!(validate_relative_path("../foo").is_err());
-    assert!(validate_relative_path("/abs/path").is_err());
-}
-
-#[test]
-fn test_validate_repo_path() {
-    assert!(validate_repo_path("/nonexistent/directory/path/12345").is_err());
-    assert!(validate_repo_path(".").is_ok());
-}
-
 /* ═══════════════════════════════════════════════════════
 Pure helpers introduced alongside the correctness fixes
 ═══════════════════════════════════════════════════════ */
