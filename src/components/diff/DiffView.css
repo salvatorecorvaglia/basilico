@@ -1,0 +1,464 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — DiffView Styles
+   ═══════════════════════════════════════════════════════ */
+
+.diff-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-surface);
+  overflow: hidden;
+}
+
+.diff-view-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-tertiary);
+  gap: 16px;
+}
+
+.diff-view-empty h3 {
+  color: var(--text-primary);
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.diff-view-empty p {
+  margin: 0;
+  font-size: var(--font-size-base);
+}
+
+.diff-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  min-height: var(--toolbar-height);
+  gap: var(--space-4);
+}
+
+.diff-view-file-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-base);
+  font-weight: var(--weight-medium);
+  min-width: 0;
+}
+
+.diff-view-file-name {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.diff-view-file-stats {
+  display: flex;
+  gap: 6px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.stat-add {
+  color: var(--color-success);
+}
+
+.stat-del {
+  color: var(--color-danger);
+}
+
+.diff-view-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+/* Segmented Control */
+.diff-segmented-control {
+  display: flex;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 2px;
+  gap: 2px;
+}
+
+.diff-control-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 4px var(--space-2);
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.diff-control-btn:hover {
+  color: var(--text-primary);
+}
+
+.diff-control-btn.active {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.diff-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: 1px solid transparent;
+}
+
+.diff-btn-primary {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: var(--text-inverse);
+}
+
+.diff-btn-primary:hover {
+  background: var(--accent-primary-hover);
+  border-color: var(--accent-primary-hover);
+}
+
+.diff-btn-secondary {
+  background: var(--bg-elevated);
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+
+.diff-btn-secondary:hover {
+  background: var(--bg-hover);
+}
+
+.diff-btn-danger {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--color-danger) 40%, transparent);
+  color: var(--color-danger);
+}
+
+.diff-btn-danger:hover {
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  border-color: var(--color-danger);
+}
+
+.diff-view-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  background: var(--bg-inset);
+}
+
+.diff-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+  gap: var(--space-3);
+}
+
+.spinner-large {
+  width: 24px;
+  height: 24px;
+  border: 2px solid color-mix(in srgb, var(--text-tertiary) 20%, transparent);
+  border-top-color: var(--accent-primary);
+  border-radius: var(--radius-full);
+  animation: spin 0.8s linear infinite;
+}
+
+.diff-binary-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-tertiary);
+  gap: var(--space-3);
+}
+
+/* Granular Hunk Staging styles */
+.diff-hunk-list {
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.diff-hunk-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.diff-hunk-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.hunk-range {
+  font-size: var(--font-size-xs);
+  color: var(--text-link);
+  font-weight: var(--weight-medium);
+}
+
+.hunk-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.hunk-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: 1px solid transparent;
+}
+
+.hunk-btn-primary {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: var(--text-inverse);
+}
+
+.hunk-btn-primary:hover {
+  background: var(--accent-primary-hover);
+  border-color: var(--accent-primary-hover);
+}
+
+.hunk-btn-secondary {
+  background: var(--bg-surface);
+  border-color: var(--border-default);
+  color: var(--text-secondary);
+}
+
+.hunk-btn-secondary:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-accent);
+}
+
+.diff-hunk-body {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.hunk-line {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  min-height: 22px;
+  color: var(--text-secondary);
+  transition: background var(--transition-fast);
+}
+
+.hunk-line:hover {
+  background: var(--bg-hover);
+}
+
+.hunk-line-added {
+  background: var(--diff-add-bg);
+  color: var(--diff-add-text);
+}
+
+.hunk-line-added:hover {
+  background: var(--diff-add-line);
+}
+
+.hunk-line-removed {
+  background: var(--diff-del-bg);
+  color: var(--diff-del-text);
+}
+
+.hunk-line-removed:hover {
+  background: var(--diff-del-line);
+}
+
+/* Custom Checkbox for Hunk Lines */
+.hunk-line-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-inset);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: all var(--transition-fast);
+  outline: none;
+  margin-right: var(--space-2);
+  flex-shrink: 0;
+}
+
+.hunk-line-checkbox:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.hunk-line-checkbox:hover {
+  border-color: var(--accent-primary);
+}
+
+.hunk-line-checkbox:checked {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.hunk-line-checkbox:checked::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 4px;
+  border-left: 1.5px solid var(--text-inverse);
+  border-bottom: 1.5px solid var(--text-inverse);
+  transform: rotate(-45deg);
+  top: 3px;
+  left: 2px;
+}
+
+.hunk-line-spacer {
+  width: 14px;
+  margin-right: var(--space-2);
+  flex-shrink: 0;
+}
+
+.line-prefix {
+  width: 14px;
+  display: inline-block;
+  user-select: none;
+  font-weight: var(--weight-bold);
+}
+
+.line-content {
+  flex: 1;
+}
+
+/* Hunk Line Numbers Gutters */
+.hunk-line-number {
+  width: 32px;
+  text-align: right;
+  padding-right: var(--space-2);
+  user-select: none;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  opacity: 0.7;
+  border-right: 1px solid var(--border-default);
+  margin-right: var(--space-2);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.hunk-line-number-old {
+  border-color: var(--border-default);
+}
+
+.hunk-line-number-new {
+  border-right: none;
+  margin-right: var(--space-3);
+}
+
+.hunk-line-added .hunk-line-number {
+  color: var(--diff-add-text);
+  border-color: color-mix(in srgb, var(--diff-add-text) 25%, transparent);
+}
+
+.hunk-line-removed .hunk-line-number {
+  color: var(--diff-del-text);
+  border-color: color-mix(in srgb, var(--diff-del-text) 25%, transparent);
+}
+
+/* Monaco Gutter Diff Staging Glyphs */
+.monaco-gutter-stage,
+.monaco-gutter-unstage {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.monaco-gutter-stage::before {
+  content: "+";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  background: var(--color-success);
+  color: white;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: bold;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  cursor: pointer;
+  position: absolute;
+  left: 3px;
+  top: 3px;
+}
+
+.monaco-gutter-unstage::before {
+  content: "-";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  background: var(--color-danger);
+  color: white;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: bold;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  cursor: pointer;
+  position: absolute;
+  left: 3px;
+  top: 3px;
+}
+
+/* Show icons on hover */
+.monaco-gutter-stage:hover::before,
+.monaco-gutter-unstage:hover::before {
+  opacity: 0.85;
+}

@@ -1,0 +1,287 @@
+import { DiffEditor } from "@monaco-editor/react";
+import { ArrowLeftRight, CheckCircle, FileCode, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import * as commands from "../../lib/tauri-commands";
+import {
+  getDirectory,
+  getFileName,
+  getLanguageFromPath,
+  getStatusColor,
+  getStatusIcon,
+} from "../../lib/utils";
+import { useRepoStore } from "../../store/repo-store";
+import { useUIStore } from "../../store/ui-store";
+import "./CompareView.css";
+import { reportError } from "../../lib/git-error";
+// Registers the bundled Monaco + workers; keeps it off the startup chunk.
+import { disposeModelsOnUnmount } from "../../lib/monaco-setup";
+import { useDarkMode } from "../../lib/use-dark-mode";
+
+export function CompareView() {
+  const isDark = useDarkMode();
+  const {
+    activeTabId,
+    compareDiff,
+    compareBase,
+    compareTarget,
+    selectedCompareFile,
+    compareFileDiff,
+    selectCompareFile,
+    startComparison,
+  } = useRepoStore(
+    useShallow((s) => ({
+      activeTabId: s.activeTabId,
+      compareDiff: s.compareDiff,
+      compareBase: s.compareBase,
+      compareTarget: s.compareTarget,
+      selectedCompareFile: s.selectedCompareFile,
+      compareFileDiff: s.compareFileDiff,
+      selectCompareFile: s.selectCompareFile,
+      startComparison: s.startComparison,
+    })),
+  );
+
+  const { setActiveView, addNotification } = useUIStore(
+    useShallow((s) => ({
+      setActiveView: s.setActiveView,
+      addNotification: s.addNotification,
+    })),
+  );
+  const [splitView, setSplitView] = useState(true);
+  const [contents, setContents] = useState<{
+    original: string;
+    modified: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (
+      !activeTabId ||
+      !selectedCompareFile ||
+      !compareBase ||
+      !compareTarget
+    ) {
+      setContents(null);
+      return;
+    }
+
+    // Guard against an older request resolving after a newer one when clicking
+    // quickly through the changed-file list.
+    let cancelled = false;
+    setLoading(true);
+    commands
+      .getFileContentPairRevisions(
+        activeTabId,
+        selectedCompareFile,
+        compareBase,
+        compareTarget,
+      )
+      .then((data) => {
+        if (!cancelled) setContents(data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Failed to load file contents for comparison:", err);
+        setContents(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTabId, selectedCompareFile, compareBase, compareTarget]);
+
+  if (!compareBase || !compareTarget) {
+    return (
+      <div className="compare-view-empty">
+        <ArrowLeftRight size={40} strokeWidth={1} />
+        <h3>No Comparison Active</h3>
+        <p>Compare branches or commits from context menus to see details</p>
+      </div>
+    );
+  }
+
+  const handleSwap = () => {
+    startComparison(compareTarget, compareBase)
+      .then(() => {
+        addNotification({
+          type: "info",
+          message: "Swapped comparison direction",
+        });
+      })
+      .catch((err: unknown) => {
+        reportError(err, "Swap failed");
+      });
+  };
+
+  const handleClose = () => {
+    setActiveView("graph");
+  };
+
+  return (
+    <div className="compare-view animate-fade-in">
+      {/* Header */}
+      <div className="compare-header">
+        <div className="compare-info truncate">
+          <span className="compare-badge">Comparing</span>
+          <span className="compare-ref text-mono" title={compareBase}>
+            {compareBase.slice(0, 15)}
+          </span>
+          <span className="compare-arrow">➔</span>
+          <span className="compare-ref text-mono" title={compareTarget}>
+            {compareTarget.slice(0, 15)}
+          </span>
+        </div>
+
+        <div className="compare-header-actions">
+          <button
+            type="button"
+            className="compare-header-btn"
+            onClick={handleSwap}
+            title="Swap comparison direction"
+          >
+            <ArrowLeftRight size={13} />
+            <span>Swap Direction</span>
+          </button>
+
+          <div className="compare-header-sep" />
+
+          <button
+            type="button"
+            className={`compare-header-btn ${splitView ? "active" : ""}`}
+            onClick={() => setSplitView(!splitView)}
+            title="Toggle Split/Inline Diff"
+            disabled={!selectedCompareFile}
+          >
+            <span>{splitView ? "Split" : "Inline"}</span>
+          </button>
+
+          <button
+            type="button"
+            className="compare-header-btn close-btn"
+            onClick={handleClose}
+            title="Exit comparison"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content Pane */}
+      <div className="compare-workspace">
+        {/* Left Side: Changed Files List */}
+        <div className="compare-sidebar">
+          <div className="compare-sidebar-title">
+            <span>Changed Files</span>
+            <span className="compare-files-count">{compareDiff.length}</span>
+          </div>
+
+          <div className="compare-files-list">
+            {compareDiff.length === 0 ? (
+              <div className="compare-no-changes">
+                <CheckCircle size={28} className="text-success" />
+                <h3>No Differences</h3>
+                <p>Revisions match exactly.</p>
+              </div>
+            ) : (
+              compareDiff.map((file, idx) => {
+                const filePath = file.newPath || file.oldPath || "";
+                const isSelected = selectedCompareFile === filePath;
+
+                return (
+                  <div
+                    key={idx}
+                    role="button"
+                    tabIndex={0}
+                    aria-current={isSelected}
+                    className={`compare-file-row ${isSelected ? "selected" : ""}`}
+                    onClick={() => selectCompareFile(filePath)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        selectCompareFile(filePath);
+                      }
+                    }}
+                  >
+                    <span
+                      className="compare-file-status"
+                      style={{ color: getStatusColor(file.status) }}
+                    >
+                      {getStatusIcon(file.status)}
+                    </span>
+                    <div className="compare-file-paths truncate">
+                      <span className="file-name">{getFileName(filePath)}</span>
+                      <span className="file-dir">{getDirectory(filePath)}</span>
+                    </div>
+                    <span className="compare-file-stats text-mono">
+                      <span className="stat-add">+{file.stats.additions}</span>
+                      <span className="stat-del">-{file.stats.deletions}</span>
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Right Side: Monaco Diff Editor */}
+        <div className="compare-editor-pane">
+          {!selectedCompareFile ? (
+            <div className="editor-empty-placeholder">
+              <FileCode size={48} strokeWidth={1} />
+              <h3>No File Selected</h3>
+              <p>Select a file from the list to view differences</p>
+            </div>
+          ) : compareFileDiff?.isBinary ? (
+            <div className="editor-empty-placeholder">
+              <FileCode size={48} strokeWidth={1} />
+              <h3>Binary File</h3>
+              <p>Differences are not displayed for binary assets</p>
+            </div>
+          ) : loading ? (
+            <div className="editor-loader">
+              <span className="spinner-large" />
+              <p>Loading diff contents...</p>
+            </div>
+          ) : contents ? (
+            <div className="editor-container">
+              <div className="editor-file-banner">
+                <span className="editor-filename">{selectedCompareFile}</span>
+              </div>
+              <div className="editor-wrapper">
+                <DiffEditor
+                  original={contents.original}
+                  modified={contents.modified}
+                  language={getLanguageFromPath(selectedCompareFile)}
+                  theme={isDark ? "basilico-dark" : "basilico-light"}
+                  height="100%"
+                  options={{
+                    renderSideBySide: splitView,
+                    readOnly: true,
+                    minimap: { enabled: false },
+                    fontSize: 12,
+                    fontFamily:
+                      "JetBrains Mono, Fira Code, Menlo, Monaco, Consolas, monospace",
+                    scrollBeyondLastLine: false,
+                    diffWordWrap: "off",
+                    scrollbar: {
+                      vertical: "visible",
+                      horizontal: "visible",
+                    },
+                  }}
+                  onMount={disposeModelsOnUnmount}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="editor-empty-placeholder">
+              <p>Failed to load file contents</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

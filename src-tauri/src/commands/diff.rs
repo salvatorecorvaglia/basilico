@@ -1,0 +1,214 @@
+use crate::error::AppError;
+use crate::git::diff_parser;
+
+#[tauri::command]
+pub async fn get_workdir_diff(path: String) -> Result<Vec<diff_parser::FileDiff>, AppError> {
+    tokio::task::spawn_blocking(move || diff_parser::get_workdir_diff(&path)).await?
+}
+
+#[tauri::command]
+pub async fn get_staged_diff(path: String) -> Result<Vec<diff_parser::FileDiff>, AppError> {
+    tokio::task::spawn_blocking(move || diff_parser::get_staged_diff(&path)).await?
+}
+
+#[tauri::command]
+pub async fn get_commit_diff(
+    path: String,
+    oid: String,
+) -> Result<Vec<diff_parser::FileDiff>, AppError> {
+    tokio::task::spawn_blocking(move || diff_parser::get_commit_diff(&path, &oid)).await?
+}
+
+#[tauri::command]
+pub async fn get_file_diff(
+    path: String,
+    file_path: String,
+    is_staged: bool,
+) -> Result<diff_parser::FileDiff, AppError> {
+    tokio::task::spawn_blocking(move || diff_parser::get_file_diff(&path, &file_path, is_staged))
+        .await?
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileContentPair {
+    pub original: String,
+    pub modified: String,
+}
+
+#[tauri::command]
+pub async fn get_file_content_pair(
+    path: String,
+    file_path: String,
+    is_staged: bool,
+) -> Result<FileContentPair, AppError> {
+    tokio::task::spawn_blocking(move || {
+        let repo = git2::Repository::open(&path)?;
+        let workdir = repo
+            .workdir()
+            .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
+        // Read below via `fs::read_to_string`, which follows symlinks.
+        let validated_full_path =
+            crate::git::utils::validate_path_no_symlink(workdir, std::path::Path::new(&file_path))?;
+
+        let mut original = String::new();
+        let mut modified = String::new();
+
+        if is_staged {
+            // Original: from HEAD commit
+            if let Ok(head_ref) = repo.head() {
+                if let Ok(commit) = head_ref.peel_to_commit() {
+                    if let Ok(tree) = commit.tree() {
+                        if let Ok(entry) = tree.get_path(std::path::Path::new(&file_path)) {
+                            if let Ok(blob) = repo.find_blob(entry.id()) {
+                                original = String::from_utf8_lossy(blob.content()).to_string();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Modified: from Index
+            if let Ok(index) = repo.index() {
+                if let Some(entry) = index.get_path(std::path::Path::new(&file_path), 0) {
+                    if let Ok(blob) = repo.find_blob(entry.id) {
+                        modified = String::from_utf8_lossy(blob.content()).to_string();
+                    }
+                }
+            }
+        } else {
+            // Original: from Index (fallback to HEAD if not in index)
+            let mut found_original = false;
+            if let Ok(index) = repo.index() {
+                if let Some(entry) = index.get_path(std::path::Path::new(&file_path), 0) {
+                    if let Ok(blob) = repo.find_blob(entry.id) {
+                        original = String::from_utf8_lossy(blob.content()).to_string();
+                        found_original = true;
+                    }
+                }
+            }
+            if !found_original {
+                if let Ok(head_ref) = repo.head() {
+                    if let Ok(commit) = head_ref.peel_to_commit() {
+                        if let Ok(tree) = commit.tree() {
+                            if let Ok(entry) = tree.get_path(std::path::Path::new(&file_path)) {
+                                if let Ok(blob) = repo.find_blob(entry.id()) {
+                                    original = String::from_utf8_lossy(blob.content()).to_string();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Modified: from Working Directory
+            let full_path = validated_full_path;
+            if full_path.exists() && full_path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(full_path) {
+                    modified = content;
+                }
+            }
+        }
+
+        Ok(FileContentPair { original, modified })
+    })
+    .await?
+}
+
+#[tauri::command]
+pub async fn get_file_content_at_revision(
+    path: String,
+    file_path: String,
+    revision: String,
+) -> Result<String, AppError> {
+    tokio::task::spawn_blocking(move || {
+        let repo = git2::Repository::open(&path)?;
+        let workdir = repo
+            .workdir()
+            .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
+        let _validated_full_path =
+            crate::git::utils::validate_path(workdir, std::path::Path::new(&file_path))?;
+
+        // Resolve revision spec (like commit SHA or SHA^)
+        let obj = repo.revparse_single(&revision)?;
+
+        let blob = if let Some(commit) = obj.as_commit() {
+            let tree = commit.tree()?;
+            let entry = tree.get_path(std::path::Path::new(&file_path))?;
+            let object = entry.to_object(&repo)?;
+            object
+                .into_blob()
+                .map_err(|_| AppError::invalid_state("Object is not a blob"))?
+        } else if let Some(tree) = obj.as_tree() {
+            let entry = tree.get_path(std::path::Path::new(&file_path))?;
+            let object = entry.to_object(&repo)?;
+            object
+                .into_blob()
+                .map_err(|_| AppError::invalid_state("Object is not a blob"))?
+        } else if let Some(blob) = obj.as_blob() {
+            blob.clone()
+        } else {
+            return Err(AppError::invalid_state(
+                "Unable to resolve object to a blob",
+            ));
+        };
+
+        Ok(String::from_utf8_lossy(blob.content()).to_string())
+    })
+    .await?
+}
+
+#[tauri::command]
+pub async fn get_compare_diff(
+    path: String,
+    base: String,
+    target: String,
+) -> Result<Vec<diff_parser::FileDiff>, AppError> {
+    tokio::task::spawn_blocking(move || diff_parser::get_compare_diff(&path, &base, &target))
+        .await?
+}
+
+#[tauri::command]
+pub async fn get_file_content_pair_revisions(
+    path: String,
+    file_path: String,
+    base: String,
+    target: String,
+) -> Result<FileContentPair, AppError> {
+    tokio::task::spawn_blocking(move || {
+        let repo = git2::Repository::open(&path)?;
+        let workdir = repo
+            .workdir()
+            .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
+        let _validated_full_path =
+            crate::git::utils::validate_path(workdir, std::path::Path::new(&file_path))?;
+
+        let mut original = String::new();
+        let mut modified = String::new();
+
+        // Resolve base revision spec
+        if let Ok(base_obj) = repo.revparse_single(&base) {
+            if let Ok(tree) = base_obj.peel_to_tree() {
+                if let Ok(entry) = tree.get_path(std::path::Path::new(&file_path)) {
+                    if let Ok(blob) = repo.find_blob(entry.id()) {
+                        original = String::from_utf8_lossy(blob.content()).to_string();
+                    }
+                }
+            }
+        }
+
+        // Resolve target revision spec
+        if let Ok(target_obj) = repo.revparse_single(&target) {
+            if let Ok(tree) = target_obj.peel_to_tree() {
+                if let Ok(entry) = tree.get_path(std::path::Path::new(&file_path)) {
+                    if let Ok(blob) = repo.find_blob(entry.id()) {
+                        modified = String::from_utf8_lossy(blob.content()).to_string();
+                    }
+                }
+            }
+        }
+
+        Ok(FileContentPair { original, modified })
+    })
+    .await?
+}

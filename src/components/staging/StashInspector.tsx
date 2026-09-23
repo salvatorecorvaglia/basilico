@@ -1,0 +1,404 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — StashInspector Component
+   Visual workspace to explore and manage git stashes
+   ═══════════════════════════════════════════════════════ */
+
+import { DiffEditor } from "@monaco-editor/react";
+import {
+  Archive,
+  ArrowLeftRight,
+  ChevronRight,
+  CornerDownLeft,
+  FileCode,
+  GitBranch,
+  Info,
+  Play,
+  Trash2,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import {
+  type FileContentPair,
+  getFileContentPairRevisions,
+} from "../../lib/tauri-commands";
+import { useDarkMode } from "../../lib/use-dark-mode";
+import { getLanguageFromPath } from "../../lib/utils";
+import { useRepoStore } from "../../store/repo-store";
+import { useUIStore } from "../../store/ui-store";
+import "./StashInspector.css";
+import { reportError } from "../../lib/git-error";
+// Registers the bundled Monaco + workers; keeps it off the startup chunk.
+import { disposeModelsOnUnmount } from "../../lib/monaco-setup";
+
+export function StashInspector() {
+  const isDark = useDarkMode();
+  const {
+    activeTabId,
+    stashes,
+    selectedStashIndex,
+    stashDiff,
+    selectedStashFile,
+    selectedStashFileDiff,
+    selectStashFile,
+    createBranchFromStash,
+    applyStash,
+    popStash,
+    dropStash,
+  } = useRepoStore(
+    useShallow((s) => ({
+      activeTabId: s.activeTabId,
+      stashes: s.stashes,
+      selectedStashIndex: s.selectedStashIndex,
+      stashDiff: s.stashDiff,
+      selectedStashFile: s.selectedStashFile,
+      selectedStashFileDiff: s.selectedStashFileDiff,
+      selectStashFile: s.selectStashFile,
+      createBranchFromStash: s.createBranchFromStash,
+      applyStash: s.applyStash,
+      popStash: s.popStash,
+      dropStash: s.dropStash,
+    })),
+  );
+
+  const { addNotification, setActiveView, openConfirm, openPrompt } =
+    useUIStore(
+      useShallow((s) => ({
+        addNotification: s.addNotification,
+        setActiveView: s.setActiveView,
+        openConfirm: s.openConfirm,
+        openPrompt: s.openPrompt,
+      })),
+    );
+  const [splitView, setSplitView] = useState(true);
+  const [contents, setContents] = useState<FileContentPair | null>(null);
+  const [loadingContents, setLoadingContents] = useState(false);
+
+  const selectedStash = stashes.find((s) => s.index === selectedStashIndex);
+
+  // Fetch file content pair for Monaco Diff Editor when selected stash or file changes
+  useEffect(() => {
+    if (
+      !activeTabId ||
+      selectedStashIndex === null ||
+      !selectedStashFile ||
+      !selectedStash
+    ) {
+      setContents(null);
+      return;
+    }
+
+    // Guard against an older request resolving after a newer one when clicking
+    // quickly through a stash's files.
+    let cancelled = false;
+    setLoadingContents(true);
+    // Base: stash parent commit (stash.oid + "^1"), empty for untracked files
+    // Target: stash merge commit (stash.oid) or stash untracked commit (stash.oid + "^3")
+    const isUntracked = selectedStashFileDiff?.status === "untracked";
+    const baseRev = isUntracked ? "" : `${selectedStash.oid}^1`;
+    const targetRev = isUntracked
+      ? `${selectedStash.oid}^3`
+      : selectedStash.oid;
+
+    getFileContentPairRevisions(
+      activeTabId,
+      selectedStashFile,
+      baseRev,
+      targetRev,
+    )
+      .then((data) => {
+        if (!cancelled) setContents(data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Failed to load stash file contents:", err);
+        setContents(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingContents(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeTabId,
+    selectedStashIndex,
+    selectedStashFile,
+    selectedStash,
+    selectedStashFileDiff,
+  ]);
+
+  if (selectedStashIndex === null || !selectedStash) {
+    return (
+      <div className="stash-inspector-empty">
+        <Archive size={48} strokeWidth={1} />
+        <h3>No Stash Selected</h3>
+        <p>Select a stash entry in the sidebar to inspect its content</p>
+      </div>
+    );
+  }
+
+  const handlePop = async () => {
+    try {
+      await popStash(selectedStashIndex);
+      addNotification({
+        type: "success",
+        message: `Popped stash@{${selectedStashIndex}} successfully`,
+      });
+      setActiveView("graph");
+    } catch (err) {
+      reportError(err, "Failed to pop stash");
+    }
+  };
+
+  const handleApply = async () => {
+    try {
+      await applyStash(selectedStashIndex);
+      addNotification({
+        type: "success",
+        message: `Applied stash@{${selectedStashIndex}} successfully`,
+      });
+      setActiveView("graph");
+    } catch (err) {
+      reportError(err, "Failed to apply stash");
+    }
+  };
+
+  const handleDrop = () => {
+    openConfirm({
+      title: "Delete Stash",
+      message: `Are you sure you want to delete stash@{${selectedStashIndex}}? This action cannot be undone.`,
+      confirmLabel: "Delete Stash",
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await dropStash(selectedStashIndex);
+          addNotification({
+            type: "success",
+            message: `Dropped stash@{${selectedStashIndex}} successfully`,
+          });
+          setActiveView("graph");
+        } catch (err) {
+          reportError(err, "Failed to drop stash");
+        }
+      },
+    });
+  };
+
+  const handleBranch = () => {
+    openPrompt({
+      title: "Create Branch from Stash",
+      description: `Create branch from stash@{${selectedStashIndex}}. Enter new branch name:`,
+      fields: [
+        {
+          name: "branchName",
+          label: "Branch Name",
+          placeholder: "e.g. feature-stash",
+          required: true,
+        },
+      ],
+      submitLabel: "Create & Pop",
+      onSubmit: async (values) => {
+        const branchName = values.branchName || "";
+        if (branchName.trim()) {
+          try {
+            await createBranchFromStash(selectedStashIndex, branchName.trim());
+            addNotification({
+              type: "success",
+              message: `Created branch "${branchName.trim()}" and popped stash@{${selectedStashIndex}}`,
+            });
+            setActiveView("graph");
+          } catch (err) {
+            reportError(err, "Failed to branch from stash");
+          }
+        }
+      },
+    });
+  };
+
+  return (
+    <div className="stash-inspector animate-fade-in">
+      {/* Header Panel */}
+      <div className="stash-inspector-header">
+        <div className="stash-meta">
+          <div className="stash-title">
+            <Archive size={16} className="stash-icon-accent" />
+            <span className="stash-index">
+              stash@{"{"}
+              {selectedStashIndex}
+              {"}"}
+            </span>
+            <span className="stash-oid text-tertiary text-mono">
+              {selectedStash.oid.slice(0, 8)}
+            </span>
+          </div>
+          <p className="stash-msg truncate" title={selectedStash.message}>
+            {selectedStash.message}
+          </p>
+        </div>
+
+        <div className="stash-actions">
+          <button
+            type="button"
+            className="stash-action-btn btn-secondary"
+            onClick={handleApply}
+            title="Apply stash changes and keep the stash in list"
+          >
+            <Play size={13} />
+            <span>Apply</span>
+          </button>
+
+          <button
+            type="button"
+            className="stash-action-btn btn-secondary"
+            onClick={handlePop}
+            title="Apply stash changes and remove from stash list"
+          >
+            <CornerDownLeft size={13} />
+            <span>Pop</span>
+          </button>
+
+          <button
+            type="button"
+            className="stash-action-btn btn-secondary"
+            onClick={handleBranch}
+            title="Create branch from the stash base commit and apply changes"
+          >
+            <GitBranch size={13} />
+            <span>Branch</span>
+          </button>
+
+          <button
+            type="button"
+            className="stash-action-btn btn-danger"
+            onClick={handleDrop}
+            title="Discard this stash entry permanently"
+          >
+            <Trash2 size={13} />
+            <span>Drop</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Split Layout */}
+      <div className="stash-inspector-body">
+        {/* Left Sidebar: Stashed Files */}
+        <div className="stash-files-list">
+          <div className="stash-list-header">
+            <span>Stashed Modifications ({stashDiff.length})</span>
+          </div>
+          <div className="stash-files-scroll font-medium">
+            {stashDiff.length === 0 ? (
+              <div className="stash-files-empty">
+                <Info size={16} />
+                <p>No changes found in this stash entry</p>
+              </div>
+            ) : (
+              stashDiff.map((file) => {
+                const filePath = file.newPath || file.oldPath || "";
+                const isSelected = selectedStashFile === filePath;
+
+                return (
+                  <button
+                    type="button"
+                    key={filePath}
+                    className={`stash-file-item ${isSelected ? "active" : ""}`}
+                    onClick={() => selectStashFile(filePath)}
+                    title={filePath}
+                    aria-pressed={isSelected}
+                  >
+                    <ChevronRight size={12} className="chevron" />
+                    <span className="file-name truncate">{filePath}</span>
+                    <span className="file-stats text-mono">
+                      <span className="add">+{file.stats.additions}</span>
+                      <span className="del">-{file.stats.deletions}</span>
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Right Pane: Diff View */}
+        <div className="stash-diff-editor">
+          <div className="stash-editor-header">
+            <div className="selected-file-title truncate">
+              {selectedStashFile ? (
+                <>
+                  <FileCode size={14} />
+                  <span className="truncate">{selectedStashFile}</span>
+                </>
+              ) : (
+                <span>No file selected</span>
+              )}
+            </div>
+
+            {selectedStashFile && (
+              <button
+                type="button"
+                className={`layout-toggle-btn ${splitView ? "active" : ""}`}
+                onClick={() => setSplitView(!splitView)}
+                title="Toggle Split / Inline diff"
+              >
+                <ArrowLeftRight size={13} />
+                <span>{splitView ? "Split" : "Unified"}</span>
+              </button>
+            )}
+          </div>
+
+          <div className="stash-editor-container">
+            {selectedStashFile ? (
+              loadingContents ? (
+                <div className="stash-loader">
+                  <span className="spinner-large" />
+                  <p>Retrieving stashed diff...</p>
+                </div>
+              ) : selectedStashFileDiff?.isBinary ? (
+                <div className="stash-diff-placeholder">
+                  <FileCode size={40} strokeWidth={1} />
+                  <h3>Binary File</h3>
+                  <p>Diffing binary file content is not supported</p>
+                </div>
+              ) : contents ? (
+                <DiffEditor
+                  original={contents.original}
+                  modified={contents.modified}
+                  language={getLanguageFromPath(selectedStashFile)}
+                  theme={isDark ? "basilico-dark" : "basilico-light"}
+                  height="100%"
+                  options={{
+                    renderSideBySide: splitView,
+                    readOnly: true,
+                    minimap: { enabled: false },
+                    scrollbar: {
+                      vertical: "visible",
+                      horizontal: "visible",
+                    },
+                    fontSize: 12,
+                    fontFamily:
+                      "JetBrains Mono, Fira Code, Menlo, Monaco, Consolas, monospace",
+                    scrollBeyondLastLine: false,
+                    diffWordWrap: "off",
+                  }}
+                  onMount={disposeModelsOnUnmount}
+                />
+              ) : (
+                <div className="stash-diff-placeholder">
+                  <p>Unable to retrieve stashed content</p>
+                </div>
+              )
+            ) : (
+              <div className="stash-diff-placeholder">
+                <FileCode size={48} strokeWidth={1} />
+                <h3>No File Selected</h3>
+                <p>
+                  Select a stashed file from the list to view its diff contents
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

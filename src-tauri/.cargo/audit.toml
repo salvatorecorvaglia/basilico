@@ -1,0 +1,18 @@
+# cargo-audit configuration (read from src-tauri/, where CI runs `cargo audit`).
+#
+# Every advisory below is an "unmaintained"/"unsound" warning on a crate that
+# only reaches us transitively through Tauri — none is a direct dependency and
+# `cargo update` has no newer compatible version. Revisit when Tauri moves off
+# gtk-rs 0.18 (Linux webview stack) and bumps `urlpattern`.
+[advisories]
+ignore = [
+  # gtk-rs 0.18 stack: tauri -> muda/wry -> gtk -> glib (Linux only)
+  "RUSTSEC-2024-0370", # proc-macro-error unmaintained (via glib-macros)
+  "RUSTSEC-2024-0429", # glib::VariantStrIter unsound (Linux only; not called by our code)
+  # tauri-utils -> urlpattern -> unic-*
+  "RUSTSEC-2025-0075", # unic-char-range unmaintained
+  "RUSTSEC-2025-0080", # unic-common unmaintained
+  "RUSTSEC-2025-0081", # unic-char-property unmaintained
+  "RUSTSEC-2025-0098", # unic-ucd-version unmaintained
+  "RUSTSEC-2025-0100", # unic-ucd-ident unmaintained
+]

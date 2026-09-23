@@ -1,0 +1,769 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — Settings Modal
+   Theme preset trigger, Git default author, SSH key generator, keyboard shortcuts
+   ═══════════════════════════════════════════════════════ */
+
+import * as Dialog from "@radix-ui/react-dialog";
+import {
+  Check,
+  Copy,
+  GitBranch,
+  Key,
+  Keyboard,
+  Monitor as MonitorCog,
+  Moon,
+  Palette,
+  Plus,
+  Shield,
+  Sun,
+  X,
+} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import {
+  type ColorSchemePreference,
+  useColorScheme,
+} from "../../lib/color-scheme";
+import type { UserSettings } from "../../lib/git-types";
+import * as commands from "../../lib/tauri-commands";
+import { applyThemeToDOM, THEME_PRESETS } from "../../lib/theme-presets";
+import { useRepoStore } from "../../store/repo-store";
+import { useUIStore } from "../../store/ui-store";
+import "./SettingsModal.css";
+import { reportError } from "../../lib/git-error";
+import { useCopyFeedback } from "../../lib/use-copy-feedback";
+
+type SettingsTab = "appearance" | "git" | "ssh" | "shortcuts";
+
+/**
+ * The light/dark/system control. It reuses `useColorScheme`, the same single
+ * source of truth the toolbar's quick toggle reads, so the two cannot disagree.
+ */
+const COLOR_SCHEME_OPTIONS: {
+  value: ColorSchemePreference;
+  label: string;
+  Icon: typeof Sun;
+  hint: string;
+}[] = [
+  { value: "light", label: "Light", Icon: Sun, hint: "Always use light mode" },
+  { value: "dark", label: "Dark", Icon: Moon, hint: "Always use dark mode" },
+  {
+    value: "system",
+    label: "System",
+    Icon: MonitorCog,
+    hint: "Follow the operating system setting",
+  },
+];
+
+const SHORTCUT_LABELS: Record<string, string> = {
+  commandPalette: "Command Palette",
+  openSettings: "Open Settings",
+  search: "Search",
+  staging: "Toggle Staging",
+  commit: "Commit",
+  refresh: "Refresh",
+};
+
+function formatShortcutKeys(shortcut: string): string[] {
+  return shortcut
+    .split("+")
+    .map((k) =>
+      k === "CmdOrCtrl" ? "⌘" : k === "Shift" ? "⇧" : k === "Enter" ? "↵" : k,
+    );
+}
+
+export function SettingsModal() {
+  const { settingsOpen, toggleSettings, addNotification } = useUIStore(
+    useShallow((s) => ({
+      settingsOpen: s.settingsOpen,
+      toggleSettings: s.toggleSettings,
+      addNotification: s.addNotification,
+    })),
+  );
+  const { settings, loadSettings, saveSettings } = useRepoStore(
+    useShallow((s) => ({
+      settings: s.settings,
+      loadSettings: s.loadSettings,
+      saveSettings: s.saveSettings,
+    })),
+  );
+
+  const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
+  const { preference, setPreference } = useColorScheme();
+  const [draft, setDraft] = useState<UserSettings | null>(null);
+  const [sshKeys, setSshKeys] = useState<string[]>([]);
+  const [sshComment, setSshComment] = useState("");
+  const [generatedPubKey, setGeneratedPubKey] = useState<string | null>(null);
+  const { isCopied, markCopied } = useCopyFeedback();
+  const copied = isCopied();
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Load settings on open, and reset local UI state left over from the
+  // previous time the modal was open — otherwise a stale generated key or
+  // comment can look freshly made, and the modal lands on whatever tab was
+  // last active instead of a sane default.
+  useEffect(() => {
+    if (settingsOpen) {
+      loadSettings();
+      commands
+        .listSshKeys()
+        .then(setSshKeys)
+        .catch(() => setSshKeys([]));
+      setActiveTab("appearance");
+      setSshComment("");
+      setGeneratedPubKey(null);
+    }
+  }, [settingsOpen, loadSettings]);
+
+  // Sync draft to loaded settings
+  useEffect(() => {
+    if (settings) {
+      setDraft({ ...settings });
+    }
+  }, [settings]);
+
+  const handleSave = useCallback(async () => {
+    if (!draft || isSaving) return;
+    setIsSaving(true);
+    try {
+      await saveSettings(draft);
+      // Apply accent color to CSS root dynamically
+      applyThemeToDOM(draft.theme);
+      addNotification({ type: "success", message: "Settings saved" });
+      toggleSettings();
+    } catch {
+      addNotification({ type: "error", message: "Failed to save settings" });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [draft, isSaving, saveSettings, addNotification, toggleSettings]);
+
+  const handleGenerateSshKey = async () => {
+    if (!sshComment.trim()) return;
+    setIsGenerating(true);
+    try {
+      const pubKey = await commands.generateSshKey(sshComment.trim());
+      setGeneratedPubKey(pubKey);
+      // Refresh key list
+      const keys = await commands.listSshKeys();
+      setSshKeys(keys);
+      addNotification({
+        type: "success",
+        message: "SSH key generated successfully",
+      });
+    } catch (err) {
+      reportError(err, "SSH key generation failed");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleCopyPubKey = () => {
+    if (generatedPubKey) {
+      navigator.clipboard
+        .writeText(generatedPubKey)
+        .catch((err) => reportError(err, "Could not copy to clipboard"));
+      markCopied();
+    }
+  };
+
+  return (
+    <Dialog.Root open={settingsOpen} onOpenChange={toggleSettings}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="settings-overlay" />
+        <Dialog.Content className="settings-modal">
+          {draft && (
+            <>
+              {/* Header */}
+              <div className="settings-header">
+                <Dialog.Title asChild>
+                  <h2>
+                    <Palette size={18} />
+                    Settings
+                  </h2>
+                </Dialog.Title>
+                <Dialog.Close asChild>
+                  <button
+                    type="button"
+                    className="settings-close-btn"
+                    aria-label="Close settings"
+                  >
+                    <X size={16} />
+                  </button>
+                </Dialog.Close>
+              </div>
+
+              {/* Navigation */}
+              <div className="settings-nav" role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "appearance"}
+                  className={`settings-nav-btn ${activeTab === "appearance" ? "active" : ""}`}
+                  onClick={() => setActiveTab("appearance")}
+                >
+                  <Palette size={13} /> Appearance
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "git"}
+                  className={`settings-nav-btn ${activeTab === "git" ? "active" : ""}`}
+                  onClick={() => setActiveTab("git")}
+                >
+                  <GitBranch size={13} /> Git
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "ssh"}
+                  className={`settings-nav-btn ${activeTab === "ssh" ? "active" : ""}`}
+                  onClick={() => setActiveTab("ssh")}
+                >
+                  <Key size={13} /> SSH Keys
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "shortcuts"}
+                  className={`settings-nav-btn ${activeTab === "shortcuts" ? "active" : ""}`}
+                  onClick={() => setActiveTab("shortcuts")}
+                >
+                  <Keyboard size={13} /> Shortcuts
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="settings-body">
+                {activeTab === "appearance" && (
+                  <>
+                    <div className="settings-section">
+                      <div className="settings-section-title">
+                        Colour Scheme
+                      </div>
+                      <div
+                        className="scheme-options"
+                        role="radiogroup"
+                        aria-label="Colour scheme"
+                      >
+                        {COLOR_SCHEME_OPTIONS.map(
+                          ({ value, label, Icon, hint }) => (
+                            <button
+                              key={value}
+                              type="button"
+                              role="radio"
+                              aria-checked={preference === value}
+                              title={hint}
+                              className={`scheme-option-btn ${
+                                preference === value ? "active" : ""
+                              }`}
+                              onClick={() => setPreference(value)}
+                            >
+                              <Icon size={14} />
+                              {label}
+                            </button>
+                          ),
+                        )}
+                      </div>
+                      {/*
+                        The accent grid below is a draft applied on Save, but
+                        the toolbar's toggle switches the scheme instantly.
+                        Keeping this control immediate too is what stops the
+                        two from ever disagreeing — so say so, rather than
+                        letting Cancel look like it should undo it.
+                      */}
+                      <div className="settings-hint">
+                        Applies immediately, and is not affected by Cancel.
+                      </div>
+                    </div>
+
+                    <div className="settings-section">
+                      <div className="settings-section-title">Accent Theme</div>
+                      <div className="theme-presets">
+                        {THEME_PRESETS.map((preset) => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            className={`theme-preset-btn ${draft.theme === preset.id ? "active" : ""}`}
+                            onClick={() =>
+                              setDraft({ ...draft, theme: preset.id })
+                            }
+                          >
+                            <span
+                              className="theme-swatch"
+                              style={{ background: preset.color }}
+                            />
+                            {preset.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {activeTab === "git" && (
+                  <>
+                    <div className="settings-section">
+                      <div className="settings-section-title">
+                        Git Author Defaults
+                      </div>
+                      <div className="settings-field">
+                        <label htmlFor="settings-git-name">Author Name</label>
+                        <input
+                          id="settings-git-name"
+                          className="settings-input"
+                          type="text"
+                          placeholder="e.g. Mario Rossi"
+                          value={draft.gitAuthorName || ""}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              gitAuthorName: e.target.value || null,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="settings-field">
+                        <label htmlFor="settings-git-email">Author Email</label>
+                        <input
+                          id="settings-git-email"
+                          className="settings-input"
+                          type="email"
+                          placeholder="e.g. mario.rossi@basilico.com"
+                          value={draft.gitAuthorEmail || ""}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              gitAuthorEmail: e.target.value || null,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      className="settings-section"
+                      style={{ marginTop: "var(--space-5)" }}
+                    >
+                      <div className="settings-section-title">
+                        External Code Editor (1-Click Launcher)
+                      </div>
+                      <div className="settings-field">
+                        <label htmlFor="settings-external-editor">
+                          Default IDE for Opening Files & Lines
+                        </label>
+                        <select
+                          id="settings-external-editor"
+                          className="settings-input"
+                          value={draft.externalEditor || "code"}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              externalEditor: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="code">
+                            Visual Studio Code (code)
+                          </option>
+                          <option value="cursor">Cursor (cursor)</option>
+                          <option value="webstorm">WebStorm (webstorm)</option>
+                          <option value="sublime">Sublime Text (subl)</option>
+                          <option value="xcode">Xcode (macOS)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div
+                      className="settings-section"
+                      style={{ marginTop: "var(--space-5)" }}
+                    >
+                      <div className="settings-section-title">
+                        External Compare Tools
+                      </div>
+                      <div className="settings-field">
+                        <label htmlFor="settings-diff-tool">
+                          Diff Tool Command / Preset
+                        </label>
+                        <input
+                          id="settings-diff-tool"
+                          className="settings-input"
+                          type="text"
+                          placeholder="e.g. meld, kdiff3, code, or custom command"
+                          value={draft.diffTool || ""}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              diffTool: e.target.value || null,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="settings-field">
+                        <label htmlFor="settings-merge-tool">
+                          Merge Tool Command / Preset
+                        </label>
+                        <input
+                          id="settings-merge-tool"
+                          className="settings-input"
+                          type="text"
+                          placeholder="e.g. meld, kdiff3, code, cursor or custom command"
+                          value={draft.mergeTool || ""}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              mergeTool: e.target.value || null,
+                            })
+                          }
+                        />
+                        <span
+                          className="settings-field-hint"
+                          style={{
+                            fontSize: "10px",
+                            color: "var(--text-tertiary)",
+                            marginTop: "4px",
+                            display: "block",
+                          }}
+                        >
+                          Presets: meld, kdiff3, p4merge, opendiff, code,
+                          cursor. Custom supports: <code>%BASE</code>,{" "}
+                          <code>%OURS</code>, <code>%THEIRS</code>,{" "}
+                          <code>%MERGED</code> placeholders.
+                        </span>
+                      </div>
+                    </div>
+
+                    <div
+                      className="settings-section"
+                      style={{ marginTop: "var(--space-5)" }}
+                    >
+                      <div className="settings-section-title">
+                        GitHub Integration
+                      </div>
+                      <div
+                        className="settings-field-row"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          marginBottom: "var(--space-4)",
+                        }}
+                      >
+                        <input
+                          id="settings-check-ci-status"
+                          type="checkbox"
+                          checked={!!draft.checkGithubCiStatus}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              checkGithubCiStatus: e.target.checked,
+                            })
+                          }
+                        />
+                        <label
+                          htmlFor="settings-check-ci-status"
+                          style={{ cursor: "pointer" }}
+                        >
+                          Show GitHub Actions CI status in the status bar
+                        </label>
+                      </div>
+                      <span
+                        className="settings-field-hint"
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--text-tertiary)",
+                          display: "block",
+                          marginBottom: "var(--space-4)",
+                        }}
+                      >
+                        Off by default: enabling this sends the current branch
+                        name to api.github.com on every branch switch.
+                      </span>
+                      <div className="settings-field">
+                        <label htmlFor="settings-github-pat">
+                          GitHub Personal Access Token (PAT)
+                        </label>
+                        <input
+                          id="settings-github-pat"
+                          className="settings-input"
+                          type="password"
+                          placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                          value={draft.githubPat || ""}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              githubPat: e.target.value || null,
+                            })
+                          }
+                        />
+                        <span
+                          className="settings-field-hint"
+                          style={{
+                            fontSize: "10px",
+                            color: "var(--text-tertiary)",
+                            marginTop: "4px",
+                            display: "block",
+                          }}
+                        >
+                          Used to authenticate the CI status check above, if
+                          enabled — avoids GitHub's low unauthenticated rate
+                          limit and allows checking private repositories.
+                        </span>
+                      </div>
+                    </div>
+
+                    <div
+                      className="settings-section"
+                      style={{ marginTop: "var(--space-5)" }}
+                    >
+                      <div className="settings-section-title">
+                        Issue Autolinks
+                      </div>
+                      <div className="settings-field">
+                        <label htmlFor="settings-autolink-pattern">
+                          Autolink Regex Pattern
+                        </label>
+                        <input
+                          id="settings-autolink-pattern"
+                          className="settings-input"
+                          type="text"
+                          placeholder="e.g. (#\d+) or (JIRA-\d+)"
+                          value={draft.autolinkPattern || ""}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              autolinkPattern: e.target.value || null,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="settings-field">
+                        <label htmlFor="settings-autolink-url">
+                          Autolink Target URL
+                        </label>
+                        <input
+                          id="settings-autolink-url"
+                          className="settings-input"
+                          type="text"
+                          placeholder="e.g. https://github.com/owner/repo/issues/$1"
+                          value={draft.autolinkUrl || ""}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              autolinkUrl: e.target.value || null,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      className="settings-section"
+                      style={{ marginTop: "var(--space-5)" }}
+                    >
+                      <div className="settings-section-title">
+                        Git Commit Options
+                      </div>
+                      <div
+                        className="settings-field-row"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                        }}
+                      >
+                        <input
+                          id="settings-bypass-hooks"
+                          type="checkbox"
+                          checked={!!draft.bypassHooks}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              bypassHooks: e.target.checked,
+                            })
+                          }
+                        />
+                        <label
+                          htmlFor="settings-bypass-hooks"
+                          style={{ cursor: "pointer" }}
+                        >
+                          Bypass Git Hooks (--no-verify)
+                        </label>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {activeTab === "ssh" && (
+                  <>
+                    <div className="settings-section">
+                      <div className="settings-section-title">
+                        Detected SSH Keys
+                      </div>
+                      {sshKeys.length > 0 ? (
+                        <div className="ssh-key-list">
+                          {sshKeys.map((key) => (
+                            <div key={key} className="ssh-key-item">
+                              <Shield size={14} />
+                              <span>~/.ssh/{key}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="settings-empty">
+                          No SSH keys found in ~/.ssh
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="settings-section">
+                      <div className="settings-section-title">
+                        Generate New SSH Key (Ed25519)
+                      </div>
+                      <div className="ssh-generate-section">
+                        <div className="settings-field">
+                          <label htmlFor="settings-ssh-comment">
+                            Comment / Email
+                          </label>
+                          <input
+                            id="settings-ssh-comment"
+                            className="settings-input"
+                            type="text"
+                            placeholder="e.g. me@github.com"
+                            value={sshComment}
+                            onChange={(e) => setSshComment(e.target.value)}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="settings-btn"
+                          onClick={handleGenerateSshKey}
+                          disabled={!sshComment.trim() || isGenerating}
+                        >
+                          <Plus size={14} />
+                          {isGenerating ? "Generating..." : "Generate"}
+                        </button>
+                      </div>
+
+                      {generatedPubKey && (
+                        <>
+                          <div className="ssh-pubkey-output">
+                            {generatedPubKey}
+                          </div>
+                          <button
+                            type="button"
+                            className={`ssh-copy-btn ${copied ? "copied" : ""}`}
+                            onClick={handleCopyPubKey}
+                          >
+                            {copied ? <Check size={12} /> : <Copy size={12} />}
+                            {copied ? "Copied!" : "Copy Public Key"}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {activeTab === "shortcuts" && (
+                  <>
+                    <div className="settings-section">
+                      <div className="settings-section-title">
+                        Vim Modal Navigation Mode
+                      </div>
+                      <div
+                        className="settings-field-row"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          marginBottom: "var(--space-4)",
+                        }}
+                      >
+                        <input
+                          id="settings-vim-mode"
+                          type="checkbox"
+                          checked={!!draft.vimModeEnabled}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              vimModeEnabled: e.target.checked,
+                            })
+                          }
+                        />
+                        <label
+                          htmlFor="settings-vim-mode"
+                          style={{ cursor: "pointer", fontWeight: 500 }}
+                        >
+                          Enable Vim Keyboard Navigation (j/k, s/u, c, /)
+                        </label>
+                      </div>
+                      <span
+                        className="settings-field-hint"
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--text-tertiary)",
+                          display: "block",
+                          marginBottom: "var(--space-4)",
+                        }}
+                      >
+                        Use <code>j</code> / <code>k</code> to navigate commits
+                        or files, <code>s</code> / <code>u</code> to
+                        stage/unstage, <code>c</code> to jump to commit message,
+                        and <code>/</code> to search.
+                      </span>
+                    </div>
+
+                    <div className="settings-section">
+                      <div className="settings-section-title">
+                        Keyboard Shortcuts
+                      </div>
+                      <div className="shortcut-list">
+                        {Object.entries(draft.keyboardShortcuts).map(
+                          ([action, shortcut]) => (
+                            <div key={action} className="shortcut-row">
+                              <span className="shortcut-label">
+                                {SHORTCUT_LABELS[action] || action}
+                              </span>
+                              <div className="shortcut-keys">
+                                {formatShortcutKeys(shortcut).map((key, i) => (
+                                  <span key={i} className="shortcut-key">
+                                    {key}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="settings-footer">
+                <button
+                  type="button"
+                  className="settings-btn settings-btn-outline"
+                  onClick={toggleSettings}
+                  disabled={isSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="settings-btn"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                >
+                  {isSaving ? "Saving…" : "Save Settings"}
+                </button>
+              </div>
+            </>
+          )}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}

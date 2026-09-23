@@ -1,0 +1,255 @@
+use crate::error::AppError;
+use crate::git::repository;
+use git2::Repository;
+
+#[tauri::command]
+pub async fn list_branches(path: String) -> Result<Vec<repository::BranchInfo>, AppError> {
+    tokio::task::spawn_blocking(move || repository::list_branches(&path)).await?
+}
+
+#[tauri::command]
+pub async fn create_branch(
+    path: String,
+    name: String,
+    start_point: Option<String>,
+) -> Result<(), AppError> {
+    tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&path)?;
+        let target = match start_point {
+            Some(ref s) => {
+                let obj = repo.revparse_single(s)?;
+                obj.as_commit()
+                    .ok_or_else(|| AppError::invalid_state("Start point is not a commit"))?
+                    .clone()
+            }
+            None => {
+                let head = repo.head()?;
+                head.peel_to_commit()?
+            }
+        };
+
+        repo.branch(&name, &target, false)?;
+        Ok(())
+    })
+    .await?
+}
+
+#[tauri::command]
+pub async fn delete_branch<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    path: String,
+    name: String,
+    is_remote: bool,
+) -> Result<(), AppError> {
+    let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
+    tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&path)?;
+        if is_remote {
+            // name is formatted as "remote_name/branch_name" (e.g. "origin/my-feature")
+            let parts: Vec<&str> = name.splitn(2, '/').collect();
+            let [remote_name, branch_name] = parts[..] else {
+                return Err(AppError::invalid_state(format!(
+                    "Invalid remote branch name \"{}\": expected \"remote/branch\"",
+                    name
+                )));
+            };
+
+            // 1. Push deletion spec to remote repository
+            let mut remote_obj = repo.find_remote(remote_name)?;
+            let refspec = format!(":refs/heads/{}", branch_name);
+
+            let rejections = crate::git::credentials::new_push_rejections();
+            let mut push_opts = git2::PushOptions::new();
+            push_opts.remote_callbacks(crate::git::credentials::make_push_callbacks(
+                ssh_key_path,
+                rejections.clone(),
+            ));
+
+            remote_obj.push(&[refspec.as_str()], Some(&mut push_opts))?;
+            // A rejected deletion must not be followed by dropping the local
+            // tracking ref — that would hide a branch that still exists.
+            crate::git::credentials::check_push_rejections(&rejections)?;
+
+            // 2. Delete the local remote-tracking reference
+            let ref_name = format!("refs/remotes/{}", name);
+            if let Ok(mut reference) = repo.find_reference(&ref_name) {
+                reference.delete()?;
+            }
+        } else {
+            let mut branch = repo.find_branch(&name, git2::BranchType::Local)?;
+            branch.delete()?;
+        }
+        Ok(())
+    })
+    .await?
+}
+
+#[tauri::command]
+pub async fn checkout_branch(path: String, name: String) -> Result<(), AppError> {
+    tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&path)?;
+
+        // A full 40-character hex string is treated as a commit OID. The length
+        // check matters: `Oid::from_str` also accepts shorter hex strings and
+        // zero-pads them, so branches with all-hex names ("add", "beef") would
+        // otherwise be checked out as a detached HEAD at a bogus OID.
+        let looks_like_full_oid = name.len() == 40 && name.chars().all(|c| c.is_ascii_hexdigit());
+
+        if looks_like_full_oid && repo.find_branch(&name, git2::BranchType::Local).is_err() {
+            let oid = git2::Oid::from_str(&name)?;
+            let commit = repo.find_commit(oid)?;
+            let obj = commit.into_object();
+
+            let mut opts = git2::build::CheckoutBuilder::new();
+            opts.safe();
+            repo.checkout_tree(&obj, Some(&mut opts))?;
+            repo.set_head_detached(oid)?;
+            return Ok(());
+        }
+
+        // Check if it is a tag reference (refs/tags/...)
+        if name.starts_with("refs/tags/") {
+            let reference = repo.find_reference(&name)?;
+            let commit = reference.peel_to_commit()?;
+            let obj = commit.clone().into_object();
+
+            let mut opts = git2::build::CheckoutBuilder::new();
+            opts.safe();
+            repo.checkout_tree(&obj, Some(&mut opts))?;
+            repo.set_head_detached(commit.id())?;
+            return Ok(());
+        }
+
+        // Handle normal branches and remote branches
+        let ref_name = if repo.find_branch(&name, git2::BranchType::Local).is_ok() {
+            format!("refs/heads/{}", name)
+        } else if name.contains('/') && !name.starts_with("refs/") {
+            // Handle remote branches: "origin/feature" -> checkout local tracking branch "feature"
+            let parts: Vec<&str> = name.splitn(2, '/').collect();
+            if parts.len() == 2 {
+                let local_name = parts[1];
+                if let Ok(local_branch) = repo.find_branch(local_name, git2::BranchType::Local) {
+                    local_branch.get().name().unwrap_or("").to_string()
+                } else {
+                    let remote_ref = format!("refs/remotes/{}", name);
+                    let remote_reference = repo.find_reference(&remote_ref)?;
+                    let commit = remote_reference.peel_to_commit()?;
+                    let mut new_branch = repo.branch(local_name, &commit, false)?;
+                    // Logged rather than discarded: without an upstream the
+                    // branch shows 0/0 ahead-behind forever, which reads as
+                    // "in sync" rather than "not tracked".
+                    if let Err(e) = new_branch.set_upstream(Some(&name)) {
+                        log::warn!("Failed to set upstream for '{}': {}", local_name, e);
+                    }
+                    new_branch.get().name().unwrap_or("").to_string()
+                }
+            } else {
+                format!("refs/heads/{}", name)
+            }
+        } else if name.starts_with("refs/") {
+            name.clone()
+        } else {
+            format!("refs/heads/{}", name)
+        };
+
+        let obj = repo.revparse_single(&ref_name)?;
+        let mut opts = git2::build::CheckoutBuilder::new();
+        opts.safe(); // Prevents checkout if it overwrites local dirty changes
+        repo.checkout_tree(&obj, Some(&mut opts))?;
+
+        repo.set_head(&ref_name)?;
+        Ok(())
+    })
+    .await?
+}
+
+#[tauri::command]
+pub async fn rename_branch(
+    path: String,
+    current_name: String,
+    new_name: String,
+) -> Result<(), AppError> {
+    tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&path)?;
+        let mut branch = repo.find_branch(&current_name, git2::BranchType::Local)?;
+        branch.rename(&new_name, false)?;
+        Ok(())
+    })
+    .await?
+}
+
+/// Branch names that must never be offered for bulk deletion.
+///
+/// The sweeper deletes remote branches by pushing a deletion to the server, so a
+/// mistake here is visible to the whole team and is not undoable from the UI.
+const PROTECTED_BRANCH_NAMES: &[&str] = &[
+    "main",
+    "master",
+    "develop",
+    "development",
+    "trunk",
+    "release",
+];
+
+/// True when `branch_name` names a protected branch, in either its local
+/// (`main`) or remote-tracking (`origin/main`) form.
+pub fn is_protected_branch(branch_name: &str, target_name: &str) -> bool {
+    // Compare the last path segment so `origin/main` is caught alongside `main`.
+    let bare = branch_name.rsplit('/').next().unwrap_or(branch_name);
+    let target_bare = target_name.rsplit('/').next().unwrap_or(target_name);
+
+    if bare == target_bare {
+        return true;
+    }
+
+    PROTECTED_BRANCH_NAMES.contains(&bare)
+}
+
+#[tauri::command]
+pub async fn list_merged_branches(
+    path: String,
+    target_branch: Option<String>,
+) -> Result<Vec<repository::BranchInfo>, AppError> {
+    tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&path)?;
+
+        let target_name = target_branch.unwrap_or_else(|| "HEAD".to_string());
+        let target_obj = repo.revparse_single(&target_name)?;
+        let target_commit = target_obj.peel_to_commit()?;
+        let target_oid = target_commit.id();
+
+        let all_branches = repository::list_branches(&path)?;
+        let mut merged_branches = Vec::new();
+
+        for b in all_branches {
+            // Skip HEAD or current branch if it matches target
+            if b.is_head {
+                continue;
+            }
+            // Excludes the target in both its local and remote-tracking form,
+            // plus the well-known long-lived branches. Without this, sweeping
+            // from a feature branch that has `main` merged in would offer
+            // `origin/main` for deletion.
+            if is_protected_branch(&b.name, &target_name) {
+                continue;
+            }
+
+            let branch_oid_res = git2::Oid::from_str(&b.oid);
+            if let Ok(b_oid) = branch_oid_res {
+                if b_oid == target_oid {
+                    merged_branches.push(b);
+                    continue;
+                }
+                // Check if target_oid is descendant of b_oid (b_oid is ancestor of target_oid)
+                if let Ok(is_descendant) = repo.graph_descendant_of(target_oid, b_oid) {
+                    if is_descendant {
+                        merged_branches.push(b);
+                    }
+                }
+            }
+        }
+
+        Ok(merged_branches)
+    })
+    .await?
+}

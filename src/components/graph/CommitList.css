@@ -1,0 +1,299 @@
+.commit-list-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-base);
+}
+
+/* Table Controls (Search/Filter) */
+.commit-list-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.commit-list-search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  height: 28px;
+  flex: 1;
+  max-width: 320px;
+  transition: all var(--transition-fast);
+}
+
+.commit-list-search-wrapper:focus-within {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--accent-primary) 15%, transparent);
+}
+
+.commit-list-search-icon {
+  color: var(--text-tertiary);
+}
+
+.commit-list-search-input {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  outline: none;
+  padding: 0;
+  width: 100%;
+}
+
+.commit-list-search-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* Table Header */
+.commit-list-header {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--space-3);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  font-family: var(--font-family);
+  font-size: 10px;
+  font-weight: var(--weight-bold);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.commit-list-header-cell {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  cursor: pointer;
+}
+
+.commit-list-header-cell:hover {
+  color: var(--text-primary);
+}
+
+.commit-list-header-graph {
+  flex-shrink: 0;
+}
+
+/* Resizer handle */
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 4px;
+  background: transparent;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizer.isResizing {
+  background: var(--accent-primary);
+}
+
+.commit-list-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  position: relative;
+  outline: none;
+}
+
+.commit-list-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-tertiary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+}
+
+/* ── Commit Row ── */
+.commit-row {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--transition-fast);
+  background: var(--bg-base);
+}
+
+.commit-row:hover {
+  background: var(--bg-hover);
+}
+
+.commit-row.selected {
+  background: var(--bg-active);
+  border-bottom-color: var(--border-accent);
+}
+
+.commit-row.drag-hover {
+  background: var(--bg-hover) !important;
+  outline: 2px dashed var(--accent-primary) !important;
+  outline-offset: -2px;
+}
+
+.commit-row.selected:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
+}
+
+.commit-col-graph {
+  flex-shrink: 0;
+}
+
+.commit-col-cell {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-message {
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+}
+
+.commit-row.selected .commit-message {
+  font-weight: var(--weight-semibold);
+}
+
+/* ── Ref Badges ── */
+.commit-ref-list {
+  display: inline-flex;
+  gap: var(--space-1);
+  margin-right: var(--space-2);
+  flex-shrink: 0;
+}
+
+.commit-ref {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  height: 16px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family);
+  font-size: 9px;
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ref-head {
+  background: var(--bg-active);
+  color: var(--accent-primary);
+  border: 1px solid var(--border-accent);
+}
+
+.ref-branch {
+  background: color-mix(in srgb, var(--cat-indigo) 15%, transparent);
+  color: var(--text-link);
+  border: 1px solid color-mix(in srgb, var(--cat-indigo) 25%, transparent);
+}
+
+.ref-remote {
+  background: color-mix(in srgb, var(--cat-purple) 15%, transparent);
+  color: var(--cat-purple);
+  border: 1px solid color-mix(in srgb, var(--cat-purple) 25%, transparent);
+}
+
+.ref-tag {
+  background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+  color: var(--color-warning);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 25%, transparent);
+}
+
+/* ── Author Column ── */
+.commit-col-author-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.commit-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-family);
+  font-size: 8px;
+  font-weight: var(--weight-bold);
+  color: white;
+  flex-shrink: 0;
+}
+
+.commit-author-name {
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+/* ── Date Column ── */
+.commit-col-date-cell {
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+/* ── SHA Column ── */
+.commit-col-sha-cell {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+/* ── Context Menu overlays ── */
+.commit-context-menu {
+  min-width: 240px;
+}
+
+/* ── Autolinked issue/ticket references in a commit message ──
+   A button rather than an anchor, so the click goes through
+   `openExternalUrl`'s https-only guard like every other outbound link. These
+   rules restore the inline-link appearance the default anchor styling used to
+   provide. */
+.autolink {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--accent-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.autolink:hover {
+  color: var(--accent-primary-hover);
+}
+
+.autolink:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}

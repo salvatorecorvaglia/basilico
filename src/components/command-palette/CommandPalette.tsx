@@ -1,0 +1,476 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — CommandPalette Component
+   Floating command bar overlay using Radix Dialog (Cmd/Ctrl+Shift+P)
+   ═══════════════════════════════════════════════════════ */
+
+import * as Dialog from "@radix-ui/react-dialog";
+import { ArrowRight, Command, Terminal } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { useRepoStore } from "../../store/repo-store";
+import { selectDefaultRemote } from "../../store/slices/git-data-slice";
+import { useUIStore } from "../../store/ui-store";
+import "./CommandPalette.css";
+import { reportError } from "../../lib/git-error";
+
+interface PaletteItem {
+  id: string;
+  name: string;
+  category: string;
+  shortcut?: string;
+  action: () => void | Promise<void>;
+}
+
+/**
+ * Gate around the palette's body.
+ *
+ * `CommandPaletteContent` subscribes to `status` and `selectDefaultRemote` just
+ * to build three command *labels*, and rebuilds its whole command array and the
+ * filtered view on every render — none of it memoised. Mounted unconditionally,
+ * that meant every file save in the repository (watcher → refreshOnFileSystemChange
+ * → new `status`) re-rendered a component that was not on screen. Reading one
+ * boolean out here keeps that work behind the open state.
+ */
+export function CommandPalette() {
+  const commandPaletteOpen = useUIStore((s) => s.commandPaletteOpen);
+  if (!commandPaletteOpen) return null;
+  return <CommandPaletteContent />;
+}
+
+function CommandPaletteContent() {
+  // The remote sync commands target. Hardcoding "origin" made all three fail
+  // on any repository whose remote is named something else.
+  const defaultRemote = useRepoStore(selectDefaultRemote);
+
+  const { toggleCommandPalette, setActiveView, addNotification, openPrompt } =
+    useUIStore(
+      useShallow((s) => ({
+        toggleCommandPalette: s.toggleCommandPalette,
+        setActiveView: s.setActiveView,
+        addNotification: s.addNotification,
+        openPrompt: s.openPrompt,
+      })),
+    );
+
+  const {
+    refreshAll,
+    fetch,
+    pull,
+    push,
+    createBranch,
+    initRebase,
+    resetBisect,
+    startBisect,
+    status,
+  } = useRepoStore(
+    useShallow((s) => ({
+      refreshAll: s.refreshAll,
+      fetch: s.fetch,
+      pull: s.pull,
+      push: s.push,
+      createBranch: s.createBranch,
+      initRebase: s.initRebase,
+      resetBisect: s.resetBisect,
+      startBisect: s.startBisect,
+      status: s.status,
+    })),
+  );
+
+  const [query, setQuery] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Define commands
+  const commandsList: PaletteItem[] = [
+    {
+      id: "history",
+      name: "Switch View to Commit History (Graph)",
+      category: "Navigation",
+      shortcut: "G H",
+      action: () => setActiveView("graph"),
+    },
+    {
+      id: "staging",
+      name: "Switch View to Staging Area",
+      category: "Navigation",
+      shortcut: "G S",
+      action: () => setActiveView("staging"),
+    },
+    {
+      id: "reflog",
+      name: "Switch View to Reflog Inspector",
+      category: "Navigation",
+      shortcut: "G R",
+      action: () => setActiveView("reflog"),
+    },
+
+    {
+      id: "search",
+      name: "Switch View to Repository Search",
+      category: "Navigation",
+      shortcut: "G F",
+      action: () => setActiveView("search"),
+    },
+    {
+      id: "refresh",
+      name: "Refresh Repository Data",
+      category: "Repository",
+      shortcut: "Ctrl+R",
+      action: async () => {
+        await refreshAll();
+        addNotification({
+          type: "success",
+          message: "Repository refreshed successfully",
+        });
+      },
+    },
+    {
+      id: "fetch",
+      name: `Fetch from remote (${defaultRemote ?? "no remote"})`,
+      category: "Remote Sync",
+      shortcut: "Ctrl+Shift+F",
+      action: async () => {
+        if (!defaultRemote) {
+          addNotification({
+            type: "warning",
+            message: "This repository has no remote configured.",
+          });
+          return;
+        }
+        try {
+          await fetch(defaultRemote);
+          addNotification({
+            type: "success",
+            message: "Fetch completed successfully",
+          });
+        } catch (err) {
+          reportError(err, "Fetch failed");
+        }
+      },
+    },
+    {
+      id: "pull",
+      name: `Pull from remote (${defaultRemote ?? "no remote"})`,
+      category: "Remote Sync",
+      shortcut: "Ctrl+Shift+L",
+      action: async () => {
+        if (!status?.branch) return;
+        if (!defaultRemote) {
+          addNotification({
+            type: "warning",
+            message: "This repository has no remote configured.",
+          });
+          return;
+        }
+        try {
+          const res = await pull(defaultRemote, status.branch);
+          if (res === "conflicts") {
+            addNotification({
+              type: "warning",
+              message: "Pull resulted in conflicts!",
+            });
+          } else {
+            addNotification({
+              type: "success",
+              message: "Pull completed successfully",
+            });
+          }
+        } catch (err) {
+          reportError(err, "Pull failed");
+        }
+      },
+    },
+    {
+      id: "push",
+      name: `Push to remote (${defaultRemote ?? "no remote"})`,
+      category: "Remote Sync",
+      shortcut: "Ctrl+Shift+P",
+      action: async () => {
+        if (!status?.branch) return;
+        if (!defaultRemote) {
+          addNotification({
+            type: "warning",
+            message: "This repository has no remote configured.",
+          });
+          return;
+        }
+        try {
+          await push(defaultRemote, status.branch, false);
+          addNotification({
+            type: "success",
+            message: "Push completed successfully",
+          });
+        } catch (err) {
+          reportError(err, "Push failed");
+        }
+      },
+    },
+    {
+      id: "branch-create",
+      name: "Create new branch...",
+      category: "Branch Management",
+      action: () => {
+        openPrompt({
+          title: "Create Branch",
+          description: "Enter a name for the new local branch.",
+          fields: [
+            {
+              name: "name",
+              label: "Branch Name",
+              placeholder: "e.g. feature/palette-fix",
+              required: true,
+            },
+          ],
+          submitLabel: "Create Branch",
+          onSubmit: async (values) => {
+            const name = values.name.trim();
+            try {
+              await createBranch(name);
+              addNotification({
+                type: "success",
+                message: `Created branch "${name}"`,
+              });
+            } catch (err) {
+              reportError(err, "Failed to create branch");
+            }
+          },
+        });
+      },
+    },
+    {
+      id: "rebase-interactive",
+      name: "Start visual Interactive Rebase...",
+      category: "Interactive Rebase",
+      action: () => {
+        openPrompt({
+          title: "Interactive Rebase",
+          description:
+            "Rebase active branch onto a base commit/upstream branch.",
+          fields: [
+            {
+              name: "upstream",
+              label: "Upstream Commit or Branch",
+              placeholder: "e.g. main, origin/main, HEAD~3",
+              defaultValue: "main",
+              required: true,
+            },
+          ],
+          submitLabel: "Initialize Rebase",
+          onSubmit: async (values) => {
+            const upstream = values.upstream.trim();
+            try {
+              await initRebase(upstream);
+              setActiveView("rebase");
+              addNotification({ type: "info", message: "Rebase initialized" });
+            } catch (err) {
+              reportError(err, "Failed to initialize rebase");
+            }
+          },
+        });
+      },
+    },
+    {
+      id: "bisect-start",
+      name: "Start Git Bisect session...",
+      category: "Git Bisect",
+      action: () => {
+        openPrompt({
+          title: "Start Git Bisect",
+          description: "Initialize a binary search session to find a bug.",
+          fields: [
+            {
+              name: "bad",
+              label: "Known BAD Commit OID or Branch",
+              placeholder: "defaults to HEAD",
+              defaultValue: "HEAD",
+              required: true,
+            },
+            {
+              name: "good",
+              label: "Known GOOD Commit OID or Branch",
+              placeholder: "e.g. main, or OID",
+              required: true,
+            },
+          ],
+          submitLabel: "Start Bisect",
+          onSubmit: async (values) => {
+            const bad = values.bad.trim();
+            const good = values.good.trim();
+            try {
+              await startBisect(bad || "HEAD", good);
+              setActiveView("bisect");
+              addNotification({ type: "info", message: "Bisect started" });
+            } catch (err) {
+              reportError(err, "Failed to start bisect");
+            }
+          },
+        });
+      },
+    },
+    {
+      id: "bisect-reset",
+      name: "Reset / Abort active Bisect session",
+      category: "Git Bisect",
+      action: async () => {
+        try {
+          await resetBisect();
+          addNotification({
+            type: "success",
+            message: "Bisect reset successfully",
+          });
+        } catch (err) {
+          reportError(err, "Failed to reset bisect");
+        }
+      },
+    },
+  ];
+
+  // Filter commands by query
+  const filteredCommands = commandsList.filter(
+    (cmd) =>
+      cmd.name.toLowerCase().includes(query.toLowerCase()) ||
+      cmd.category.toLowerCase().includes(query.toLowerCase()),
+  );
+
+  // Adjust selected index on filter changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: query is used to trigger index reset on filter change
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [query]);
+
+  // Cmd/Ctrl+K is a fixed secondary shortcut owned entirely by this
+  // component. The primary, user-configurable shortcut (default
+  // Cmd/Ctrl+Shift+P) is handled once, centrally, in App.tsx — duplicating
+  // it here made every press toggle the palette twice (once per listener),
+  // which canceled out and made the shortcut appear to do nothing at all.
+  useEffect(() => {
+    const handleKeyDownGlobal = (e: KeyboardEvent) => {
+      const isCmdK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k";
+      if (isCmdK) {
+        e.preventDefault();
+        toggleCommandPalette();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDownGlobal);
+    return () => window.removeEventListener("keydown", handleKeyDownGlobal);
+  }, [toggleCommandPalette]);
+
+  // Handle keyboard navigation inside the open palette
+  const handleKeyDownPalette = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((prev) =>
+        prev < filteredCommands.length - 1 ? prev + 1 : 0,
+      );
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((prev) =>
+        prev > 0 ? prev - 1 : filteredCommands.length - 1,
+      );
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const selectedCmd = filteredCommands[selectedIndex];
+      if (selectedCmd) {
+        selectedCmd.action();
+        toggleCommandPalette();
+      }
+    }
+  };
+
+  // Scroll selected item into view automatically
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedIndex triggers scroll repositioning
+  useEffect(() => {
+    const listEl = listRef.current;
+    if (listEl) {
+      const activeEl = listEl.querySelector(".palette-row.active");
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: "nearest" });
+      }
+    }
+  }, [selectedIndex]);
+
+  return (
+    <Dialog.Root open onOpenChange={toggleCommandPalette}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="radix-dialog-overlay" />
+        <Dialog.Content
+          className="radix-dialog-content"
+          onKeyDown={handleKeyDownPalette}
+        >
+          <div className="palette-search">
+            <Command size={16} className="palette-search-icon" />
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Type a command or action to run..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <span className="palette-esc-badge">ESC</span>
+          </div>
+
+          {/* Listbox semantics: arrow-key navigation and Enter are handled once
+              on the dialog (handleKeyDownPalette), which is the accessible
+              pattern for a combobox-driven list — the options themselves are
+              not individually focusable. */}
+          <div
+            ref={listRef}
+            role="listbox"
+            aria-label="Commands"
+            className="palette-results custom-scrollbar"
+          >
+            {filteredCommands.length === 0 ? (
+              <div className="palette-empty">No commands match your query</div>
+            ) : (
+              filteredCommands.map((cmd, index) => (
+                <div
+                  key={cmd.id}
+                  role="option"
+                  aria-selected={index === selectedIndex}
+                  // -1 keeps options out of the tab order (focus stays in the
+                  // input, per the combobox pattern) while still allowing them
+                  // to be focused programmatically.
+                  tabIndex={-1}
+                  className={`palette-row ${index === selectedIndex ? "active" : ""}`}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                  onClick={() => {
+                    cmd.action();
+                    toggleCommandPalette();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      cmd.action();
+                      toggleCommandPalette();
+                    }
+                  }}
+                >
+                  <div className="palette-row-left">
+                    <Terminal size={14} className="palette-row-icon" />
+                    <div className="palette-row-text">
+                      <span className="palette-row-name">{cmd.name}</span>
+                      <span className="palette-row-cat">{cmd.category}</span>
+                    </div>
+                  </div>
+                  {cmd.shortcut ? (
+                    <span className="palette-row-shortcut">{cmd.shortcut}</span>
+                  ) : (
+                    <ArrowRight size={12} className="palette-row-arrow" />
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="palette-footer">
+            <span>
+              Use <b>↑↓</b> to navigate, <b>Enter</b> to select, <b>ESC</b> to
+              close
+            </span>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}

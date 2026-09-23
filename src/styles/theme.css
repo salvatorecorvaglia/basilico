@@ -1,0 +1,512 @@
+/**
+ * biome-ignore-all lint/suspicious/noDuplicateCustomProperties: each token is
+ * declared twice on purpose — a plain light value first, then the light-dark()
+ * form. Engines without light-dark() support discard the second declaration and
+ * keep the first, which is the only way to give them a working palette. The
+ * duplication is the fallback mechanism, not an accident.
+ */
+
+/* ═══════════════════════════════════════════════════════
+   Basilico — Modern Design Tokens & Theme Variables
+   Linear/Cursor-inspired palette supporting native light & dark modes
+
+   Browser support: light-dark() requires Safari 17.5+ / Chrome 123+. Every
+   token below therefore carries a plain fallback, and the dark values are
+   repeated in a prefers-color-scheme block at the end of this file so older
+   webviews still get both themes.
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+  /* Declare color schemes for viewport-wide native elements rendering */
+  color-scheme: dark light;
+
+  /* ── Base Theme Custom Properties (Light/Dark Switcher) ── */
+  --bg-base: #f7f8fa;
+  --bg-base: light-dark(#f7f8fa, #09090b);
+  --bg-surface: #ffffff;
+  --bg-surface: light-dark(#ffffff, #0d0d11);
+  --bg-elevated: #f1f3f6;
+  --bg-elevated: light-dark(#f1f3f6, #16161f);
+  --bg-overlay: #e4e7eb;
+  --bg-overlay: light-dark(#e4e7eb, #222230);
+  --bg-inset: #fafbfc;
+  --bg-inset: light-dark(#fafbfc, #050508);
+  --bg-hover: #f1f3f6;
+  --bg-hover: light-dark(#f1f3f6, #1c1c27);
+  --bg-active: rgba(99, 102, 241, 0.08);
+  --bg-active: light-dark(rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.15));
+
+  /* ── Borders ── */
+  --border-default: #e2e8f0;
+  --border-default: light-dark(#e2e8f0, #1e1e2d);
+  --border-muted: #f1f5f9;
+  --border-muted: light-dark(#f1f5f9, #141421);
+  --border-subtle: #f8fafc;
+  --border-subtle: light-dark(#f8fafc, #0a0a0f);
+  --border-hover: #cbd5e1;
+  --border-hover: light-dark(#cbd5e1, #3f3f56);
+  --border-accent: rgba(79, 70, 229, 0.25);
+  --border-accent: light-dark(
+    rgba(79, 70, 229, 0.25),
+    rgba(99, 102, 241, 0.35)
+  );
+
+  /* ── Text ── */
+  --text-primary: #0f172a;
+  --text-primary: light-dark(#0f172a, #f4f4f5);
+  --text-secondary: #475569;
+  --text-secondary: light-dark(#475569, #a1a1aa);
+  --text-tertiary: #94a3b8;
+  --text-tertiary: light-dark(#94a3b8, #60606a);
+  --text-link: #4f46e5;
+  --text-link: light-dark(#4f46e5, #6366f1);
+  --text-inverse: #ffffff;
+  --text-inverse: light-dark(#ffffff, #09090b);
+
+  /* ── Accents (Sage Green default) ── */
+  --accent-primary: #2ea043;
+  --accent-primary: light-dark(#2ea043, #3fb950);
+  --accent-primary-hover: color-mix(in srgb, var(--accent-primary) 85%, black);
+  --accent-primary-hover: light-dark(
+    color-mix(in srgb, var(--accent-primary) 85%, black),
+    color-mix(in srgb, var(--accent-primary) 85%, white)
+  );
+  --accent-secondary: #0284c7;
+  --accent-secondary: light-dark(#0284c7, #38bdf8);
+  --accent-secondary-hover: #0369a1;
+  --accent-secondary-hover: light-dark(#0369a1, #7dd3fc);
+  --accent-teal: #0d9488;
+  --accent-teal: light-dark(#0d9488, #2dd4bf);
+  --accent-teal-hover: #0f766e;
+  --accent-teal-hover: light-dark(#0f766e, #5eead4);
+
+  /* ── Semantics ── */
+  --color-success: #059669;
+  --color-success: light-dark(#059669, #10b981);
+  --color-warning: #d97706;
+  --color-warning: light-dark(#d97706, #f59e0b);
+  --color-danger: #dc2626;
+  --color-danger: light-dark(#dc2626, #ef4444);
+  --color-info: #2563eb;
+  --color-info: light-dark(#2563eb, #3b82f6);
+
+  /* ── Diff Styling ── */
+  --diff-add-bg: #ecfdf5;
+  --diff-add-bg: light-dark(#ecfdf5, #062f1d);
+  --diff-add-text: #065f46;
+  --diff-add-text: light-dark(#065f46, #4ade80);
+  --diff-add-line: #d1fae5;
+  --diff-add-line: light-dark(#d1fae5, #0c4a2e);
+  --diff-del-bg: #fef2f2;
+  --diff-del-bg: light-dark(#fef2f2, #3b0712);
+  --diff-del-text: #991b1b;
+  --diff-del-text: light-dark(#991b1b, #f87171);
+  --diff-del-line: #fee2e2;
+  --diff-del-line: light-dark(#fee2e2, #5c0f22);
+  --diff-hunk-bg: #eff6ff;
+  --diff-hunk-bg: light-dark(#eff6ff, #0f1e36);
+  --diff-hunk-text: #1e40af;
+  --diff-hunk-text: light-dark(#1e40af, #60a5fa);
+
+  /* ── Scrollbars ── */
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb: light-dark(#cbd5e1, #27273a);
+  --scrollbar-thumb-hover: #94a3b8;
+  --scrollbar-thumb-hover: light-dark(#94a3b8, #3f3f56);
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+
+  /* ── Graph Lane Colors (Curated sleek spectrum) ── */
+  --lane-0: #6366f1; /* Indigo */
+  --lane-1: #10b981; /* Emerald */
+  --lane-2: #f59e0b; /* Amber */
+  --lane-3: #a855f7; /* Purple */
+  --lane-4: #ec4899; /* Pink */
+  --lane-5: #06b6d4; /* Cyan */
+  --lane-6: #f97316; /* Orange */
+  --lane-7: #14b8a6; /* Teal */
+  --lane-8: #3b82f6; /* Blue */
+  --lane-9: #e11d48; /* Rose */
+
+  /* ── Fixed-by-design surfaces ──
+     These deliberately do not follow the light/dark palette.
+     `--text-on-accent` sits on saturated accent fills, which stay mid-tone in
+     both themes, so a dark foreground is what reads in either. `--terminal-bg`
+     and `--editor-bg` match tooling chrome (a terminal pane, Monaco's own
+     default background) that is dark regardless of app theme. */
+  --text-on-accent: #121820;
+  --terminal-bg: #121820;
+  --editor-bg: #1e1e1e;
+
+  /* ── Categorical Accents ──
+     Fixed hues used to distinguish *kinds* of thing (reflog action types,
+     blame authors) rather than to convey state. They stay constant across
+     themes on purpose: recolouring them per theme would break the mapping
+     users learn. Values are unchanged from the component styles they replace. */
+  --cat-blue: #60a5fa;
+  --cat-green: #4ade80;
+  --cat-purple: #c084fc;
+  --cat-orange: #fb923c;
+  --cat-cyan: #22d3ee;
+  --cat-indigo: #818cf8;
+  --cat-yellow: #facc15;
+  --cat-slate: #cbd5e1;
+  --cat-rose: #fca5a5;
+
+  /* ── Overlay scrims ──
+     Translucent chrome for toasts and floating panels. Fixed dark values by
+     design: these sit above arbitrary app content and need to stay legible in
+     either theme, exactly like --terminal-bg above. */
+  --scrim-raised: rgba(22, 27, 34, 0.85);
+  --scrim-sunken: rgba(13, 17, 23, 0.2);
+  --scrim-border: rgba(48, 54, 61, 0.2);
+  --scrim-border-strong: rgba(48, 54, 61, 0.1);
+  /* Full-page dimming behind a centered dialog — same "fixed dark by design"
+     reasoning: a modal backdrop darkens whatever is behind it regardless of
+     the app's own light/dark theme. Two weights because a couple of modals
+     (file viewer, welcome screen) sit over busier content and dim harder. */
+  --scrim-backdrop: rgba(0, 0, 0, 0.4);
+  --scrim-backdrop-heavy: rgba(0, 0, 0, 0.6);
+
+  /* Blame uses a GitHub-derived set; kept separate so neither palette shifts. */
+  --blame-fg: #c9d1d9;
+  --blame-blue: #58a6ff;
+  --blame-green: #3fb950;
+  --blame-orange: #f0883e;
+  --blame-purple: #bc8cff;
+  --blame-red: #f85149;
+  --blame-teal: #2dd4bf;
+
+  /* ── Spacing Scale ── */
+  --space-0-5: 2px;
+  --space-1: 4px;
+  --space-1-5: 6px;
+  --space-2: 8px;
+  --space-2-5: 10px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-9: 36px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ── Typography ── */
+  --font-family:
+    "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+  --font-mono:
+    "JetBrains Mono", "Cascadia Code", "Fira Code", "SF Mono", Consolas,
+    monospace;
+
+  --font-size-2xs: 10px;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 24px;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75;
+
+  /* ── Border Radius ── */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* ── Shadows ── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl:
+    0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.15);
+
+  /* ── Transitions ── */
+  --transition-fast: 120ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Z-Index Scale ── */
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+
+  /* ── Layout ── */
+  --sidebar-width: 240px;
+  --toolbar-height: 44px;
+  --statusbar-height: 28px;
+  --tabbar-height: 36px;
+  --scrollbar-width: 8px;
+
+  /* Compatibility & Alias variables */
+  --bg-primary: var(--bg-base);
+  --bg-secondary: var(--bg-surface);
+  --bg-tertiary: var(--bg-elevated);
+  --border-color: var(--border-default);
+  --border-active: var(--border-accent);
+  --accent-color: var(--accent-primary);
+  --color-primary: var(--accent-primary);
+  --color-primary-hover: var(--accent-primary-hover);
+  --color-danger-hover: color-mix(in srgb, var(--color-danger) 85%, white);
+}
+
+/* ── Dynamic Accent Theme Presets with Dark/Light Support ── */
+:root[data-theme="sage-green"] {
+  --accent-primary: #2ea043;
+  --accent-primary: light-dark(#2ea043, #3fb950);
+}
+
+:root[data-theme="royal-blue"] {
+  --accent-primary: #1f6feb;
+  --accent-primary: light-dark(#1f6feb, #38bdf8);
+}
+
+:root[data-theme="amethyst-purple"] {
+  --accent-primary: #8b5cf6;
+  --accent-primary: light-dark(#8b5cf6, #a78bfa);
+}
+
+:root[data-theme="amber-gold"] {
+  --accent-primary: #d29922;
+  --accent-primary: light-dark(#d29922, #fbbf24);
+}
+
+:root[data-theme="crimson-red"] {
+  --accent-primary: #f85149;
+  --accent-primary: light-dark(#f85149, #ff7b72);
+}
+
+:root[data-theme="ocean-teal"] {
+  --accent-primary: #2dd4bf;
+  --accent-primary: light-dark(#2dd4bf, #5eead4);
+}
+
+/* ═══════════════════════════════════════════════════
+   Dark-mode fallback for engines without light-dark()
+
+   Two mechanisms produce dark mode, and they must never disagree:
+
+   1. `light-dark()` above, which resolves against the *computed* `color-scheme`
+      — including the inline override `applyColorSchemeToDOM` writes when the
+      user picks a scheme explicitly.
+   2. The blocks below, which are what engines lacking `light-dark()` fall back
+      to: they keep the plain light value from the declarations above and pick
+      dark up here.
+
+   `prefers-color-scheme` reports the *OS* setting and is unaffected by the
+   inline `color-scheme` property. An unguarded `@media (prefers-color-scheme:
+   dark)` block therefore outranked the light-dark() result whenever the OS was
+   dark — same `:root` specificity, later in the file — so choosing "Light" on a
+   dark-mode OS changed nothing at all. The media block is now scoped to "the
+   user has not explicitly asked for light", and a mirror block covers "the user
+   explicitly asked for dark" so fallback engines honour that choice too.
+
+   `applyColorSchemeToDOM` writes the `data-color-scheme` attribute these
+   selectors read. It is absent for the "system" preference, which is what lets
+   the media query drive.
+   ═══════════════════════════════════════════════════ */
+
+/* The dark values exist here exactly once; the two blocks below only assign
+   them, so a value cannot be updated in one path and missed in the other.
+   `design-tokens.test.ts` asserts both blocks assign the same set of tokens. */
+:root {
+  /* Base palette */
+  --dark-bg-base: #09090b;
+  --dark-bg-surface: #0d0d11;
+  --dark-bg-elevated: #16161f;
+  --dark-bg-overlay: #222230;
+  --dark-bg-inset: #050508;
+  --dark-bg-hover: #1c1c27;
+  --dark-bg-active: rgba(99, 102, 241, 0.15);
+  --dark-border-default: #1e1e2d;
+  --dark-border-muted: #141421;
+  --dark-border-subtle: #0a0a0f;
+  --dark-border-accent: rgba(99, 102, 241, 0.35);
+  --dark-text-primary: #f4f4f5;
+  --dark-text-secondary: #a1a1aa;
+  --dark-text-tertiary: #60606a;
+  --dark-text-link: #6366f1;
+  --dark-text-inverse: #09090b;
+  --dark-accent-primary: #3fb950;
+  --dark-accent-primary-hover: color-mix(
+    in srgb,
+    var(--accent-primary) 85%,
+    white
+  );
+  --dark-accent-secondary: #38bdf8;
+  --dark-accent-secondary-hover: #7dd3fc;
+  --dark-accent-teal: #2dd4bf;
+  --dark-accent-teal-hover: #5eead4;
+  --dark-color-success: #10b981;
+  --dark-color-warning: #f59e0b;
+  --dark-color-danger: #ef4444;
+  --dark-color-info: #3b82f6;
+  --dark-diff-add-bg: #062f1d;
+  --dark-diff-add-text: #4ade80;
+  --dark-diff-add-line: #0c4a2e;
+  --dark-diff-del-bg: #3b0712;
+  --dark-diff-del-text: #f87171;
+  --dark-diff-del-line: #5c0f22;
+  --dark-diff-hunk-bg: #0f1e36;
+  --dark-diff-hunk-text: #60a5fa;
+  --dark-scrollbar-thumb: #27273a;
+  --dark-scrollbar-thumb-hover: #3f3f56;
+
+  /* Accent presets */
+  --dark-accent-sage-green: #3fb950;
+  --dark-accent-royal-blue: #38bdf8;
+  --dark-accent-amethyst-purple: #a78bfa;
+  --dark-accent-amber-gold: #fbbf24;
+  --dark-accent-crimson-red: #ff7b72;
+  --dark-accent-ocean-teal: #5eead4;
+}
+
+/* The OS is dark and the user has not overridden it to light. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) {
+    --bg-base: var(--dark-bg-base);
+    --bg-surface: var(--dark-bg-surface);
+    --bg-elevated: var(--dark-bg-elevated);
+    --bg-overlay: var(--dark-bg-overlay);
+    --bg-inset: var(--dark-bg-inset);
+    --bg-hover: var(--dark-bg-hover);
+    --bg-active: var(--dark-bg-active);
+    --border-default: var(--dark-border-default);
+    --border-muted: var(--dark-border-muted);
+    --border-subtle: var(--dark-border-subtle);
+    --border-accent: var(--dark-border-accent);
+    --text-primary: var(--dark-text-primary);
+    --text-secondary: var(--dark-text-secondary);
+    --text-tertiary: var(--dark-text-tertiary);
+    --text-link: var(--dark-text-link);
+    --text-inverse: var(--dark-text-inverse);
+    --accent-primary: var(--dark-accent-primary);
+    --accent-primary-hover: var(--dark-accent-primary-hover);
+    --accent-secondary: var(--dark-accent-secondary);
+    --accent-secondary-hover: var(--dark-accent-secondary-hover);
+    --accent-teal: var(--dark-accent-teal);
+    --accent-teal-hover: var(--dark-accent-teal-hover);
+    --color-success: var(--dark-color-success);
+    --color-warning: var(--dark-color-warning);
+    --color-danger: var(--dark-color-danger);
+    --color-info: var(--dark-color-info);
+    --diff-add-bg: var(--dark-diff-add-bg);
+    --diff-add-text: var(--dark-diff-add-text);
+    --diff-add-line: var(--dark-diff-add-line);
+    --diff-del-bg: var(--dark-diff-del-bg);
+    --diff-del-text: var(--dark-diff-del-text);
+    --diff-del-line: var(--dark-diff-del-line);
+    --diff-hunk-bg: var(--dark-diff-hunk-bg);
+    --diff-hunk-text: var(--dark-diff-hunk-text);
+    --scrollbar-thumb: var(--dark-scrollbar-thumb);
+    --scrollbar-thumb-hover: var(--dark-scrollbar-thumb-hover);
+  }
+
+  :root[data-theme="sage-green"]:not([data-color-scheme="light"]) {
+    --accent-primary: var(--dark-accent-sage-green);
+  }
+
+  :root[data-theme="royal-blue"]:not([data-color-scheme="light"]) {
+    --accent-primary: var(--dark-accent-royal-blue);
+  }
+
+  :root[data-theme="amethyst-purple"]:not([data-color-scheme="light"]) {
+    --accent-primary: var(--dark-accent-amethyst-purple);
+  }
+
+  :root[data-theme="amber-gold"]:not([data-color-scheme="light"]) {
+    --accent-primary: var(--dark-accent-amber-gold);
+  }
+
+  :root[data-theme="crimson-red"]:not([data-color-scheme="light"]) {
+    --accent-primary: var(--dark-accent-crimson-red);
+  }
+
+  :root[data-theme="ocean-teal"]:not([data-color-scheme="light"]) {
+    --accent-primary: var(--dark-accent-ocean-teal);
+  }
+}
+
+/* The user explicitly chose dark, whatever the OS reports. */
+:root[data-color-scheme="dark"] {
+  --bg-base: var(--dark-bg-base);
+  --bg-surface: var(--dark-bg-surface);
+  --bg-elevated: var(--dark-bg-elevated);
+  --bg-overlay: var(--dark-bg-overlay);
+  --bg-inset: var(--dark-bg-inset);
+  --bg-hover: var(--dark-bg-hover);
+  --bg-active: var(--dark-bg-active);
+  --border-default: var(--dark-border-default);
+  --border-muted: var(--dark-border-muted);
+  --border-subtle: var(--dark-border-subtle);
+  --border-accent: var(--dark-border-accent);
+  --text-primary: var(--dark-text-primary);
+  --text-secondary: var(--dark-text-secondary);
+  --text-tertiary: var(--dark-text-tertiary);
+  --text-link: var(--dark-text-link);
+  --text-inverse: var(--dark-text-inverse);
+  --accent-primary: var(--dark-accent-primary);
+  --accent-primary-hover: var(--dark-accent-primary-hover);
+  --accent-secondary: var(--dark-accent-secondary);
+  --accent-secondary-hover: var(--dark-accent-secondary-hover);
+  --accent-teal: var(--dark-accent-teal);
+  --accent-teal-hover: var(--dark-accent-teal-hover);
+  --color-success: var(--dark-color-success);
+  --color-warning: var(--dark-color-warning);
+  --color-danger: var(--dark-color-danger);
+  --color-info: var(--dark-color-info);
+  --diff-add-bg: var(--dark-diff-add-bg);
+  --diff-add-text: var(--dark-diff-add-text);
+  --diff-add-line: var(--dark-diff-add-line);
+  --diff-del-bg: var(--dark-diff-del-bg);
+  --diff-del-text: var(--dark-diff-del-text);
+  --diff-del-line: var(--dark-diff-del-line);
+  --diff-hunk-bg: var(--dark-diff-hunk-bg);
+  --diff-hunk-text: var(--dark-diff-hunk-text);
+  --scrollbar-thumb: var(--dark-scrollbar-thumb);
+  --scrollbar-thumb-hover: var(--dark-scrollbar-thumb-hover);
+}
+
+:root[data-color-scheme="dark"][data-theme="sage-green"] {
+  --accent-primary: var(--dark-accent-sage-green);
+}
+
+:root[data-color-scheme="dark"][data-theme="royal-blue"] {
+  --accent-primary: var(--dark-accent-royal-blue);
+}
+
+:root[data-color-scheme="dark"][data-theme="amethyst-purple"] {
+  --accent-primary: var(--dark-accent-amethyst-purple);
+}
+
+:root[data-color-scheme="dark"][data-theme="amber-gold"] {
+  --accent-primary: var(--dark-accent-amber-gold);
+}
+
+:root[data-color-scheme="dark"][data-theme="crimson-red"] {
+  --accent-primary: var(--dark-accent-crimson-red);
+}
+
+:root[data-color-scheme="dark"][data-theme="ocean-teal"] {
+  --accent-primary: var(--dark-accent-ocean-teal);
+}

@@ -1,0 +1,330 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — BranchTree Component
+   Local branch tree section with context menus
+   ═══════════════════════════════════════════════════════ */
+
+import * as ContextMenu from "@radix-ui/react-context-menu";
+import {
+  ArrowLeftRight,
+  CircleDot,
+  Edit,
+  ExternalLink,
+  GitBranch,
+  GitMerge,
+  Plus,
+  Trash,
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { getCreatePrUrl } from "../../lib/forge-links";
+import { reportError } from "../../lib/git-error";
+import type { BranchInfo } from "../../lib/git-types";
+import { validateBranchName } from "../../lib/git-validation";
+import { useGitAction } from "../../lib/use-git-action";
+import { openExternalUrl } from "../../lib/utils";
+import { useRepoStore } from "../../store/repo-store";
+import { selectDefaultRemoteUrl } from "../../store/slices/git-data-slice";
+import { useUIStore } from "../../store/ui-store";
+
+interface BranchTreeProps {
+  branches: BranchInfo[];
+}
+
+export function useBranchTree({ branches }: BranchTreeProps) {
+  // The remote whose web UI "Create Pull / Merge Request" should point at —
+  // see `selectDefaultRemoteUrl` for why `remotes[0]` was the wrong choice.
+  const defaultRemoteUrl = useRepoStore(selectDefaultRemoteUrl);
+
+  const {
+    checkoutBranch,
+    createBranch,
+    deleteBranch,
+    renameBranch,
+    mergeBranch,
+    startComparison,
+  } = useRepoStore(
+    useShallow((s) => ({
+      checkoutBranch: s.checkoutBranch,
+      createBranch: s.createBranch,
+      deleteBranch: s.deleteBranch,
+      renameBranch: s.renameBranch,
+      mergeBranch: s.mergeBranch,
+      startComparison: s.startComparison,
+    })),
+  );
+  const { addNotification, setActiveView, openPrompt, openConfirm } =
+    useUIStore(
+      useShallow((s) => ({
+        addNotification: s.addNotification,
+        setActiveView: s.setActiveView,
+        openPrompt: s.openPrompt,
+        openConfirm: s.openConfirm,
+      })),
+    );
+  const runGitAction = useGitAction();
+
+  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+
+  // A merge can resolve cleanly or land in conflicts — that's a fork in
+  // which notification to show, not just a message string, so both merge
+  // call sites (drag-to-merge and the context-menu action) share this rather
+  // than each duplicating the branch.
+  const mergeAndNotify = (dragged: string, target: string) =>
+    runGitAction(() => mergeBranch(dragged), {
+      errorPrefix: "Merge failed",
+      successMessage: (result) => {
+        if (result === "conflicts") {
+          addNotification({
+            type: "warning",
+            message:
+              "Merge conflict in workspace! Please resolve conflicts in the staging area.",
+          });
+          return null;
+        }
+        return target
+          ? `Merged branch "${dragged}" into "${target}" successfully`
+          : `Merged branch "${dragged}" successfully`;
+      },
+    });
+
+  const handleBranchDrop = (dragged: string, target: string) => {
+    openConfirm({
+      title: "Merge Branches",
+      message: `Would you like to merge branch "${dragged}" into "${target}"?`,
+      confirmLabel: `Merge ${dragged}`,
+      cancelLabel: "Cancel",
+      onConfirm: async () => {
+        if (branches.find((b) => b.name === target)?.isHead === false) {
+          await handleCheckout(target);
+        }
+        await mergeAndNotify(dragged, target);
+      },
+    });
+  };
+
+  // Memoize branch filtering
+  const localBranches = useMemo(
+    () => branches.filter((b) => !b.isRemote),
+    [branches],
+  );
+
+  const handleCheckout = (name: string) =>
+    runGitAction(() => checkoutBranch(name), {
+      successMessage: `Checked out branch "${name}"`,
+      errorPrefix: "Failed to checkout branch",
+    });
+
+  const handleCreateBranch = () => {
+    openPrompt({
+      title: "Create Branch",
+      description: "Enter a name for the new local branch.",
+      fields: [
+        {
+          name: "name",
+          label: "Branch Name",
+          placeholder: "e.g. feature/login",
+          required: true,
+        },
+      ],
+      submitLabel: "Create Branch",
+      onSubmit: async (values) => {
+        const name = values.name.trim();
+        // Client-side branch name validation
+        const validationError = validateBranchName(name);
+        if (validationError) {
+          addNotification({ type: "error", message: validationError });
+          return;
+        }
+        await runGitAction(() => createBranch(name), {
+          successMessage: `Created branch "${name}"`,
+          errorPrefix: "Failed to create branch",
+        });
+      },
+    });
+  };
+
+  const handleDeleteBranch = (name: string) => {
+    openConfirm({
+      title: "Delete Branch",
+      message: `Are you sure you want to delete local branch "${name}"? This action cannot be undone.`,
+      confirmLabel: "Delete Branch",
+      isDanger: true,
+      onConfirm: () =>
+        runGitAction(() => deleteBranch(name, false), {
+          successMessage: `Deleted branch "${name}"`,
+          errorPrefix: "Failed to delete branch",
+        }),
+    });
+  };
+
+  const handleRenameBranch = (name: string) => {
+    openPrompt({
+      title: "Rename Branch",
+      description: `Enter a new name for branch "${name}".`,
+      fields: [
+        {
+          name: "newName",
+          label: "New Branch Name",
+          placeholder: "e.g. feature/new-login",
+          defaultValue: name,
+          required: true,
+        },
+      ],
+      submitLabel: "Rename Branch",
+      onSubmit: async (values) => {
+        const newName = values.newName.trim();
+        if (newName === name) return;
+        // Client-side branch name validation
+        const validationError = validateBranchName(newName);
+        if (validationError) {
+          addNotification({ type: "error", message: validationError });
+          return;
+        }
+        await runGitAction(() => renameBranch(name, newName), {
+          successMessage: `Renamed branch to "${newName}"`,
+          errorPrefix: "Failed to rename branch",
+        });
+      },
+    });
+  };
+
+  const handleMergeBranch = (name: string) => {
+    openConfirm({
+      title: "Merge Branch",
+      message: `Are you sure you want to merge branch "${name}" into the active branch?`,
+      confirmLabel: "Merge Branch",
+      onConfirm: async () => {
+        await mergeAndNotify(name, "");
+      },
+    });
+  };
+
+  return {
+    count: localBranches.length,
+    icon: <GitBranch size={13} />,
+    action: (
+      <button
+        type="button"
+        className="sidebar-header-btn"
+        onClick={handleCreateBranch}
+        title="Create new branch"
+      >
+        <Plus size={13} />
+      </button>
+    ),
+    content: localBranches.map((branch) => (
+      <ContextMenu.Root key={branch.name}>
+        <ContextMenu.Trigger>
+          <button
+            type="button"
+            className={`sidebar-item ${branch.isHead ? "active" : ""} ${selectedBranch === branch.name ? "selected" : ""}`}
+            onClick={() => setSelectedBranch(branch.name)}
+            onDoubleClick={() => handleCheckout(branch.name)}
+            title={branch.name}
+            aria-current={branch.isHead ? "true" : undefined}
+            aria-pressed={selectedBranch === branch.name}
+            draggable={true}
+            onDragStart={(e) =>
+              e.dataTransfer.setData("text/plain", branch.name)
+            }
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes("text/plain")) {
+                e.preventDefault();
+                e.currentTarget.classList.add("drag-hover");
+              }
+            }}
+            onDragLeave={(e) => {
+              e.currentTarget.classList.remove("drag-hover");
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.currentTarget.classList.remove("drag-hover");
+              const draggedBranch = e.dataTransfer.getData("text/plain");
+              const targetBranch = branch.name;
+              if (draggedBranch && draggedBranch !== targetBranch) {
+                handleBranchDrop(draggedBranch, targetBranch);
+              }
+            }}
+          >
+            <CircleDot
+              size={11}
+              className={`sidebar-item-dot ${branch.isHead ? "head" : ""}`}
+            />
+            <span className="sidebar-item-name truncate">{branch.name}</span>
+            {branch.isHead && <span className="sidebar-badge head">HEAD</span>}
+            {(branch.ahead > 0 || branch.behind > 0) && (
+              <span className="sidebar-sync">
+                {branch.ahead > 0 && (
+                  <span className="sidebar-ahead">↑{branch.ahead}</span>
+                )}
+                {branch.behind > 0 && (
+                  <span className="sidebar-behind">↓{branch.behind}</span>
+                )}
+              </span>
+            )}
+          </button>
+        </ContextMenu.Trigger>
+        <ContextMenu.Portal>
+          <ContextMenu.Content className="radix-context-menu">
+            <ContextMenu.Item
+              className="context-menu-item"
+              onSelect={() => handleCheckout(branch.name)}
+            >
+              <CircleDot size={12} />
+              <span>Checkout Branch</span>
+            </ContextMenu.Item>
+            <ContextMenu.Item
+              className="context-menu-item"
+              onSelect={() => {
+                const activeBranch =
+                  branches.find((b) => b.isHead)?.name || "HEAD";
+                startComparison(branch.name, activeBranch).catch((err) =>
+                  reportError(err, "Comparison failed"),
+                );
+                setActiveView("compare");
+              }}
+            >
+              <ArrowLeftRight size={12} />
+              <span>Compare with Current Branch...</span>
+            </ContextMenu.Item>
+            <ContextMenu.Item
+              className="context-menu-item"
+              onSelect={() => handleMergeBranch(branch.name)}
+            >
+              <GitMerge size={12} />
+              <span>Merge into Active Branch</span>
+            </ContextMenu.Item>
+            <ContextMenu.Item
+              className="context-menu-item"
+              onSelect={() => handleRenameBranch(branch.name)}
+            >
+              <Edit size={12} />
+              <span>Rename Branch...</span>
+            </ContextMenu.Item>
+            {defaultRemoteUrl &&
+              getCreatePrUrl(defaultRemoteUrl, branch.name) && (
+                <ContextMenu.Item
+                  className="context-menu-item"
+                  onSelect={() => {
+                    const url = getCreatePrUrl(defaultRemoteUrl, branch.name);
+                    if (url) openExternalUrl(url);
+                  }}
+                >
+                  <ExternalLink size={12} />
+                  <span>Create Pull / Merge Request</span>
+                </ContextMenu.Item>
+              )}
+            <ContextMenu.Separator className="context-menu-divider" />
+            <ContextMenu.Item
+              className="context-menu-item danger"
+              onSelect={() => handleDeleteBranch(branch.name)}
+            >
+              <Trash size={12} />
+              <span>Delete Branch</span>
+            </ContextMenu.Item>
+          </ContextMenu.Content>
+        </ContextMenu.Portal>
+      </ContextMenu.Root>
+    )),
+  };
+}

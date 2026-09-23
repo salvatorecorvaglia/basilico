@@ -1,0 +1,89 @@
+# Dependencies & Package Managers
+node_modules/
+.pnpm-store/
+
+# Build & Output
+dist/
+dist-ssr/
+*.tsbuildinfo
+.vite/
+
+# Rust / Cargo / Tauri
+target/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/bin/
+src-tauri/icons/android/
+src-tauri/icons/ios/
+
+# Tauri updater private keys
+*.key
+*.pub
+**/tauri-updater.key
+**/tauri-updater.pub
+
+# Testing & Cache
+coverage/
+.vitest/
+.biome_cache/
+.eslintcache
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+lerna-debug.log*
+
+# Environment files
+.env
+.env.*
+.env.local
+.env.*.local
+*.local
+!.env.example
+
+# IDEs & Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.zed/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+.Spotlight-V100
+.Trashes
+
+# AI Tools & Agents
+.openai/
+.chatgpt/
+gpt-config.json
+openai.config.json
+.anthropic/
+.claude/
+claude.config.json
+claude-settings.json
+.prompts/
+.prompt-cache/
+.ai/
+.gemini/
+.antigravity/
+.antigravitycli/
+.copilot/
+.codex/
+.cagent/
+.cursor/
+.windsurf/
+.cline/
+CLAUDE.md

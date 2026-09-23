@@ -1,0 +1,680 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — DiffView Component
+   Monaco Diff Editor + Granular Hunk/Line Staging
+   ═══════════════════════════════════════════════════════ */
+
+import { DiffEditor, type Monaco } from "@monaco-editor/react";
+import {
+  Check,
+  ExternalLink,
+  Eye,
+  FileCode,
+  Minus,
+  Plus,
+  Trash2,
+} from "lucide-react";
+import type { editor, IDisposable } from "monaco-editor";
+import { useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import type { DiffHunkInfo } from "../../lib/git-types";
+import { constructHunkPatch } from "../../lib/hunk-patch";
+import {
+  type FileContentPair,
+  getFileContentPair,
+} from "../../lib/tauri-commands";
+import { useDarkMode } from "../../lib/use-dark-mode";
+import { getLanguageFromPath } from "../../lib/utils";
+import { useRepoStore } from "../../store/repo-store";
+import { useUIStore } from "../../store/ui-store";
+import "./DiffView.css";
+// Registers the bundled Monaco + workers; keeps it off the startup chunk.
+import "../../lib/monaco-setup";
+import { reportError } from "../../lib/git-error";
+
+export function DiffView() {
+  const isDark = useDarkMode();
+  const {
+    activeTabId,
+    selectedFilePath,
+    selectedFileIsStaged,
+    localDiff,
+    stageFiles,
+    unstageFiles,
+    discardChanges,
+    applyPatch,
+    openInIde,
+    settings,
+  } = useRepoStore(
+    useShallow((s) => ({
+      activeTabId: s.activeTabId,
+      selectedFilePath: s.selectedFilePath,
+      selectedFileIsStaged: s.selectedFileIsStaged,
+      localDiff: s.localDiff,
+      stageFiles: s.stageFiles,
+      unstageFiles: s.unstageFiles,
+      discardChanges: s.discardChanges,
+      applyPatch: s.applyPatch,
+      openInIde: s.openInIde,
+      settings: s.settings,
+    })),
+  );
+
+  const { openConfirm, addNotification } = useUIStore(
+    useShallow((s) => ({
+      openConfirm: s.openConfirm,
+      addNotification: s.addNotification,
+    })),
+  );
+
+  const [viewMode, setViewMode] = useState<"visual" | "hunk">("visual");
+  const [splitView, setSplitView] = useState(true);
+  const [contents, setContents] = useState<FileContentPair | null>(null);
+  const [loadingContents, setLoadingContents] = useState(false);
+
+  const [editorInstance, setEditorInstance] =
+    useState<editor.IStandaloneDiffEditor | null>(null);
+  const [monacoInstance, setMonacoInstance] = useState<Monaco | null>(null);
+  const callbackRef = useRef<{
+    handleGutterClick: (
+      lineNumber: number,
+      isOriginal: boolean,
+    ) => Promise<void>;
+  } | null>(null);
+  const disposablesRef = useRef<IDisposable[]>([]);
+
+  // Cleanup event listeners on unmount
+  useEffect(() => {
+    return () => {
+      disposablesRef.current.forEach((d) => {
+        try {
+          d.dispose();
+        } catch {
+          // Ignore
+        }
+      });
+      disposablesRef.current = [];
+    };
+  }, []);
+
+  // Track checked line indices per hunk: key is hunkIndex, value is Set of lineIndices
+  const [selectedLines, setSelectedLines] = useState<
+    Record<number, Set<number>>
+  >({});
+
+  // Fired from the Monaco glyph-margin onMouseDown handlers below — Monaco
+  // doesn't expose the glyph margin as a focusable/keyboard-operable target,
+  // so single-line staging here is mouse-only. The "Hunks" view (viewMode
+  // toggle above) is the deliberate keyboard-accessible equivalent: it lists
+  // the same lines as real checkboxes a keyboard user can Tab to and toggle.
+  const handleGutterClick = async (lineNumber: number, isOriginal: boolean) => {
+    if (!localDiff || !selectedFilePath) return;
+
+    // Find the hunk and line that correspond to this click
+    let foundHunk: DiffHunkInfo | null = null;
+    let foundHunkIdx = -1;
+    let foundLineIdx = -1;
+
+    for (let hIdx = 0; hIdx < localDiff.hunks.length; hIdx++) {
+      const hunk = localDiff.hunks[hIdx];
+      for (let lIdx = 0; lIdx < hunk.lines.length; lIdx++) {
+        const line = hunk.lines[lIdx];
+        if (isOriginal) {
+          if (line.origin === "-" && line.oldLineno === lineNumber) {
+            foundHunk = hunk;
+            foundHunkIdx = hIdx;
+            foundLineIdx = lIdx;
+            break;
+          }
+        } else {
+          if (line.origin === "+" && line.newLineno === lineNumber) {
+            foundHunk = hunk;
+            foundHunkIdx = hIdx;
+            foundLineIdx = lIdx;
+            break;
+          }
+        }
+      }
+      if (foundHunk) break;
+    }
+
+    if (!foundHunk || foundHunkIdx === -1 || foundLineIdx === -1) {
+      return;
+    }
+
+    // Stage/Unstage only this single clicked line!
+    const lineIndices = new Set<number>([foundLineIdx]);
+    const patch = constructHunkPatch(
+      selectedFilePath,
+      foundHunk,
+      lineIndices,
+      selectedFileIsStaged,
+    );
+
+    try {
+      await applyPatch(patch, "index");
+      addNotification({
+        type: "success",
+        message: `${selectedFileIsStaged ? "Unstaged" : "Staged"} line ${lineNumber} in ${selectedFilePath.split("/").pop()}`,
+      });
+    } catch (err) {
+      reportError(err, "Failed to stage line");
+    }
+  };
+
+  // Sync callback ref to prevent stale closures
+  useEffect(() => {
+    callbackRef.current = { handleGutterClick };
+  });
+
+  // Update Monaco decorations for gutter glyphs
+  useEffect(() => {
+    if (!editorInstance || !monacoInstance || !localDiff) return;
+
+    const originalEditor = editorInstance.getOriginalEditor();
+    const modifiedEditor = editorInstance.getModifiedEditor();
+
+    // Clear old decorations
+    const originalDecs: editor.IModelDeltaDecoration[] = [];
+    const modifiedDecs: editor.IModelDeltaDecoration[] = [];
+
+    localDiff.hunks.forEach((hunk) => {
+      hunk.lines.forEach((line) => {
+        if (line.origin === "-" && line.oldLineno !== null) {
+          originalDecs.push({
+            range: new monacoInstance.Range(
+              line.oldLineno,
+              1,
+              line.oldLineno,
+              1,
+            ),
+            options: {
+              glyphMarginClassName: selectedFileIsStaged
+                ? "monaco-gutter-unstage"
+                : "monaco-gutter-stage",
+              glyphMarginHoverMessage: {
+                value: selectedFileIsStaged
+                  ? "Click to unstage line"
+                  : "Click to stage line",
+              },
+            },
+          });
+        } else if (line.origin === "+" && line.newLineno !== null) {
+          modifiedDecs.push({
+            range: new monacoInstance.Range(
+              line.newLineno,
+              1,
+              line.newLineno,
+              1,
+            ),
+            options: {
+              glyphMarginClassName: selectedFileIsStaged
+                ? "monaco-gutter-unstage"
+                : "monaco-gutter-stage",
+              glyphMarginHoverMessage: {
+                value: selectedFileIsStaged
+                  ? "Click to unstage line"
+                  : "Click to stage line",
+              },
+            },
+          });
+        }
+      });
+    });
+
+    const origCollection =
+      originalEditor.createDecorationsCollection(originalDecs);
+    const modCollection =
+      modifiedEditor.createDecorationsCollection(modifiedDecs);
+
+    return () => {
+      origCollection.clear();
+      modCollection.clear();
+    };
+  }, [editorInstance, monacoInstance, localDiff, selectedFileIsStaged]);
+
+  // Fetch full contents for Monaco editor when selected file changes
+  useEffect(() => {
+    if (!activeTabId || !selectedFilePath) {
+      setContents(null);
+      return;
+    }
+
+    // Guard against an older request for a previously-selected file resolving
+    // after a newer one — without this, rapidly clicking through files could
+    // silently overwrite the editor with the wrong file's content while the
+    // header still showed the newly-selected path.
+    let cancelled = false;
+    setLoadingContents(true);
+    setSelectedLines({});
+    getFileContentPair(activeTabId, selectedFilePath, selectedFileIsStaged)
+      .then((data) => {
+        if (!cancelled) setContents(data);
+      })
+      .catch((err) => {
+        console.error("Failed to load file contents:", err);
+        if (!cancelled) setContents(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingContents(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTabId, selectedFilePath, selectedFileIsStaged]);
+
+  if (!selectedFilePath) {
+    return (
+      <div className="diff-view-empty">
+        <FileCode size={40} strokeWidth={1} />
+        <h3>No File Selected</h3>
+        <p>Select a file in the staging list to view its diff</p>
+      </div>
+    );
+  }
+
+  const handleStageFile = () => {
+    if (selectedFileIsStaged) {
+      unstageFiles([selectedFilePath]).catch((err) =>
+        reportError(err, "Failed to unstage"),
+      );
+    } else {
+      stageFiles([selectedFilePath]).catch((err) =>
+        reportError(err, "Failed to stage"),
+      );
+    }
+  };
+
+  const handleDiscardFile = () => {
+    openConfirm({
+      title: "Discard Changes",
+      message: `Are you sure you want to discard all changes in ${selectedFilePath}? This action cannot be undone.`,
+      confirmLabel: "Discard Changes",
+      isDanger: true,
+      onConfirm: () => {
+        discardChanges([selectedFilePath]);
+      },
+    });
+  };
+
+  // Staging specific Hunk
+  const handleStageHunk = async (hunk: DiffHunkInfo) => {
+    const patch = constructHunkPatch(
+      selectedFilePath,
+      hunk,
+      undefined,
+      selectedFileIsStaged,
+    );
+    try {
+      await applyPatch(patch, "index");
+    } catch (err) {
+      reportError(
+        err,
+        `Failed to ${selectedFileIsStaged ? "unstage" : "stage"} hunk`,
+      );
+    }
+  };
+
+  // Staging selected lines
+  const handleStageSelectedLines = async (
+    hunkIndex: number,
+    hunk: DiffHunkInfo,
+  ) => {
+    const lineIndices = selectedLines[hunkIndex];
+    if (!lineIndices || lineIndices.size === 0) return;
+
+    const patch = constructHunkPatch(
+      selectedFilePath,
+      hunk,
+      lineIndices,
+      selectedFileIsStaged,
+    );
+    try {
+      await applyPatch(patch, "index");
+      // Clear selection
+      setSelectedLines((prev) => ({
+        ...prev,
+        [hunkIndex]: new Set(),
+      }));
+    } catch (err) {
+      reportError(
+        err,
+        `Failed to ${selectedFileIsStaged ? "unstage" : "stage"} selected lines`,
+      );
+    }
+  };
+
+  const handleLineCheck = (
+    hunkIndex: number,
+    lineIndex: number,
+    checked: boolean,
+  ) => {
+    setSelectedLines((prev) => {
+      const current = new Set(prev[hunkIndex] || []);
+      if (checked) {
+        current.add(lineIndex);
+      } else {
+        current.delete(lineIndex);
+      }
+      return {
+        ...prev,
+        [hunkIndex]: current,
+      };
+    });
+  };
+
+  return (
+    <div className="diff-view animate-fade-in">
+      {/* Top Bar */}
+      <div className="diff-view-header">
+        <div className="diff-view-file-info truncate">
+          <span className="diff-view-file-name truncate">
+            {selectedFilePath}
+          </span>
+          {localDiff && (
+            <span className="diff-view-file-stats text-mono">
+              <span className="stat-add">+{localDiff.stats.additions}</span>
+              <span className="stat-del">-{localDiff.stats.deletions}</span>
+            </span>
+          )}
+        </div>
+
+        <div className="diff-view-actions">
+          {/* View mode toggle */}
+          <div className="diff-segmented-control">
+            <button
+              type="button"
+              className={`diff-control-btn ${viewMode === "visual" ? "active" : ""}`}
+              onClick={() => setViewMode("visual")}
+              title="Visual Split Diff"
+            >
+              <Eye size={13} />
+              <span>Full View</span>
+            </button>
+            <button
+              type="button"
+              className={`diff-control-btn ${viewMode === "hunk" ? "active" : ""}`}
+              onClick={() => setViewMode("hunk")}
+              title="Granular hunk staging — stage individual lines with checkboxes. This is the keyboard-accessible way to stage a single line; the gutter click-to-stage in Full View has no keyboard equivalent."
+            >
+              <FileCode size={13} />
+              <span>Hunks</span>
+            </button>
+          </div>
+
+          {/* Split/Inline toggle */}
+          {viewMode === "visual" && (
+            <div className="diff-segmented-control">
+              <button
+                type="button"
+                className={`diff-control-btn ${splitView ? "active" : ""}`}
+                onClick={() => setSplitView(true)}
+                title="Split View"
+              >
+                <span>Split</span>
+              </button>
+              <button
+                type="button"
+                className={`diff-control-btn ${!splitView ? "active" : ""}`}
+                onClick={() => setSplitView(false)}
+                title="Unified/Inline View"
+              >
+                <span>Unified</span>
+              </button>
+            </div>
+          )}
+
+          {/* Open in External IDE */}
+          {selectedFilePath && (
+            <button
+              type="button"
+              className="diff-btn diff-btn-secondary"
+              onClick={() => {
+                // Passing the path repo-relative lets Rust join it with the
+                // platform separator; the literal "/" used here produced a
+                // mixed-separator path on Windows.
+                openInIde(selectedFilePath, null, true).catch((err) => {
+                  console.error("Failed to open file in editor:", err);
+                });
+              }}
+              title={`Open file in ${settings?.externalEditor || "code"}`}
+            >
+              <ExternalLink size={13} />
+              <span>Open in {settings?.externalEditor || "Code"}</span>
+            </button>
+          )}
+
+          {/* Stage / Unstage / Discard File */}
+          <button
+            type="button"
+            className={`diff-btn ${selectedFileIsStaged ? "diff-btn-secondary" : "diff-btn-primary"}`}
+            onClick={handleStageFile}
+          >
+            {selectedFileIsStaged ? "Unstage File" : "Stage File"}
+          </button>
+
+          {!selectedFileIsStaged && (
+            <button
+              type="button"
+              className="diff-btn diff-btn-danger"
+              onClick={handleDiscardFile}
+              title="Discard all changes in this file"
+            >
+              <Trash2 size={13} />
+              <span>Discard</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Editor Content Area */}
+      <div className="diff-view-content">
+        {localDiff?.isBinary ? (
+          <div className="diff-binary-placeholder">
+            <FileCode size={48} strokeWidth={1} />
+            <h3>Binary File</h3>
+            <p>Diff visualization is not supported for binary assets</p>
+          </div>
+        ) : viewMode === "visual" ? (
+          loadingContents ? (
+            <div className="diff-loader">
+              <span className="spinner-large" />
+              <p>Loading file content diff...</p>
+            </div>
+          ) : contents ? (
+            <DiffEditor
+              original={contents.original}
+              modified={contents.modified}
+              language={getLanguageFromPath(selectedFilePath)}
+              theme={isDark ? "basilico-dark" : "basilico-light"}
+              height="100%"
+              options={{
+                renderSideBySide: splitView,
+                readOnly: true,
+                glyphMargin: true,
+                lineNumbersMinChars: 3,
+                minimap: { enabled: false },
+                scrollbar: {
+                  vertical: "visible",
+                  horizontal: "visible",
+                },
+                fontSize: 12,
+                fontFamily:
+                  "JetBrains Mono, Fira Code, Menlo, Monaco, Consolas, monospace",
+                scrollBeyondLastLine: false,
+                diffWordWrap: "off",
+              }}
+              onMount={(
+                editor: editor.IStandaloneDiffEditor,
+                monaco: Monaco,
+              ) => {
+                setEditorInstance(editor);
+                setMonacoInstance(monaco);
+
+                const originalEditor = editor.getOriginalEditor();
+                const modifiedEditor = editor.getModifiedEditor();
+
+                // Clear previous subscriptions to avoid duplicate event handlers and memory leaks
+                disposablesRef.current.forEach((d) => {
+                  try {
+                    d.dispose();
+                  } catch {
+                    // Ignore
+                  }
+                });
+                disposablesRef.current = [];
+
+                const origSub = originalEditor.onMouseDown((e) => {
+                  if (
+                    (e.target.type === 2 || e.target.type === 3) &&
+                    callbackRef.current
+                  ) {
+                    const line = e.target.position?.lineNumber;
+                    if (line) {
+                      callbackRef.current.handleGutterClick(line, true);
+                    }
+                  }
+                });
+
+                const modSub = modifiedEditor.onMouseDown((e) => {
+                  if (
+                    (e.target.type === 2 || e.target.type === 3) &&
+                    callbackRef.current
+                  ) {
+                    const line = e.target.position?.lineNumber;
+                    if (line) {
+                      callbackRef.current.handleGutterClick(line, false);
+                    }
+                  }
+                });
+
+                disposablesRef.current = [origSub, modSub];
+
+                const originalDispose = editor.dispose;
+                editor.dispose = () => {
+                  try {
+                    editor.setModel(null);
+                  } catch {
+                    // Ignore
+                  }
+                  originalDispose.call(editor);
+                };
+              }}
+            />
+          ) : (
+            <div className="diff-binary-placeholder">
+              <p>Unable to load file diff contents</p>
+            </div>
+          )
+        ) : (
+          /* Granular Hunk Staging List */
+          <div className="diff-hunk-list">
+            {!localDiff || localDiff.hunks.length === 0 ? (
+              <div className="diff-hunks-empty">
+                <p>No changes found in this file</p>
+              </div>
+            ) : (
+              localDiff.hunks.map((hunk, hunkIdx) => {
+                const linesChecked = selectedLines[hunkIdx] || new Set();
+                const hasSelectedLines = linesChecked.size > 0;
+
+                return (
+                  <div key={hunkIdx} className="diff-hunk-card">
+                    {/* Hunk Header */}
+                    <div className="diff-hunk-header">
+                      <span className="hunk-range text-mono">
+                        {hunk.header}
+                      </span>
+                      <div className="hunk-actions">
+                        {hasSelectedLines && (
+                          <button
+                            type="button"
+                            className="hunk-btn hunk-btn-primary"
+                            onClick={() =>
+                              handleStageSelectedLines(hunkIdx, hunk)
+                            }
+                          >
+                            <Check size={11} />
+                            <span>
+                              Stage Selected Lines ({linesChecked.size})
+                            </span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="hunk-btn hunk-btn-secondary"
+                          onClick={() => handleStageHunk(hunk)}
+                        >
+                          {selectedFileIsStaged ? (
+                            <>
+                              <Minus size={11} />
+                              <span>Unstage Hunk</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus size={11} />
+                              <span>Stage Hunk</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Hunk Lines */}
+                    <div className="diff-hunk-body text-mono">
+                      {hunk.lines.map((line, lineIdx) => {
+                        const isAdded = line.origin === "+";
+                        const isRemoved = line.origin === "-";
+                        const isChanged = isAdded || isRemoved;
+
+                        let lineClass = "hunk-line";
+                        if (isAdded) lineClass += " hunk-line-added";
+                        if (isRemoved) lineClass += " hunk-line-removed";
+
+                        return (
+                          <div key={lineIdx} className={lineClass}>
+                            {/* Checkbox for modified lines */}
+                            {isChanged ? (
+                              <input
+                                type="checkbox"
+                                className="hunk-line-checkbox"
+                                checked={linesChecked.has(lineIdx)}
+                                aria-label={`Select line for staging: ${line.content}`}
+                                onChange={(e) =>
+                                  handleLineCheck(
+                                    hunkIdx,
+                                    lineIdx,
+                                    e.target.checked,
+                                  )
+                                }
+                              />
+                            ) : (
+                              <div className="hunk-line-spacer" />
+                            )}
+                            <span className="hunk-line-number hunk-line-number-old">
+                              {line.oldLineno !== null &&
+                              line.oldLineno !== undefined
+                                ? line.oldLineno
+                                : ""}
+                            </span>
+                            <span className="hunk-line-number hunk-line-number-new">
+                              {line.newLineno !== null &&
+                              line.newLineno !== undefined
+                                ? line.newLineno
+                                : ""}
+                            </span>
+                            <span className="line-prefix">{line.origin}</span>
+                            <span className="line-content">{line.content}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

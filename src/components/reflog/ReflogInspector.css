@@ -1,0 +1,482 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — Reflog Inspector Styles
+
+   This stylesheet had drifted furthest from the design system: 74 raw pixel
+   values against 89 token references, its own `transition: all 0.15s ease`,
+   its own modal shell, and a set of `rgba(255, 255, 255, …)` overlays that
+   assume a dark background — in light mode they lighten an already near-white
+   surface, so hover feedback disappeared entirely. It now uses the shared
+   tokens and the primitives in styles/primitives.css.
+   ═══════════════════════════════════════════════════════ */
+
+.reflog-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: inherit;
+  overflow: hidden;
+}
+
+/* ── Header ──
+   The layout comes from `.view-header`, so this view lines up with Blame and
+   File History instead of running 20px taller with its own title block. */
+.reflog-title-section {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.reflog-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.reflog-count-badge {
+  padding: var(--space-0-5) var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.reflog-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ── Controls ── */
+.reflog-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 240px;
+}
+
+.reflog-search-icon {
+  position: absolute;
+  left: var(--space-2-5);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.reflog-search-input {
+  width: 100%;
+  height: var(--space-8);
+  padding: 0 var(--space-3) 0 var(--space-8);
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-elevated);
+  color: var(--text-primary);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.reflog-select {
+  height: var(--space-8);
+  padding: 0 var(--space-2-5);
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.reflog-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1-5);
+  height: var(--space-8);
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-sm);
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.reflog-btn:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+.reflog-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Content ── */
+.reflog-content {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+}
+
+/* ── Table ── */
+.reflog-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+  text-align: left;
+}
+
+.reflog-table th {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-surface);
+  color: var(--text-tertiary);
+  font-weight: var(--weight-semibold);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: var(--space-2-5) var(--space-3);
+  border-bottom: 1px solid var(--border-default);
+  z-index: var(--z-sticky);
+}
+
+.reflog-table td {
+  padding: var(--space-2-5) var(--space-3);
+  border-bottom: 1px solid var(--border-default);
+  vertical-align: middle;
+  transition: background-color var(--transition-fast);
+}
+
+.reflog-row:hover td {
+  background-color: var(--bg-hover);
+}
+
+/* ── Columns ──
+   Pixel widths here are table geometry, not spacing: there is no width scale
+   for them to snap to. */
+.col-index {
+  width: 90px;
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+  font-weight: var(--weight-medium);
+}
+
+.col-action {
+  width: 110px;
+}
+
+.col-sha {
+  width: 110px;
+}
+
+.col-message {
+  min-width: 250px;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.col-author {
+  width: 160px;
+  color: var(--text-tertiary);
+}
+
+.col-date {
+  width: 120px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.col-actions {
+  width: 110px;
+  text-align: right;
+}
+
+/* ── Action badges ──
+   Single line, always. An unrecognised verb used to render the command's whole
+   argument string, which wrapped and grew the row; the classifier now emits a
+   bare verb and this clamps whatever gets through. */
+.reflog-action-badge {
+  display: inline-block;
+  max-width: 100%;
+  padding: var(--space-0-5) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.action-checkout {
+  background: color-mix(in srgb, var(--cat-blue) 15%, transparent);
+  color: var(--cat-blue);
+  border: 1px solid color-mix(in srgb, var(--cat-blue) 30%, transparent);
+}
+
+.action-commit {
+  background: color-mix(in srgb, var(--cat-green) 15%, transparent);
+  color: var(--cat-green);
+  border: 1px solid color-mix(in srgb, var(--cat-green) 30%, transparent);
+}
+
+.action-rebase {
+  background: color-mix(in srgb, var(--cat-purple) 15%, transparent);
+  color: var(--cat-purple);
+  border: 1px solid color-mix(in srgb, var(--cat-purple) 30%, transparent);
+}
+
+.action-reset {
+  background: color-mix(in srgb, var(--cat-orange) 15%, transparent);
+  color: var(--cat-orange);
+  border: 1px solid color-mix(in srgb, var(--cat-orange) 30%, transparent);
+}
+
+.action-merge {
+  background: color-mix(in srgb, var(--cat-cyan) 15%, transparent);
+  color: var(--cat-cyan);
+  border: 1px solid color-mix(in srgb, var(--cat-cyan) 30%, transparent);
+}
+
+.action-pull {
+  background: color-mix(in srgb, var(--cat-indigo) 15%, transparent);
+  color: var(--cat-indigo);
+  border: 1px solid color-mix(in srgb, var(--cat-indigo) 30%, transparent);
+}
+
+.action-cherry-pick {
+  background: color-mix(in srgb, var(--cat-yellow) 15%, transparent);
+  color: var(--cat-yellow);
+  border: 1px solid color-mix(in srgb, var(--cat-yellow) 30%, transparent);
+}
+
+.action-default {
+  background: color-mix(in srgb, var(--cat-slate) 15%, transparent);
+  color: var(--cat-slate);
+  border: 1px solid color-mix(in srgb, var(--cat-slate) 30%, transparent);
+}
+
+/* ── SHA badge ── */
+.reflog-sha-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  padding: var(--space-0-5) var(--space-1-5);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  color: var(--accent-primary);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.reflog-sha-btn:hover {
+  background-color: color-mix(in srgb, var(--cat-indigo) 15%, transparent);
+  border-color: color-mix(in srgb, var(--cat-indigo) 40%, transparent);
+}
+
+/* ── Row actions ── */
+.reflog-row-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background-color: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.reflog-row-btn:hover {
+  background-color: color-mix(in srgb, var(--color-danger) 15%, transparent);
+  border-color: color-mix(in srgb, var(--color-danger) 40%, transparent);
+  color: var(--color-danger);
+}
+
+/* ── Empty & loading ──
+   Layout comes entirely from the shared `.empty-state`, which fills and centres
+   in `.reflog-content`. No local height: the primitives are bundled after the
+   component stylesheets, so a same-specificity override here would lose. */
+.reflog-empty-icon {
+  opacity: 0.4;
+}
+
+/* ── Restore modal ── */
+.reflog-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: var(--scrim-backdrop);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: var(--z-modal);
+  animation: fadeIn var(--transition-fast) ease-out;
+}
+
+.reflog-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 440px;
+  max-width: calc(100vw - var(--space-8));
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+  z-index: var(--z-modal);
+  animation: scaleIn var(--transition-fast) cubic-bezier(0.16, 1, 0.3, 1);
+  /* Radix focuses the content on open; the ring belongs on the controls
+     inside, not the panel itself — same as .reset-modal-content. */
+  outline: none;
+}
+
+.reflog-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.reflog-modal-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--weight-semibold);
+}
+
+.reflog-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.reflog-modal-close:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.reflog-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.reflog-entry-preview {
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+}
+
+.reflog-preview-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-1);
+}
+
+.reflog-preview-msg {
+  font-size: var(--font-size-base);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.reflog-mode-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.reflog-mode-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-elevated);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.reflog-mode-card:hover {
+  border-color: color-mix(in srgb, var(--cat-indigo) 40%, transparent);
+  background-color: color-mix(in srgb, var(--cat-indigo) 5%, transparent);
+}
+
+.reflog-mode-card.selected {
+  border-color: var(--accent-primary);
+  background-color: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+}
+
+.reflog-mode-radio {
+  margin-top: var(--space-0-5);
+}
+
+.reflog-mode-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.reflog-mode-name {
+  font-size: var(--font-size-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.reflog-mode-desc {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  margin-top: var(--space-0-5);
+}
+
+.reflog-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2-5);
+  padding: var(--space-3) var(--space-5);
+  background-color: var(--bg-elevated);
+  border-top: 1px solid var(--border-default);
+}

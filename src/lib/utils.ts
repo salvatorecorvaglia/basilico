@@ -1,0 +1,200 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — Utility Functions
+   ═══════════════════════════════════════════════════════ */
+
+/**
+ * Open an external URL in the system browser. Refuses anything that isn't
+ * `https://` — forge-link builders always produce an https URL, but this is
+ * the last line of defense against a malformed/attacker-controlled remote
+ * URL producing something like a `javascript:` URL. Passes `noopener,noreferrer`
+ * so the opened page cannot reach back into this window via `window.opener`.
+ */
+
+import { useUIStore } from "../store/ui-store";
+export function openExternalUrl(url: string): void {
+  if (!url.startsWith("https://")) {
+    // Told, not just logged. A silent return looks identical to a dead
+    // button: the user clicks "Open on GitHub", nothing happens, and the
+    // only trace is a console message they will never see.
+    console.error(`Refusing to open non-https URL: ${url}`);
+    useUIStore.getState().addNotification({
+      type: "error",
+      message: "Refused to open a link that is not https.",
+      description:
+        "The repository's remote URL may be malformed. Check it in Settings.",
+    });
+    return;
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+/** Format a Unix timestamp as a relative time string (e.g., "2 hours ago") */
+export function formatRelativeTime(timestamp: number): string {
+  const now = Math.floor(Date.now() / 1000);
+  const diff = now - timestamp;
+
+  if (diff < 60) return "just now";
+  if (diff < 3600) {
+    const mins = Math.floor(diff / 60);
+    return `${mins}m ago`;
+  }
+  if (diff < 86400) {
+    const hours = Math.floor(diff / 3600);
+    return `${hours}h ago`;
+  }
+  if (diff < 604800) {
+    const days = Math.floor(diff / 86400);
+    return `${days}d ago`;
+  }
+  if (diff < 2592000) {
+    const weeks = Math.floor(diff / 604800);
+    return `${weeks}w ago`;
+  }
+  if (diff < 31536000) {
+    const months = Math.floor(diff / 2592000);
+    return `${months}mo ago`;
+  }
+  const years = Math.floor(diff / 31536000);
+  return `${years}y ago`;
+}
+
+/** Format a Unix timestamp as an absolute date/time */
+export function formatDateTime(timestamp: number): string {
+  return new Date(timestamp * 1000).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/** Get initials from a name (e.g., "John Doe" → "JD") */
+export function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .map((n) => n[0]?.toUpperCase() || "")
+    .join("")
+    .slice(0, 2);
+}
+
+/** Generate a consistent color from a string (for author avatars) */
+export function stringToColor(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 60%, 50%)`;
+}
+
+/** Get the lane color CSS variable */
+export function getLaneColor(lane: number): string {
+  return `var(--lane-${lane % 10})`;
+}
+
+/** Truncate a string with ellipsis */
+export function truncate(str: string, maxLen: number): string {
+  if (str.length <= maxLen) return str;
+  return `${str.slice(0, maxLen - 1)}…`;
+}
+
+/** Short OID (first 7 chars) */
+export function shortOid(oid: string): string {
+  return oid.slice(0, 7);
+}
+
+/** Get file extension from path */
+export function getFileExtension(path: string): string {
+  const parts = path.split(".");
+  return parts.length > 1 ? parts[parts.length - 1] : "";
+}
+
+/** Get file name from path */
+export function getFileName(path: string): string {
+  const parts = path.split("/");
+  return parts[parts.length - 1] || path;
+}
+
+/** Get directory from path */
+export function getDirectory(path: string): string {
+  const parts = path.split("/");
+  parts.pop();
+  return parts.join("/");
+}
+
+/** Classify file status into an icon-friendly category */
+export function getStatusIcon(status: string): string {
+  switch (status) {
+    case "added":
+      return "A";
+    case "modified":
+      return "M";
+    case "deleted":
+      return "D";
+    case "renamed":
+      return "R";
+    case "copied":
+      return "C";
+    default:
+      return "?";
+  }
+}
+
+export function getStatusColor(status: string): string {
+  switch (status) {
+    case "added":
+      return "var(--color-success)";
+    case "modified":
+      return "var(--color-warning)";
+    case "deleted":
+      return "var(--color-danger)";
+    case "renamed":
+      return "var(--color-info)";
+    default:
+      return "var(--text-secondary)";
+  }
+}
+
+/** Get language code for Monaco editor based on file path extension */
+export function getLanguageFromPath(filePath: string): string {
+  const ext = filePath.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "js":
+    case "jsx":
+      return "javascript";
+    case "ts":
+    case "tsx":
+      return "typescript";
+    case "rs":
+      return "rust";
+    case "py":
+      return "python";
+    case "go":
+      return "go";
+    case "java":
+      return "java";
+    case "cpp":
+    case "cc":
+    case "h":
+      return "cpp";
+    case "cs":
+      return "csharp";
+    case "css":
+      return "css";
+    case "html":
+      return "html";
+    case "json":
+      return "json";
+    case "md":
+      return "markdown";
+    case "sh":
+    case "bash":
+      return "shell";
+    case "yml":
+    case "yaml":
+      return "yaml";
+    default:
+      return "plaintext";
+  }
+}

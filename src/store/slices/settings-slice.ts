@@ -1,0 +1,76 @@
+import type { StateCreator } from "zustand";
+import type { UserSettings } from "../../lib/git-types";
+import { STORAGE_KEYS } from "../../lib/persistence";
+import * as commands from "../../lib/tauri-commands";
+import { applyThemeToDOM } from "../../lib/theme-presets";
+import type { RepoState } from "../types";
+
+export interface SettingsSlice {
+  settings: UserSettings | null;
+  loadSettings: () => Promise<void>;
+  saveSettings: (settings: UserSettings) => Promise<void>;
+  generateSshKey: (comment: string) => Promise<string>;
+  openInIde: (
+    filePath: string,
+    line?: number | null,
+    repoRelative?: boolean,
+  ) => Promise<void>;
+}
+
+export const createSettingsSlice: StateCreator<
+  RepoState,
+  [],
+  [],
+  SettingsSlice
+> = (set, get) => ({
+  settings: null,
+
+  loadSettings: async () => {
+    try {
+      const settings = await commands.getSettings({ silent: true });
+      set({ settings });
+      localStorage.setItem(STORAGE_KEYS.theme, settings.theme);
+      applyThemeToDOM(settings.theme);
+    } catch (err) {
+      console.error("Failed to load settings:", err);
+      throw err;
+    }
+  },
+
+  saveSettings: async (settings) => {
+    try {
+      await commands.saveSettings(settings, {
+        errorPrefix: "Failed to save settings",
+      });
+      set({ settings });
+      localStorage.setItem(STORAGE_KEYS.theme, settings.theme);
+      applyThemeToDOM(settings.theme);
+    } catch (err) {
+      console.error("Failed to save settings:", err);
+      throw err;
+    }
+  },
+
+  generateSshKey: async (comment) => {
+    try {
+      const pubKey = await commands.generateSshKey(comment, {
+        errorPrefix: "Failed to generate SSH key",
+      });
+      return pubKey;
+    } catch (err) {
+      console.error("Failed to generate SSH key:", err);
+      throw err;
+    }
+  },
+
+  openInIde: async (filePath, line, repoRelative = false) => {
+    const currentSettings = get().settings;
+    const editor = currentSettings?.externalEditor || "code";
+    // A repo-relative path is joined against the repository root in Rust, so
+    // the separator is the platform's rather than a hardcoded "/".
+    const repoPath = repoRelative ? get().activeTabId : null;
+    await commands.openInIde(filePath, line, editor, repoPath, {
+      errorPrefix: `Failed to open file in ${editor}`,
+    });
+  },
+});

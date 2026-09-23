@@ -1,0 +1,306 @@
+/* ═══════════════════════════════════════════════════════
+Basilico — Settings Commands
+User preferences, SSH key management
+═══════════════════════════════════════════════════════ */
+
+use crate::error::AppError;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use tauri::Manager;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UserSettings {
+    pub theme: String,
+    pub ssh_key_path: Option<String>,
+    pub git_author_name: Option<String>,
+    pub git_author_email: Option<String>,
+    pub keyboard_shortcuts: HashMap<String, String>,
+    pub diff_tool: Option<String>,
+    pub merge_tool: Option<String>,
+    pub github_pat: Option<String>,
+    pub autolink_pattern: Option<String>,
+    pub autolink_url: Option<String>,
+    pub bypass_hooks: Option<bool>,
+    pub external_editor: Option<String>,
+    pub vim_mode_enabled: Option<bool>,
+    /// Off by default: a desktop Git client should render correctly offline,
+    /// and this makes an unauthenticated request to api.github.com on every
+    /// branch switch. Opt-in only.
+    pub check_github_ci_status: Option<bool>,
+}
+
+impl Default for UserSettings {
+    fn default() -> Self {
+        let mut shortcuts = HashMap::new();
+        shortcuts.insert(
+            "commandPalette".to_string(),
+            "CmdOrCtrl+Shift+P".to_string(),
+        );
+        shortcuts.insert("openSettings".to_string(), "CmdOrCtrl+,".to_string());
+        shortcuts.insert("search".to_string(), "CmdOrCtrl+F".to_string());
+        shortcuts.insert("staging".to_string(), "CmdOrCtrl+Shift+S".to_string());
+        shortcuts.insert("commit".to_string(), "CmdOrCtrl+Enter".to_string());
+        shortcuts.insert("refresh".to_string(), "CmdOrCtrl+R".to_string());
+
+        Self {
+            theme: "sage-green".to_string(),
+            ssh_key_path: None,
+            git_author_name: None,
+            git_author_email: None,
+            keyboard_shortcuts: shortcuts,
+            diff_tool: None,
+            merge_tool: None,
+            github_pat: None,
+            autolink_pattern: None,
+            autolink_url: None,
+            bypass_hooks: Some(false),
+            external_editor: Some("code".to_string()),
+            vim_mode_enabled: Some(false),
+            check_github_ci_status: Some(false),
+        }
+    }
+}
+
+/// Write a file readable and writable only by the current user.
+///
+/// `settings.json` holds the GitHub PAT, so the default umask (which yields
+/// world-readable 0644 on Unix) would expose the token to every local account.
+/// The mode is applied at creation time so there is no window where the file
+/// exists with broader permissions.
+pub fn write_private_file(path: &PathBuf, content: &str) -> std::io::Result<()> {
+    use std::io::Write;
+
+    let mut opts = fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+
+    let mut file = opts.open(path)?;
+
+    // An existing file keeps its original mode when reopened, so tighten it
+    // explicitly to repair permissions written by an earlier version.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = file.set_permissions(fs::Permissions::from_mode(0o600));
+    }
+
+    file.write_all(content.as_bytes())?;
+    file.sync_all()?;
+    Ok(())
+}
+
+fn settings_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, AppError> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| AppError::settings(format!("Failed to resolve app config dir: {}", e)))?;
+    Ok(config_dir.join("settings.json"))
+}
+
+fn load_settings_from_disk<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<UserSettings, AppError> {
+    let path = settings_path(app)?;
+    if !path.exists() {
+        return Ok(UserSettings::default());
+    }
+    let content = fs::read_to_string(&path)
+        .map_err(|e| AppError::settings(format!("Failed to read settings: {}", e)))?;
+    Ok(serde_json::from_str(&content)?)
+}
+
+/// Read one field out of the cached settings, populating the cache on first use.
+///
+/// `get_custom_ssh_path` and `get_merge_tool` were byte-for-byte identical
+/// except for the final field access.
+fn with_cached_settings<R: tauri::Runtime, T>(
+    app: &tauri::AppHandle<R>,
+    read: impl FnOnce(&UserSettings) -> Option<T>,
+) -> Option<T> {
+    let state = app.try_state::<crate::state::AppState>()?;
+    let mut cached = state.settings.lock();
+    if cached.is_none() {
+        if let Ok(settings) = load_settings_from_disk(app) {
+            *cached = Some(settings);
+        }
+    }
+    cached.as_ref().and_then(read)
+}
+
+pub fn get_custom_ssh_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Option<String> {
+    with_cached_settings(app, |s| s.ssh_key_path.clone())
+}
+
+/// The user's configured merge-tool command, read from settings rather than
+/// trusted from an IPC parameter.
+///
+/// `launch_external_merge_tool` executes this value as a program (plus
+/// substituted arguments) when it doesn't match a built-in preset name, so it
+/// must come from storage the renderer can only reach through `save_settings`
+/// — not from a `tool_name` argument a compromised or buggy renderer could
+/// set to anything.
+pub fn get_merge_tool<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Option<String> {
+    with_cached_settings(app, |s| s.merge_tool.clone())
+}
+
+#[tauri::command]
+pub async fn get_settings<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<UserSettings, AppError> {
+    // Scoped so the lock is not held across the disk read below.
+    {
+        let cached = state.settings.lock();
+        if let Some(ref settings) = *cached {
+            return Ok(settings.clone());
+        }
+    }
+
+    // Read and parse off the async runtime's threads: this is a blocking file
+    // read, and every other command in the app is careful to keep those on the
+    // blocking pool.
+    let settings = tokio::task::spawn_blocking(move || load_settings_from_disk(&app)).await??;
+
+    // A concurrent caller may have populated the cache while this was reading.
+    // Either value came from the same file, so overwriting is harmless.
+    let mut cached = state.settings.lock();
+    *cached = Some(settings.clone());
+    Ok(settings)
+}
+
+#[tauri::command]
+pub async fn save_settings<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, crate::state::AppState>,
+    settings: UserSettings,
+) -> Result<(), AppError> {
+    let path = settings_path(&app)?;
+    let content = serde_json::to_string_pretty(&settings)?;
+
+    // `write_private_file` ends in an fsync, so this is the one settings
+    // operation that can block for a noticeable time. Keep it off the async
+    // runtime's threads.
+    tokio::task::spawn_blocking(move || -> Result<(), AppError> {
+        // Create parent directory if it doesn't exist
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| {
+                AppError::settings(format!("Failed to create settings directory: {}", e))
+            })?;
+        }
+
+        write_private_file(&path, &content)
+            .map_err(|e| AppError::settings(format!("Failed to write settings: {}", e)))
+    })
+    .await??;
+
+    // Update cache
+    let mut cached = state.settings.lock();
+    *cached = Some(settings);
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn generate_ssh_key(comment: String) -> Result<String, AppError> {
+    tokio::task::spawn_blocking(move || {
+        // Sanitize comment to prevent argument injection
+        let sanitized_comment: String = comment
+            .chars()
+            .filter(|c| {
+                c.is_alphanumeric() || *c == ' ' || *c == '@' || *c == '.' || *c == '-' || *c == '_'
+            })
+            .collect();
+        if sanitized_comment.is_empty() {
+            return Err(AppError::settings(
+                "SSH key comment must contain at least one valid character",
+            ));
+        }
+        let home = dirs::home_dir()
+            .ok_or_else(|| AppError::settings("Could not determine home directory"))?;
+        let ssh_dir = home.join(".ssh");
+        let key_path = ssh_dir.join("id_basilico");
+
+        // Create .ssh directory if it doesn't exist
+        fs::create_dir_all(&ssh_dir)
+            .map_err(|e| AppError::settings(format!("Failed to create .ssh directory: {}", e)))?;
+
+        // Check if key already exists
+        if key_path.exists() {
+            // Read and return the existing public key
+            let pub_path = ssh_dir.join("id_basilico.pub");
+            return fs::read_to_string(&pub_path).map_err(|e| {
+                AppError::settings(format!(
+                    "Key already exists but failed to read public key: {}",
+                    e
+                ))
+            });
+        }
+
+        let key_path_str = key_path
+            .to_str()
+            .ok_or_else(|| AppError::settings("Invalid UTF-8 in key path"))?;
+
+        let output = crate::commands::new_command("ssh-keygen")
+            .args([
+                "-t",
+                "ed25519",
+                "-C",
+                &sanitized_comment,
+                "-f",
+                key_path_str,
+                "-N",
+                "",
+            ])
+            .output()
+            .map_err(|e| AppError::command(format!("Failed to run ssh-keygen: {}", e)))?;
+
+        if !output.status.success() {
+            return Err(AppError::command(String::from_utf8_lossy(&output.stderr)));
+        }
+
+        // Read and return the public key
+        let pub_path = ssh_dir.join("id_basilico.pub");
+        fs::read_to_string(&pub_path).map_err(|e| {
+            AppError::settings(format!(
+                "Generated key but failed to read public key: {}",
+                e
+            ))
+        })
+    })
+    .await?
+}
+
+#[tauri::command]
+pub async fn list_ssh_keys() -> Result<Vec<String>, AppError> {
+    tokio::task::spawn_blocking(move || {
+        let home = dirs::home_dir()
+            .ok_or_else(|| AppError::settings("Could not determine home directory"))?;
+        let ssh_dir = home.join(".ssh");
+
+        if !ssh_dir.exists() {
+            return Ok(Vec::new());
+        }
+
+        let known_key_names = ["id_rsa", "id_ed25519", "id_ecdsa", "id_dsa", "id_basilico"];
+
+        let mut found_keys = Vec::new();
+
+        for name in &known_key_names {
+            let key_path = ssh_dir.join(name);
+            if key_path.exists() {
+                found_keys.push(name.to_string());
+            }
+        }
+
+        Ok(found_keys)
+    })
+    .await?
+}
