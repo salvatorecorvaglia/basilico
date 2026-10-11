@@ -64,9 +64,6 @@ jobs:
       - name: Typecheck
         run: pnpm exec tsc --noEmit
 
-      # `tsc --noEmit` does not exercise the bundler. Without this, a broken
-      # dynamic import or Vite plugin surfaces during a release build instead
-      # of on the pull request that introduced it.
       - name: Production build
         run: pnpm run build
 
@@ -137,9 +134,6 @@ jobs:
       - name: Install cargo-audit
         uses: taiki-e/install-action@cargo-audit
 
-      # Run cargo-audit directly rather than through rustsec/audit-check: its
-      # last release (v2.0.0) targets the deprecated Node 20 runtime. Accepted
-      # advisories are listed, with reasons, in src-tauri/.cargo/audit.toml.
       - name: Audit Rust dependencies
         working-directory: src-tauri
         run: cargo audit
