@@ -34,6 +34,7 @@ vi.mock("../../../src/lib/tauri-commands", async (importOriginal) => {
 import { DiffView } from "../../../src/components/diff/DiffView";
 import type { FileContentPair } from "../../../src/lib/tauri-commands";
 import { useRepoStore } from "../../../src/store/repo-store";
+import { useUIStore } from "../../../src/store/ui-store";
 
 function makeDeferred() {
   let resolve!: (value: FileContentPair) => void;
@@ -54,7 +55,51 @@ describe("DiffView", () => {
       localDiff: null,
       repoInfo: null,
       settings: null,
+      status: null,
     });
+  });
+
+  // B3: a conflicted path has no stage-0 index entry, so the backend treats a
+  // discard of it as an untracked file and deletes it from disk. The Discard
+  // action must not be offered for a conflicted file.
+  it("does not offer Discard for a conflicted file", async () => {
+    getFileContentPairMock.mockResolvedValue({ original: "", modified: "" });
+    useRepoStore.setState({
+      selectedFilePath: "conflicted.txt",
+      selectedFileIsStaged: false,
+      status: {
+        branch: "main",
+        ahead: 0,
+        behind: 0,
+        staged: [],
+        unstaged: [],
+        untracked: [],
+        conflicted: ["conflicted.txt"],
+        state: "Merge",
+      },
+    });
+    render(<DiffView />);
+
+    await waitFor(() => {
+      expect(getFileContentPairMock).toHaveBeenCalled();
+    });
+    expect(
+      screen.queryByRole("button", { name: /Discard/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  // Phase 6: an oversized file is not handed to the editor; the view says why.
+  it("shows a placeholder instead of the editor for a file that is too large", async () => {
+    getFileContentPairMock.mockResolvedValue({
+      original: "",
+      modified: "",
+      tooLarge: true,
+    });
+    useRepoStore.setState({ selectedFilePath: "huge.log" });
+    render(<DiffView />);
+
+    expect(await screen.findByText("File Too Large")).toBeInTheDocument();
+    expect(screen.queryByTestId("diff-editor")).not.toBeInTheDocument();
   });
 
   it("shows an empty state when no file is selected", () => {
@@ -77,6 +122,7 @@ describe("DiffView", () => {
         "/repo",
         "a.txt",
         false,
+        null,
       ),
     );
 
@@ -90,6 +136,7 @@ describe("DiffView", () => {
         "/repo",
         "b.txt",
         false,
+        null,
       ),
     );
 
@@ -107,5 +154,73 @@ describe("DiffView", () => {
     await Promise.resolve();
 
     expect(screen.getByTestId("diff-modified")).toHaveTextContent("b-modified");
+  });
+
+  // A staged rename has no file under its new name in HEAD; the HEAD side must
+  // be read under the old one or the whole file shows as added.
+  it("reads a staged rename's HEAD side under its old name", async () => {
+    getFileContentPairMock.mockResolvedValue({ original: "", modified: "" });
+    useRepoStore.setState({
+      selectedFilePath: "new.txt",
+      selectedFileIsStaged: true,
+      status: {
+        branch: "main",
+        ahead: 0,
+        behind: 0,
+        staged: [
+          {
+            path: "new.txt",
+            oldPath: "old.txt",
+            status: "renamed",
+            isStaged: true,
+          },
+        ],
+        unstaged: [],
+        untracked: [],
+        conflicted: [],
+        state: "Clean",
+      },
+    });
+    render(<DiffView />);
+
+    await waitFor(() =>
+      expect(getFileContentPairMock).toHaveBeenCalledWith(
+        "/repo",
+        "new.txt",
+        true,
+        "old.txt",
+      ),
+    );
+  });
+
+  // Discarding an untracked file deletes it; the button and the confirmation
+  // must say "Delete", as the staging context menu already does.
+  it("labels the action Delete for an untracked file", async () => {
+    getFileContentPairMock.mockResolvedValue({ original: "", modified: "" });
+    useRepoStore.setState({
+      selectedFilePath: "scratch.txt",
+      selectedFileIsStaged: false,
+      status: {
+        branch: "main",
+        ahead: 0,
+        behind: 0,
+        staged: [],
+        unstaged: [],
+        untracked: ["scratch.txt"],
+        conflicted: [],
+        state: "Clean",
+      },
+    });
+    useUIStore.setState({ confirmOptions: null });
+    render(<DiffView />);
+
+    const button = await screen.findByRole("button", { name: "Delete" });
+    expect(screen.queryByRole("button", { name: "Discard" })).toBeNull();
+    button.click();
+    expect(useUIStore.getState().confirmOptions).toMatchObject({
+      title: "Delete File",
+      confirmLabel: "Delete File",
+      isDanger: true,
+    });
   });
 });

@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::git::helpers::get_or_fallback_signature;
+use crate::git::helpers::require_signature;
 use crate::git::hooks;
 use git2::{Repository, Signature};
 use serde::Serialize;
@@ -13,6 +13,7 @@ pub async fn create_commit(
     amend: bool,
     bypass_hooks: bool,
 ) -> Result<String, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
         let hook_workdir = repo.workdir().unwrap_or_else(|| repo.path()).to_path_buf();
@@ -42,7 +43,7 @@ pub async fn create_commit(
             hooks::run_blocking_hook(&repo, &hook_workdir, "commit-msg", &[&msg_path_str])?;
 
             let edited = std::fs::read_to_string(&msg_path)?;
-            let edited = hooks::strip_comments(&edited);
+            let edited = hooks::cleanup_message(&repo, &edited);
             if edited.is_empty() {
                 return Err(AppError::invalid_state(
                     "The commit message is empty after running hooks. Aborting the commit.",
@@ -56,7 +57,7 @@ pub async fn create_commit(
         let tree = repo.find_tree(tree_id)?;
 
         // Get committer signature (user's git config identity)
-        let committer_sig = get_or_fallback_signature(&repo)?;
+        let committer_sig = require_signature(&repo)?;
 
         // Create author signature. When amending without an explicit override,
         // the original author is preserved — `git commit --amend` keeps
@@ -106,62 +107,18 @@ pub async fn create_commit(
 
         let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
 
-        let (should_sign, signing_key) = crate::git::helpers::signing_config(&repo);
+        let signing = crate::git::helpers::signing_config(&repo);
 
-        let commit_id = if should_sign {
-            // GPG sign commit
-            let commit_content_buf =
-                repo.commit_create_buffer(&sig, &committer_sig, &message, &tree, &parent_refs)?;
-            let commit_content = std::str::from_utf8(&commit_content_buf)
-                .map_err(|_| AppError::invalid_state("Commit buffer is not valid UTF-8"))?;
-
-            let signature = crate::git::helpers::gpg_sign(commit_content, signing_key.as_deref())?;
-            let commit_oid = repo.commit_signed(commit_content, &signature, Some("gpgsig"))?;
-
-            // The reflog file is one entry per line; a multi-line commit
-            // message would otherwise corrupt it, so mirror the summary-only
-            // reflog message `repo.commit()` builds automatically for the
-            // unsigned path below.
-            let reflog_summary = message.lines().next().unwrap_or_default();
-
-            // Update HEAD
-            let head_ref = repo.head();
-            match head_ref {
-                Ok(head) => {
-                    if head.is_branch() {
-                        if let Ok(refname) = head.name() {
-                            let mut r = repo.find_reference(refname)?;
-                            r.set_target(
-                                commit_oid,
-                                &format!("commit (signed): {}", reflog_summary),
-                            )?;
-                            repo.set_head(refname)?;
-                        }
-                    } else {
-                        repo.set_head_detached(commit_oid)?;
-                    }
-                }
-                Err(_) => {
-                    // This might be the initial commit in an empty repo.
-                    // Resolve where HEAD points symbolically (e.g. refs/heads/main)
-                    if let Ok(head_sym) = repo.find_reference("HEAD") {
-                        if let Ok(Some(target)) = head_sym.symbolic_target() {
-                            // Create the target reference pointing to the new commit
-                            repo.reference(
-                                target,
-                                commit_oid,
-                                true,
-                                &format!("commit (signed): {}", reflog_summary),
-                            )?;
-                            repo.set_head(target)?;
-                        } else {
-                            repo.set_head_detached(commit_oid)?;
-                        }
-                    } else {
-                        repo.set_head_detached(commit_oid)?;
-                    }
-                }
-            }
+        let commit_id = if signing.enabled {
+            let commit_oid = crate::git::helpers::commit_signed_and_update_head(
+                &repo,
+                &sig,
+                &committer_sig,
+                &message,
+                &tree,
+                &parent_refs,
+                &signing,
+            )?;
 
             if !amend && repo.find_reference("MERGE_HEAD").is_ok() {
                 // Logged rather than discarded: a failure here leaves MERGE_HEAD on
@@ -230,7 +187,11 @@ pub async fn create_commit(
 }
 
 #[tauri::command]
-pub async fn cherry_pick_commit(path: String, oid: String) -> Result<String, AppError> {
+pub async fn cherry_pick_commit(
+    path: String,
+    oid: String,
+) -> Result<crate::git::helpers::MergeOutcome, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         // Validate OID format to prevent command line option/argument injection
         let _ = git2::Oid::from_str(&oid)?;
@@ -241,11 +202,11 @@ pub async fn cherry_pick_commit(path: String, oid: String) -> Result<String, App
         let repo = Repository::open(&path)?;
         match repo.state() {
             git2::RepositoryState::CherryPick | git2::RepositoryState::CherryPickSequence => {
-                Ok("conflicts".to_string())
+                Ok(crate::git::helpers::MergeOutcome::Conflicts)
             }
             _ => {
                 if output.status.success() {
-                    Ok("success".to_string())
+                    Ok(crate::git::helpers::MergeOutcome::Success)
                 } else {
                     Err(AppError::git(crate::commands::git_failure_message(
                         &args, &output,
@@ -259,6 +220,7 @@ pub async fn cherry_pick_commit(path: String, oid: String) -> Result<String, App
 
 #[tauri::command]
 pub async fn cherry_pick_abort(path: String) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         crate::commands::run_git_cmd(&["cherry-pick", "--abort"], &path)?;
         Ok(())
@@ -267,7 +229,11 @@ pub async fn cherry_pick_abort(path: String) -> Result<(), AppError> {
 }
 
 #[tauri::command]
-pub async fn revert_commit(path: String, oid: String) -> Result<String, AppError> {
+pub async fn revert_commit(
+    path: String,
+    oid: String,
+) -> Result<crate::git::helpers::MergeOutcome, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         // Validate OID format to prevent command line option/argument injection
         let _ = git2::Oid::from_str(&oid)?;
@@ -278,11 +244,11 @@ pub async fn revert_commit(path: String, oid: String) -> Result<String, AppError
         let repo = Repository::open(&path)?;
         match repo.state() {
             git2::RepositoryState::Revert | git2::RepositoryState::RevertSequence => {
-                Ok("conflicts".to_string())
+                Ok(crate::git::helpers::MergeOutcome::Conflicts)
             }
             _ => {
                 if output.status.success() {
-                    Ok("success".to_string())
+                    Ok(crate::git::helpers::MergeOutcome::Success)
                 } else {
                     Err(AppError::git(crate::commands::git_failure_message(
                         &args, &output,
@@ -296,6 +262,7 @@ pub async fn revert_commit(path: String, oid: String) -> Result<String, AppError
 
 #[tauri::command]
 pub async fn revert_abort(path: String) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         crate::commands::run_git_cmd(&["revert", "--abort"], &path)?;
         Ok(())
@@ -305,6 +272,7 @@ pub async fn revert_abort(path: String) -> Result<(), AppError> {
 
 #[tauri::command]
 pub async fn reset_to_commit(path: String, oid: String, mode: String) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
         // Peel rather than downcast: a tag or a ref resolves to a tag object,
@@ -340,8 +308,19 @@ pub struct TreeEntryInfo {
     pub size: Option<u64>,
 }
 
+/// The files and folders of a commit's tree.
+///
+/// With `dir`, only that directory's direct children ("" is the root), folders
+/// first: the File Tree view expands one folder at a time, and walking — and
+/// sending — every entry of a large repository's tree just to show its top
+/// level cost seconds. Without `dir`, the whole tree, recursively.
 #[tauri::command]
-pub async fn get_commit_tree(path: String, oid: String) -> Result<Vec<TreeEntryInfo>, AppError> {
+pub async fn get_commit_tree(
+    path: String,
+    oid: String,
+    dir: Option<String>,
+) -> Result<Vec<TreeEntryInfo>, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
         let commit = repo.revparse_single(&oid)?.peel_to_commit().map_err(|_| {
@@ -354,16 +333,8 @@ pub async fn get_commit_tree(path: String, oid: String) -> Result<Vec<TreeEntryI
         // which reports a blob's size without inflating its contents — the
         // whole-blob read this would otherwise need is O(content) per entry.
         let odb = repo.odb()?;
-
-        let mut entries = Vec::new();
-        tree.walk(git2::TreeWalkMode::PreOrder, |root, entry| {
+        let info = |prefix: &str, entry: &git2::TreeEntry| {
             let name = entry.name().unwrap_or("").to_string();
-            let rel_path = if root.is_empty() {
-                name.clone()
-            } else {
-                format!("{}{}", root, name)
-            };
-
             let is_dir = entry.kind() == Some(git2::ObjectType::Tree);
             let size = if is_dir {
                 None
@@ -372,18 +343,59 @@ pub async fn get_commit_tree(path: String, oid: String) -> Result<Vec<TreeEntryI
                     .ok()
                     .map(|(size, _)| size as u64)
             };
-
-            entries.push(TreeEntryInfo {
-                path: rel_path,
+            TreeEntryInfo {
+                path: format!("{}{}", prefix, name),
                 name,
                 is_dir,
                 size,
-            });
+            }
+        };
 
-            git2::TreeWalkResult::Ok
-        })?;
+        let Some(dir) = dir else {
+            let mut entries = Vec::new();
+            tree.walk(git2::TreeWalkMode::PreOrder, |root, entry| {
+                entries.push(info(root, entry));
+                git2::TreeWalkResult::Ok
+            })?;
+            return Ok(entries);
+        };
 
+        let dir = dir.trim_matches('/');
+        let listed = if dir.is_empty() {
+            tree
+        } else {
+            tree.get_path(std::path::Path::new(dir))
+                .and_then(|entry| entry.to_object(&repo))
+                .and_then(|object| object.peel_to_tree())
+                .map_err(|_| AppError::not_found(format!("'{}' is not a folder in {}", dir, oid)))?
+        };
+        let prefix = if dir.is_empty() {
+            String::new()
+        } else {
+            format!("{}/", dir)
+        };
+        let mut entries: Vec<TreeEntryInfo> =
+            listed.iter().map(|entry| info(&prefix, &entry)).collect();
+        entries.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then_with(|| a.name.cmp(&b.name)));
         Ok(entries)
+    })
+    .await?
+}
+
+/// The full message of a commit — subject *and* body.
+///
+/// The commit graph carries only each commit's subject line, so amending from
+/// it pre-filled the form without the body, and committing the amend then
+/// silently dropped the body.
+#[tauri::command]
+pub async fn get_commit_message(path: String, oid: String) -> Result<String, AppError> {
+    crate::state::ensure_open_repo(&path)?;
+    tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&path)?;
+        let commit = repo.revparse_single(&oid)?.peel_to_commit().map_err(|_| {
+            AppError::invalid_state(format!("'{}' does not resolve to a commit", oid))
+        })?;
+        Ok(commit.message().unwrap_or("").to_string())
     })
     .await?
 }

@@ -338,24 +338,57 @@ fn test_has_conflict_markers() {
 #[test]
 fn test_is_protected_branch() {
     use basilico_lib::commands::branch::is_protected_branch;
+    let origin = Some("origin");
 
     // The sweep target itself, in local and remote-tracking form.
-    assert!(is_protected_branch("main", "main"));
-    assert!(is_protected_branch("origin/main", "main"));
-    assert!(is_protected_branch("main", "origin/main"));
+    assert!(is_protected_branch("main", None, "main", None));
+    assert!(is_protected_branch("origin/main", origin, "main", None));
+    assert!(is_protected_branch("main", None, "origin/main", origin));
 
     // Well-known long-lived branches are protected regardless of target.
-    assert!(is_protected_branch("master", "some-feature"));
-    assert!(is_protected_branch("origin/develop", "some-feature"));
-    assert!(is_protected_branch("trunk", "some-feature"));
+    assert!(is_protected_branch("master", None, "some-feature", None));
+    assert!(is_protected_branch(
+        "origin/develop",
+        origin,
+        "some-feature",
+        None
+    ));
+    assert!(is_protected_branch("trunk", None, "some-feature", None));
 
     // Ordinary topic branches are sweepable.
-    assert!(!is_protected_branch("feature/login", "main"));
-    assert!(!is_protected_branch("origin/feature/login", "main"));
+    assert!(!is_protected_branch("feature/login", None, "main", None));
+    assert!(!is_protected_branch(
+        "origin/feature/login",
+        origin,
+        "main",
+        None
+    ));
 
     // A branch merely *containing* a protected name is not protected.
-    assert!(!is_protected_branch("mainline", "develop"));
-    assert!(!is_protected_branch("feature/main-menu", "develop"));
+    assert!(!is_protected_branch("mainline", None, "develop", None));
+    assert!(!is_protected_branch(
+        "feature/main-menu",
+        None,
+        "develop",
+        None
+    ));
+    // Nor is one whose *last segment* is a protected name — only a real
+    // remote prefix is stripped.
+    assert!(!is_protected_branch("feature/main", None, "develop", None));
+    assert!(!is_protected_branch(
+        "origin/feature/main",
+        origin,
+        "develop",
+        None
+    ));
+    assert!(!is_protected_branch("feature/topic", None, "topic", None));
+    // A remote whose name contains a slash.
+    assert!(is_protected_branch(
+        "team/fork/main",
+        Some("team/fork"),
+        "x",
+        None
+    ));
 }
 
 #[test]
@@ -985,4 +1018,87 @@ fn test_lane_cache_is_bounded() {
     assert_eq!(cached.len(), fresh.len());
     assert_eq!(cached[0].oid, fresh[0].oid);
     assert_eq!(cached[0].message, fresh[0].message);
+}
+
+/// Phase 6: the log fingerprint changes exactly when the log would — on a new
+/// commit or ref — and not for things the graph does not show, like a stash.
+#[test]
+fn test_log_fingerprint_tracks_graph_refs_only() {
+    let mut repo = TempRepo::new();
+    repo.write_file("a.txt", "one");
+    repo.commit("initial");
+
+    let first = graph_fingerprint(repo.path_str(), false).unwrap();
+    assert_eq!(first, graph_fingerprint(repo.path_str(), false).unwrap());
+
+    repo.write_file("a.txt", "work in progress");
+    let sig = git2::Signature::now("Test User", "test@example.com").unwrap();
+    repo.repo.stash_save(&sig, "wip", None).unwrap();
+    assert_eq!(
+        first,
+        graph_fingerprint(repo.path_str(), false).unwrap(),
+        "a stash is not in the graph, so the log is unchanged"
+    );
+
+    repo.write_file("b.txt", "two");
+    repo.commit("second");
+    assert_ne!(first, graph_fingerprint(repo.path_str(), false).unwrap());
+}
+
+/// B21: a moved file is one rename in a commit's diff, not a deletion plus an
+/// unrelated new file.
+#[test]
+fn test_commit_diff_reports_renames() {
+    let repo = TempRepo::new();
+    let content = "line one of a file\nline two of a file\nline three of a file\n";
+    repo.write_file("old.txt", content);
+    repo.commit("initial");
+
+    std::fs::rename(repo.path.join("old.txt"), repo.path.join("new.txt")).unwrap();
+    let mut index = repo.repo.index().unwrap();
+    index.remove_path(Path::new("old.txt")).unwrap();
+    index.add_path(Path::new("new.txt")).unwrap();
+    index.write().unwrap();
+    let tree = repo.repo.find_tree(index.write_tree().unwrap()).unwrap();
+    let sig = repo.repo.signature().unwrap();
+    let parent = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    let oid = repo
+        .repo
+        .commit(Some("HEAD"), &sig, &sig, "move", &tree, &[&parent])
+        .unwrap();
+
+    let diffs = get_commit_diff(repo.path_str(), &oid.to_string()).unwrap();
+    assert_eq!(diffs.len(), 1, "{:?}", diffs);
+    assert_eq!(diffs[0].status, "renamed");
+    assert_eq!(diffs[0].old_path.as_deref(), Some("old.txt"));
+    assert_eq!(diffs[0].new_path.as_deref(), Some("new.txt"));
+}
+
+/// B8: only HEAD, branches, remote branches and tags are walked. Every ref
+/// used to be, so a stash put its WIP and index commits into the history.
+#[test]
+fn test_graph_excludes_stash_commits() {
+    let mut repo = TempRepo::new();
+    repo.write_file("a.txt", "one");
+    repo.commit("initial");
+    let head = repo.repo.head().unwrap().target().unwrap().to_string();
+
+    repo.write_file("a.txt", "work in progress");
+    let sig = git2::Signature::now("Test User", "test@example.com").unwrap();
+    repo.repo.stash_save(&sig, "wip", None).unwrap();
+    assert!(repo.repo.find_reference("refs/stash").is_ok());
+
+    let commits = build_graph(repo.path_str(), 100, false, false, None).unwrap();
+    let oids: Vec<&str> = commits.iter().map(|c| c.oid.as_str()).collect();
+    assert_eq!(
+        oids,
+        vec![head.as_str()],
+        "stash commits leaked into the graph"
+    );
+
+    let cache: LaneCache = parking_lot::Mutex::new(std::collections::HashMap::new());
+    let cached =
+        build_graph_page_cached(repo.path_str(), 0, 100, false, false, None, &cache).unwrap();
+    assert_eq!(cached.len(), 1);
+    assert_eq!(cached[0].oid, head);
 }

@@ -36,6 +36,7 @@ pub struct WorktreeInfo {
 
 #[tauri::command]
 pub async fn list_worktrees(repo_path: String) -> Result<Vec<WorktreeInfo>, AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         let stdout =
             crate::commands::run_git_cmd(&["worktree", "list", "--porcelain"], &repo_path)?;
@@ -102,6 +103,7 @@ pub async fn add_worktree(
     branch: Option<String>,
     new_branch: Option<String>,
 ) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         // Worktrees are conventionally created *outside* the repository (a
         // sibling directory), so absolute paths and `..` are both legitimate
@@ -173,6 +175,7 @@ pub async fn remove_worktree(
     worktree_path: String,
     force: bool,
 ) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         let mut args = vec!["worktree", "remove"];
 
@@ -193,6 +196,7 @@ pub async fn remove_worktree(
 
 #[tauri::command]
 pub async fn prune_worktrees(repo_path: String) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         crate::commands::run_git_cmd(&["worktree", "prune"], &repo_path)?;
 
@@ -207,6 +211,7 @@ pub async fn lock_worktree(
     worktree_name: String,
     reason: Option<String>,
 ) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         let mut args = vec!["worktree".to_string(), "lock".to_string()];
 
@@ -228,6 +233,7 @@ pub async fn lock_worktree(
 
 #[tauri::command]
 pub async fn unlock_worktree(repo_path: String, worktree_name: String) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         crate::commands::run_git_cmd(&["worktree", "unlock", "--", &worktree_name], &repo_path)?;
 

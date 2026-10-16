@@ -22,7 +22,7 @@ export interface PromptField {
   name: string;
   label: string;
   placeholder?: string;
-  type?: "text" | "textarea" | "checkbox";
+  type?: "text" | "textarea" | "checkbox" | "password";
   defaultValue?: string;
   required?: boolean;
 }
@@ -49,9 +49,6 @@ export interface ConfirmOptions {
 interface UIState {
   // Panels
   sidebarVisible: boolean;
-  sidebarWidth: number;
-  detailPanelVisible: boolean;
-  detailPanelHeight: number;
 
   // Active view
   activeView: ActiveView;
@@ -75,19 +72,12 @@ interface UIState {
   promptOptions: PromptOptions | null;
   confirmOptions: ConfirmOptions | null;
 
-  // Vim mode navigation area
-  vimModeActiveArea: "graph" | "staging" | "diff" | null;
-
   // Notifications
   notifications: Notification[];
 
   // Actions
   toggleSidebar: () => void;
-  setSidebarWidth: (width: number) => void;
-  toggleDetailPanel: () => void;
-  setDetailPanelHeight: (height: number) => void;
   setActiveView: (view: ActiveView) => void;
-  setVimModeActiveArea: (area: "graph" | "staging" | "diff" | null) => void;
   toggleCommandPalette: () => void;
   toggleSettings: () => void;
   openResetModal: (oid: string) => void;
@@ -108,9 +98,6 @@ const activeTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
 export const useUIStore = create<UIState>((set, get) => ({
   sidebarVisible: true,
-  sidebarWidth: 240,
-  detailPanelVisible: true,
-  detailPanelHeight: 300,
   activeView: "graph",
   commandPaletteOpen: false,
   settingsOpen: false,
@@ -121,22 +108,12 @@ export const useUIStore = create<UIState>((set, get) => ({
   fileViewerOid: null,
   promptOptions: null,
   confirmOptions: null,
-  vimModeActiveArea: "graph",
   notifications: [],
 
   toggleSidebar: () =>
     set((state) => ({ sidebarVisible: !state.sidebarVisible })),
 
-  setSidebarWidth: (width: number) => set({ sidebarWidth: width }),
-
-  toggleDetailPanel: () =>
-    set((state) => ({ detailPanelVisible: !state.detailPanelVisible })),
-
-  setDetailPanelHeight: (height: number) => set({ detailPanelHeight: height }),
-
   setActiveView: (view: ActiveView) => set({ activeView: view }),
-
-  setVimModeActiveArea: (area) => set({ vimModeActiveArea: area }),
 
   toggleCommandPalette: () =>
     set((state) => ({ commandPaletteOpen: !state.commandPaletteOpen })),

@@ -38,6 +38,9 @@ export function RepoSearch() {
   const [searchTab, setSearchTab] = useState<"commits" | "code">("commits");
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  // Whether results on screen answer a search. Before the first one, the
+  // empty list said "No commits match your query" for a query never run.
+  const [hasSearched, setHasSearched] = useState(false);
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -50,6 +53,7 @@ export function RepoSearch() {
       } else {
         await grepCode(query);
       }
+      setHasSearched(true);
     } catch (err) {
       console.error(err);
     } finally {
@@ -59,6 +63,7 @@ export function RepoSearch() {
 
   const handleClear = () => {
     setQuery("");
+    setHasSearched(false);
     useRepoStore.setState({ commitSearchResults: [], grepSearchResults: [] });
   };
 
@@ -121,6 +126,7 @@ export function RepoSearch() {
               type="button"
               className="search-clear-btn"
               onClick={handleClear}
+              aria-label="Clear search"
             >
               <X size={14} />
             </button>
@@ -140,7 +146,11 @@ export function RepoSearch() {
           commitSearchResults.length === 0 ? (
             <div className="empty-state search-empty">
               <GitCommit size={28} strokeWidth={1} />
-              <p>No commits match your query</p>
+              <p>
+                {hasSearched
+                  ? "No commits match your query"
+                  : "Search commit messages and authors"}
+              </p>
             </div>
           ) : (
             <div className="search-list">
@@ -182,7 +192,11 @@ export function RepoSearch() {
         ) : grepSearchResults.length === 0 ? (
           <div className="empty-state search-empty">
             <FileText size={28} strokeWidth={1} />
-            <p>No code matches your query</p>
+            <p>
+              {hasSearched
+                ? "No code matches your query"
+                : "Search the code in the working tree"}
+            </p>
           </div>
         ) : (
           <div className="search-list">

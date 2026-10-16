@@ -58,7 +58,7 @@
 }
 
 .palette-esc-badge {
-  font-size: 9px;
+  font-size: var(--font-size-3xs);
   font-family: var(--font-mono);
   background: var(--bg-hover);
   color: var(--text-secondary);
@@ -130,7 +130,7 @@
 }
 
 .palette-row-name {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: var(--weight-medium);
   color: var(--text-secondary);
   transition: color var(--transition-fast);
@@ -141,7 +141,7 @@
 }
 
 .palette-row-cat {
-  font-size: 8px;
+  font-size: var(--font-size-4xs);
   font-weight: var(--weight-bold);
   color: var(--text-tertiary);
   text-transform: uppercase;
@@ -150,7 +150,7 @@
 }
 
 .palette-row-shortcut {
-  font-size: 9px;
+  font-size: var(--font-size-3xs);
   background: var(--bg-inset);
   color: var(--text-tertiary);
   border: 1px solid var(--border-default);
@@ -185,7 +185,7 @@
   display: flex;
   justify-content: center;
   font-family: var(--font-family);
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
   color: var(--text-tertiary);
 }
 

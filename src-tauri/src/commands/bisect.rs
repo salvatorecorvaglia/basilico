@@ -74,6 +74,7 @@ pub async fn bisect_start(
     bad: String,
     good: String,
 ) -> Result<BisectState, AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     crate::commands::validate_git_argument(&bad, "Bisect revision")?;
     crate::commands::validate_git_argument(&good, "Bisect revision")?;
     tokio::task::spawn_blocking(move || {
@@ -98,6 +99,7 @@ pub async fn bisect_mark(
     repo_path: String,
     status: String, // "good", "bad", "skip"
 ) -> Result<BisectState, AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     if status != "good" && status != "bad" && status != "skip" {
         return Err(AppError::invalid_state("Invalid bisect status"));
     }
@@ -110,6 +112,7 @@ pub async fn bisect_mark(
 
 #[tauri::command]
 pub async fn bisect_reset(repo_path: String) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         run_bisect_cmd(&repo_path, &["bisect", "reset"])?;
         Ok(())

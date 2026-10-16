@@ -1,7 +1,7 @@
 import type { StateCreator } from "zustand";
 import type { SubmoduleInfo, WorktreeInfo } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
-import { setLoading, withLoading } from "../store-helpers";
+import { setLoading, withActiveRepo } from "../store-helpers";
 import type { RepoState } from "../types";
 
 export interface WorktreeSubmoduleSlice {
@@ -51,15 +51,12 @@ export const createWorktreeSubmoduleSlice: StateCreator<
   },
 
   addWorktree: async (path, branch, newBranch) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "collaboration",
       "Failed to add worktree",
-      async () => {
+      async (activeTabId) => {
         await commands.addWorktree(activeTabId, path, branch, newBranch, {
           errorPrefix: "Failed to add worktree",
         });
@@ -69,15 +66,12 @@ export const createWorktreeSubmoduleSlice: StateCreator<
   },
 
   removeWorktree: async (worktreePath, force = false) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "collaboration",
       "Failed to remove worktree",
-      async () => {
+      async (activeTabId) => {
         await commands.removeWorktree(activeTabId, worktreePath, force, {
           errorPrefix: "Failed to remove worktree",
         });
@@ -87,15 +81,12 @@ export const createWorktreeSubmoduleSlice: StateCreator<
   },
 
   pruneWorktrees: async () => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "collaboration",
       "Failed to prune worktrees",
-      async () => {
+      async (activeTabId) => {
         await commands.pruneWorktrees(activeTabId, {
           errorPrefix: "Failed to prune worktrees",
         });
@@ -123,15 +114,12 @@ export const createWorktreeSubmoduleSlice: StateCreator<
   },
 
   initSubmodules: async (paths) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "collaboration",
       "Failed to initialize submodules",
-      async () => {
+      async (activeTabId) => {
         await commands.initSubmodules(activeTabId, paths, {
           errorPrefix: "Failed to initialize submodules",
         });
@@ -141,15 +129,12 @@ export const createWorktreeSubmoduleSlice: StateCreator<
   },
 
   updateSubmodules: async (paths, recursive = false) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "collaboration",
       "Failed to update submodules",
-      async () => {
+      async (activeTabId) => {
         await commands.updateSubmodules(activeTabId, paths, recursive, {
           errorPrefix: "Failed to update submodules",
         });
@@ -159,15 +144,12 @@ export const createWorktreeSubmoduleSlice: StateCreator<
   },
 
   syncSubmodules: async (paths) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "collaboration",
       "Failed to sync submodules",
-      async () => {
+      async (activeTabId) => {
         await commands.syncSubmodules(activeTabId, paths, {
           errorPrefix: "Failed to sync submodules",
         });
@@ -177,15 +159,12 @@ export const createWorktreeSubmoduleSlice: StateCreator<
   },
 
   addSubmodule: async (url, path) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "collaboration",
       "Failed to add submodule",
-      async () => {
+      async (activeTabId) => {
         await commands.addSubmodule(activeTabId, url, path, {
           errorPrefix: "Failed to add submodule",
         });

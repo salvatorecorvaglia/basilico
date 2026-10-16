@@ -18,6 +18,7 @@ import { useShallow } from "zustand/react/shallow";
 import type { BranchInfo } from "../../lib/git-types";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
+import "./ToolModal.css";
 
 interface MergedBranchSweeperModalProps {
   open: boolean;
@@ -169,10 +170,7 @@ export function MergedBranchSweeperModal({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="settings-overlay" />
-        <Dialog.Content
-          className="settings-modal"
-          style={{ maxWidth: "560px", maxHeight: "80vh" }}
-        >
+        <Dialog.Content className="settings-modal tool-modal tool-modal-sweeper">
           {/* Header */}
           <div className="settings-header">
             <Dialog.Title asChild>
@@ -193,25 +191,17 @@ export function MergedBranchSweeperModal({
           </div>
 
           {/* Body */}
-          <div className="settings-body" style={{ padding: "var(--space-4)" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "var(--space-3)",
-                marginBottom: "var(--space-4)",
-              }}
-            >
+          <div className="settings-body tool-modal-body">
+            <div className="sweeper-target">
               <label
+                className="sweeper-target-label"
                 htmlFor="sweeper-target-branch"
-                style={{ fontSize: "12px", fontWeight: 500 }}
               >
                 Merged into:
               </label>
               <select
                 id="sweeper-target-branch"
-                className="settings-input"
-                style={{ width: "auto", flex: 1 }}
+                className="settings-input sweeper-target-select"
                 value={targetBranch}
                 onChange={(e) => setTargetBranch(e.target.value)}
               >
@@ -237,63 +227,27 @@ export function MergedBranchSweeperModal({
             </div>
 
             {isScanning ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "var(--space-6) 0",
-                  color: "var(--text-tertiary)",
-                }}
-              >
+              <div className="tool-modal-state">
                 <span className="spinner-large" />
-                <p style={{ marginTop: "var(--space-2)" }}>
+                <p className="tool-modal-state-text">
                   Scanning for merged branches...
                 </p>
               </div>
             ) : mergedList.length === 0 ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "var(--space-6) 0",
-                  color: "var(--text-tertiary)",
-                }}
-              >
-                <Check
-                  size={32}
-                  style={{
-                    margin: "0 auto var(--space-2)",
-                    color: "var(--accent-primary)",
-                  }}
-                />
-                <p style={{ fontWeight: 500 }}>No Merged Branches Found</p>
-                <p style={{ fontSize: "11px" }}>
+              <div className="tool-modal-state">
+                <Check className="tool-modal-state-icon accent" size={32} />
+                <p className="tool-modal-strong">No Merged Branches Found</p>
+                <p className="tool-modal-small">
                   All local and remote branches contain unmerged work relative
                   to {targetBranch}.
                 </p>
               </div>
             ) : (
               <>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "var(--space-2)",
-                    fontSize: "12px",
-                  }}
-                >
+                <div className="sweeper-list-header">
                   <button
+                    className="sweeper-select-all"
                     type="button"
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "var(--accent-primary)",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      fontSize: "12px",
-                      padding: 0,
-                    }}
                     onClick={toggleSelectAll}
                   >
                     {selectedBranches.size === mergedList.length ? (
@@ -312,15 +266,7 @@ export function MergedBranchSweeperModal({
                   </span>
                 </div>
 
-                <div
-                  style={{
-                    maxHeight: "260px",
-                    overflowY: "auto",
-                    border: "1px solid var(--border-color)",
-                    borderRadius: "var(--radius-md)",
-                    background: "var(--bg-secondary)",
-                  }}
-                >
+                <div className="tool-modal-list sweeper-list">
                   {mergedList.map((b) => {
                     const isSelected = selectedBranches.has(b.name);
                     return (
@@ -329,17 +275,7 @@ export function MergedBranchSweeperModal({
                       // handlers on a div.
                       <label
                         key={b.name}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "var(--space-3)",
-                          padding: "var(--space-2) var(--space-3)",
-                          borderBottom: "1px solid var(--border-subtle)",
-                          cursor: "pointer",
-                          background: isSelected
-                            ? "var(--bg-hover)"
-                            : "transparent",
-                        }}
+                        className={`sweeper-row ${isSelected ? "selected" : ""}`}
                       >
                         <input
                           type="checkbox"
@@ -347,18 +283,9 @@ export function MergedBranchSweeperModal({
                           onChange={() => toggleBranch(b.name)}
                         />
                         <GitBranch size={13} className="text-secondary" />
+                        <span className="sweeper-branch-name">{b.name}</span>
                         <span
-                          style={{
-                            flex: 1,
-                            fontSize: "12px",
-                            fontFamily: "monospace",
-                          }}
-                        >
-                          {b.name}
-                        </span>
-                        <span
-                          className={`commit-ref ${b.isRemote ? "ref-remote" : "ref-branch"}`}
-                          style={{ fontSize: "10px" }}
+                          className={`commit-ref ${b.isRemote ? "ref-remote" : "ref-branch"} tool-modal-tiny`}
                         >
                           {b.isRemote ? "Remote" : "Local"}
                         </span>
@@ -381,11 +308,7 @@ export function MergedBranchSweeperModal({
             </button>
             <button
               type="button"
-              className="settings-btn"
-              style={{
-                background: "var(--color-danger)",
-                borderColor: "var(--color-danger)",
-              }}
+              className="settings-btn sweeper-delete-btn"
               disabled={selectedBranches.size === 0 || isDeleting}
               onClick={handleBulkDelete}
             >

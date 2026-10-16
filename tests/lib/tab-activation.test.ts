@@ -9,6 +9,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 import type { GraphCommit } from "../../src/lib/git-types";
 import { useRepoStore } from "../../src/store/repo-store";
+import { resetTabSnapshots } from "../../src/store/slices/tabs-slice";
 import {
   INITIAL_LOADING_STATES,
   PER_TAB_RESET_STATE,
@@ -46,6 +47,7 @@ function seedRepoAState() {
 beforeEach(() => {
   invokeMock.mockReset();
   localStorage.clear();
+  resetTabSnapshots();
   useRepoStore.setState({
     tabs: [],
     activeTabId: null,
@@ -149,5 +151,57 @@ describe("activating a tab", () => {
     expect(s.pathFilter).toBe("");
     expect(s.firstParentOnly).toBe(false);
     expect(s.hideRemoteBranches).toBe(false);
+  });
+
+  // Phase 6: switching back to a tab used to start from an empty view and
+  // refetch everything. Its own last state now comes back immediately — and
+  // never leaks into the other tab.
+  it("restores a tab's own state when switching back to it", () => {
+    useRepoStore.setState({
+      tabs: [
+        { id: "/repo-a", path: "/repo-a", name: "a", isActive: true },
+        { id: "/repo-b", path: "/repo-b", name: "b", isActive: false },
+      ],
+      activeTabId: "/repo-a",
+    });
+    seedRepoAState();
+    invokeMock.mockResolvedValue(undefined);
+
+    useRepoStore.getState().switchTab("/repo-b");
+    let s = useRepoStore.getState();
+    expect(s.commits).toEqual([]);
+    expect(s.pathFilter).toBe("");
+
+    useRepoStore.getState().switchTab("/repo-a");
+    s = useRepoStore.getState();
+    expect(s.activeTabId).toBe("/repo-a");
+    expect(s.commits.map((c) => c.oid)).toEqual(["a".repeat(40)]);
+    expect(s.pathFilter).toBe("src/only-in-repo-a");
+    expect(s.firstParentOnly).toBe(true);
+    expect(s.selectedCommitOid).toBe("a".repeat(40));
+  });
+
+  it("forgets a closed tab's state", () => {
+    useRepoStore.setState({
+      tabs: [
+        { id: "/repo-a", path: "/repo-a", name: "a", isActive: true },
+        { id: "/repo-b", path: "/repo-b", name: "b", isActive: false },
+      ],
+      activeTabId: "/repo-a",
+    });
+    seedRepoAState();
+    invokeMock.mockResolvedValue(undefined);
+
+    useRepoStore.getState().switchTab("/repo-b");
+    useRepoStore.getState().closeTab("/repo-a");
+    // Reopening the same path is a fresh tab, not the closed one's leftovers.
+    useRepoStore.setState({
+      tabs: [
+        { id: "/repo-b", path: "/repo-b", name: "b", isActive: true },
+        { id: "/repo-a", path: "/repo-a", name: "a", isActive: false },
+      ],
+    });
+    useRepoStore.getState().switchTab("/repo-a");
+    expect(useRepoStore.getState().commits).toEqual([]);
   });
 });

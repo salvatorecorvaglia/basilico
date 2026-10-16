@@ -9,7 +9,10 @@ export interface SettingsSlice {
   settings: UserSettings | null;
   loadSettings: () => Promise<void>;
   saveSettings: (settings: UserSettings) => Promise<void>;
-  generateSshKey: (comment: string) => Promise<string>;
+  generateSshKey: (
+    comment: string,
+    passphrase?: string | null,
+  ) => Promise<string>;
   openInIde: (
     filePath: string,
     line?: number | null,
@@ -42,7 +45,19 @@ export const createSettingsSlice: StateCreator<
       await commands.saveSettings(settings, {
         errorPrefix: "Failed to save settings",
       });
-      set({ settings });
+      // The token went to the system keychain; it is not kept in the UI.
+      const { githubPat, ...rest } = settings;
+      set({
+        settings: {
+          ...rest,
+          hasGithubPat:
+            githubPat === ""
+              ? false
+              : githubPat
+                ? true
+                : (settings.hasGithubPat ?? false),
+        },
+      });
       localStorage.setItem(STORAGE_KEYS.theme, settings.theme);
       applyThemeToDOM(settings.theme);
     } catch (err) {
@@ -51,9 +66,9 @@ export const createSettingsSlice: StateCreator<
     }
   },
 
-  generateSshKey: async (comment) => {
+  generateSshKey: async (comment, passphrase = null) => {
     try {
-      const pubKey = await commands.generateSshKey(comment, {
+      const pubKey = await commands.generateSshKey(comment, passphrase, {
         errorPrefix: "Failed to generate SSH key",
       });
       return pubKey;

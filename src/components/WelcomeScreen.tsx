@@ -24,6 +24,7 @@ import { openExternalTool } from "../lib/tauri-commands";
 import { useRepoStore } from "../store/repo-store";
 import "./WelcomeScreen.css";
 import { reportError } from "../lib/git-error";
+import { describeRepoState } from "../lib/repo-state";
 
 export function WelcomeScreen() {
   const {
@@ -286,20 +287,23 @@ export function WelcomeScreen() {
                         >
                           {repo.path}
                         </div>
-                        {(repo.headBranch || repo.state) && (
+                        {(repo.headBranch || describeRepoState(repo.state)) && (
                           <div className="welcome-recent-card-meta">
                             {repo.headBranch && (
                               <span className="welcome-recent-card-branch">
                                 <GitBranch
                                   size={10}
-                                  style={{ marginRight: "3px" }}
+                                  className="welcome-recent-card-branch-icon"
                                 />
                                 {repo.headBranch}
                               </span>
                             )}
-                            {repo.state && repo.state !== "Clean" && (
-                              <span className="welcome-recent-card-state text-warning">
-                                {repo.state}
+                            {describeRepoState(repo.state) && (
+                              <span
+                                className="welcome-recent-card-state text-warning"
+                                title={repo.state ?? undefined}
+                              >
+                                {describeRepoState(repo.state)}
                               </span>
                             )}
                           </div>

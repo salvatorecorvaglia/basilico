@@ -17,11 +17,11 @@ import {
   Layers,
   Tag,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { SignatureInfo, TreeEntryInfo } from "../../lib/git-types";
 import { describeSignature } from "../../lib/signature-status";
-import { getCommitSignature } from "../../lib/tauri-commands";
+import { getCommitSignature, getCommitTree } from "../../lib/tauri-commands";
 import {
   formatDateTime,
   getDirectory,
@@ -35,62 +35,8 @@ import "./CommitDetail.css";
 import { reportError } from "../../lib/git-error";
 import { useCopyFeedback } from "../../lib/use-copy-feedback";
 
-interface TreeNode {
-  name: string;
-  path: string;
-  isDir: boolean;
-  size: number | null;
-  children: TreeNode[];
-}
-
-function buildFileTree(entries: TreeEntryInfo[]): TreeNode {
-  const root: TreeNode = {
-    name: "root",
-    path: "",
-    isDir: true,
-    size: null,
-    children: [],
-  };
-
-  for (const entry of entries) {
-    const parts = entry.path.split("/");
-    let current = root;
-    let currentPath = "";
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if (!part) continue;
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-
-      const isLast = i === parts.length - 1;
-
-      let child = current.children.find((c) => c.name === part);
-      if (!child) {
-        child = {
-          name: part,
-          path: currentPath,
-          isDir: !isLast || entry.isDir,
-          size: isLast ? entry.size : null,
-          children: [],
-        };
-        current.children.push(child);
-      }
-      current = child;
-    }
-  }
-
-  const sortTree = (node: TreeNode) => {
-    node.children.sort((a, b) => {
-      if (a.isDir && !b.isDir) return -1;
-      if (!a.isDir && b.isDir) return 1;
-      return a.name.localeCompare(b.name);
-    });
-    node.children.forEach(sortTree);
-  };
-  sortTree(root);
-
-  return root;
-}
+/** Git's well-known empty tree: the "parent" a root commit is compared with. */
+const EMPTY_TREE_OID = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -101,81 +47,98 @@ function formatBytes(bytes: number): string {
 }
 
 interface TreeViewNodeProps {
-  node: TreeNode;
+  entry: TreeEntryInfo;
   level: number;
+  loadChildren: (dir: string) => Promise<TreeEntryInfo[]>;
   onFileClick: (path: string) => void;
 }
 
-function TreeViewNode({ node, level, onFileClick }: TreeViewNodeProps) {
-  const [isOpen, setIsOpen] = useState(level === 0);
+/**
+ * One file or folder. A folder fetches its children the first time it is
+ * expanded: the whole tree of a large repository used to be walked, sent and
+ * re-nested before the first level could be shown.
+ */
+function TreeViewNode({
+  entry,
+  level,
+  loadChildren,
+  onFileClick,
+}: TreeViewNodeProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [children, setChildren] = useState<TreeEntryInfo[] | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleClick = (e: React.MouseEvent) => {
+  const handleClick = (e: React.SyntheticEvent) => {
     e.stopPropagation();
-    if (node.isDir) {
-      setIsOpen(!isOpen);
-    } else {
-      onFileClick(node.path);
+    if (!entry.isDir) {
+      onFileClick(entry.path);
+      return;
     }
+    if (!isOpen && children === null && !loading) {
+      setLoading(true);
+      loadChildren(entry.path)
+        .then(setChildren)
+        .catch((err) => {
+          setChildren([]);
+          reportError(err, `Failed to list ${entry.path}`);
+        })
+        .finally(() => setLoading(false));
+    }
+    setIsOpen(!isOpen);
   };
 
-  const hasChildren = node.children.length > 0;
-
   return (
-    <div
-      className="tree-node"
-      style={{ paddingLeft: level > 0 ? "12px" : "0" }}
-    >
-      {level > 0 && (
-        <div
-          role="button"
-          tabIndex={0}
-          aria-expanded={node.isDir ? isOpen : undefined}
-          className={`tree-node-row ${node.isDir ? "dir" : "file"}`}
-          onClick={handleClick}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              handleClick(e as unknown as React.MouseEvent);
-            }
-          }}
-        >
-          {node.isDir ? (
-            <span className="tree-node-chevron">
-              {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            </span>
-          ) : (
-            <span className="tree-node-spacer" />
-          )}
-
-          <span className="tree-node-icon">
-            {node.isDir ? (
-              <Folder size={12} className="icon-folder" />
-            ) : (
-              <File size={12} className="icon-file" />
-            )}
+    <div className="tree-node">
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={entry.isDir ? isOpen : undefined}
+        className={`tree-node-row ${entry.isDir ? "dir" : "file"}`}
+        onClick={handleClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            handleClick(e);
+          }
+        }}
+      >
+        {entry.isDir ? (
+          <span className="tree-node-chevron">
+            {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           </span>
+        ) : (
+          <span className="tree-node-spacer" />
+        )}
 
-          <span className="tree-node-name truncate">{node.name}</span>
-
-          {!node.isDir && node.size !== null && (
-            <span className="tree-node-size text-mono">
-              {formatBytes(node.size)}
-            </span>
+        <span className="tree-node-icon">
+          {entry.isDir ? (
+            <Folder size={12} className="icon-folder" />
+          ) : (
+            <File size={12} className="icon-file" />
           )}
-        </div>
-      )}
+        </span>
 
-      {node.isDir && (isOpen || level === 0) && hasChildren && (
+        <span className="tree-node-name truncate">{entry.name}</span>
+
+        {!entry.isDir && entry.size !== null && (
+          <span className="tree-node-size text-mono">
+            {formatBytes(entry.size)}
+          </span>
+        )}
+      </div>
+
+      {entry.isDir && isOpen && (
         <div className="tree-node-children">
-          {node.children.map((child) => (
+          {loading && (
+            <div className="tree-node-loading text-tertiary">Loading…</div>
+          )}
+          {children?.map((child) => (
             <TreeViewNode
-              // Keyed by path, not index: TreeViewNode holds its own `isOpen`
-              // state, so a positional key let an expanded folder hand its open
-              // state to whatever unrelated folder landed at that index when a
-              // different commit's tree loaded.
+              // Keyed by path: each node holds its own open/loaded state.
               key={child.path}
-              node={child}
+              entry={child}
               level={level + 1}
+              loadChildren={loadChildren}
               onFileClick={onFileClick}
             />
           ))}
@@ -195,6 +158,8 @@ export function CommitDetail() {
     createTag,
     commitTree,
     loadCommitTree,
+    startComparison,
+    selectCompareFile,
     isLoading,
   } = useRepoStore(
     useShallow((s) => ({
@@ -206,6 +171,8 @@ export function CommitDetail() {
       createTag: s.createTag,
       commitTree: s.commitTree,
       loadCommitTree: s.loadCommitTree,
+      startComparison: s.startComparison,
+      selectCompareFile: s.selectCompareFile,
       isLoading: s.isLoading,
     })),
   );
@@ -240,13 +207,19 @@ export function CommitDetail() {
     setSigInfo(null);
     if (!activeTabId || !selectedCommitOid) return;
 
+    // Arrowing quickly through the log could let an earlier commit's lookup
+    // land last and badge the current commit with the wrong signature.
+    let cancelled = false;
     getCommitSignature(activeTabId, selectedCommitOid)
       .then((info) => {
-        setSigInfo(info);
+        if (!cancelled) setSigInfo(info);
       })
       .catch((err) => {
         console.error("Failed to load commit signature:", err);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [activeTabId, selectedCommitOid]);
 
   // Reset tab on commit change.
@@ -259,12 +232,14 @@ export function CommitDetail() {
     setActiveTab("changes");
   }, [selectedCommitOid]);
 
-  // Memoised: buildFileTree walks every entry, does an O(n) child lookup per
-  // path segment and then sorts the whole tree recursively. `commitTree` is a
-  // commit's *full* tree — thousands of entries on a real repository — and this
-  // ran on every render of the detail panel, including while the Changes tab is
-  // showing and the result is never read.
-  const nestedTree = useMemo(() => buildFileTree(commitTree), [commitTree]);
+  // Deeper folders of the selected commit's tree, fetched on expand.
+  const loadTreeDir = useCallback(
+    (dir: string) =>
+      activeTabId && selectedCommitOid
+        ? getCommitTree(activeTabId, selectedCommitOid, dir, { silent: true })
+        : Promise.resolve([]),
+    [activeTabId, selectedCommitOid],
+  );
 
   if (!commit) {
     return (
@@ -274,6 +249,17 @@ export function CommitDetail() {
       </div>
     );
   }
+
+  // What this commit changed in the file: its first parent (or, for a root
+  // commit, the empty tree) against the commit. This used to open the file's
+  // *working-tree* diff in Staging, which has nothing to do with the commit.
+  const openCommitFileDiff = (filePath: string) => {
+    const base = commit.parentOids[0] ?? EMPTY_TREE_OID;
+    startComparison(base, commit.oid)
+      .then(() => selectCompareFile(filePath))
+      .catch((err) => reportError(err, "Failed to load the commit's changes"));
+    setActiveView("compare");
+  };
 
   const handleCopyOid = () => {
     navigator.clipboard
@@ -324,15 +310,7 @@ export function CommitDetail() {
       <div className="commit-detail-header">
         <div className="commit-detail-message">{commit.message}</div>
         <div className="commit-detail-meta">
-          <div
-            className="commit-detail-author"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: "4px",
-            }}
-          >
+          <div className="commit-detail-author">
             <strong>{commit.authorName}</strong>
             <span className="text-secondary">
               {" "}
@@ -377,17 +355,6 @@ export function CommitDetail() {
             className="commit-detail-action-btn"
             onClick={handleCreateTagPrompt}
             title="Create Tag at this commit"
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--accent-color)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              fontSize: "11px",
-              marginLeft: "8px",
-            }}
           >
             <Tag size={12} />
             <span>Tag...</span>
@@ -432,49 +399,18 @@ export function CommitDetail() {
           <div className="commit-detail-files">
             <div className="commit-detail-files-list">
               {isLoading && commitDiff.length === 0 ? (
-                <div
-                  style={{
-                    padding: "var(--space-3)",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "var(--space-2)",
-                  }}
-                >
+                <div className="skeleton-stack commit-detail-skeleton">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div
                       key={i}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        height: "28px",
-                        gap: "var(--space-2)",
-                      }}
+                      className="skeleton-row commit-detail-skeleton-row"
                     >
+                      <div className="skeleton-shimmer skeleton-line flush commit-detail-skeleton-icon" />
                       <div
-                        className="skeleton-shimmer skeleton-line"
-                        style={{
-                          width: "16px",
-                          height: "12px",
-                          marginBottom: 0,
-                        }}
+                        className="skeleton-shimmer skeleton-line flush"
+                        style={{ width: `${40 + (i % 3) * 15}%` }}
                       />
-                      <div
-                        className="skeleton-shimmer skeleton-line"
-                        style={{
-                          width: `${40 + (i % 3) * 15}%`,
-                          height: "12px",
-                          marginBottom: 0,
-                        }}
-                      />
-                      <div
-                        className="skeleton-shimmer skeleton-line"
-                        style={{
-                          width: "50px",
-                          height: "12px",
-                          marginBottom: 0,
-                          marginLeft: "auto",
-                        }}
-                      />
+                      <div className="skeleton-shimmer skeleton-line flush commit-detail-skeleton-stats" />
                     </div>
                   ))}
                 </div>
@@ -492,22 +428,13 @@ export function CommitDetail() {
                           role="button"
                           tabIndex={0}
                           className="commit-detail-file"
-                          onClick={() => {
-                            selectLocalFile(filePath, false).catch((err) =>
-                              reportError(err, "Failed to load file"),
-                            );
-                            setActiveView("staging");
-                          }}
+                          onClick={() => openCommitFileDiff(filePath)}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" || e.key === " ") {
                               e.preventDefault();
-                              selectLocalFile(filePath, false).catch((err) =>
-                                reportError(err, "Failed to load file"),
-                              );
-                              setActiveView("staging");
+                              openCommitFileDiff(filePath);
                             }
                           }}
-                          style={{ cursor: "pointer" }}
                         >
                           <span
                             className="commit-detail-file-status"
@@ -576,12 +503,18 @@ export function CommitDetail() {
             ) : commitTree.length === 0 ? (
               <div className="tree-empty">Unable to read tree structure</div>
             ) : (
-              <div className="tree-viewport">
-                <TreeViewNode
-                  node={nestedTree}
-                  level={0}
-                  onFileClick={(path) => openFileViewer(path, commit.oid)}
-                />
+              // Keyed by commit so a newly selected commit starts collapsed
+              // instead of inheriting the previous one's expanded folders.
+              <div className="tree-viewport" key={commit.oid}>
+                {commitTree.map((entry) => (
+                  <TreeViewNode
+                    key={entry.path}
+                    entry={entry}
+                    level={1}
+                    loadChildren={loadTreeDir}
+                    onFileClick={(path) => openFileViewer(path, commit.oid)}
+                  />
+                ))}
               </div>
             )}
           </div>

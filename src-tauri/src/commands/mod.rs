@@ -54,6 +54,38 @@ pub fn new_command(program: &str) -> std::process::Command {
     let mut cmd = std::process::Command::new(program);
     // Use UTF-8 locale instead of C locale to support Unicode filenames
     cmd.env("LANG", "en_US.UTF-8").env("LC_ALL", "en_US.UTF-8");
+    // Nothing spawned from here may wait for keyboard input. These processes
+    // run on the blocking pool with output captured, so a credential prompt
+    // (or anything else reading stdin) would block that thread forever and
+    // leave the UI spinning with nothing on screen to answer. With stdin
+    // closed and git's own terminal prompt disabled, such a process fails
+    // with an error the user can act on instead. Callers that feed a process
+    // input (gpg signing) replace stdin with a pipe after this.
+    cmd.stdin(std::process::Stdio::null());
+    cmd.env("GIT_TERMINAL_PROMPT", "0");
+    // ssh and pinentry don't prompt on stdin: they open the controlling
+    // terminal directly. When Basilico was started from a shell it has one, so
+    // an SSH host-key or passphrase prompt would appear in (and wait on) that
+    // terminal. Starting a new session drops the controlling terminal, so such
+    // a prompt fails at once instead. This is used in place of
+    // `GIT_SSH_COMMAND="ssh -o BatchMode=yes"`, which would override the
+    // user's own `core.sshCommand`.
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        extern "C" {
+            fn setsid() -> i32;
+        }
+        // SAFETY: runs in the forked child before exec; `setsid` is
+        // async-signal-safe and touches no Rust state. Its only failure
+        // (already a group leader) leaves the child as it was, which is fine.
+        unsafe {
+            cmd.pre_exec(|| {
+                setsid();
+                Ok(())
+            });
+        }
+    }
     #[cfg(target_os = "macos")]
     {
         if let Ok(current_path) = std::env::var("PATH") {

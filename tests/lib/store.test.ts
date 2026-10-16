@@ -26,6 +26,7 @@ function resetStore() {
     repoInfo: null,
     refreshGeneration: 0,
     hasMoreCommits: true,
+    logKey: null,
     loadingStates: { ...INITIAL_LOADING_STATES },
     isLoading: false,
     isRefreshing: false,
@@ -75,6 +76,65 @@ describe("repo store — command wiring", () => {
     const dropCall = invokeMock.mock.calls.find((c) => c[0] === "drop_stash");
     expect(dropCall?.[1]).toMatchObject({ expectedOid: null });
   });
+
+  // Phase 6: the log is the expensive part of a refresh. With the ref
+  // fingerprint unchanged, a refresh must reuse the loaded log.
+  it("skips refetching the log while the ref fingerprint is unchanged", async () => {
+    useRepoStore.setState({ activeTabId: "/repo", logKey: null, commits: [] });
+    let fingerprint = "fp-1";
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "get_log_fingerprint") return Promise.resolve(fingerprint);
+      if (cmd === "get_log") {
+        return Promise.resolve([
+          { oid: "a", shortOid: "a", message: "m", refs: [], edges: [] },
+        ]);
+      }
+      if (cmd === "get_status") return Promise.resolve(null);
+      return Promise.resolve([]);
+    });
+    const logCalls = () =>
+      invokeMock.mock.calls.filter((c) => c[0] === "get_log").length;
+
+    await useRepoStore.getState().refreshCommitsAndStatus();
+    expect(logCalls()).toBe(1);
+
+    await useRepoStore.getState().refreshCommitsAndStatus();
+    expect(logCalls()).toBe(1);
+
+    fingerprint = "fp-2";
+    await useRepoStore.getState().refreshCommitsAndStatus();
+    expect(logCalls()).toBe(2);
+
+    // A different graph filter is a different log, even with the same refs.
+    await useRepoStore.getState().setGraphFilters({ firstParentOnly: true });
+    expect(logCalls()).toBe(3);
+  });
+
+  // The token is handed to the backend, which keeps it in the system
+  // keychain; the UI must not hold on to it after saving.
+  it("does not keep the GitHub token in UI state after saving it", async () => {
+    invokeMock.mockResolvedValue(undefined);
+    const base = {
+      theme: "sage-green",
+      sshKeyPath: null,
+      gitAuthorName: null,
+      gitAuthorEmail: null,
+      keyboardShortcuts: {},
+    };
+
+    await useRepoStore
+      .getState()
+      .saveSettings({ ...base, githubPat: "ghp_secret", hasGithubPat: false });
+    const saved = invokeMock.mock.calls.find((c) => c[0] === "save_settings");
+    expect(saved?.[1]).toMatchObject({ settings: { githubPat: "ghp_secret" } });
+    expect(useRepoStore.getState().settings?.githubPat).toBeUndefined();
+    expect(useRepoStore.getState().settings?.hasGithubPat).toBe(true);
+
+    await useRepoStore
+      .getState()
+      .saveSettings({ ...base, githubPat: "", hasGithubPat: true });
+    expect(useRepoStore.getState().settings?.hasGithubPat).toBe(false);
+  });
 });
 
 describe("repo store — stale response handling", () => {
@@ -111,6 +171,45 @@ describe("repo store — stale response handling", () => {
     await inFlight;
 
     expect(useRepoStore.getState().commits).toEqual([]);
+  });
+
+  // B20: the generation guard only covers tab switches. Two refreshes of the
+  // same tab could resolve out of order, and the older one overwrote the
+  // newer status; the first to finish also cleared `isRefreshing` while the
+  // other was still running.
+  it("keeps the newest status when overlapping refreshes resolve out of order", async () => {
+    useRepoStore.setState({ activeTabId: "/repo" });
+    const releases: ((value: unknown) => void)[] = [];
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "get_status") {
+        return new Promise((resolve) => releases.push(resolve));
+      }
+      return Promise.resolve([]);
+    });
+    const status = (branch: string) => ({
+      branch,
+      ahead: 0,
+      behind: 0,
+      staged: [],
+      unstaged: [],
+      untracked: [],
+      conflicted: [],
+      state: "Clean",
+    });
+
+    const older = useRepoStore.getState().refreshStatus();
+    const newer = useRepoStore.getState().refreshStatus();
+    expect(releases).toHaveLength(2);
+
+    releases[1](status("newer"));
+    await newer;
+    expect(useRepoStore.getState().status?.branch).toBe("newer");
+    expect(useRepoStore.getState().isRefreshing).toBe(true);
+
+    releases[0](status("older"));
+    await older;
+    expect(useRepoStore.getState().status?.branch).toBe("newer");
+    expect(useRepoStore.getState().isRefreshing).toBe(false);
   });
 
   // Search briefly lost this guard: a refactor split `searchCommits`/`grepCode`

@@ -19,6 +19,8 @@ import {
   type CiStatusResult,
   fetchGitHubCiStatus,
 } from "../../lib/forge-links";
+import { describeRepoState } from "../../lib/repo-state";
+import { getGithubPat } from "../../lib/tauri-commands";
 import { openExternalUrl } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { selectDefaultRemoteUrl } from "../../store/slices/git-data-slice";
@@ -71,11 +73,16 @@ export function StatusBar() {
     // after a newer request already started — without this, switching
     // branches quickly could display a stale CI badge for the wrong branch.
     let cancelled = false;
-    fetchGitHubCiStatus(remoteUrl, branch, settings.githubPat).then(
-      (result) => {
+    // The token is kept in the system keychain and fetched only for this
+    // opt-in request; without one the check runs unauthenticated.
+    const token = settings.hasGithubPat
+      ? getGithubPat({ silent: true }).catch(() => null)
+      : Promise.resolve(null);
+    token
+      .then((pat) => fetchGitHubCiStatus(remoteUrl, branch, pat))
+      .then((result) => {
         if (!cancelled) setCiStatus(result);
-      },
-    );
+      });
     return () => {
       cancelled = true;
     };
@@ -83,7 +90,7 @@ export function StatusBar() {
     defaultRemoteUrl,
     status?.branch,
     settings?.checkGithubCiStatus,
-    settings?.githubPat,
+    settings?.hasGithubPat,
   ]);
 
   const totalChanges =
@@ -116,20 +123,9 @@ export function StatusBar() {
               {ciStatus.status !== "unknown" && (
                 <button
                   type="button"
-                  className="statusbar-item statusbar-btn"
+                  className={`statusbar-item statusbar-btn statusbar-ci statusbar-ci--${ciStatus.status}${ciStatus.url ? "" : " no-link"}`}
                   onClick={() => ciStatus.url && openExternalUrl(ciStatus.url)}
                   title={`CI Workflow: ${ciStatus.workflowName || ciStatus.status}`}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: ciStatus.url ? "pointer" : "default",
-                    color:
-                      ciStatus.status === "success"
-                        ? "var(--accent-primary)"
-                        : ciStatus.status === "failure"
-                          ? "var(--color-danger)"
-                          : "var(--color-info)",
-                  }}
                 >
                   {ciStatus.status === "success" && <CheckCircle2 size={12} />}
                   {ciStatus.status === "failure" && <XCircle size={12} />}
@@ -162,12 +158,6 @@ export function StatusBar() {
               className="statusbar-item statusbar-btn"
               onClick={() => setDoctorOpen(true)}
               title="Open Git Doctor & Storage Diagnostics"
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "inherit",
-              }}
             >
               <Activity size={12} />
               <span>Git Doctor</span>
@@ -181,9 +171,12 @@ export function StatusBar() {
             </span>
           )}
 
-          {status?.state && status.state !== "Clean" && (
-            <span className="statusbar-item statusbar-state">
-              {status.state}
+          {describeRepoState(status?.state) && (
+            <span
+              className="statusbar-item statusbar-state"
+              title={status?.state}
+            >
+              {describeRepoState(status?.state)}
             </span>
           )}
 

@@ -409,10 +409,7 @@ export function ReflogInspector() {
                 <div className="reflog-modal-header">
                   <Dialog.Title asChild>
                     <h3 className="reflog-modal-title">
-                      <RotateCcw
-                        size={16}
-                        style={{ color: "var(--color-danger)" }}
-                      />
+                      <RotateCcw size={16} className="text-danger" />
                       Restore Repository State
                     </h3>
                   </Dialog.Title>
@@ -495,10 +492,7 @@ export function ReflogInspector() {
                         className="reflog-mode-radio"
                       />
                       <div className="reflog-mode-info">
-                        <span
-                          className="reflog-mode-name"
-                          style={{ color: "var(--color-danger)" }}
-                        >
+                        <span className="reflog-mode-name text-danger">
                           Hard Reset (Warning: Destructive)
                         </span>
                         <span className="reflog-mode-desc">

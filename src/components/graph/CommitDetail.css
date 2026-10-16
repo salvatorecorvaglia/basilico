@@ -38,6 +38,13 @@
   font-size: var(--font-size-sm);
 }
 
+.commit-detail-author {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
 .commit-detail-author strong {
   color: var(--text-primary);
 }
@@ -232,9 +239,14 @@
 
 .tree-node-size {
   margin-left: auto;
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
   color: var(--text-tertiary);
   padding-right: var(--space-2);
+}
+
+.tree-node-loading {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-xs);
 }
 
 .tree-loader,
@@ -259,7 +271,7 @@
   color: var(--sig-color);
   padding: 1px 6px;
   border-radius: 12px;
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
   font-weight: var(--weight-medium);
   vertical-align: middle;
   cursor: help;
@@ -281,4 +293,39 @@
 .commit-gpg-badge:hover {
   background: color-mix(in srgb, var(--sig-color) 25%, transparent);
   border-color: var(--sig-color);
+}
+
+.commit-detail-action-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: var(--space-2);
+  border: none;
+  background: none;
+  font-size: var(--font-size-xs);
+  color: var(--accent-color);
+  cursor: pointer;
+}
+
+/* Loading skeleton for the changed-files list. */
+.commit-detail-skeleton {
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.commit-detail-skeleton-row {
+  height: 28px;
+}
+
+.commit-detail-skeleton-icon {
+  width: 16px;
+}
+
+.commit-detail-skeleton-stats {
+  width: 50px;
+  margin-left: auto;
+}
+
+.tree-node {
+  padding-left: 12px;
 }

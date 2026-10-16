@@ -27,9 +27,9 @@ import { getLanguageFromPath } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./DiffView.css";
-// Registers the bundled Monaco + workers; keeps it off the startup chunk.
-import "../../lib/monaco-setup";
 import { reportError } from "../../lib/git-error";
+// Registers the bundled Monaco + workers; keeps it off the startup chunk.
+import { disposeModelsOnUnmount } from "../../lib/monaco-setup";
 
 export function DiffView() {
   const isDark = useDarkMode();
@@ -44,6 +44,9 @@ export function DiffView() {
     applyPatch,
     openInIde,
     settings,
+    selectedFileIsConflicted,
+    selectedFileIsUntracked,
+    renamedFrom,
   } = useRepoStore(
     useShallow((s) => ({
       activeTabId: s.activeTabId,
@@ -56,6 +59,22 @@ export function DiffView() {
       applyPatch: s.applyPatch,
       openInIde: s.openInIde,
       settings: s.settings,
+      // A conflicted path has no stage-0 entry, so the backend would treat a
+      // discard of it as deleting an untracked file. It refuses, but the
+      // action should not be offered in the first place.
+      selectedFileIsConflicted:
+        !!s.selectedFilePath &&
+        (s.status?.conflicted ?? []).includes(s.selectedFilePath),
+      // Discarding an untracked file deletes it, and the UI should say so.
+      selectedFileIsUntracked:
+        !s.selectedFileIsStaged &&
+        !!s.selectedFilePath &&
+        (s.status?.untracked ?? []).includes(s.selectedFilePath),
+      // Where a staged rename came from, so HEAD is read under the old name.
+      renamedFrom: s.selectedFileIsStaged
+        ? (s.status?.staged.find((f) => f.path === s.selectedFilePath)
+            ?.oldPath ?? null)
+        : null,
     })),
   );
 
@@ -148,6 +167,7 @@ export function DiffView() {
       foundHunk,
       lineIndices,
       selectedFileIsStaged,
+      localDiff.status === "untracked",
     );
 
     try {
@@ -246,7 +266,12 @@ export function DiffView() {
     let cancelled = false;
     setLoadingContents(true);
     setSelectedLines({});
-    getFileContentPair(activeTabId, selectedFilePath, selectedFileIsStaged)
+    getFileContentPair(
+      activeTabId,
+      selectedFilePath,
+      selectedFileIsStaged,
+      renamedFrom,
+    )
       .then((data) => {
         if (!cancelled) setContents(data);
       })
@@ -260,7 +285,7 @@ export function DiffView() {
     return () => {
       cancelled = true;
     };
-  }, [activeTabId, selectedFilePath, selectedFileIsStaged]);
+  }, [activeTabId, selectedFilePath, selectedFileIsStaged, renamedFrom]);
 
   if (!selectedFilePath) {
     return (
@@ -286,9 +311,11 @@ export function DiffView() {
 
   const handleDiscardFile = () => {
     openConfirm({
-      title: "Discard Changes",
-      message: `Are you sure you want to discard all changes in ${selectedFilePath}? This action cannot be undone.`,
-      confirmLabel: "Discard Changes",
+      title: selectedFileIsUntracked ? "Delete File" : "Discard Changes",
+      message: selectedFileIsUntracked
+        ? `Are you sure you want to permanently delete ${selectedFilePath}? It is untracked, so it cannot be recovered.`
+        : `Are you sure you want to discard all changes in ${selectedFilePath}? This action cannot be undone.`,
+      confirmLabel: selectedFileIsUntracked ? "Delete File" : "Discard Changes",
       isDanger: true,
       onConfirm: () => {
         discardChanges([selectedFilePath]);
@@ -303,6 +330,7 @@ export function DiffView() {
       hunk,
       undefined,
       selectedFileIsStaged,
+      localDiff?.status === "untracked",
     );
     try {
       await applyPatch(patch, "index");
@@ -327,6 +355,7 @@ export function DiffView() {
       hunk,
       lineIndices,
       selectedFileIsStaged,
+      localDiff?.status === "untracked",
     );
     try {
       await applyPatch(patch, "index");
@@ -452,15 +481,19 @@ export function DiffView() {
             {selectedFileIsStaged ? "Unstage File" : "Stage File"}
           </button>
 
-          {!selectedFileIsStaged && (
+          {!selectedFileIsStaged && !selectedFileIsConflicted && (
             <button
               type="button"
               className="diff-btn diff-btn-danger"
               onClick={handleDiscardFile}
-              title="Discard all changes in this file"
+              title={
+                selectedFileIsUntracked
+                  ? "Delete this untracked file"
+                  : "Discard all changes in this file"
+              }
             >
               <Trash2 size={13} />
-              <span>Discard</span>
+              <span>{selectedFileIsUntracked ? "Delete" : "Discard"}</span>
             </button>
           )}
         </div>
@@ -479,6 +512,15 @@ export function DiffView() {
             <div className="diff-loader">
               <span className="spinner-large" />
               <p>Loading file content diff...</p>
+            </div>
+          ) : contents?.tooLarge || contents?.isBinary ? (
+            <div className="diff-binary-placeholder">
+              <h3>{contents.tooLarge ? "File Too Large" : "Binary File"}</h3>
+              <p>
+                {contents.tooLarge
+                  ? "This file is too large to display in the editor. Use the Hunks view to stage changes."
+                  : "Diff visualization is not supported for binary assets"}
+              </p>
             </div>
           ) : contents ? (
             <DiffEditor
@@ -512,6 +554,10 @@ export function DiffView() {
 
                 const originalEditor = editor.getOriginalEditor();
                 const modifiedEditor = editor.getModifiedEditor();
+                // Clicks on the glyph margin or the line numbers stage a line.
+                const isGutter = (type: number) =>
+                  type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN ||
+                  type === monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS;
 
                 // Clear previous subscriptions to avoid duplicate event handlers and memory leaks
                 disposablesRef.current.forEach((d) => {
@@ -524,10 +570,7 @@ export function DiffView() {
                 disposablesRef.current = [];
 
                 const origSub = originalEditor.onMouseDown((e) => {
-                  if (
-                    (e.target.type === 2 || e.target.type === 3) &&
-                    callbackRef.current
-                  ) {
+                  if (isGutter(e.target.type) && callbackRef.current) {
                     const line = e.target.position?.lineNumber;
                     if (line) {
                       callbackRef.current.handleGutterClick(line, true);
@@ -536,10 +579,7 @@ export function DiffView() {
                 });
 
                 const modSub = modifiedEditor.onMouseDown((e) => {
-                  if (
-                    (e.target.type === 2 || e.target.type === 3) &&
-                    callbackRef.current
-                  ) {
+                  if (isGutter(e.target.type) && callbackRef.current) {
                     const line = e.target.position?.lineNumber;
                     if (line) {
                       callbackRef.current.handleGutterClick(line, false);
@@ -549,15 +589,7 @@ export function DiffView() {
 
                 disposablesRef.current = [origSub, modSub];
 
-                const originalDispose = editor.dispose;
-                editor.dispose = () => {
-                  try {
-                    editor.setModel(null);
-                  } catch {
-                    // Ignore
-                  }
-                  originalDispose.call(editor);
-                };
+                disposeModelsOnUnmount(editor);
               }}
             />
           ) : (

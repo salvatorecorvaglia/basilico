@@ -19,6 +19,7 @@ import type { WorktreeInfo } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
+import "./ToolModal.css";
 
 interface WorktreeModalProps {
   open: boolean;
@@ -164,10 +165,7 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="settings-overlay" />
-        <Dialog.Content
-          className="settings-modal"
-          style={{ maxWidth: "620px", maxHeight: "80vh" }}
-        >
+        <Dialog.Content className="settings-modal tool-modal tool-modal-worktree">
           {/* Header */}
           <div className="settings-header">
             <Dialog.Title asChild>
@@ -188,15 +186,9 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
           </div>
 
           {/* Body */}
-          <div className="settings-body" style={{ padding: "var(--space-4)" }}>
+          <div className="settings-body tool-modal-body">
             {/* Top Toolbar */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                marginBottom: "var(--space-4)",
-              }}
-            >
+            <div className="worktree-toolbar">
               <button
                 type="button"
                 className={`settings-btn ${showAddForm ? "settings-btn-outline" : ""}`}
@@ -209,28 +201,11 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
 
             {/* Add Worktree Form */}
             {showAddForm && (
-              <form
-                onSubmit={handleAddWorktree}
-                style={{
-                  padding: "var(--space-3)",
-                  background: "var(--bg-secondary)",
-                  border: "1px solid var(--border-color)",
-                  borderRadius: "var(--radius-md)",
-                  marginBottom: "var(--space-4)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "var(--space-3)",
-                }}
-              >
+              <form className="tool-modal-form" onSubmit={handleAddWorktree}>
                 <div>
                   <label
+                    className="tool-modal-label"
                     htmlFor="worktree-path-input"
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 500,
-                      display: "block",
-                      marginBottom: "4px",
-                    }}
                   >
                     Worktree Directory Path:
                   </label>
@@ -247,13 +222,8 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
 
                 <div>
                   <label
+                    className="tool-modal-label"
                     htmlFor="worktree-branch-select"
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 500,
-                      display: "block",
-                      marginBottom: "4px",
-                    }}
                   >
                     Checkout Branch:
                   </label>
@@ -271,7 +241,7 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
                   </select>
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <div className="tool-modal-form-footer">
                   <button
                     type="submit"
                     className="settings-btn"
@@ -285,125 +255,46 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
 
             {/* Worktree List */}
             {loading ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "var(--space-6) 0",
-                  color: "var(--text-tertiary)",
-                }}
-              >
+              <div className="tool-modal-state">
                 <span className="spinner-large" />
-                <p style={{ marginTop: "var(--space-2)" }}>
-                  Loading worktrees...
-                </p>
+                <p className="tool-modal-state-text">Loading worktrees...</p>
               </div>
             ) : worktreeList.length === 0 ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "var(--space-6) 0",
-                  color: "var(--text-tertiary)",
-                }}
-              >
-                <FolderTree
-                  size={32}
-                  style={{
-                    margin: "0 auto var(--space-2)",
-                    color: "var(--text-tertiary)",
-                  }}
-                />
-                <p style={{ fontWeight: 500 }}>No Worktrees Found</p>
-                <p style={{ fontSize: "11px" }}>
+              <div className="tool-modal-state">
+                <FolderTree className="tool-modal-state-icon" size={32} />
+                <p className="tool-modal-strong">No Worktrees Found</p>
+                <p className="tool-modal-small">
                   Only the main workspace directory exists. Click &quot;Add
                   Worktree&quot; to create a new linked worktree.
                 </p>
               </div>
             ) : (
-              <div
-                style={{
-                  maxHeight: "320px",
-                  overflowY: "auto",
-                  border: "1px solid var(--border-color)",
-                  borderRadius: "var(--radius-md)",
-                  background: "var(--bg-secondary)",
-                }}
-              >
+              <div className="tool-modal-list tool-modal-list-tall">
                 {worktreeList.map((wt, idx) => (
-                  <div
-                    key={wt.path}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "var(--space-3)",
-                      borderBottom: "1px solid var(--border-subtle)",
-                      fontSize: "12px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        flex: 1,
-                        minWidth: 0,
-                        paddingRight: "var(--space-3)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                        }}
-                      >
-                        <span
-                          style={{ fontWeight: 600, fontFamily: "monospace" }}
-                        >
+                  <div className="tool-modal-row" key={wt.path}>
+                    <div className="tool-modal-row-main">
+                      <div className="tool-modal-row-title">
+                        <span className="tool-modal-mono-strong">
                           {wt.name}
                         </span>
                         {wt.branch && (
-                          <span
-                            className="commit-ref ref-branch"
-                            style={{
-                              fontSize: "10px",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "2px",
-                            }}
-                          >
+                          <span className="commit-ref ref-branch worktree-badge">
                             <GitBranch size={9} /> {wt.branch}
                           </span>
                         )}
                         {idx === 0 && (
-                          <span
-                            className="commit-ref ref-head"
-                            style={{ fontSize: "10px" }}
-                          >
+                          <span className="commit-ref ref-head tool-modal-tiny">
                             Main
                           </span>
                         )}
                       </div>
-                      <div
-                        style={{
-                          fontSize: "10px",
-                          color: "var(--text-tertiary)",
-                          marginTop: "2px",
-                        }}
-                        className="truncate"
-                      >
-                        {wt.path}
-                      </div>
+                      <div className="tool-modal-meta truncate">{wt.path}</div>
                     </div>
 
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "var(--space-2)",
-                      }}
-                    >
+                    <div className="tool-modal-actions">
                       <button
                         type="button"
-                        className="hunk-btn hunk-btn-primary"
-                        style={{ height: "24px", fontSize: "11px" }}
+                        className="hunk-btn hunk-btn-primary tool-modal-btn-sm"
                         onClick={() => handleSwitchTab(wt.path)}
                         title="Open worktree as active tab"
                       >
@@ -412,8 +303,7 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
 
                       <button
                         type="button"
-                        className="hunk-btn hunk-btn-secondary"
-                        style={{ height: "24px", fontSize: "11px" }}
+                        className="hunk-btn hunk-btn-secondary tool-modal-btn-sm"
                         onClick={() => handleOpenInIde(wt.path)}
                         title="Open in external IDE"
                       >
@@ -423,12 +313,7 @@ export function WorktreeModal({ open, onOpenChange }: WorktreeModalProps) {
                       {idx > 0 && (
                         <button
                           type="button"
-                          className="hunk-btn hunk-btn-secondary"
-                          style={{
-                            height: "24px",
-                            fontSize: "11px",
-                            color: "var(--color-danger)",
-                          }}
+                          className="hunk-btn hunk-btn-secondary tool-modal-btn-sm tool-modal-btn-danger"
                           onClick={() => handleRemoveWorktree(wt.path)}
                           title="Remove worktree"
                         >

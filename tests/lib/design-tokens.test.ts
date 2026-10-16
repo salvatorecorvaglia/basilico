@@ -240,6 +240,86 @@ describe("design tokens", () => {
     ).toEqual([]);
   });
   /**
+   * Tailwind is loaded without a theme, so a semantic colour class such as
+   * `text-danger` only exists if a stylesheet defines it. Four of them were
+   * used (the Hard reset warning among them) and never defined, so they
+   * silently rendered in the default text colour.
+   */
+  it("defines every semantic text colour class the components use", () => {
+    const allCss = [...cssFiles(STYLES), ...components]
+      .map((f) => readFileSync(f, "utf8"))
+      .join("\n");
+    const tsx = (dir: string): string[] =>
+      readdirSync(dir).flatMap((entry) => {
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) return tsx(full);
+        return extname(full) === ".tsx" ? [full] : [];
+      });
+
+    const SEMANTIC =
+      /\btext-(primary|secondary|tertiary|accent|success|warning|danger|info|muted|error)\b/g;
+    const missing = new Set<string>();
+    for (const file of tsx(join(ROOT, "src"))) {
+      for (const m of readFileSync(file, "utf8").matchAll(SEMANTIC)) {
+        const cls = m[0];
+        if (!new RegExp(`\\.${cls}(?![\\w-])`).test(allCss)) missing.add(cls);
+      }
+    }
+    expect([...missing]).toEqual([]);
+  });
+
+  /**
+   * Inline `style={{…}}` objects are for values only known at runtime — a
+   * status colour, a virtualised row's offset, a progress width. The static
+   * ones (skeleton layouts, button looks, error panels) have moved into
+   * stylesheets on the tokens; this ratchet keeps new static ones from
+   * creeping back. Lower it when a remaining one goes.
+   */
+  it("does not grow the number of inline style objects", () => {
+    const INLINE_STYLE_BASELINE = 22;
+    const tsx = (dir: string): string[] =>
+      readdirSync(dir).flatMap((entry) => {
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) return tsx(full);
+        return extname(full) === ".tsx" ? [full] : [];
+      });
+    let count = 0;
+    for (const file of tsx(join(ROOT, "src"))) {
+      count += readFileSync(file, "utf8").split("style={{").length - 1;
+    }
+    expect(
+      count,
+      "move static styles into the component's stylesheet; keep inline styles for runtime values",
+    ).toBeLessThanOrEqual(INLINE_STYLE_BASELINE);
+    expect(
+      count,
+      `inline styles are down to ${count}: lower INLINE_STYLE_BASELINE to match`,
+    ).toBe(INLINE_STYLE_BASELINE);
+  });
+
+  /**
+   * Every font size in a component stylesheet comes from the type scale. 49
+   * raw pixel sizes had accumulated; they now all map onto tokens of exactly
+   * the same size (the badge-sized 8px/9px and the 36px hero gained tokens of
+   * their own, since they recur rather than being one-offs).
+   */
+  it("keeps every component font size on the type scale", () => {
+    const raw: string[] = [];
+    for (const file of components) {
+      const text = readFileSync(file, "utf8");
+      for (const m of text.matchAll(
+        /font-size\s*:\s*([^;{}]*\d(?:px|rem|em|pt)[^;{}]*)/g,
+      )) {
+        raw.push(`${file.split("/").pop()}: font-size: ${m[1]?.trim()}`);
+      }
+    }
+    expect(
+      raw,
+      "use var(--font-size-*) — add a token to theme.css if a size is genuinely new",
+    ).toEqual([]);
+  });
+
+  /**
    * Dark mode is produced two ways — `light-dark()` for engines that support
    * it, and plain-value blocks for those that do not — and they must not
    * disagree. They previously did: the fallback keyed off

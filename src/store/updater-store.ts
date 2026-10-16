@@ -66,8 +66,10 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
   },
 
   downloadAndInstall: async () => {
-    const { updateRef } = get();
-    if (!updateRef) return;
+    const { updateRef, status } = get();
+    // A second click while the first download runs would start another
+    // download and install over it.
+    if (!updateRef || status === "downloading" || status === "ready") return;
 
     try {
       set({ status: "downloading", progress: 0, error: null });

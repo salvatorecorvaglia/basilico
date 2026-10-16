@@ -19,6 +19,7 @@ pub struct SubmoduleInfo {
 
 #[tauri::command]
 pub async fn list_submodules(repo_path: String) -> Result<Vec<SubmoduleInfo>, AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
         let submodules = repo.submodules()?;
@@ -90,6 +91,7 @@ fn run_submodule_subcommand(
 
 #[tauri::command]
 pub async fn init_submodules(repo_path: String, paths: Vec<String>) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         run_submodule_subcommand(
             &repo_path,
@@ -106,6 +108,7 @@ pub async fn update_submodules(
     paths: Vec<String>,
     recursive: bool,
 ) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         let mut args = vec![
             "submodule".to_string(),
@@ -122,6 +125,7 @@ pub async fn update_submodules(
 
 #[tauri::command]
 pub async fn sync_submodules(repo_path: String, paths: Vec<String>) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         run_submodule_subcommand(
             &repo_path,
@@ -134,6 +138,7 @@ pub async fn sync_submodules(repo_path: String, paths: Vec<String>) -> Result<()
 
 #[tauri::command]
 pub async fn add_submodule(repo_path: String, url: String, path: String) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
         let workdir = repo

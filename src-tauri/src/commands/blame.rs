@@ -22,6 +22,7 @@ pub async fn get_file_blame(
     file_path: String,
     commit_oid: Option<String>,
 ) -> Result<Vec<BlameLine>, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
 
@@ -35,10 +36,12 @@ pub async fn get_file_blame(
 
         // 1. Get file content at the specified revision or HEAD/workdir
         let (content, resolved_oid) = if let Some(ref oid_str) = commit_oid {
-            let obj = repo.revparse_single(oid_str)?;
-            let commit = obj
-                .as_commit()
-                .ok_or_else(|| AppError::invalid_state("Not a commit"))?;
+            // Peel rather than downcast: a tag resolves to a tag object, which
+            // `as_commit` rejected outright.
+            let commit = repo
+                .revparse_single(oid_str)?
+                .peel_to_commit()
+                .map_err(|_| AppError::invalid_state(format!("'{}' is not a commit", oid_str)))?;
             let tree = commit.tree()?;
             let entry = tree.get_path(Path::new(&file_path))?;
             let object = entry.to_object(&repo)?;
@@ -74,6 +77,17 @@ pub async fn get_file_blame(
             }
         };
 
+        // Blaming the working tree: `blame_file` describes the *committed*
+        // file, but the lines shown are the working-tree file's. Any local
+        // edit shifted every line below it onto the wrong commit. Blaming the
+        // buffer itself maps committed lines through the edit, and reports
+        // lines that exist only locally with a zero commit id.
+        let buffer_blame = match (&blame, resolved_oid) {
+            (Some(b), None) => b.blame_buffer(content.as_bytes()).ok(),
+            _ => None,
+        };
+        let effective_blame = buffer_blame.as_ref().or(blame.as_ref());
+
         // 4. Align lines with hunks
         let lines: Vec<&str> = content.lines().collect();
         let mut blame_lines = Vec::new();
@@ -83,8 +97,11 @@ pub async fn get_file_blame(
             let line_no = idx + 1; // 1-based index
             let mut resolved = false;
 
-            if let Some(ref b) = blame {
-                if let Some(hunk) = b.get_line(line_no) {
+            if let Some(b) = effective_blame {
+                if let Some(hunk) = b
+                    .get_line(line_no)
+                    .filter(|hunk| !hunk.final_commit_id().is_zero())
+                {
                     let final_oid = hunk.final_commit_id();
                     let final_oid_str = final_oid.to_string();
                     let short_oid = if final_oid_str.len() >= 8 {

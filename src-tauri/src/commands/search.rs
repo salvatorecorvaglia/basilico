@@ -76,6 +76,7 @@ pub async fn search_commits(
     repo_path: String,
     query: String,
 ) -> Result<Vec<GraphCommit>, AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     let query_trimmed = query.trim().to_string();
 
     if query_trimmed.is_empty() {
@@ -110,6 +111,9 @@ pub async fn search_commits(
                 "--all",
                 "--grep",
                 &msg_query,
+                // The query is plain text typed into a search box. As a regex,
+                // `fix(` or `[WIP` made git error out instead of matching.
+                "--fixed-strings",
                 "-i",
                 "-n",
                 "200",
@@ -128,6 +132,7 @@ pub async fn search_commits(
                 "--all",
                 "--author",
                 &author_query,
+                "--fixed-strings",
                 "-i",
                 "-n",
                 "200",
@@ -190,11 +195,14 @@ const GREP_MATCH_LIMIT: usize = 2_000;
 
 #[tauri::command]
 pub async fn grep_code(repo_path: String, query: String) -> Result<Vec<GrepMatch>, AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     if query.trim().is_empty() {
         return Ok(Vec::new());
     }
 
     tokio::task::spawn_blocking(move || {
+        use std::io::{BufRead, Read};
+
         let args = [
             "grep",
             "-n",
@@ -204,40 +212,82 @@ pub async fn grep_code(repo_path: String, query: String) -> Result<Vec<GrepMatch
             "-e",
             query.as_str(),
         ];
-        let output = crate::commands::git_output(&args, &repo_path)?;
 
-        // `git grep` exits 1 when there are simply no matches; anything above
-        // that is a real failure that must not be reported to the user as "no
-        // results".
-        match output.status.code() {
-            Some(0) | Some(1) => {}
-            _ => {
-                return Err(AppError::git(crate::commands::git_failure_message(
-                    &args, &output,
-                )));
+        // Streamed rather than collected with `output()`: a broad query over a
+        // large repository can produce hundreds of megabytes, all of which was
+        // buffered (and decoded) before being cut down to the limit below.
+        // Reading line by line lets git be stopped as soon as enough matches
+        // have arrived.
+        let mut child = crate::commands::new_command("git")
+            .current_dir(&repo_path)
+            .args(args)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| AppError::command(format!("Failed to execute git grep: {}", e)))?;
+
+        // Drained on its own thread so a chatty stderr can never fill its pipe
+        // and stall git while this thread waits on stdout.
+        let stderr = child.stderr.take();
+        let stderr_reader = std::thread::spawn(move || {
+            let mut text = String::new();
+            if let Some(mut stderr) = stderr {
+                let _ = stderr.read_to_string(&mut text);
+            }
+            text
+        });
+
+        let mut matches = Vec::new();
+        let mut truncated = false;
+        if let Some(stdout) = child.stdout.take() {
+            let mut reader = std::io::BufReader::new(stdout);
+            let mut raw = Vec::new();
+            loop {
+                raw.clear();
+                match reader.read_until(b'\n', &mut raw) {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => {}
+                }
+                // A broad query can match hundreds of thousands of lines; every
+                // one would be serialised over IPC and rendered into an
+                // unwindowed list. Stop at a bound the UI can actually show.
+                if matches.len() >= GREP_MATCH_LIMIT {
+                    truncated = true;
+                    break;
+                }
+                let line = String::from_utf8_lossy(&raw);
+                let line = line.trim_end_matches(['\n', '\r']);
+                // Paths may contain ':' (and always do on Windows), so anchor the
+                // split on the line-number field rather than the first two colons.
+                if let Some((file_path, line_number, content)) = split_grep_line(line) {
+                    matches.push(GrepMatch {
+                        file_path,
+                        line_number,
+                        content,
+                    });
+                }
             }
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        if truncated {
+            // Enough results: stop git instead of letting it scan the rest.
+            let _ = child.kill();
+        }
+        let status = child
+            .wait()
+            .map_err(|e| AppError::command(format!("Failed to wait for git grep: {}", e)))?;
+        let stderr_text = stderr_reader.join().unwrap_or_default();
 
-        let mut matches = Vec::new();
-        for line in stdout.lines() {
-            // A broad query over a large repository can match hundreds of
-            // thousands of lines; every one would be serialised over IPC and
-            // rendered into an unwindowed list. Stop at a bound the UI can
-            // actually show, matching the truncation the diff parser already does.
-            if matches.len() >= GREP_MATCH_LIMIT {
-                break;
-            }
-            // Paths may contain ':' (and always do on Windows), so anchor the split
-            // on the line-number field rather than taking the first two colons.
-            if let Some((file_path, line_number, content)) = split_grep_line(line) {
-                matches.push(GrepMatch {
-                    file_path,
-                    line_number,
-                    content,
-                });
-            }
+        // `git grep` exits 1 when there are simply no matches; anything above
+        // that is a real failure that must not be reported to the user as "no
+        // results". A run stopped on purpose is not a failure.
+        if !truncated && !matches!(status.code(), Some(0) | Some(1)) {
+            let detail = stderr_text.trim();
+            return Err(AppError::git(if detail.is_empty() {
+                format!("git {:?} failed with no output", args)
+            } else {
+                format!("git {:?} failed: {}", args, detail)
+            }));
         }
 
         Ok(matches)

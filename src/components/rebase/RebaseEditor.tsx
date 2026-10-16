@@ -25,13 +25,33 @@ import { reportError } from "../../lib/git-error";
 
 export function RebaseEditor() {
   const rebaseTodoItems = useRepoStore((s) => s.rebaseTodoItems);
-  const rebaseStatus = useRepoStore((s) => s.rebaseStatus);
-  const writeRebaseTodo = useRepoStore((s) => s.writeRebaseTodo);
+  const storedRebaseStatus = useRepoStore((s) => s.rebaseStatus);
+  const repoState = useRepoStore((s) => s.status?.state);
+  const conflictedCount = useRepoStore((s) => s.status?.conflicted.length ?? 0);
+
+  // The session status lives only in memory, but the rebase itself lives on
+  // disk. After a restart (or a rebase started from a terminal) the view said
+  // "No active rebase session" while the repository was mid-rebase, leaving
+  // no way to continue or abort it from the app. Derive a session from the
+  // repository state when there is no stored one.
+  const rebaseInProgress =
+    repoState?.startsWith("Rebase") === true ||
+    repoState === "ApplyMailboxOrRebase";
+  const rebaseStatus: RebaseStatus | null =
+    storedRebaseStatus && storedRebaseStatus.status !== "none"
+      ? storedRebaseStatus
+      : rebaseInProgress
+        ? {
+            status: conflictedCount > 0 ? "conflict" : "edit",
+            currentOid: null,
+            message: "A rebase is in progress in this repository.",
+          }
+        : storedRebaseStatus;
+  const setRebaseTodoItems = useRepoStore((s) => s.setRebaseTodoItems);
   const startRebase = useRepoStore((s) => s.startRebase);
   const stepRebase = useRepoStore((s) => s.stepRebase);
 
   const addNotification = useUIStore((s) => s.addNotification);
-  const openPrompt = useUIStore((s) => s.openPrompt);
   const openConfirm = useUIStore((s) => s.openConfirm);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
@@ -59,13 +79,13 @@ export function RebaseEditor() {
   ) => {
     const updated = [...rebaseTodoItems];
     updated[index] = { ...updated[index], action };
-    writeRebaseTodo(updated);
+    setRebaseTodoItems(updated);
   };
 
   const handleSummaryChange = (index: number, summary: string) => {
     const updated = [...rebaseTodoItems];
     updated[index] = { ...updated[index], summary };
-    writeRebaseTodo(updated);
+    setRebaseTodoItems(updated);
   };
 
   // Auto-squashing assistant (--autosquash)
@@ -91,11 +111,14 @@ export function RebaseEditor() {
       }
 
       if (targetQuery) {
-        // Find matching target commit earlier in the list
+        // Find the target earlier in the list the way git's --autosquash
+        // does: by subject prefix (or an OID prefix). Matching anywhere in
+        // the subject attached `fixup! api` to whichever commit merely
+        // mentioned "api".
         const targetIdx = items.findIndex(
           (cand, idx) =>
             idx < i &&
-            (cand.summary.toLowerCase().includes(targetQuery.toLowerCase()) ||
+            (cand.summary.toLowerCase().startsWith(targetQuery.toLowerCase()) ||
               cand.oid.startsWith(targetQuery)),
         );
 
@@ -120,7 +143,7 @@ export function RebaseEditor() {
     }
 
     if (count > 0) {
-      writeRebaseTodo(items);
+      setRebaseTodoItems(items);
       addNotification({
         type: "success",
         message: `Autosquash reordered ${count} commit(s)`,
@@ -140,7 +163,7 @@ export function RebaseEditor() {
     const temp = updated[index];
     updated[index] = updated[index - 1];
     updated[index - 1] = temp;
-    writeRebaseTodo(updated);
+    setRebaseTodoItems(updated);
   };
 
   const moveDown = (index: number) => {
@@ -149,7 +172,7 @@ export function RebaseEditor() {
     const temp = updated[index];
     updated[index] = updated[index + 1];
     updated[index + 1] = temp;
-    writeRebaseTodo(updated);
+    setRebaseTodoItems(updated);
   };
 
   // Drag and Drop
@@ -167,7 +190,7 @@ export function RebaseEditor() {
     const [removed] = updated.splice(draggedIndex, 1);
     updated.splice(index, 0, removed);
     setDraggedIndex(null);
-    writeRebaseTodo(updated);
+    setRebaseTodoItems(updated);
   };
 
   const handleRebaseResult = (res: RebaseStatus) => {
@@ -211,42 +234,6 @@ export function RebaseEditor() {
 
   // Step controls
   const handleStep = async (action: "continue" | "skip" | "abort") => {
-    if (
-      action === "continue" &&
-      rebaseStatus?.status === "reword" &&
-      rebaseStatus.currentOid
-    ) {
-      const currentTodoItem = rebaseTodoItems.find(
-        (item) => item.oid === rebaseStatus.currentOid,
-      );
-      const originalMessage = currentTodoItem?.summary || "";
-
-      openPrompt({
-        title: "Reword Commit Message",
-        description: "Edit commit message for reword:",
-        fields: [
-          {
-            name: "message",
-            label: "Commit Message",
-            type: "textarea",
-            defaultValue: originalMessage,
-            required: true,
-          },
-        ],
-        submitLabel: "Continue",
-        onSubmit: async (values) => {
-          const userMessage = (values.message || "").trim();
-          try {
-            const res = await stepRebase("continue", userMessage);
-            handleRebaseResult(res);
-          } catch (err) {
-            reportError(err, "Rebase step failed");
-          }
-        },
-      });
-      return;
-    }
-
     try {
       const res = await stepRebase(action);
       handleRebaseResult(res);
@@ -274,12 +261,6 @@ export function RebaseEditor() {
             <div className="rebase-info-banner">
               <Info size={14} />
               <span>Edit files, stage, then click Continue</span>
-            </div>
-          )}
-          {rebaseStatus.status === "reword" && (
-            <div className="rebase-info-banner">
-              <Info size={14} />
-              <span>Click Continue to reword commit</span>
             </div>
           )}
           {isPlanning ? (
@@ -407,18 +388,11 @@ export function RebaseEditor() {
                     <span className="current-marker">Applying ▸</span>
                   )}
                   {canEditInline ? (
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                      }}
-                    >
+                    <div className="rebase-inline-edit">
                       <Edit2 size={12} className="text-secondary" />
                       <input
                         type="text"
-                        className="settings-input"
-                        style={{ height: "24px", fontSize: "12px", flex: 1 }}
+                        className="settings-input rebase-inline-input"
                         value={item.summary}
                         disabled={!isPlanning}
                         aria-label={`Message for commit ${item.oid.slice(0, 7)}`}

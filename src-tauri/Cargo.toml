@@ -1,7 +1,7 @@
 [package]
 name = "basilico"
-version = "1.0.0"
-description = "Fast modern, and beautiful Git GUI client"
+version = "1.1.0"
+description = "Fast, modern and beautiful Git GUI client"
 authors = ["Salvatore Corvaglia"]
 edition = "2021"
 license = "MIT"
@@ -11,7 +11,7 @@ name = "basilico_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2.7.3", features = [] }
 
 [features]
 # Exposes `test_utils` (and Tauri's mock runtime) to the integration tests in
@@ -20,32 +20,34 @@ tauri-build = { version = "2", features = [] }
 test-utils = ["tauri/test"]
 
 [dependencies]
-tauri = { version = "2" }
-tauri-plugin-opener = "2"
-tauri-plugin-dialog = "2"
-tauri-plugin-updater = "2"
-tauri-plugin-process = "2"
+tauri = "2.12.4"
+tauri-plugin-opener = "2.7.2"
+tauri-plugin-dialog = "2.8.3"
+tauri-plugin-updater = "2.14.0"
+tauri-plugin-process = "2.4.0"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = "1.0.154"
 git2 = { version = "0.21.0", features = ["ssh", "https", "vendored-openssl"] }
 notify = "8"
 notify-debouncer-mini = "0.7.0"
-tokio = { version = "1", features = ["full"] }
+# `rt` for `spawn_blocking`, `macros` for `join!` — Tauri owns the runtime.
+tokio = { version = "1.53.3", features = ["rt", "macros"] }
 parking_lot = "0.12"
 log = "0.4"
 env_logger = "0.11"
-uuid = { version = "1.26.1", features = ["v4"] }
+uuid = { version = "1.28.0", features = ["v4"] }
 dirs = "7.0.0"
 sha1 = "0.11.0"
 hmac = "0.13.0"
-sha2 = "0.11.0"
+sha2 = "0.11.1"
 base64 = "0.23.1"
+keyring = "4.2"
 
 [dev-dependencies]
 # Self-dependency so `cargo test`/`cargo clippy --all-targets` turn on
 # `test-utils` automatically, while a release build leaves it off.
 basilico = { path = ".", features = ["test-utils"] }
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.53.3", features = ["full"] }
 
 [profile.release]
 strip = true

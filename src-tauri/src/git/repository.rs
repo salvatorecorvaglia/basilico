@@ -4,6 +4,60 @@ use std::path::Path;
 
 use crate::error::AppError;
 
+/// The operation a repository is in the middle of.
+///
+/// Serialised as the variant name ("Clean", "RebaseMerge", ...) — the same
+/// strings the frontend received when this was `format!("{:?}", state)`. The
+/// mapping from git2 is spelled out so that a new or renamed git2 variant is a
+/// compile error here instead of a silently different string in the UI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub enum RepoState {
+    Clean,
+    Merge,
+    Revert,
+    RevertSequence,
+    CherryPick,
+    CherryPickSequence,
+    Bisect,
+    Rebase,
+    RebaseInteractive,
+    RebaseMerge,
+    ApplyMailbox,
+    ApplyMailboxOrRebase,
+}
+
+impl From<git2::RepositoryState> for RepoState {
+    fn from(state: git2::RepositoryState) -> Self {
+        use git2::RepositoryState as S;
+        match state {
+            S::Clean => Self::Clean,
+            S::Merge => Self::Merge,
+            S::Revert => Self::Revert,
+            S::RevertSequence => Self::RevertSequence,
+            S::CherryPick => Self::CherryPick,
+            S::CherryPickSequence => Self::CherryPickSequence,
+            S::Bisect => Self::Bisect,
+            S::Rebase => Self::Rebase,
+            S::RebaseInteractive => Self::RebaseInteractive,
+            S::RebaseMerge => Self::RebaseMerge,
+            S::ApplyMailbox => Self::ApplyMailbox,
+            S::ApplyMailboxOrRebase => Self::ApplyMailboxOrRebase,
+        }
+    }
+}
+
+/// How a listed file differs (`FileStatus.status`). Serialised lowercase:
+/// "added", "modified", "deleted", "renamed", "typechange".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FileChangeKind {
+    Added,
+    Modified,
+    Deleted,
+    Renamed,
+    Typechange,
+}
+
 /// Summary info returned when opening a repository.
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -13,7 +67,7 @@ pub struct RepoInfo {
     pub head_branch: Option<String>,
     pub is_bare: bool,
     pub is_empty: bool,
-    pub state: String,
+    pub state: RepoState,
 }
 
 /// Branch representation for the sidebar.
@@ -54,8 +108,10 @@ pub struct TagInfo {
 #[serde(rename_all = "camelCase")]
 pub struct FileStatus {
     pub path: String,
-    pub status: String,
+    pub status: FileChangeKind,
     pub is_staged: bool,
+    /// For a rename, the path it was renamed from; `path` is the new one.
+    pub old_path: Option<String>,
 }
 
 /// Full repo status for the UI.
@@ -69,7 +125,7 @@ pub struct RepoStatus {
     pub unstaged: Vec<FileStatus>,
     pub untracked: Vec<String>,
     pub conflicted: Vec<String>,
-    pub state: String,
+    pub state: RepoState,
 }
 
 /// Open a repository and return summary info.
@@ -90,7 +146,7 @@ pub fn open_repo(path: &str) -> Result<RepoInfo, AppError> {
         .ok()
         .and_then(|h| h.shorthand().ok().map(String::from));
 
-    let state = format!("{:?}", repo.state());
+    let state = RepoState::from(repo.state());
 
     Ok(RepoInfo {
         path: workdir,
@@ -102,16 +158,30 @@ pub fn open_repo(path: &str) -> Result<RepoInfo, AppError> {
     })
 }
 
+/// The new-side (or old-side) path of a status delta.
+fn delta_path(delta: Option<git2::DiffDelta<'_>>, new_side: bool) -> Option<String> {
+    let delta = delta?;
+    let file = if new_side {
+        delta.new_file()
+    } else {
+        delta.old_file()
+    };
+    file.path().map(|p| p.to_string_lossy().into_owned())
+}
+
 /// Get the full working tree status.
 pub fn get_status(path: &str) -> Result<RepoStatus, AppError> {
     let repo = Repository::open(path)?;
 
     let mut opts = StatusOptions::new();
+    // Renames are detected for staged changes only, like `git status`. In the
+    // working tree a rename is a deletion plus an untracked file, and showing
+    // it as such keeps each half stageable on its own; paired up, the
+    // untracked new file vanished from the list behind the old path.
     opts.include_untracked(true)
         .recurse_untracked_dirs(true)
         .include_ignored(false)
-        .renames_head_to_index(true)
-        .renames_index_to_workdir(true);
+        .renames_head_to_index(true);
 
     let statuses = repo.statuses(Some(&mut opts))?;
 
@@ -128,60 +198,65 @@ pub fn get_status(path: &str) -> Result<RepoStatus, AppError> {
             conflicted.push(path_str.clone());
         }
 
+        // `StatusEntry::path` is the *old* path of the entry. For a staged
+        // rename that is the name the file no longer has, so the list showed
+        // (and staged, and diffed) the old name. Each side reports its own
+        // current path instead.
+        let staged_path =
+            delta_path(entry.head_to_index(), true).unwrap_or_else(|| path_str.clone());
+        let unstaged_path =
+            delta_path(entry.index_to_workdir(), true).unwrap_or_else(|| path_str.clone());
+
         // Staged changes (index vs HEAD)
-        if status.is_index_new() {
+        // Renamed first: a rename with content changes can also carry the
+        // modified flag, and must still be shown as the rename it is.
+        let staged_kind = if status.is_index_renamed() {
+            Some(FileChangeKind::Renamed)
+        } else if status.is_index_new() {
+            Some(FileChangeKind::Added)
+        } else if status.is_index_modified() {
+            Some(FileChangeKind::Modified)
+        } else if status.is_index_deleted() {
+            Some(FileChangeKind::Deleted)
+        } else if status.is_index_typechange() {
+            // e.g. a file replaced by a symlink; previously not listed at all.
+            Some(FileChangeKind::Typechange)
+        } else {
+            None
+        };
+        if let Some(kind) = staged_kind {
             staged.push(FileStatus {
-                path: path_str.clone(),
-                status: "added".to_string(),
+                path: staged_path,
+                status: kind,
                 is_staged: true,
-            });
-        }
-        if status.is_index_modified() {
-            staged.push(FileStatus {
-                path: path_str.clone(),
-                status: "modified".to_string(),
-                is_staged: true,
-            });
-        }
-        if status.is_index_deleted() {
-            staged.push(FileStatus {
-                path: path_str.clone(),
-                status: "deleted".to_string(),
-                is_staged: true,
-            });
-        }
-        if status.is_index_renamed() {
-            staged.push(FileStatus {
-                path: path_str.clone(),
-                status: "renamed".to_string(),
-                is_staged: true,
+                old_path: if status.is_index_renamed() {
+                    delta_path(entry.head_to_index(), false)
+                } else {
+                    None
+                },
             });
         }
 
         // Unstaged changes (workdir vs index)
-        if status.is_wt_modified() {
+        let unstaged_kind = if status.is_wt_modified() {
+            Some(FileChangeKind::Modified)
+        } else if status.is_wt_deleted() {
+            Some(FileChangeKind::Deleted)
+        } else if status.is_wt_typechange() {
+            Some(FileChangeKind::Typechange)
+        } else {
+            None
+        };
+        if let Some(kind) = unstaged_kind {
             unstaged.push(FileStatus {
-                path: path_str.clone(),
-                status: "modified".to_string(),
+                path: unstaged_path.clone(),
+                status: kind,
                 is_staged: false,
-            });
-        }
-        if status.is_wt_deleted() {
-            unstaged.push(FileStatus {
-                path: path_str.clone(),
-                status: "deleted".to_string(),
-                is_staged: false,
-            });
-        }
-        if status.is_wt_renamed() {
-            unstaged.push(FileStatus {
-                path: path_str.clone(),
-                status: "renamed".to_string(),
-                is_staged: false,
+                old_path: None,
             });
         }
         if status.is_wt_new() {
-            untracked.push(path_str);
+            untracked.push(unstaged_path);
         }
     }
 
@@ -192,7 +267,7 @@ pub fn get_status(path: &str) -> Result<RepoStatus, AppError> {
         .and_then(|h| h.shorthand().ok().map(String::from));
 
     let (ahead, behind) = get_ahead_behind(&repo).unwrap_or((0, 0));
-    let state = format!("{:?}", repo.state());
+    let state = RepoState::from(repo.state());
 
     Ok(RepoStatus {
         branch: head_branch,
@@ -425,5 +500,66 @@ pub fn natural_cmp(s1: &str, s2: &str) -> std::cmp::Ordering {
                 ord => return ord,
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod repo_state_tests {
+    use super::RepoState;
+    use git2::RepositoryState as S;
+
+    /// The frontend matches on these exact strings; they must stay what the
+    /// old `format!("{:?}", git2_state)` produced.
+    #[test]
+    fn serialises_exactly_as_the_git2_debug_names() {
+        for state in [
+            S::Clean,
+            S::Merge,
+            S::Revert,
+            S::RevertSequence,
+            S::CherryPick,
+            S::CherryPickSequence,
+            S::Bisect,
+            S::Rebase,
+            S::RebaseInteractive,
+            S::RebaseMerge,
+            S::ApplyMailbox,
+            S::ApplyMailboxOrRebase,
+        ] {
+            assert_eq!(
+                serde_json::to_string(&RepoState::from(state)).unwrap(),
+                format!("\"{:?}\"", state)
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod file_change_kind_tests {
+    use super::FileChangeKind;
+
+    /// `FileStatus.status` on the frontend is this exact union of strings.
+    #[test]
+    fn serialises_to_the_frontend_strings() {
+        let names: Vec<String> = [
+            FileChangeKind::Added,
+            FileChangeKind::Modified,
+            FileChangeKind::Deleted,
+            FileChangeKind::Renamed,
+            FileChangeKind::Typechange,
+        ]
+        .iter()
+        .map(|k| serde_json::to_string(k).unwrap())
+        .collect();
+        assert_eq!(
+            names,
+            [
+                "\"added\"",
+                "\"modified\"",
+                "\"deleted\"",
+                "\"renamed\"",
+                "\"typechange\""
+            ]
+        );
     }
 }

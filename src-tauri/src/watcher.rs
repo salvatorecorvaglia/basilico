@@ -2,7 +2,8 @@ use crate::state::AppState;
 use notify::RecursiveMode;
 use notify_debouncer_mini::new_debouncer;
 use serde::Serialize;
-use std::path::Path;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
@@ -11,6 +12,10 @@ use tauri::{AppHandle, Emitter, Manager};
 #[serde(rename_all = "camelCase")]
 pub struct RepoChangedPayload {
     pub repo_path: String,
+    /// True when HEAD or a ref moved — a commit, checkout, fetch, reset, … made
+    /// outside Basilico. Only then does the commit log need reloading; a plain
+    /// file save changes status alone.
+    pub refs_changed: bool,
 }
 
 /// Start watching a repository for file changes.
@@ -28,6 +33,16 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
         };
 
         let watch_path = Path::new(&repo_path);
+        let git_dirs = resolve_git_dirs(watch_path);
+
+        // Opened once and kept for the life of the watcher: it answers the
+        // "is this path gitignored?" question for every event, not just for
+        // the directories registered up front.
+        let ignore_repo = git2::Repository::open(watch_path).ok();
+
+        // Top-level directories already registered recursively, so a directory
+        // created later can be added exactly once.
+        let mut watched_dirs: HashSet<PathBuf> = HashSet::new();
 
         // Registration failures are logged rather than discarded. On Linux,
         // exhausting `fs.inotify.max_user_watches` — easy on a large tree — made
@@ -57,11 +72,9 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
             //    changes. In a linked worktree or a submodule, `.git` is a *file*
             //    pointing elsewhere, so watching it directly would silently observe
             //    nothing. Ask libgit2 where the real directory is.
-            for git_dir in resolve_git_dirs(watch_path) {
+            for git_dir in &git_dirs {
                 note(
-                    debouncer
-                        .watcher()
-                        .watch(&git_dir, RecursiveMode::Recursive),
+                    debouncer.watcher().watch(git_dir, RecursiveMode::Recursive),
                     &git_dir.display().to_string(),
                 );
             }
@@ -75,32 +88,20 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
             // which is expensive everywhere and can exhaust inotify watches on
             // Linux. `is_path_ignored` answers for whatever the repo actually
             // gitignores, so it also stays correct as a project's layout changes.
-            let ignore_repo = git2::Repository::open(watch_path).ok();
             if let Ok(entries) = std::fs::read_dir(watch_path) {
                 for entry in entries.flatten() {
                     if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
                         continue;
                     }
                     let path = entry.path();
-                    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-
-                    // `.git` is handled above, with the correct worktree/submodule
-                    // resolution; watching it again here would duplicate events.
-                    if name == ".git" {
+                    if !should_watch_top_level_dir(&path, watch_path, ignore_repo.as_ref()) {
                         continue;
                     }
-
-                    let ignored = ignore_repo
-                        .as_ref()
-                        .and_then(|r| r.is_path_ignored(&path).ok())
-                        .unwrap_or_else(|| is_conventionally_ignored(name));
-
-                    if !ignored {
-                        note(
-                            debouncer.watcher().watch(&path, RecursiveMode::Recursive),
-                            &path.display().to_string(),
-                        );
-                    }
+                    note(
+                        debouncer.watcher().watch(&path, RecursiveMode::Recursive),
+                        &path.display().to_string(),
+                    );
+                    watched_dirs.insert(path);
                 }
             }
 
@@ -139,16 +140,37 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
                         break;
                     }
 
-                    // Filter out .git/index.lock, transient files, and massive ignored directories
-                    let significant = events
-                        .iter()
-                        .any(|e| is_significant_path(&e.path.to_string_lossy()));
+                    // A top-level directory created after start-up was never
+                    // registered, so nothing inside it would ever be reported.
+                    // The root is watched non-recursively, so its creation does
+                    // arrive here; register it now.
+                    for event in &events {
+                        let path = &event.path;
+                        if path.parent() == Some(watch_path)
+                            && path.is_dir()
+                            && !watched_dirs.contains(path)
+                            && should_watch_top_level_dir(path, watch_path, ignore_repo.as_ref())
+                        {
+                            match debouncer.watcher().watch(path, RecursiveMode::Recursive) {
+                                Ok(()) => {
+                                    watched_dirs.insert(path.clone());
+                                }
+                                Err(e) => log::warn!("Failed to watch {}: {}", path.display(), e),
+                            }
+                        }
+                    }
+
+                    let significant = events.iter().any(|e| {
+                        is_significant_event(&e.path, watch_path, &git_dirs, ignore_repo.as_ref())
+                    });
 
                     if significant {
+                        let refs_changed = events.iter().any(|e| is_ref_change(&e.path, &git_dirs));
                         let _ = app.emit(
                             "repo:changed",
                             RepoChangedPayload {
                                 repo_path: repo_path.clone(),
+                                refs_changed,
                             },
                         );
                     }
@@ -173,6 +195,38 @@ pub fn start_watching(app: AppHandle, repo_path: String, watcher_id: String) {
             }
         }
     });
+}
+
+/// Whether a top-level directory of the working tree should be watched
+/// recursively: not `.git` (handled separately, with worktree/submodule
+/// resolution) and not ignored by the repository.
+fn should_watch_top_level_dir(
+    path: &Path,
+    repo_root: &Path,
+    repo: Option<&git2::Repository>,
+) -> bool {
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    if name == ".git" {
+        return false;
+    }
+    !is_ignored(path, repo_root, repo)
+}
+
+/// Whether `path` (inside `repo_root`) is ignored, judged on its path
+/// *relative to the repository root*.
+///
+/// With the repository available its own ignore rules decide. The
+/// conventional name list is only a fallback for when it cannot be opened.
+fn is_ignored(path: &Path, repo_root: &Path, repo: Option<&git2::Repository>) -> bool {
+    let Ok(relative) = path.strip_prefix(repo_root) else {
+        return false;
+    };
+    match repo {
+        Some(repo) => repo.is_path_ignored(relative).unwrap_or(false),
+        None => relative
+            .components()
+            .any(|c| is_conventionally_ignored(&c.as_os_str().to_string_lossy())),
+    }
 }
 
 /// The git directories worth watching for a repository at `repo_path`.
@@ -233,7 +287,15 @@ pub fn is_conventionally_ignored(name: &str) -> bool {
     )
 }
 
-/// Returns true if the changed file path is significant (not ignored or transient).
+/// Returns false for editor and git transient files that never warrant a
+/// refresh (swap files, `index.lock`, object writes, …).
+///
+/// This is purely about the file itself. Whether a path is *ignored* depends
+/// on where the repository is and what it ignores, which is
+/// [`is_significant_event`]'s job: checking ignore names against every
+/// component of an absolute path here meant a repository that merely lived
+/// under `~/build/` or `/tmp/` never refreshed, and committed source under
+/// `src/bin/` was dropped too.
 pub fn is_significant_path(path_str: &str) -> bool {
     let path = Path::new(path_str);
 
@@ -248,18 +310,39 @@ pub fn is_significant_path(path_str: &str) -> bool {
         }
     }
 
-    // Shares `is_conventionally_ignored` rather than repeating its list. The
-    // two copies had already drifted: this one never covered `.venv`, `venv`,
-    // `__pycache__`, `Pods`, `bin` or `obj`, so a Python or Xcode project's
-    // build output was excluded from *watching* but still triggered a full
-    // refresh on every write once something else in the tree changed.
-    for comp in path.components() {
-        let name = comp.as_os_str().to_string_lossy();
-        if is_conventionally_ignored(&name) {
-            return false;
-        }
-    }
-
     let normalized = path_str.replace('\\', "/");
     !normalized.contains(".git/objects/")
+}
+
+/// Whether a watcher event at `path` should trigger a refresh.
+///
+/// Anything inside the git directories counts (refs, HEAD, the index) apart
+/// from transient files. In the working tree, a path counts unless the
+/// repository ignores it — judged relative to `repo_root`, so the directories
+/// the repository happens to live under play no part.
+pub fn is_significant_event(
+    path: &Path,
+    repo_root: &Path,
+    git_dirs: &[PathBuf],
+    repo: Option<&git2::Repository>,
+) -> bool {
+    if !is_significant_path(&path.to_string_lossy()) {
+        return false;
+    }
+    if git_dirs.iter().any(|dir| path.starts_with(dir)) {
+        return true;
+    }
+    !is_ignored(path, repo_root, repo)
+}
+
+/// Whether an event inside a git directory means HEAD or a ref moved.
+pub fn is_ref_change(path: &Path, git_dirs: &[PathBuf]) -> bool {
+    git_dirs.iter().any(|dir| {
+        let Ok(relative) = path.strip_prefix(dir) else {
+            return false;
+        };
+        relative.starts_with("refs")
+            || relative == Path::new("HEAD")
+            || relative == Path::new("packed-refs")
+    })
 }

@@ -5,13 +5,28 @@
 
 // ── Repository ──
 
+/** The operation a repository is in the middle of (Rust `RepoState`). */
+export type RepoState =
+  | "Clean"
+  | "Merge"
+  | "Revert"
+  | "RevertSequence"
+  | "CherryPick"
+  | "CherryPickSequence"
+  | "Bisect"
+  | "Rebase"
+  | "RebaseInteractive"
+  | "RebaseMerge"
+  | "ApplyMailbox"
+  | "ApplyMailboxOrRebase";
+
 export interface RepoInfo {
   path: string;
   name: string;
   headBranch: string | null;
   isBare: boolean;
   isEmpty: boolean;
-  state: string;
+  state: RepoState;
 }
 
 export interface RepoStatus {
@@ -22,18 +37,14 @@ export interface RepoStatus {
   unstaged: FileStatus[];
   untracked: string[];
   conflicted: string[];
-  state: string;
+  state: RepoState;
 }
 
 export interface FileStatus {
   path: string;
-  status:
-    | "added"
-    | "modified"
-    | "deleted"
-    | "renamed"
-    | "copied"
-    | "typechange";
+  status: "added" | "modified" | "deleted" | "renamed" | "typechange";
+  /** For a staged rename, the path it was renamed from. */
+  oldPath?: string | null;
   isStaged: boolean;
 }
 
@@ -140,7 +151,6 @@ export interface RepoTab {
 export type ActiveView =
   | "graph"
   | "staging"
-  | "diff"
   | "blame"
   | "history"
   | "search"
@@ -185,7 +195,13 @@ export interface StashInfo {
 export interface RebaseTodoItem {
   action: "pick" | "reword" | "edit" | "squash" | "fixup" | "drop";
   oid: string;
+  /** The subject line, as shown and edited in the rebase editor. */
   summary: string;
+  /**
+   * The commit's full original message. Rewording or squashing replaces only
+   * the subject; the backend keeps the body from here.
+   */
+  message?: string;
 }
 
 export interface RebaseStatus {
@@ -194,15 +210,7 @@ export interface RebaseStatus {
    * been written to the repository yet. Every other value comes from the
    * backend and reflects real on-disk rebase state.
    */
-  status:
-    | "planning"
-    | "none"
-    | "success"
-    | "conflict"
-    | "stepping"
-    | "finished"
-    | "edit"
-    | "reword";
+  status: "planning" | "none" | "conflict" | "finished" | "edit";
   currentOid: string | null;
   message: string | null;
 }
@@ -245,7 +253,13 @@ export interface UserSettings {
   keyboardShortcuts: Record<string, string>;
   diffTool?: string | null;
   mergeTool?: string | null;
+  /**
+   * Write-only: a new token to store, or "" to remove the stored one. The
+   * backend never returns the token; see `hasGithubPat`.
+   */
   githubPat?: string | null;
+  /** Whether a GitHub token is stored in the system keychain. */
+  hasGithubPat?: boolean;
   autolinkPattern?: string | null;
   autolinkUrl?: string | null;
   bypassHooks?: boolean;
@@ -260,6 +274,8 @@ export interface DoctorReport {
   looseObjectsCount: number;
   packfilesCount: number;
   lfsObjectsCount: number;
+  /** A commit-graph file exists; `git gc` writes one by default. */
+  hasCommitGraph: boolean;
 }
 
 export interface DanglingCommitInfo {

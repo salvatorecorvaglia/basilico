@@ -1,5 +1,5 @@
 use parking_lot::Mutex;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Holds open repository paths and their active watcher session IDs, plus cached settings.
 /// Wrapped in Mutex for thread-safe access from Tauri commands.
@@ -49,5 +49,46 @@ impl AppState {
 impl Default for AppState {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Canonical paths of the repositories open in a tab.
+///
+/// Every repository command used to accept any `path` the renderer sent, so
+/// a compromised or buggy renderer could point `create_commit` (which runs
+/// hooks), `rebase_start` or a merge tool at any directory on disk. Commands
+/// now refuse a path that was not opened through `open_repo`.
+///
+/// A process-wide set rather than a field of [`AppState`], so the check needs
+/// no extra parameter on the ~80 commands that perform it.
+static OPEN_REPOS: std::sync::LazyLock<parking_lot::RwLock<HashSet<String>>> =
+    std::sync::LazyLock::new(|| parking_lot::RwLock::new(HashSet::new()));
+
+/// Record `path` as open. Called by `open_repo`.
+pub fn register_open_repo(path: &str) {
+    OPEN_REPOS
+        .write()
+        .insert(crate::git::utils::canonicalize_path(path));
+}
+
+/// Forget `path`. Called by `close_repo`.
+pub fn unregister_open_repo(path: &str) {
+    OPEN_REPOS
+        .write()
+        .remove(&crate::git::utils::canonicalize_path(path));
+}
+
+/// Refuse a repository command for a path that is not open in a tab.
+pub fn ensure_open_repo(path: &str) -> Result<(), crate::error::AppError> {
+    if OPEN_REPOS
+        .read()
+        .contains(&crate::git::utils::canonicalize_path(path))
+    {
+        Ok(())
+    } else {
+        Err(crate::error::AppError::invalid_state(format!(
+            "'{}' is not a repository open in Basilico. Open it first.",
+            path
+        )))
     }
 }

@@ -1,0 +1,341 @@
+/* ═══════════════════════════════════════════════════════
+   Basilico — Tool Modals
+   Shared layout for the Git Doctor, Worktree, Submodule and
+   Merged Branch Sweeper dialogs
+   ═══════════════════════════════════════════════════════
+
+   These four dialogs were styled almost entirely inline — about a hundred
+   `style={{…}}` objects, many of them the same few shapes (loading and empty
+   states, bordered lists, list rows) repeated across files. The values are
+   unchanged; they now live here, on the design tokens.
+
+   Every rule is scoped under `.tool-modal` (the dialog root). Inline styles
+   always won over the classes these elements also carry (`settings-btn`,
+   `hunk-btn`, `commit-ref`, …); the extra class keeps that true. */
+
+/* ── Dialog sizes (on top of .settings-modal) ── */
+.settings-modal.tool-modal-doctor {
+  max-width: 620px;
+  max-height: 85vh;
+}
+
+.settings-modal.tool-modal-worktree {
+  max-width: 620px;
+  max-height: 80vh;
+}
+
+.settings-modal.tool-modal-submodule {
+  max-width: 600px;
+  max-height: 80vh;
+}
+
+.settings-modal.tool-modal-sweeper {
+  max-width: 560px;
+  max-height: 80vh;
+}
+
+/* ── Shared ── */
+.tool-modal .tool-modal-body {
+  padding: var(--space-4);
+}
+
+/* Loading and empty states. */
+.tool-modal .tool-modal-state {
+  text-align: center;
+  padding: var(--space-6) 0;
+  color: var(--text-tertiary);
+}
+
+.tool-modal .tool-modal-state-text {
+  margin-top: var(--space-2);
+}
+
+.tool-modal .tool-modal-state-icon {
+  margin: 0 auto var(--space-2);
+  color: var(--text-tertiary);
+}
+
+.tool-modal .tool-modal-state-icon.accent {
+  color: var(--accent-primary);
+}
+
+.tool-modal .tool-modal-strong {
+  font-weight: var(--weight-medium);
+}
+
+.tool-modal .tool-modal-small {
+  font-size: var(--font-size-xs);
+}
+
+.tool-modal .tool-modal-tiny {
+  font-size: var(--font-size-2xs);
+}
+
+.tool-modal .tool-modal-meta {
+  font-size: var(--font-size-2xs);
+  color: var(--text-tertiary);
+  margin-top: var(--space-0-5);
+}
+
+/* Bordered, scrolling list of rows. */
+.tool-modal .tool-modal-list {
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.tool-modal .tool-modal-list-tall {
+  max-height: 320px;
+}
+
+.tool-modal .tool-modal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.tool-modal .tool-modal-row.compact {
+  padding: var(--space-2) var(--space-3);
+}
+
+.tool-modal .tool-modal-row-main {
+  flex: 1;
+  min-width: 0;
+  padding-right: var(--space-3);
+}
+
+.tool-modal .tool-modal-row-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+
+.tool-modal .tool-modal-mono-strong {
+  font-weight: var(--weight-semibold);
+  font-family: monospace;
+}
+
+.tool-modal .tool-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tool-modal .tool-modal-btn-sm {
+  height: 24px;
+  font-size: var(--font-size-xs);
+}
+
+/* Stays red on hover, as the inline colour used to keep it. */
+.tool-modal .tool-modal-btn-danger,
+.tool-modal .tool-modal-btn-danger:hover {
+  color: var(--color-danger);
+}
+
+/* "Add" forms. */
+.tool-modal .tool-modal-form {
+  padding: var(--space-3);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tool-modal .tool-modal-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-medium);
+  display: block;
+  margin-bottom: var(--space-1);
+}
+
+.tool-modal .tool-modal-form-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ── Git Doctor ── */
+.tool-modal .doctor-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.tool-modal .doctor-metric {
+  padding: var(--space-3);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.tool-modal .doctor-metric-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.tool-modal .doctor-metric-value {
+  font-size: var(--font-size-lg);
+  font-weight: var(--weight-semibold);
+  margin-top: var(--space-1);
+}
+
+.tool-modal .doctor-metric-value.highlight {
+  color: var(--accent-primary);
+}
+
+.tool-modal .doctor-section {
+  margin-bottom: var(--space-5);
+}
+
+.tool-modal .doctor-hint {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.tool-modal .doctor-actions {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.tool-modal .doctor-action-btn {
+  flex: 1;
+}
+
+.tool-modal .doctor-output {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  font-family: monospace;
+  white-space: pre-wrap;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.tool-modal .doctor-dangling-empty {
+  text-align: center;
+  padding: var(--space-4) 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.tool-modal .doctor-dangling-list {
+  max-height: 200px;
+}
+
+.tool-modal .doctor-dangling-oid {
+  font-family: monospace;
+  font-weight: var(--weight-semibold);
+  color: var(--accent-primary);
+}
+
+/* ── Worktrees ── */
+.tool-modal .worktree-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-4);
+}
+
+.tool-modal .worktree-badge {
+  font-size: var(--font-size-2xs);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-0-5);
+}
+
+/* ── Submodules ── */
+.tool-modal .submodule-toolbar {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.tool-modal .submodule-status {
+  font-size: var(--font-size-2xs);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* ── Merged Branch Sweeper ── */
+.tool-modal .sweeper-target {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.tool-modal .sweeper-target-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--weight-medium);
+}
+
+.tool-modal .sweeper-target-select {
+  width: auto;
+  flex: 1;
+}
+
+.tool-modal .sweeper-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.tool-modal .sweeper-select-all {
+  background: none;
+  border: none;
+  color: var(--accent-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  padding: 0;
+}
+
+.tool-modal .sweeper-list {
+  max-height: 260px;
+}
+
+.tool-modal .sweeper-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  background: transparent;
+}
+
+.tool-modal .sweeper-row.selected {
+  background: var(--bg-hover);
+}
+
+.tool-modal .sweeper-branch-name {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  font-family: monospace;
+}
+
+/* Stays red on hover, as the inline colours used to keep it. */
+.tool-modal .sweeper-delete-btn,
+.tool-modal .sweeper-delete-btn:hover:not(:disabled) {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+}

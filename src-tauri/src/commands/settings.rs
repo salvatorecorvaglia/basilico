@@ -20,7 +20,16 @@ pub struct UserSettings {
     pub keyboard_shortcuts: HashMap<String, String>,
     pub diff_tool: Option<String>,
     pub merge_tool: Option<String>,
+    /// Write-only: never serialized, so it is neither written to
+    /// `settings.json` nor sent to the UI. Arriving from the UI it is a new
+    /// token to store (empty removes it); read from a `settings.json` written
+    /// by an earlier version it is migrated into the credential store. The
+    /// token itself lives in [`crate::secrets`].
+    #[serde(default, skip_serializing)]
     pub github_pat: Option<String>,
+    /// Whether a GitHub token is stored — reported in place of the token.
+    #[serde(default)]
+    pub has_github_pat: bool,
     pub autolink_pattern: Option<String>,
     pub autolink_url: Option<String>,
     pub bypass_hooks: Option<bool>,
@@ -54,6 +63,7 @@ impl Default for UserSettings {
             diff_tool: None,
             merge_tool: None,
             github_pat: None,
+            has_github_pat: false,
             autolink_pattern: None,
             autolink_url: None,
             bypass_hooks: Some(false),
@@ -70,11 +80,24 @@ impl Default for UserSettings {
 /// world-readable 0644 on Unix) would expose the token to every local account.
 /// The mode is applied at creation time so there is no window where the file
 /// exists with broader permissions.
+///
+/// The write is atomic: content goes to a sibling temporary file that is then
+/// renamed over `path`. Truncating `path` in place meant a crash or a full
+/// disk mid-write left a half-written `settings.json` that failed to parse on
+/// every later launch.
 pub fn write_private_file(path: &PathBuf, content: &str) -> std::io::Result<()> {
     use std::io::Write;
 
+    let file_name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "file".to_string());
+    let tmp_path = path.with_file_name(format!(".{}.{}.tmp", file_name, uuid::Uuid::new_v4()));
+
     let mut opts = fs::OpenOptions::new();
-    opts.write(true).create(true).truncate(true);
+    // `create_new`: never reuse (or follow a symlink planted at) an existing
+    // path for the temporary file.
+    opts.write(true).create_new(true);
 
     #[cfg(unix)]
     {
@@ -82,19 +105,20 @@ pub fn write_private_file(path: &PathBuf, content: &str) -> std::io::Result<()> 
         opts.mode(0o600);
     }
 
-    let mut file = opts.open(path)?;
+    let result = (|| {
+        let mut file = opts.open(&tmp_path)?;
+        file.write_all(content.as_bytes())?;
+        file.sync_all()?;
+        drop(file);
+        // The renamed file carries the temporary file's 0600 mode, which also
+        // repairs broader permissions written by an earlier version.
+        fs::rename(&tmp_path, path)
+    })();
 
-    // An existing file keeps its original mode when reopened, so tighten it
-    // explicitly to repair permissions written by an earlier version.
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = file.set_permissions(fs::Permissions::from_mode(0o600));
+    if result.is_err() {
+        let _ = fs::remove_file(&tmp_path);
     }
-
-    file.write_all(content.as_bytes())?;
-    file.sync_all()?;
-    Ok(())
+    result
 }
 
 fn settings_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, AppError> {
@@ -117,6 +141,46 @@ fn load_settings_from_disk<R: tauri::Runtime>(
     Ok(serde_json::from_str(&content)?)
 }
 
+/// Write `settings` to `settings.json` (the token is never part of it).
+fn write_settings_file<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    settings: &UserSettings,
+) -> Result<(), AppError> {
+    let path = settings_path(app)?;
+    let content = serde_json::to_string_pretty(settings)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| {
+            AppError::settings(format!("Failed to create settings directory: {}", e))
+        })?;
+    }
+    write_private_file(&path, &content)
+        .map_err(|e| AppError::settings(format!("Failed to write settings: {}", e)))
+}
+
+/// Load settings, moving a plaintext token left by an earlier version into
+/// the credential store, and report whether a token is stored.
+fn load_settings<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<UserSettings, AppError> {
+    let mut settings = load_settings_from_disk(app)?;
+
+    if let Some(token) = settings.github_pat.take() {
+        if !token.trim().is_empty() {
+            match crate::secrets::set_github_pat(&token) {
+                // Rewriting drops the token from the file: it is not serialized.
+                Ok(()) => write_settings_file(app, &settings)?,
+                // Without a credential store the file is left as it is rather
+                // than losing the user's token.
+                Err(e) => log::warn!(
+                    "Could not move the GitHub token out of settings.json: {}",
+                    e
+                ),
+            }
+        }
+    }
+
+    settings.has_github_pat = crate::secrets::github_pat().ok().flatten().is_some();
+    Ok(settings)
+}
+
 /// Read one field out of the cached settings, populating the cache on first use.
 ///
 /// `get_custom_ssh_path` and `get_merge_tool` were byte-for-byte identical
@@ -128,7 +192,7 @@ fn with_cached_settings<R: tauri::Runtime, T>(
     let state = app.try_state::<crate::state::AppState>()?;
     let mut cached = state.settings.lock();
     if cached.is_none() {
-        if let Ok(settings) = load_settings_from_disk(app) {
+        if let Ok(settings) = load_settings(app) {
             *cached = Some(settings);
         }
     }
@@ -167,7 +231,7 @@ pub async fn get_settings<R: tauri::Runtime>(
     // Read and parse off the async runtime's threads: this is a blocking file
     // read, and every other command in the app is careful to keep those on the
     // blocking pool.
-    let settings = tokio::task::spawn_blocking(move || load_settings_from_disk(&app)).await??;
+    let settings = tokio::task::spawn_blocking(move || load_settings(&app)).await??;
 
     // A concurrent caller may have populated the cache while this was reading.
     // Either value came from the same file, so overwriting is harmless.
@@ -182,22 +246,21 @@ pub async fn save_settings<R: tauri::Runtime>(
     state: tauri::State<'_, crate::state::AppState>,
     settings: UserSettings,
 ) -> Result<(), AppError> {
-    let path = settings_path(&app)?;
-    let content = serde_json::to_string_pretty(&settings)?;
+    // The credential store and `write_private_file` (which ends in an fsync)
+    // can both block, so all of it runs off the async runtime's threads.
+    let settings = tokio::task::spawn_blocking(move || -> Result<UserSettings, AppError> {
+        let mut settings = settings;
 
-    // `write_private_file` ends in an fsync, so this is the one settings
-    // operation that can block for a noticeable time. Keep it off the async
-    // runtime's threads.
-    tokio::task::spawn_blocking(move || -> Result<(), AppError> {
-        // Create parent directory if it doesn't exist
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|e| {
-                AppError::settings(format!("Failed to create settings directory: {}", e))
-            })?;
+        // A token present in the request is a change: store it, or remove the
+        // stored one when it is empty. Absent means "unchanged" — the UI never
+        // has the stored token, so it cannot send it back.
+        if let Some(token) = settings.github_pat.take() {
+            crate::secrets::set_github_pat(&token)?;
         }
+        settings.has_github_pat = crate::secrets::github_pat()?.is_some();
 
-        write_private_file(&path, &content)
-            .map_err(|e| AppError::settings(format!("Failed to write settings: {}", e)))
+        write_settings_file(&app, &settings)?;
+        Ok(settings)
     })
     .await??;
 
@@ -208,8 +271,18 @@ pub async fn save_settings<R: tauri::Runtime>(
     Ok(())
 }
 
+/// The stored GitHub token, for the one feature that sends it from the UI:
+/// the opt-in CI status badge's request to api.github.com.
 #[tauri::command]
-pub async fn generate_ssh_key(comment: String) -> Result<String, AppError> {
+pub async fn get_github_pat() -> Result<Option<String>, AppError> {
+    tokio::task::spawn_blocking(crate::secrets::github_pat).await?
+}
+
+#[tauri::command]
+pub async fn generate_ssh_key(
+    comment: String,
+    passphrase: Option<String>,
+) -> Result<String, AppError> {
     tokio::task::spawn_blocking(move || {
         // Sanitize comment to prevent argument injection
         let sanitized_comment: String = comment
@@ -248,6 +321,13 @@ pub async fn generate_ssh_key(comment: String) -> Result<String, AppError> {
             .to_str()
             .ok_or_else(|| AppError::settings("Invalid UTF-8 in key path"))?;
 
+        // The key used to be generated with an empty passphrase, always. A
+        // passphrase is now optional. `ssh-keygen` takes one non-interactively
+        // only as an argument, so it is visible in the process list for the
+        // moment the command runs — still far better than an unencrypted key
+        // on disk. An encrypted key is used through ssh-agent (see
+        // `credentials::make_callbacks`), so the UI tells the user to `ssh-add`.
+        let passphrase = passphrase.unwrap_or_default();
         let output = crate::commands::new_command("ssh-keygen")
             .args([
                 "-t",
@@ -257,7 +337,7 @@ pub async fn generate_ssh_key(comment: String) -> Result<String, AppError> {
                 "-f",
                 key_path_str,
                 "-N",
-                "",
+                &passphrase,
             ])
             .output()
             .map_err(|e| AppError::command(format!("Failed to run ssh-keygen: {}", e)))?;

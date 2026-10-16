@@ -18,6 +18,7 @@ pub async fn get_commit_signature(
     repo_path: String,
     oid_str: String,
 ) -> Result<Option<SignatureInfo>, AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
         let oid = Oid::from_str(&oid_str)?;

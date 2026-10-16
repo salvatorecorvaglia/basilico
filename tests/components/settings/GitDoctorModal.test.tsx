@@ -22,6 +22,7 @@ const HEALTH: DoctorReport = {
   looseObjectsCount: 3,
   packfilesCount: 1,
   lfsObjectsCount: 0,
+  hasCommitGraph: true,
 };
 
 const DANGLING: DanglingCommitInfo = {
@@ -85,5 +86,25 @@ describe("GitDoctorModal", () => {
 
     expect(order).toEqual(["create_branch", "close", "refresh"]);
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("suggests garbage collection only when there is no commit-graph", async () => {
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === "get_repo_health"
+        ? Promise.resolve({ ...HEALTH, hasCommitGraph: false })
+        : Promise.resolve([]),
+    );
+    const { unmount } = render(
+      <GitDoctorModal open={true} onOpenChange={() => {}} />,
+    );
+    expect(await screen.findByText(/no commit-graph/)).toBeInTheDocument();
+    unmount();
+
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === "get_repo_health" ? Promise.resolve(HEALTH) : Promise.resolve([]),
+    );
+    render(<GitDoctorModal open={true} onOpenChange={() => {}} />);
+    await screen.findByText(/Total Repo Size/);
+    expect(screen.queryByText(/no commit-graph/)).not.toBeInTheDocument();
   });
 });

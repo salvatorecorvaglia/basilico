@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::git::helpers::get_or_fallback_signature;
+use crate::git::helpers::require_signature;
 use git2::{Repository, StashFlags};
 use serde::Serialize;
 
@@ -14,6 +14,7 @@ pub struct StashInfo {
 
 #[tauri::command]
 pub async fn list_stashes(path: String) -> Result<Vec<StashInfo>, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let mut repo = Repository::open(&path)?;
         let mut stashes = Vec::new();
@@ -51,11 +52,12 @@ pub async fn save_stash(
     message: String,
     include_untracked: bool,
 ) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let mut repo = Repository::open(&path)?;
 
         // Find default signature
-        let sig = get_or_fallback_signature(&repo)?;
+        let sig = require_signature(&repo)?;
 
         let mut flags = StashFlags::DEFAULT;
         if include_untracked {
@@ -116,6 +118,7 @@ pub async fn apply_stash(
     index: usize,
     expected_oid: Option<String>,
 ) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let mut repo = Repository::open(&path)?;
         let idx = resolve_stash_index(&mut repo, index, expected_oid.as_deref())?;
@@ -131,6 +134,7 @@ pub async fn pop_stash(
     index: usize,
     expected_oid: Option<String>,
 ) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let mut repo = Repository::open(&path)?;
         let idx = resolve_stash_index(&mut repo, index, expected_oid.as_deref())?;
@@ -146,6 +150,7 @@ pub async fn drop_stash(
     index: usize,
     expected_oid: Option<String>,
 ) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let mut repo = Repository::open(&path)?;
         let idx = resolve_stash_index(&mut repo, index, expected_oid.as_deref())?;

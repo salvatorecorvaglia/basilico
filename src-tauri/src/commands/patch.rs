@@ -18,6 +18,7 @@ pub async fn create_commit_patch(
     repo_path: String,
     commit_oid: String,
 ) -> Result<String, AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     validate_revision(&commit_oid)?;
     tokio::task::spawn_blocking(move || {
         // `git_output` rather than `run_git_cmd`: a patch's exact bytes matter,
@@ -43,6 +44,7 @@ pub async fn create_range_patch(
     from_oid: String,
     to_oid: String,
 ) -> Result<String, AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     validate_revision(&from_oid)?;
     validate_revision(&to_oid)?;
     tokio::task::spawn_blocking(move || {

@@ -99,11 +99,13 @@ export function StashInspector() {
       ? `${selectedStash.oid}^3`
       : selectedStash.oid;
 
+    const oldPath = selectedStashFileDiff?.oldPath;
     getFileContentPairRevisions(
       activeTabId,
       selectedStashFile,
       baseRev,
       targetRev,
+      oldPath && oldPath !== selectedStashFile ? oldPath : null,
     )
       .then((data) => {
         if (!cancelled) setContents(data);

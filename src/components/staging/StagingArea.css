@@ -109,6 +109,14 @@
   transition: all var(--transition-fast);
 }
 
+.staging-action-gap {
+  margin-left: var(--space-2);
+}
+
+.staging-action-push {
+  margin-left: auto;
+}
+
 .staging-action-btn:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
@@ -210,7 +218,7 @@
   width: 18px;
   height: 18px;
   border-radius: var(--radius-sm);
-  font-size: 9px;
+  font-size: var(--font-size-3xs);
   font-weight: var(--weight-bold);
   font-family: var(--font-mono);
   border: 1px solid color-mix(in srgb, currentColor 30%, transparent);

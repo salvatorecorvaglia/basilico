@@ -95,7 +95,9 @@ impl From<git2::Error> for AppError {
         let kind = match err.code() {
             git2::ErrorCode::NotFound => ErrorKind::NotFound,
             git2::ErrorCode::Conflict | git2::ErrorCode::Unmerged => ErrorKind::ConflictError,
-            git2::ErrorCode::Auth | git2::ErrorCode::Certificate => ErrorKind::GitError,
+            // Everything else, authentication and certificate failures
+            // included, stays a GitError: the frontend has no distinct
+            // handling for them.
             _ => ErrorKind::GitError,
         };
         AppError {

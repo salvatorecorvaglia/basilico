@@ -5,11 +5,12 @@
 
 import { Check, Edit2 } from "lucide-react";
 import type React from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { reportError } from "../../lib/git-error";
+import * as commands from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
 import "./CommitBox.css";
-import { reportError } from "../../lib/git-error";
 
 const CONVENTIONAL_TYPES = [
   { label: "feat", desc: "New feature" },
@@ -21,9 +22,20 @@ const CONVENTIONAL_TYPES = [
   { label: "chore", desc: "Maintain" },
 ];
 
+interface CommitMessageParts {
+  title: string;
+  body: string;
+}
+
+function splitMessage(message: string): CommitMessageParts {
+  const lines = message.split("\n");
+  return { title: lines[0] || "", body: lines.slice(1).join("\n").trim() };
+}
+
 export function CommitBox() {
-  const { status, commit, isLoading } = useRepoStore(
+  const { activeTabId, status, commit, isLoading } = useRepoStore(
     useShallow((s) => ({
+      activeTabId: s.activeTabId,
       status: s.status,
       commit: s.commit,
       isLoading: s.isLoading,
@@ -43,32 +55,50 @@ export function CommitBox() {
   const [userSummaryBackup, setUserSummaryBackup] = useState("");
   const [userDescriptionBackup, setUserDescriptionBackup] = useState("");
 
+  // The message the form was pre-filled with for amending, to tell whether the
+  // user has edited it since.
+  const [amendTemplate, setAmendTemplate] = useState<CommitMessageParts | null>(
+    null,
+  );
+  // Bumped on every toggle so a slow message lookup can't land after the user
+  // has already unticked Amend.
+  const amendRequest = useRef(0);
+
   const handleAmendToggle = (checked: boolean) => {
     setAmend(checked);
+    const ticket = ++amendRequest.current;
     if (checked) {
       // Backup current text
       setUserSummaryBackup(summary);
       setUserDescriptionBackup(description);
+      if (!lastCommit) return;
 
-      // Populate with last commit
-      if (lastCommit) {
-        const lines = lastCommit.message.split("\n");
-        const title = lines[0] || "";
-        const body = lines.slice(1).join("\n").trim();
-        setSummary(title);
-        setDescription(body);
-      }
+      // The graph only carries the subject line. Show it straight away, then
+      // swap in the full message: amending from the subject alone silently
+      // dropped the commit's body.
+      const subjectOnly = splitMessage(lastCommit.message);
+      setSummary(subjectOnly.title);
+      setDescription(subjectOnly.body);
+      setAmendTemplate(subjectOnly);
+      if (!activeTabId) return;
+      commands
+        .getCommitMessage(activeTabId, lastCommit.oid, { silent: true })
+        .then((message) => {
+          if (ticket !== amendRequest.current) return;
+          const full = splitMessage(message);
+          // Leave alone whatever the user has already started editing.
+          setSummary((s) => (s === subjectOnly.title ? full.title : s));
+          setDescription((d) => (d === subjectOnly.body ? full.body : d));
+          setAmendTemplate(full);
+        })
+        .catch(() => {
+          // Keep the subject-only pre-fill; the user can still type the body.
+        });
     } else {
-      // Check if user edited the amend message
-      let hasEdited = false;
-      if (lastCommit) {
-        const lines = lastCommit.message.split("\n");
-        const title = lines[0] || "";
-        const body = lines.slice(1).join("\n").trim();
-        if (summary !== title || description !== body) {
-          hasEdited = true;
-        }
-      }
+      const hasEdited =
+        amendTemplate !== null &&
+        (summary !== amendTemplate.title || description !== amendTemplate.body);
+      setAmendTemplate(null);
 
       if (!hasEdited) {
         // Restore user text only if the amend message was not modified
@@ -90,6 +120,7 @@ export function CommitBox() {
       setSummary("");
       setDescription("");
       setAmend(false);
+      setAmendTemplate(null);
       setUserSummaryBackup("");
       setUserDescriptionBackup("");
     } catch (err) {

@@ -25,6 +25,7 @@ pub async fn get_reflog(
     ref_name: Option<String>,
     max_count: Option<usize>,
 ) -> Result<Vec<ReflogEntry>, AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
         let target_ref = ref_name.as_deref().unwrap_or("HEAD");
@@ -57,6 +58,7 @@ pub async fn restore_reflog_entry(
     oid: String,
     mode: String,
 ) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
         let target_oid = git2::Oid::from_str(&oid)

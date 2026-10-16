@@ -7,7 +7,9 @@ vi.mock("@tauri-apps/api/core", () => ({
     invokeMock(cmd, args),
 }));
 
-type RepoChangedCallback = (event: { payload: { repoPath: string } }) => void;
+type RepoChangedCallback = (event: {
+  payload: { repoPath: string; refsChanged?: boolean };
+}) => void;
 let repoChangedCallback: RepoChangedCallback | null = null;
 const listenMock = vi.fn(async (eventName: string, cb: RepoChangedCallback) => {
   if (eventName === "repo:changed") repoChangedCallback = cb;
@@ -168,6 +170,38 @@ describe("App", () => {
       (c) => c[0] === "get_status",
     );
     expect(statusCalls).toHaveLength(1);
+  });
+
+  // B9: a commit, checkout or fetch made outside the app moves a ref. The
+  // watcher flags that, and the log must reload — a plain file save must not.
+  it("reloads the commit log only when the watcher reports a ref change", async () => {
+    render(<App />);
+    await waitFor(() => {
+      expect(repoChangedCallback).not.toBeNull();
+    });
+
+    vi.useFakeTimers();
+    invokeMock.mockClear();
+
+    act(() => {
+      repoChangedCallback?.({ payload: { repoPath: "/repo" } });
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(invokeMock.mock.calls.some((c) => c[0] === "get_status")).toBe(true);
+    expect(invokeMock.mock.calls.some((c) => c[0] === "get_log")).toBe(false);
+
+    invokeMock.mockClear();
+    act(() => {
+      repoChangedCallback?.({
+        payload: { repoPath: "/repo", refsChanged: true },
+      });
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(invokeMock.mock.calls.some((c) => c[0] === "get_log")).toBe(true);
   });
 
   it("lets the command palette shortcut fire from an input, but not the refresh shortcut", async () => {

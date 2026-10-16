@@ -36,6 +36,9 @@ export default defineConfig(async () => ({
     // dependency of the entry, so Vite preloaded it on first paint. The
     // React.lazy boundaries in App.tsx plus src/lib/monaco-setup.ts already
     // give the splitting we want, so let the bundler follow the real graph.
-    chunkSizeWarningLimit: 5000,
+    // Just above the largest chunk today (Monaco, ~2.7 MB), so a bundle
+    // regression produces a warning instead of passing unnoticed — 5000 was
+    // high enough to hide one.
+    chunkSizeWarningLimit: 3000,
   },
 }));

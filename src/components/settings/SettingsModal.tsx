@@ -93,7 +93,9 @@ export function SettingsModal() {
   const [draft, setDraft] = useState<UserSettings | null>(null);
   const [sshKeys, setSshKeys] = useState<string[]>([]);
   const [sshComment, setSshComment] = useState("");
+  const [sshPassphrase, setSshPassphrase] = useState("");
   const [generatedPubKey, setGeneratedPubKey] = useState<string | null>(null);
+  const [generatedWithPassphrase, setGeneratedWithPassphrase] = useState(false);
   const { isCopied, markCopied } = useCopyFeedback();
   const copied = isCopied();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -112,7 +114,9 @@ export function SettingsModal() {
         .catch(() => setSshKeys([]));
       setActiveTab("appearance");
       setSshComment("");
+      setSshPassphrase("");
       setGeneratedPubKey(null);
+      setGeneratedWithPassphrase(false);
     }
   }, [settingsOpen, loadSettings]);
 
@@ -143,8 +147,14 @@ export function SettingsModal() {
     if (!sshComment.trim()) return;
     setIsGenerating(true);
     try {
-      const pubKey = await commands.generateSshKey(sshComment.trim());
+      const pubKey = await commands.generateSshKey(
+        sshComment.trim(),
+        sshPassphrase,
+      );
       setGeneratedPubKey(pubKey);
+      setGeneratedWithPassphrase(sshPassphrase.length > 0);
+      // The passphrase is not kept around once it has been used.
+      setSshPassphrase("");
       // Refresh key list
       const keys = await commands.listSshKeys();
       setSshKeys(keys);
@@ -239,13 +249,11 @@ export function SettingsModal() {
                 {activeTab === "appearance" && (
                   <>
                     <div className="settings-section">
-                      <div className="settings-section-title">
-                        Colour Scheme
-                      </div>
+                      <div className="settings-section-title">Color Scheme</div>
                       <div
                         className="scheme-options"
                         role="radiogroup"
-                        aria-label="Colour scheme"
+                        aria-label="Color scheme"
                       >
                         {COLOR_SCHEME_OPTIONS.map(
                           ({ value, label, Icon, hint }) => (
@@ -342,10 +350,7 @@ export function SettingsModal() {
                       </div>
                     </div>
 
-                    <div
-                      className="settings-section"
-                      style={{ marginTop: "var(--space-5)" }}
-                    >
+                    <div className="settings-section settings-section-spaced">
                       <div className="settings-section-title">
                         External Code Editor (1-Click Launcher)
                       </div>
@@ -375,10 +380,7 @@ export function SettingsModal() {
                       </div>
                     </div>
 
-                    <div
-                      className="settings-section"
-                      style={{ marginTop: "var(--space-5)" }}
-                    >
+                    <div className="settings-section settings-section-spaced">
                       <div className="settings-section-title">
                         External Compare Tools
                       </div>
@@ -417,15 +419,7 @@ export function SettingsModal() {
                             })
                           }
                         />
-                        <span
-                          className="settings-field-hint"
-                          style={{
-                            fontSize: "10px",
-                            color: "var(--text-tertiary)",
-                            marginTop: "4px",
-                            display: "block",
-                          }}
-                        >
+                        <span className="settings-field-hint settings-hint-small">
                           Presets: meld, kdiff3, p4merge, opendiff, code,
                           cursor. Custom supports: <code>%BASE</code>,{" "}
                           <code>%OURS</code>, <code>%THEIRS</code>,{" "}
@@ -434,22 +428,11 @@ export function SettingsModal() {
                       </div>
                     </div>
 
-                    <div
-                      className="settings-section"
-                      style={{ marginTop: "var(--space-5)" }}
-                    >
+                    <div className="settings-section settings-section-spaced">
                       <div className="settings-section-title">
                         GitHub Integration
                       </div>
-                      <div
-                        className="settings-field-row"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          marginBottom: "var(--space-4)",
-                        }}
-                      >
+                      <div className="settings-field-row settings-toggle-row">
                         <input
                           id="settings-check-ci-status"
                           type="checkbox"
@@ -462,21 +445,13 @@ export function SettingsModal() {
                           }
                         />
                         <label
+                          className="settings-toggle-label"
                           htmlFor="settings-check-ci-status"
-                          style={{ cursor: "pointer" }}
                         >
                           Show GitHub Actions CI status in the status bar
                         </label>
                       </div>
-                      <span
-                        className="settings-field-hint"
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-tertiary)",
-                          display: "block",
-                          marginBottom: "var(--space-4)",
-                        }}
-                      >
+                      <span className="settings-field-hint settings-hint-block">
                         Off by default: enabling this sends the current branch
                         name to api.github.com on every branch switch.
                       </span>
@@ -484,11 +459,18 @@ export function SettingsModal() {
                         <label htmlFor="settings-github-pat">
                           GitHub Personal Access Token (PAT)
                         </label>
+                        {/* Write-only: the stored token never reaches the UI.
+                            Typing replaces it; "Remove" clears it. */}
                         <input
                           id="settings-github-pat"
                           className="settings-input"
                           type="password"
-                          placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                          autoComplete="off"
+                          placeholder={
+                            draft.hasGithubPat && draft.githubPat !== ""
+                              ? "A token is stored — type to replace it"
+                              : "ghp_xxxxxxxxxxxxxxxxxxxx"
+                          }
                           value={draft.githubPat || ""}
                           onChange={(e) =>
                             setDraft({
@@ -497,26 +479,30 @@ export function SettingsModal() {
                             })
                           }
                         />
-                        <span
-                          className="settings-field-hint"
-                          style={{
-                            fontSize: "10px",
-                            color: "var(--text-tertiary)",
-                            marginTop: "4px",
-                            display: "block",
-                          }}
-                        >
-                          Used to authenticate the CI status check above, if
-                          enabled — avoids GitHub's low unauthenticated rate
-                          limit and allows checking private repositories.
+                        {draft.hasGithubPat && draft.githubPat !== "" && (
+                          <button
+                            type="button"
+                            className="settings-btn"
+                            onClick={() =>
+                              setDraft({ ...draft, githubPat: "" })
+                            }
+                          >
+                            Remove stored token
+                          </button>
+                        )}
+                        <span className="settings-field-hint settings-hint-small">
+                          {draft.githubPat === ""
+                            ? "The stored token will be removed when you save. "
+                            : ""}
+                          Kept in your system keychain, not in Basilico's
+                          settings file. Used for the CI status check above (if
+                          enabled) and for HTTPS git operations on github.com
+                          when no git credential helper provides credentials.
                         </span>
                       </div>
                     </div>
 
-                    <div
-                      className="settings-section"
-                      style={{ marginTop: "var(--space-5)" }}
-                    >
+                    <div className="settings-section settings-section-spaced">
                       <div className="settings-section-title">
                         Issue Autolinks
                       </div>
@@ -558,21 +544,11 @@ export function SettingsModal() {
                       </div>
                     </div>
 
-                    <div
-                      className="settings-section"
-                      style={{ marginTop: "var(--space-5)" }}
-                    >
+                    <div className="settings-section settings-section-spaced">
                       <div className="settings-section-title">
                         Git Commit Options
                       </div>
-                      <div
-                        className="settings-field-row"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                        }}
-                      >
+                      <div className="settings-field-row settings-toggle-row tight">
                         <input
                           id="settings-bypass-hooks"
                           type="checkbox"
@@ -585,8 +561,8 @@ export function SettingsModal() {
                           }
                         />
                         <label
+                          className="settings-toggle-label"
                           htmlFor="settings-bypass-hooks"
-                          style={{ cursor: "pointer" }}
                         >
                           Bypass Git Hooks (--no-verify)
                         </label>
@@ -635,6 +611,20 @@ export function SettingsModal() {
                             onChange={(e) => setSshComment(e.target.value)}
                           />
                         </div>
+                        <div className="settings-field">
+                          <label htmlFor="settings-ssh-passphrase">
+                            Passphrase (recommended)
+                          </label>
+                          <input
+                            id="settings-ssh-passphrase"
+                            className="settings-input"
+                            type="password"
+                            autoComplete="new-password"
+                            placeholder="Leave empty for no passphrase"
+                            value={sshPassphrase}
+                            onChange={(e) => setSshPassphrase(e.target.value)}
+                          />
+                        </div>
                         <button
                           type="button"
                           className="settings-btn"
@@ -659,6 +649,13 @@ export function SettingsModal() {
                             {copied ? <Check size={12} /> : <Copy size={12} />}
                             {copied ? "Copied!" : "Copy Public Key"}
                           </button>
+                          {generatedWithPassphrase && (
+                            <p className="settings-hint">
+                              Basilico uses passphrase-protected keys through
+                              your SSH agent. Add it once with{" "}
+                              <code>ssh-add ~/.ssh/id_basilico</code>.
+                            </p>
+                          )}
                         </>
                       )}
                     </div>
@@ -671,15 +668,7 @@ export function SettingsModal() {
                       <div className="settings-section-title">
                         Vim Modal Navigation Mode
                       </div>
-                      <div
-                        className="settings-field-row"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          marginBottom: "var(--space-4)",
-                        }}
-                      >
+                      <div className="settings-field-row settings-toggle-row">
                         <input
                           id="settings-vim-mode"
                           type="checkbox"
@@ -692,21 +681,13 @@ export function SettingsModal() {
                           }
                         />
                         <label
+                          className="settings-toggle-label strong"
                           htmlFor="settings-vim-mode"
-                          style={{ cursor: "pointer", fontWeight: 500 }}
                         >
                           Enable Vim Keyboard Navigation (j/k, s/u, c, /)
                         </label>
                       </div>
-                      <span
-                        className="settings-field-hint"
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-tertiary)",
-                          display: "block",
-                          marginBottom: "var(--space-4)",
-                        }}
-                      >
+                      <span className="settings-field-hint settings-hint-block">
                         Use <code>j</code> / <code>k</code> to navigate commits
                         or files, <code>s</code> / <code>u</code> to
                         stage/unstage, <code>c</code> to jump to commit message,

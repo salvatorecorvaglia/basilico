@@ -100,6 +100,9 @@ async function invokeCommand<T>(
   }
 }
 
+/** How a merge, pull, cherry-pick or revert ended (Rust `MergeOutcome`). */
+export type MergeOutcome = "success" | "conflicts";
+
 // ── Repository Commands ──
 
 export const openRepo = (path: string, options?: InvokeOptions) =>
@@ -148,6 +151,15 @@ export const getLog = (
     options,
   );
 
+// A digest of the refs the log is built from: unchanged means a log fetched
+// earlier is still current, so the expensive `get_log` can be skipped.
+export const getLogFingerprint = (
+  path: string,
+  hideRemotes?: boolean,
+  options?: InvokeOptions,
+) =>
+  invokeCommand<string>("get_log_fingerprint", { path, hideRemotes }, options);
+
 // ── Diff Commands ──
 
 export const getWorkdirDiff = (path: string, options?: InvokeOptions) =>
@@ -177,17 +189,23 @@ export const getFileDiff = (
 export interface FileContentPair {
   original: string;
   modified: string;
+  /** Either side is binary; both strings are empty. */
+  isBinary?: boolean;
+  /** Either side is too large for the editor; both strings are empty. */
+  tooLarge?: boolean;
 }
 
+/** `originalPath`: where a staged rename came from, read for the HEAD side. */
 export const getFileContentPair = (
   path: string,
   filePath: string,
   isStaged: boolean,
+  originalPath?: string | null,
   options?: InvokeOptions,
 ) =>
   invokeCommand<FileContentPair>(
     "get_file_content_pair",
-    { path, filePath, isStaged },
+    { path, filePath, isStaged, originalPath: originalPath ?? null },
     options,
   );
 
@@ -310,12 +328,7 @@ export const mergeBranch = (
   path: string,
   branchName: string,
   options?: InvokeOptions,
-) =>
-  invokeCommand<"success" | "conflicts">(
-    "merge_branch",
-    { path, branchName },
-    options,
-  );
+) => invokeCommand<MergeOutcome>("merge_branch", { path, branchName }, options);
 
 export const abortMerge = (path: string, options?: InvokeOptions) =>
   invokeCommand<void>("abort_merge", { path }, options);
@@ -351,17 +364,57 @@ export const push = (
     options,
   );
 
+/** How a pull integrates the fetched branch; omitted = the repository's own
+ *  `pull.rebase` / `pull.ff` settings. */
+export type PullMode = "merge" | "rebase" | "ff-only";
+
 export const pull = (
   path: string,
   remote: string,
   branch: string,
+  mode?: PullMode | null,
   options?: InvokeOptions,
 ) =>
-  invokeCommand<"success" | "conflicts">(
+  invokeCommand<MergeOutcome>(
     "pull",
-    { path, remote, branch },
+    { path, remote, branch, mode: mode ?? null },
     options,
   );
+
+// Stop the clone, fetch, pull or push running for `key` (a repository path,
+// or a clone's destination). Resolves to whether one was running.
+export const cancelNetworkOperation = (key: string, options?: InvokeOptions) =>
+  invokeCommand<boolean>("cancel_network_operation", { key }, options);
+
+/** A question a network operation is waiting on (see `git/prompts.rs`). */
+export type GitPromptRequest =
+  | {
+      kind: "credentials";
+      id: string;
+      url: string;
+      username: string | null;
+      retry: boolean;
+    }
+  | {
+      kind: "hostKey";
+      id: string;
+      host: string;
+      keyType: string;
+      fingerprint: string;
+    };
+
+export interface GitPromptAnswer {
+  username?: string;
+  password?: string;
+  accept?: boolean;
+}
+
+// Answer a `git:prompt` question; `null` declines it.
+export const answerGitPrompt = (
+  id: string,
+  answer: GitPromptAnswer | null,
+  options?: InvokeOptions,
+) => invokeCommand<boolean>("answer_git_prompt", { id, answer }, options);
 
 // ── Phase 3: Blame Commands ──
 
@@ -467,12 +520,6 @@ export const rebaseInit = (
     { repoPath, upstream },
     options,
   );
-
-export const rebaseWriteTodo = (
-  repoPath: string,
-  items: RebaseTodoItem[],
-  options?: InvokeOptions,
-) => invokeCommand<void>("rebase_write_todo", { repoPath, items }, options);
 
 /** Hands the assembled plan to git. Nothing is rewritten until this runs. */
 export const rebaseStart = (
@@ -610,8 +657,21 @@ export const getSettings = (options?: InvokeOptions) =>
 export const saveSettings = (settings: UserSettings, options?: InvokeOptions) =>
   invokeCommand<void>("save_settings", { settings }, options);
 
-export const generateSshKey = (comment: string, options?: InvokeOptions) =>
-  invokeCommand<string>("generate_ssh_key", { comment }, options);
+// The stored GitHub token, fetched only when a feature needs to send it.
+export const getGithubPat = (options?: InvokeOptions) =>
+  invokeCommand<string | null>("get_github_pat", undefined, options);
+
+// An empty or missing passphrase generates an unencrypted key.
+export const generateSshKey = (
+  comment: string,
+  passphrase?: string | null,
+  options?: InvokeOptions,
+) =>
+  invokeCommand<string>(
+    "generate_ssh_key",
+    { comment, passphrase: passphrase || null },
+    options,
+  );
 
 export const listSshKeys = (options?: InvokeOptions) =>
   invokeCommand<string[]>("list_ssh_keys", undefined, options);
@@ -622,7 +682,7 @@ export const cherryPickCommit = (
   path: string,
   oid: string,
   options?: InvokeOptions,
-) => invokeCommand<string>("cherry_pick_commit", { path, oid }, options);
+) => invokeCommand<MergeOutcome>("cherry_pick_commit", { path, oid }, options);
 
 export const cherryPickAbort = (path: string, options?: InvokeOptions) =>
   invokeCommand<void>("cherry_pick_abort", { path }, options);
@@ -631,7 +691,7 @@ export const revertCommit = (
   path: string,
   oid: string,
   options?: InvokeOptions,
-) => invokeCommand<string>("revert_commit", { path, oid }, options);
+) => invokeCommand<MergeOutcome>("revert_commit", { path, oid }, options);
 
 export const revertAbort = (path: string, options?: InvokeOptions) =>
   invokeCommand<void>("revert_abort", { path }, options);
@@ -645,11 +705,25 @@ export const resetToCommit = (
 
 // ── Phase 7: Compare & Commit Tree Viewers Commands ──
 
+/** One folder of a commit's tree ("" is the root), folders first. */
 export const getCommitTree = (
   path: string,
   oid: string,
+  dir: string,
   options?: InvokeOptions,
-) => invokeCommand<TreeEntryInfo[]>("get_commit_tree", { path, oid }, options);
+) =>
+  invokeCommand<TreeEntryInfo[]>(
+    "get_commit_tree",
+    { path, oid, dir },
+    options,
+  );
+
+/** A commit's full message — the graph only carries subject lines. */
+export const getCommitMessage = (
+  path: string,
+  oid: string,
+  options?: InvokeOptions,
+) => invokeCommand<string>("get_commit_message", { path, oid }, options);
 
 export const getCompareDiff = (
   path: string,
@@ -663,16 +737,18 @@ export const getCompareDiff = (
     options,
   );
 
+/** `basePath`: the file's path at `base` when it was renamed in between. */
 export const getFileContentPairRevisions = (
   path: string,
   filePath: string,
   base: string,
   target: string,
+  basePath?: string | null,
   options?: InvokeOptions,
 ) =>
   invokeCommand<FileContentPair>(
     "get_file_content_pair_revisions",
-    { path, filePath, base, target },
+    { path, filePath, base, target, basePath: basePath ?? null },
     options,
   );
 
@@ -698,6 +774,20 @@ export const saveMergedResolution = (
   invokeCommand<void>(
     "save_merged_resolution",
     { repoPath, filePath, mergedContent },
+    options,
+  );
+
+// Takes one side of a conflict wholesale in the backend, so binary files keep
+// their exact bytes and a side that deleted the file resolves to a deletion.
+export const resolveConflictSide = (
+  repoPath: string,
+  filePath: string,
+  side: "ours" | "theirs",
+  options?: InvokeOptions,
+) =>
+  invokeCommand<void>(
+    "resolve_conflict_side",
+    { repoPath, filePath, side },
     options,
   );
 

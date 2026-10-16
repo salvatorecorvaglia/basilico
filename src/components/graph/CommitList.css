@@ -63,7 +63,7 @@
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border-default);
   font-family: var(--font-family);
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
   font-weight: var(--weight-bold);
   color: var(--text-tertiary);
   text-transform: uppercase;
@@ -195,7 +195,7 @@
   height: 16px;
   border-radius: var(--radius-sm);
   font-family: var(--font-family);
-  font-size: 9px;
+  font-size: var(--font-size-3xs);
   font-weight: var(--weight-bold);
   white-space: nowrap;
   flex-shrink: 0;
@@ -240,7 +240,7 @@
   align-items: center;
   justify-content: center;
   font-family: var(--font-family);
-  font-size: 8px;
+  font-size: var(--font-size-4xs);
   font-weight: var(--weight-bold);
   color: white;
   flex-shrink: 0;
@@ -296,4 +296,91 @@
   outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
+}
+
+/* ── Formerly inline styles ──
+   Same values, scoped under the list's root so they keep outranking the
+   classes these elements also carry, as the inline styles did. */
+.commit-list-container .commit-skeleton-search {
+  width: 80px;
+  height: 12px;
+  margin-bottom: 0;
+}
+
+.commit-list-container .commit-skeleton-sha {
+  width: 70px;
+}
+
+.commit-list-container .commit-skeleton-branch {
+  width: 110px;
+}
+
+.commit-list-container .commit-skeleton-tags {
+  width: 90px;
+}
+
+.commit-list-container .commit-skeleton-author {
+  width: 130px;
+}
+
+.commit-list-container .commit-skeleton-date {
+  width: 95px;
+}
+
+.commit-list-container .commit-skeleton-rows {
+  padding: var(--space-1) 0;
+  overflow: hidden;
+}
+
+.commit-list-container .commit-skeleton-row {
+  gap: var(--space-4);
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.commit-list-container .commit-skeleton-message {
+  flex: 1;
+}
+
+.commit-list-container .commit-list-controls.wrap {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.commit-list-container .commit-list-search-main {
+  flex: 1;
+  min-width: 160px;
+}
+
+.commit-list-container .commit-list-search-path {
+  width: 160px;
+}
+
+.commit-list-container .commit-list-filter-btn {
+  height: 26px;
+  font-size: var(--font-size-xs);
+}
+
+.commit-list-container .commit-list-sort-icon {
+  margin-left: var(--space-1);
+  color: var(--accent-primary);
+  display: inline-block;
+}
+
+.commit-list-empty .commit-list-empty-icon {
+  margin-bottom: var(--space-3);
+}
+
+.commit-list-empty .commit-list-empty-title {
+  font-weight: var(--weight-medium);
+  margin-bottom: var(--space-2);
+}
+
+.commit-list-empty .commit-list-empty-text {
+  font-size: var(--font-size-sm);
+  max-width: 280px;
+  text-align: center;
+  line-height: 1.5;
 }

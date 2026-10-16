@@ -7,6 +7,7 @@ pub async fn get_stash_diff(
     repo_path: String,
     stash_oid: String,
 ) -> Result<Vec<FileDiff>, AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
         let oid = git2::Oid::from_str(&stash_oid)?;

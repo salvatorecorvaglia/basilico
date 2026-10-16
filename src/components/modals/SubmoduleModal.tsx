@@ -20,6 +20,7 @@ import type { SubmoduleInfo } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
+import "./ToolModal.css";
 
 interface SubmoduleModalProps {
   open: boolean;
@@ -131,10 +132,7 @@ export function SubmoduleModal({ open, onOpenChange }: SubmoduleModalProps) {
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="settings-overlay" />
-        <Dialog.Content
-          className="settings-modal"
-          style={{ maxWidth: "600px", maxHeight: "80vh" }}
-        >
+        <Dialog.Content className="settings-modal tool-modal tool-modal-submodule">
           {/* Header */}
           <div className="settings-header">
             <Dialog.Title asChild>
@@ -155,15 +153,9 @@ export function SubmoduleModal({ open, onOpenChange }: SubmoduleModalProps) {
           </div>
 
           {/* Body */}
-          <div className="settings-body" style={{ padding: "var(--space-4)" }}>
+          <div className="settings-body tool-modal-body">
             {/* Top Toolbar */}
-            <div
-              style={{
-                display: "flex",
-                gap: "var(--space-2)",
-                marginBottom: "var(--space-4)",
-              }}
-            >
+            <div className="submodule-toolbar">
               <button
                 type="button"
                 className="settings-btn settings-btn-outline"
@@ -199,28 +191,11 @@ export function SubmoduleModal({ open, onOpenChange }: SubmoduleModalProps) {
 
             {/* Add Submodule Form */}
             {showAddForm && (
-              <form
-                onSubmit={handleAddSubmodule}
-                style={{
-                  padding: "var(--space-3)",
-                  background: "var(--bg-secondary)",
-                  border: "1px solid var(--border-color)",
-                  borderRadius: "var(--radius-md)",
-                  marginBottom: "var(--space-4)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "var(--space-3)",
-                }}
-              >
+              <form className="tool-modal-form" onSubmit={handleAddSubmodule}>
                 <div>
                   <label
+                    className="tool-modal-label"
                     htmlFor="submodule-url-input"
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 500,
-                      display: "block",
-                      marginBottom: "4px",
-                    }}
                   >
                     Repository URL:
                   </label>
@@ -237,13 +212,8 @@ export function SubmoduleModal({ open, onOpenChange }: SubmoduleModalProps) {
 
                 <div>
                   <label
+                    className="tool-modal-label"
                     htmlFor="submodule-path-input"
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 500,
-                      display: "block",
-                      marginBottom: "4px",
-                    }}
                   >
                     Destination Path:
                   </label>
@@ -258,7 +228,7 @@ export function SubmoduleModal({ open, onOpenChange }: SubmoduleModalProps) {
                   />
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <div className="tool-modal-form-footer">
                   <button
                     type="submit"
                     className="settings-btn"
@@ -272,130 +242,44 @@ export function SubmoduleModal({ open, onOpenChange }: SubmoduleModalProps) {
 
             {/* Submodule List */}
             {loading ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "var(--space-6) 0",
-                  color: "var(--text-tertiary)",
-                }}
-              >
+              <div className="tool-modal-state">
                 <span className="spinner-large" />
-                <p style={{ marginTop: "var(--space-2)" }}>
-                  Loading submodules...
-                </p>
+                <p className="tool-modal-state-text">Loading submodules...</p>
               </div>
             ) : submoduleList.length === 0 ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "var(--space-6) 0",
-                  color: "var(--text-tertiary)",
-                }}
-              >
-                <FolderGit2
-                  size={32}
-                  style={{
-                    margin: "0 auto var(--space-2)",
-                    color: "var(--text-tertiary)",
-                  }}
-                />
-                <p style={{ fontWeight: 500 }}>No Submodules Found</p>
-                <p style={{ fontSize: "11px" }}>
+              <div className="tool-modal-state">
+                <FolderGit2 className="tool-modal-state-icon" size={32} />
+                <p className="tool-modal-strong">No Submodules Found</p>
+                <p className="tool-modal-small">
                   This repository has no configured Git submodules. Click
                   &quot;Add Submodule&quot; above to add one.
                 </p>
               </div>
             ) : (
-              <div
-                style={{
-                  maxHeight: "320px",
-                  overflowY: "auto",
-                  border: "1px solid var(--border-color)",
-                  borderRadius: "var(--radius-md)",
-                  background: "var(--bg-secondary)",
-                }}
-              >
+              <div className="tool-modal-list tool-modal-list-tall">
                 {submoduleList.map((sm) => (
-                  <div
-                    key={sm.name}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "var(--space-3)",
-                      borderBottom: "1px solid var(--border-subtle)",
-                      fontSize: "12px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        flex: 1,
-                        minWidth: 0,
-                        paddingRight: "var(--space-3)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                        }}
-                      >
-                        <span
-                          style={{ fontWeight: 600, fontFamily: "monospace" }}
-                        >
+                  <div className="tool-modal-row" key={sm.name}>
+                    <div className="tool-modal-row-main">
+                      <div className="tool-modal-row-title">
+                        <span className="tool-modal-mono-strong">
                           {sm.name}
                         </span>
-                        <span
-                          className="truncate text-tertiary"
-                          style={{ fontSize: "11px" }}
-                        >
+                        <span className="truncate text-tertiary tool-modal-small">
                           ({sm.path})
                         </span>
                       </div>
                       {sm.url && (
-                        <div
-                          style={{
-                            fontSize: "10px",
-                            color: "var(--text-tertiary)",
-                            marginTop: "2px",
-                          }}
-                          className="truncate"
-                        >
-                          {sm.url}
-                        </div>
+                        <div className="tool-modal-meta truncate">{sm.url}</div>
                       )}
                     </div>
 
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "var(--space-2)",
-                      }}
-                    >
+                    <div className="tool-modal-actions">
                       {sm.status === "up-to-date" ? (
-                        <span
-                          className="commit-ref ref-head"
-                          style={{
-                            fontSize: "10px",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "3px",
-                          }}
-                        >
+                        <span className="commit-ref ref-head submodule-status">
                           <CheckCircle size={10} /> Up-to-date
                         </span>
                       ) : (
-                        <span
-                          className="commit-ref ref-tag"
-                          style={{
-                            fontSize: "10px",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "3px",
-                          }}
-                        >
+                        <span className="commit-ref ref-tag submodule-status">
                           <AlertTriangle size={10} /> {sm.status}
                         </span>
                       )}

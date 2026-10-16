@@ -89,28 +89,7 @@ pub fn build_graph_page(
     let ref_map = build_ref_map(&repo, hide_remotes)?;
 
     // Walk commits
-    let mut revwalk = repo.revwalk()?;
-    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
-
-    if first_parent {
-        let _ = revwalk.simplify_first_parent();
-    }
-
-    let _ = revwalk.push_head();
-
-    // Also push all branches/tags so we see the full graph
-    for r in repo.references()?.flatten() {
-        let is_remote = r
-            .name()
-            .map(|n| n.starts_with("refs/remotes/"))
-            .unwrap_or(false);
-        if hide_remotes && is_remote {
-            continue;
-        }
-        if let Ok(commit_ref) = r.peel(git2::ObjectType::Commit) {
-            let _ = revwalk.push(commit_ref.id());
-        }
-    }
+    let (revwalk, _) = new_graph_walk(&repo, first_parent, hide_remotes)?;
 
     let mut commits: Vec<GraphCommit> = Vec::new();
     let clean_path = path_filter.map(|s| s.trim()).filter(|s| !s.is_empty());
@@ -199,6 +178,104 @@ pub fn build_graph_page(
     }
 
     Ok(commits)
+}
+
+/// Whether a ref belongs in the commit graph: local branches, tags, and
+/// remote-tracking branches unless they are hidden.
+///
+/// Every ref used to be pushed into the walk. `refs/stash` then put stash WIP
+/// and index commits into the history view, and `refs/notes/*`,
+/// `refs/bisect/*` and `refs/original/*` pulled in commits that are not part
+/// of the project's history at all.
+fn is_graph_ref(name: &str, hide_remotes: bool) -> bool {
+    name.starts_with("refs/heads/")
+        || name.starts_with("refs/tags/")
+        || (!hide_remotes && name.starts_with("refs/remotes/"))
+}
+
+/// A topological revwalk over HEAD and every graph ref, plus a fingerprint of
+/// those refs (sorted `refname\toid` lines, `HEAD` first-class among them).
+///
+/// This setup was written out three times — in [`build_graph_page`], in the
+/// cached path, and again for its rebuild after an invalid fast-forward — and
+/// the three copies had to agree exactly for the cache to be valid.
+fn new_graph_walk(
+    repo: &Repository,
+    first_parent: bool,
+    hide_remotes: bool,
+) -> Result<(git2::Revwalk<'_>, Vec<String>), AppError> {
+    let mut revwalk = repo.revwalk()?;
+    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
+    if first_parent {
+        let _ = revwalk.simplify_first_parent();
+    }
+    let _ = revwalk.push_head();
+
+    let (tips, fingerprint) = graph_refs(repo, hide_remotes)?;
+    for oid in tips {
+        let _ = revwalk.push(oid);
+    }
+
+    Ok((revwalk, fingerprint))
+}
+
+/// The distinct commits the graph starts from (HEAD and every graph ref), and
+/// the sorted `refname\toid` fingerprint of those refs.
+fn graph_refs(
+    repo: &Repository,
+    hide_remotes: bool,
+) -> Result<(Vec<git2::Oid>, Vec<String>), AppError> {
+    let mut seen: std::collections::HashSet<git2::Oid> = std::collections::HashSet::new();
+    let mut tips = Vec::new();
+    let mut fingerprint: Vec<String> = Vec::new();
+    if let Ok(head) = repo.head() {
+        if let Some(oid) = head.target() {
+            seen.insert(oid);
+            fingerprint.push(format!("HEAD\t{oid}"));
+        }
+    }
+
+    for r in repo.references()?.flatten() {
+        let name = r.name().unwrap_or("").to_string();
+        if !is_graph_ref(&name, hide_remotes) {
+            continue;
+        }
+        if let Ok(commit_ref) = r.peel(git2::ObjectType::Commit) {
+            let oid = commit_ref.id();
+            fingerprint.push(format!("{}\t{oid}", name));
+            if seen.insert(oid) {
+                tips.push(oid);
+            }
+        }
+    }
+    fingerprint.sort_unstable();
+
+    Ok((tips, fingerprint))
+}
+
+/// A short digest of everything that decides what the commit log contains:
+/// HEAD and every graph ref with its target.
+///
+/// Reading refs costs milliseconds; the topological walk behind `get_log`
+/// visits the whole history before yielding its first commit. Every refresh
+/// after a checkout, fetch, stash or commit used to rebuild and re-send the
+/// log even when no ref had moved — the frontend now asks for this first and
+/// reuses the log it has when the digest is unchanged.
+pub fn graph_fingerprint(path: &str, hide_remotes: bool) -> Result<String, AppError> {
+    use sha2::{Digest, Sha256};
+
+    let repo = Repository::open(path)?;
+    let (_, fingerprint) = graph_refs(&repo, hide_remotes)?;
+    let mut hasher = Sha256::new();
+    for line in &fingerprint {
+        hasher.update(line.as_bytes());
+        hasher.update(b"\n");
+    }
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect())
 }
 
 /// Ceiling on how many commits are inspected when a path filter is active.
@@ -336,12 +413,11 @@ pub fn compute_lanes(commits: &mut [GraphCommit]) {
         .filter_map(|c| git2::Oid::from_str(&c.oid).ok())
         .collect();
 
-    let mut active_lanes: Vec<Option<String>> = Vec::new();
+    let mut active_lanes: Vec<Option<git2::Oid>> = Vec::new();
 
     for commit in commits.iter_mut() {
         assign_lane(commit, &mut active_lanes, |parent_oid, _is_first| {
-            let parent_git_oid = git2::Oid::from_str(parent_oid).unwrap_or(git2::Oid::ZERO_SHA1);
-            !walked_oids.contains(&parent_git_oid)
+            !walked_oids.contains(&parent_oid)
         });
     }
 }
@@ -355,17 +431,23 @@ pub fn compute_lanes(commits: &mut [GraphCommit]) {
 /// be treated as outside the walked set (lane terminates) or still-pending
 /// (lane stays reserved for it). The two callers use different definitions of
 /// "boundary" — see the caller-side comments for why.
+///
+/// Lanes hold `Oid`s rather than the hex strings the commit carries: every
+/// commit scans the active lanes several times, and comparing (and copying)
+/// 20-byte ids is far cheaper than 40-character strings on long histories.
 fn assign_lane(
     commit: &mut GraphCommit,
-    active_lanes: &mut Vec<Option<String>>,
-    is_boundary: impl Fn(&str, bool) -> bool,
+    active_lanes: &mut Vec<Option<git2::Oid>>,
+    is_boundary: impl Fn(git2::Oid, bool) -> bool,
 ) {
-    let oid = commit.oid.clone();
+    // An unparsable id cannot occupy a lane; ZERO never matches a real commit.
+    let parse = |s: &str| git2::Oid::from_str(s).unwrap_or(git2::Oid::ZERO_SHA1);
+    let oid = parse(&commit.oid);
     let parent_oids = std::mem::take(&mut commit.parent_oids);
 
     let lane = active_lanes
         .iter()
-        .position(|l| l.as_deref() == Some(oid.as_str()))
+        .position(|l| *l == Some(oid))
         .unwrap_or_else(|| {
             let free = active_lanes.iter().position(|l| l.is_none());
             match free {
@@ -380,27 +462,26 @@ fn assign_lane(
     commit.lane = lane;
 
     for l in active_lanes.iter_mut() {
-        if l.as_deref() == Some(oid.as_str()) {
+        if *l == Some(oid) {
             *l = None;
         }
     }
 
     let mut edges = Vec::with_capacity(parent_oids.len());
 
-    for (p_idx, parent_oid) in parent_oids.iter().enumerate() {
+    for (p_idx, parent_str) in parent_oids.iter().enumerate() {
+        let parent_oid = parse(parent_str);
         let boundary = is_boundary(parent_oid, p_idx == 0);
 
         let target_lane = if p_idx == 0 {
             if !boundary {
-                active_lanes[lane] = Some(parent_oid.clone());
+                active_lanes[lane] = Some(parent_oid);
             } else {
                 active_lanes[lane] = None;
             }
             lane
         } else {
-            let existing = active_lanes
-                .iter()
-                .position(|l| l.as_deref() == Some(parent_oid.as_str()));
+            let existing = active_lanes.iter().position(|l| *l == Some(parent_oid));
             match existing {
                 Some(l) => l,
                 None => {
@@ -413,7 +494,7 @@ fn assign_lane(
                         }
                     };
                     if !boundary {
-                        active_lanes[new_lane] = Some(parent_oid.clone());
+                        active_lanes[new_lane] = Some(parent_oid);
                     }
                     new_lane
                 }
@@ -423,7 +504,7 @@ fn assign_lane(
         edges.push(GraphEdge {
             from_lane: lane,
             to_lane: target_lane,
-            to_oid: parent_oid.clone(),
+            to_oid: parent_str.clone(),
             is_merge: p_idx > 0,
         });
     }
@@ -465,7 +546,7 @@ pub struct LaneCacheEntry {
     /// already cached and serves it verbatim, so anything left empty here is
     /// what the client ultimately renders.
     topo: Vec<GraphCommit>,
-    active_lanes: Vec<Option<String>>,
+    active_lanes: Vec<Option<git2::Oid>>,
     /// How many entries of `topo`, from the start, already have a final
     /// lane/edges assignment. Only the tail beyond this needs processing.
     lanes_assigned: usize,
@@ -522,38 +603,7 @@ pub fn build_graph_page_cached(
     let repo = Repository::open(path)?;
     let ref_map = build_ref_map(&repo, hide_remotes)?;
 
-    let mut revwalk = repo.revwalk()?;
-    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
-    if first_parent {
-        let _ = revwalk.simplify_first_parent();
-    }
-    let _ = revwalk.push_head();
-
-    let mut push_oids: std::collections::HashSet<git2::Oid> = std::collections::HashSet::new();
-    let mut fingerprint: Vec<String> = Vec::new();
-    if let Ok(head) = repo.head() {
-        if let Some(oid) = head.target() {
-            push_oids.insert(oid);
-            fingerprint.push(format!("HEAD\t{oid}"));
-        }
-    }
-    for r in repo.references()?.flatten() {
-        let is_remote = r
-            .name()
-            .map(|n| n.starts_with("refs/remotes/"))
-            .unwrap_or(false);
-        if hide_remotes && is_remote {
-            continue;
-        }
-        if let Ok(commit_ref) = r.peel(git2::ObjectType::Commit) {
-            let oid = commit_ref.id();
-            fingerprint.push(format!("{}\t{oid}", r.name().unwrap_or("")));
-            if push_oids.insert(oid) {
-                let _ = revwalk.push(oid);
-            }
-        }
-    }
-    fingerprint.sort_unstable();
+    let (revwalk, fingerprint) = new_graph_walk(&repo, first_parent, hide_remotes)?;
 
     let key = LaneCacheKey {
         path: path.to_string(),
@@ -607,24 +657,7 @@ pub fn build_graph_page_cached(
         };
         // Rebuild the walker from scratch since the previous one was consumed
         // partway through an invalid fast-forward.
-        let mut fresh = repo.revwalk()?;
-        fresh.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
-        if first_parent {
-            let _ = fresh.simplify_first_parent();
-        }
-        let _ = fresh.push_head();
-        for r in repo.references()?.flatten() {
-            let is_remote = r
-                .name()
-                .map(|n| n.starts_with("refs/remotes/"))
-                .unwrap_or(false);
-            if hide_remotes && is_remote {
-                continue;
-            }
-            if let Ok(commit_ref) = r.peel(git2::ObjectType::Commit) {
-                let _ = fresh.push(commit_ref.id());
-            }
-        }
+        let (fresh, _) = new_graph_walk(&repo, first_parent, hide_remotes)?;
         walker = fresh;
     }
 
@@ -685,15 +718,15 @@ pub fn build_graph_page_cached(
     // many pages later that is. Under first_parent mode, a non-first parent
     // is never walked at all (simplify_first_parent prunes it), so that one
     // case is still a genuine, permanent boundary.
+    // An existence check is all that's needed: parsing the whole commit with
+    // `find_commit`, once per parent of every new commit, was wasted work.
+    let odb = repo.odb()?;
     for commit in entry.topo[entry.lanes_assigned..].iter_mut() {
         assign_lane(commit, &mut entry.active_lanes, |parent_oid, is_first| {
             if first_parent && !is_first {
                 return true;
             }
-            match git2::Oid::from_str(parent_oid) {
-                Ok(oid) => repo.find_commit(oid).is_err(),
-                Err(_) => true,
-            }
+            !odb.exists(parent_oid)
         });
     }
     entry.lanes_assigned = entry.topo.len();

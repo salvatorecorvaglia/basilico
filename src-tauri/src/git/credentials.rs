@@ -33,8 +33,10 @@ pub fn check_push_rejections(rejections: &PushRejections) -> Result<(), crate::e
 pub fn make_push_callbacks<'a>(
     custom_ssh_path: Option<String>,
     rejections: PushRejections,
+    progress: Option<SharedProgress>,
+    remote_url: Option<&str>,
 ) -> RemoteCallbacks<'a> {
-    let mut callbacks = make_callbacks(custom_ssh_path);
+    let mut callbacks = make_callbacks_with_progress(custom_ssh_path, progress, remote_url);
     callbacks.push_update_reference(move |refname, status| {
         if let Some(msg) = status {
             rejections
@@ -105,17 +107,97 @@ fn key_is_encrypted(path: &Path) -> bool {
     false
 }
 
+/// Credentials from the user's git credential helper, if it has any for `url`.
+fn helper_credential(url: &str, username_from_url: Option<&str>) -> Option<Cred> {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(config) = git2::Config::open_default() {
+            if let Some((username, password)) =
+                get_credentials_via_custom_helper(&config, url, username_from_url)
+            {
+                return Cred::userpass_plaintext(&username, &password).ok();
+            }
+        }
+    }
+
+    let config = git2::Config::open_default().ok()?;
+    Cred::credential_helper(&config, url, username_from_url).ok()
+}
+
+/// The GitHub token from Settings, when `url` is an HTTPS URL on github.com.
+///
+/// The token was stored but never used for git itself, so an HTTPS clone or
+/// push of a private GitHub repository failed without a credential helper.
+/// It is offered to github.com only — never to another host.
+pub fn github_token_for(url: &str) -> Option<String> {
+    if !is_github_https_url(url) {
+        return None;
+    }
+    crate::secrets::github_pat().ok().flatten()
+}
+
+/// True for `https://github.com/...`, with or without `user@`.
+pub fn is_github_https_url(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("https://") else {
+        return false;
+    };
+    let authority = rest.split('/').next().unwrap_or("");
+    let host = authority.rsplit('@').next().unwrap_or("");
+    host.eq_ignore_ascii_case("github.com")
+}
+
 /// Build remote callbacks with credential handling.
 /// Supports SSH agent, SSH key files, and username/password.
 pub fn make_callbacks<'a>(custom_ssh_path: Option<String>) -> RemoteCallbacks<'a> {
+    make_callbacks_with_progress(custom_ssh_path, None, None)
+}
+
+/// A progress reporter shared by the several callbacks of one operation.
+pub type SharedProgress = Rc<RefCell<crate::git::progress::ProgressReporter>>;
+
+/// [`make_callbacks`], reporting transfer progress to `progress` and stopping
+/// the operation once it is cancelled.
+///
+/// `remote_url` supplies the SSH port for host-key checks: libgit2 hands the
+/// certificate callback only the hostname, and `known_hosts` records a host on
+/// a non-standard port as `[host]:port`.
+pub fn make_callbacks_with_progress<'a>(
+    custom_ssh_path: Option<String>,
+    progress: Option<SharedProgress>,
+    remote_url: Option<&str>,
+) -> RemoteCallbacks<'a> {
     let mut callbacks = RemoteCallbacks::new();
+    let ssh_port = remote_url.and_then(crate::git::known_hosts::ssh_port_of_url);
 
     // libgit2 re-invokes this callback until it succeeds or we return an error.
     // Handing back the same rejected credential forever would spin, so each
     // attempt moves on to the next candidate.
     let mut attempt: usize = 0;
+    // How many times a username/password was requested. libgit2 asks again
+    // after every rejection, up to its own replay limit, and the credential
+    // helper hands back the same stored credential each time — so a stale
+    // token was sent to the server over and over before the operation failed
+    // with an unhelpful "too many redirects or authentication replays".
+    let mut userpass_attempts: usize = 0;
+    let mut tried_helper = false;
+    let mut tried_github_token = false;
+    // When the operation has a UI behind it, the user can be asked for what
+    // nothing else supplied. At most twice: once, and once more if the server
+    // rejects the first answer.
+    let prompter = progress.as_ref().and_then(|p| p.borrow().prompter());
+    let credential_prompter = prompter.clone();
+    let mut credential_prompts: usize = 0;
 
     callbacks.credentials(move |_url, username_from_url, allowed_types| {
+        // An `ssh://host/path` URL with no user in it: libgit2 first asks for
+        // just a username before offering key types. This was unhandled, so
+        // such remotes failed with "no credentials available".
+        if allowed_types.contains(CredentialType::USERNAME)
+            && !allowed_types.contains(CredentialType::SSH_KEY)
+        {
+            return Cred::username(username_from_url.unwrap_or("git"));
+        }
+
         if allowed_types.contains(CredentialType::SSH_KEY) {
             let username = username_from_url.unwrap_or("git");
             let candidates = ssh_key_candidates(&custom_ssh_path);
@@ -149,22 +231,58 @@ pub fn make_callbacks<'a>(custom_ssh_path: Option<String>) -> RemoteCallbacks<'a
         }
 
         if allowed_types.contains(CredentialType::USER_PASS_PLAINTEXT) {
-            // For HTTPS — use credential helper or prompt
-            #[cfg(target_os = "windows")]
-            {
-                if let Ok(config) = git2::Config::open_default() {
-                    if let Some((username, password)) =
-                        get_credentials_via_custom_helper(&config, _url, username_from_url)
-                    {
-                        return Cred::userpass_plaintext(&username, &password);
-                    }
+            userpass_attempts += 1;
+
+            // Each source of HTTPS credentials is offered once, in order: the
+            // user's own git credential helper, then — for github.com — the
+            // token stored in Settings. A credential the server rejected is
+            // never offered again.
+            if !tried_helper {
+                tried_helper = true;
+                if let Some(cred) = helper_credential(_url, username_from_url) {
+                    return Ok(cred);
+                }
+            }
+            if !tried_github_token {
+                tried_github_token = true;
+                if let Some(token) = github_token_for(_url) {
+                    return Cred::userpass_plaintext("x-access-token", &token);
                 }
             }
 
-            if let Ok(config) = git2::Config::open_default() {
-                if let Ok(cred) = Cred::credential_helper(&config, _url, username_from_url) {
-                    return Ok(cred);
+            if let Some(prompter) = &credential_prompter {
+                if credential_prompts < 2 {
+                    credential_prompts += 1;
+                    let reply = crate::git::prompts::ask(prompter, |id| {
+                        crate::git::prompts::PromptRequest::Credentials {
+                            id,
+                            url: _url.to_string(),
+                            username: username_from_url.map(str::to_string),
+                            retry: userpass_attempts > 1,
+                        }
+                    });
+                    return match reply {
+                        Some(crate::git::prompts::PromptAnswer {
+                            username: Some(username),
+                            password: Some(password),
+                            ..
+                        }) if !username.is_empty() => {
+                            Cred::userpass_plaintext(&username, &password)
+                        }
+                        _ => Err(git2::Error::from_str(
+                            "Authentication was cancelled: no credentials were entered.",
+                        )),
+                    };
                 }
+            }
+
+            if userpass_attempts > 1 {
+                return Err(git2::Error::from_str(
+                    "Authentication failed: the remote rejected the credentials Basilico \
+                     had for it (from your git credential helper, or the GitHub token in \
+                     Settings). Update them — for example by signing in again with your \
+                     Git credential manager or `gh auth login` — and retry.",
+                ));
             }
         }
 
@@ -172,10 +290,15 @@ pub fn make_callbacks<'a>(custom_ssh_path: Option<String>) -> RemoteCallbacks<'a
             return Cred::default();
         }
 
-        Err(git2::Error::from_str("no credentials available"))
+        Err(git2::Error::from_str(
+            "No credentials are available for this remote. For HTTPS, configure a git \
+             credential helper (such as Git Credential Manager, or `gh auth setup-git`); \
+             for SSH, add your key to ssh-agent or choose a key in Settings.",
+        ))
     });
 
-    callbacks.certificate_check(|cert, hostname| {
+    let host_prompter = prompter;
+    callbacks.certificate_check(move |cert, hostname| {
         let Some(hostkey) = cert.as_hostkey() else {
             // Not an SSH host-key certificate (e.g. HTTPS/X.509) — nothing
             // for this callback to check.
@@ -184,6 +307,7 @@ pub fn make_callbacks<'a>(custom_ssh_path: Option<String>) -> RemoteCallbacks<'a
 
         match crate::git::known_hosts::verify(
             hostname,
+            ssh_port,
             hostkey.hash_sha256(),
             hostkey.hash_sha1(),
             hostkey.hostkey(),
@@ -194,8 +318,45 @@ pub fn make_callbacks<'a>(custom_ssh_path: Option<String>) -> RemoteCallbacks<'a
             // No known_hosts entry to compare against: nothing this callback
             // can verify one way or the other, so defer rather than block a
             // host the user has simply never connected to from this machine.
+            // A host never connected to from this machine. With a UI, do what
+            // `ssh` does on first connection: show the fingerprint, and on
+            // the user's say-so trust the key and record it in known_hosts.
+            // Without one, defer to libgit2 as before.
             crate::git::known_hosts::HostKeyVerdict::Unknown => {
-                Ok(git2::CertificateCheckStatus::CertificatePassthrough)
+                let (Some(prompter), Some(sha256)) = (&host_prompter, hostkey.hash_sha256()) else {
+                    return Ok(git2::CertificateCheckStatus::CertificatePassthrough);
+                };
+                let key_type = hostkey
+                    .hostkey_type()
+                    .map(|t| t.name().to_string())
+                    .unwrap_or_else(|| "unknown key type".to_string());
+
+                let reply = crate::git::prompts::ask(prompter, |id| {
+                    crate::git::prompts::PromptRequest::HostKey {
+                        id,
+                        host: hostname.to_string(),
+                        key_type: key_type.clone(),
+                        fingerprint: crate::git::prompts::fingerprint(sha256),
+                    }
+                });
+
+                if reply.and_then(|r| r.accept) == Some(true) {
+                    if let Some(raw) = hostkey.hostkey() {
+                        if let Err(e) = crate::git::prompts::remember_host_key(
+                            &crate::git::known_hosts::host_entry_name(hostname, ssh_port),
+                            &key_type,
+                            raw,
+                        ) {
+                            log::warn!("Could not record the host key for {}: {}", hostname, e);
+                        }
+                    }
+                    Ok(git2::CertificateCheckStatus::CertificateOk)
+                } else {
+                    Err(git2::Error::from_str(&format!(
+                        "The SSH host key of {hostname} was not trusted, so Basilico did not \
+                         connect."
+                    )))
+                }
             }
             // An `@revoked` entry exists precisely so that presenting this key
             // is an error. Refuse without the "this may be a legitimate
@@ -220,15 +381,49 @@ pub fn make_callbacks<'a>(custom_ssh_path: Option<String>) -> RemoteCallbacks<'a
         }
     });
 
-    callbacks.transfer_progress(|stats| {
+    let transfer = progress.clone();
+    callbacks.transfer_progress(move |stats| {
         log::debug!(
             "Transfer: {}/{} objects, {} bytes",
             stats.received_objects(),
             stats.total_objects(),
             stats.received_bytes()
         );
-        true
+        match &transfer {
+            Some(reporter) => {
+                let mut reporter = reporter.borrow_mut();
+                reporter.report_transfer(&stats);
+                // Returning false is how libgit2 is told to stop.
+                !reporter.is_cancelled()
+            }
+            None => true,
+        }
     });
+
+    if let Some(progress) = progress {
+        // Server messages ("Counting objects…") arrive here before any objects
+        // do, so this is the earliest point a fetch can be stopped.
+        let sideband = Rc::clone(&progress);
+        callbacks.sideband_progress(move |_| !sideband.borrow().is_cancelled());
+
+        let upload = Rc::clone(&progress);
+        callbacks.push_transfer_progress(move |current, total, bytes| {
+            upload
+                .borrow_mut()
+                .report("uploading", current, total, bytes);
+        });
+
+        // libgit2 offers no way to abort a push mid-upload, but it can still
+        // be stopped here, before anything is sent.
+        let negotiation = Rc::clone(&progress);
+        callbacks.push_negotiation(move |_| {
+            if negotiation.borrow().is_cancelled() {
+                Err(git2::Error::from_str("The push was cancelled."))
+            } else {
+                Ok(())
+            }
+        });
+    }
 
     callbacks
 }

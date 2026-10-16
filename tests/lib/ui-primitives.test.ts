@@ -54,7 +54,7 @@ function bespokeButtonRules(): { count: number; files: Set<string> } {
  * The count as measured when this guard was added. Lower it when a stylesheet
  * migrates to the `.btn` primitives; never raise it.
  */
-const BASELINE = 48;
+const BASELINE = 47;
 
 describe("shared UI primitives", () => {
   it("does not grow the number of bespoke button definitions", () => {

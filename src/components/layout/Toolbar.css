@@ -42,7 +42,7 @@
   color: var(--text-secondary);
   border-radius: var(--radius-md);
   font-family: var(--font-family);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: var(--weight-medium);
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -159,7 +159,7 @@
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
   font-family: var(--font-family);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: var(--weight-medium);
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -178,7 +178,7 @@
 .toolbar-badge-count {
   background: var(--accent-primary);
   color: var(--text-inverse);
-  font-size: 9px;
+  font-size: var(--font-size-3xs);
   font-weight: 700;
   padding: 1px 4px;
   border-radius: var(--radius-sm);
@@ -232,7 +232,7 @@
 .popover-search-input {
   flex: 1;
   height: 24px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-family: var(--font-family);
   background: transparent;
   border: none;
@@ -250,7 +250,7 @@
 
 .popover-section-header {
   padding: var(--space-2) var(--space-3) var(--space-1) var(--space-3);
-  font-size: 9px;
+  font-size: var(--font-size-3xs);
   font-weight: var(--weight-bold);
   color: var(--text-tertiary);
   text-transform: uppercase;

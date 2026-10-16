@@ -78,6 +78,7 @@ pub async fn get_conflict_stages(
     repo_path: String,
     file_path: String,
 ) -> Result<ConflictStages, AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
         extract_conflict_stages(&repo, &file_path)
@@ -91,6 +92,7 @@ pub async fn save_merged_resolution(
     file_path: String,
     merged_content: String,
 ) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
         let workdir = repo
@@ -112,6 +114,88 @@ pub async fn save_merged_resolution(
     .await?
 }
 
+/// Whether the conflict on `file_path` has an "ours" and a "theirs" entry, or
+/// `None` when the path is not in conflict at all.
+fn conflict_sides(repo: &Repository, file_path: &str) -> Result<Option<(bool, bool)>, AppError> {
+    let index = repo.index()?;
+    let target = normalize_git_path(file_path);
+    for conflict in index.conflicts()? {
+        let conflict = conflict?;
+        let path = conflict
+            .our
+            .as_ref()
+            .or(conflict.their.as_ref())
+            .or(conflict.ancestor.as_ref())
+            .map(|entry| normalize_git_path(&String::from_utf8_lossy(&entry.path)));
+        if path.as_deref() == Some(target.as_str()) {
+            return Ok(Some((conflict.our.is_some(), conflict.their.is_some())));
+        }
+    }
+    Ok(None)
+}
+
+/// Resolve a conflict by taking one side wholesale.
+///
+/// This used to happen in the renderer: read both stages as (lossy) UTF-8
+/// text, then write the chosen one back through `save_merged_resolution`.
+/// That corrupted binary files, and a side that had *deleted* the file came
+/// back as an empty file instead of a deletion.
+///
+/// The side is checked out with `git checkout --ours/--theirs`, which keeps
+/// the exact bytes and file mode and runs the same smudge filters (line
+/// endings, Git LFS) a checkout normally would. A side that deleted the file
+/// resolves to removing the path, as `git rm` would.
+#[tauri::command]
+pub async fn resolve_conflict_side(
+    repo_path: String,
+    file_path: String,
+    side: String,
+) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
+    tokio::task::spawn_blocking(move || {
+        let repo = Repository::open(&repo_path)?;
+        let workdir = repo
+            .workdir()
+            .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?
+            .to_path_buf();
+        crate::git::utils::validate_path(&workdir, Path::new(&file_path))?;
+
+        let side_flag = match side.as_str() {
+            "ours" => "--ours",
+            "theirs" => "--theirs",
+            other => {
+                return Err(AppError::invalid_state(format!(
+                    "Unknown conflict side '{}': expected 'ours' or 'theirs'",
+                    other
+                )))
+            }
+        };
+
+        let (has_ours, has_theirs) = conflict_sides(&repo, &file_path)?
+            .ok_or_else(|| AppError::not_found(format!("'{}' is not in conflict", file_path)))?;
+        let side_exists = if side_flag == "--ours" {
+            has_ours
+        } else {
+            has_theirs
+        };
+
+        // `--` keeps a path beginning with '-' from being read as an option.
+        if side_exists {
+            crate::commands::run_git_cmd(&["checkout", side_flag, "--", &file_path], &repo_path)?;
+            crate::commands::run_git_cmd(&["add", "--", &file_path], &repo_path)?;
+        } else {
+            // `--ignore-unmatch`: the file may already be gone from disk.
+            crate::commands::run_git_cmd(
+                &["rm", "--quiet", "--ignore-unmatch", "--", &file_path],
+                &repo_path,
+            )?;
+        }
+
+        Ok(())
+    })
+    .await?
+}
+
 #[tauri::command]
 pub async fn launch_external_merge_tool<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
@@ -119,6 +203,7 @@ pub async fn launch_external_merge_tool<R: tauri::Runtime>(
     file_path: String,
     tool_name: String,
 ) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     // The built-in presets below only ever select among a fixed set of known
     // program names, so `tool_name` is safe to use for that match. The
     // "custom command" fallback executes whatever program it resolves to,
@@ -150,6 +235,10 @@ pub async fn launch_external_merge_tool<R: tauri::Runtime>(
             builder.mode(0o700);
         }
         builder.create(&temp_dir)?;
+        // Removed on every return path. Only the success path cleaned up, so
+        // each failure (an invalid path, a tool that would not start) left a
+        // directory holding both sides of the conflict in the temp dir.
+        let _cleanup = TempDirGuard(temp_dir.clone());
 
         // Get extension to support syntax highlighting in merge tools
         let file_ext = std::path::Path::new(&file_path)
@@ -317,6 +406,15 @@ pub async fn launch_external_merge_tool<R: tauri::Runtime>(
         Ok(())
     })
     .await?
+}
+
+/// Removes a scratch directory when dropped.
+struct TempDirGuard(std::path::PathBuf);
+
+impl Drop for TempDirGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
 }
 
 /// Detects leftover merge-conflict markers at the start of a line.

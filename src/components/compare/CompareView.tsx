@@ -2,6 +2,7 @@ import { DiffEditor } from "@monaco-editor/react";
 import { ArrowLeftRight, CheckCircle, FileCode, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import type { FileContentPair } from "../../lib/tauri-commands";
 import * as commands from "../../lib/tauri-commands";
 import {
   getDirectory,
@@ -49,11 +50,18 @@ export function CompareView() {
     })),
   );
   const [splitView, setSplitView] = useState(true);
-  const [contents, setContents] = useState<{
-    original: string;
-    modified: string;
-  } | null>(null);
+  const [contents, setContents] = useState<FileContentPair | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // A renamed file's base side lives under its old name; reading it under the
+  // new one found nothing and showed the whole file as added.
+  const selectedEntry = compareDiff.find(
+    (f) => (f.newPath || f.oldPath) === selectedCompareFile,
+  );
+  const renamedFrom =
+    selectedEntry?.oldPath && selectedEntry.oldPath !== selectedCompareFile
+      ? selectedEntry.oldPath
+      : null;
 
   useEffect(() => {
     if (
@@ -76,6 +84,7 @@ export function CompareView() {
         selectedCompareFile,
         compareBase,
         compareTarget,
+        renamedFrom,
       )
       .then((data) => {
         if (!cancelled) setContents(data);
@@ -91,7 +100,13 @@ export function CompareView() {
     return () => {
       cancelled = true;
     };
-  }, [activeTabId, selectedCompareFile, compareBase, compareTarget]);
+  }, [
+    activeTabId,
+    selectedCompareFile,
+    compareBase,
+    compareTarget,
+    renamedFrom,
+  ]);
 
   if (!compareBase || !compareTarget) {
     return (
@@ -244,6 +259,14 @@ export function CompareView() {
             <div className="editor-loader">
               <span className="spinner-large" />
               <p>Loading diff contents...</p>
+            </div>
+          ) : contents?.tooLarge || contents?.isBinary ? (
+            <div className="editor-empty-placeholder">
+              <p>
+                {contents.tooLarge
+                  ? "This file is too large to display."
+                  : "Differences are not displayed for binary assets"}
+              </p>
             </div>
           ) : contents ? (
             <div className="editor-container">

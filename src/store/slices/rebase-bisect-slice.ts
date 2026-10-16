@@ -5,7 +5,7 @@ import type {
   RebaseTodoItem,
 } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
-import { withLoading } from "../store-helpers";
+import { withActiveRepo, withLoading } from "../store-helpers";
 import type { RepoState } from "../types";
 
 export interface RebaseBisectSlice {
@@ -16,7 +16,8 @@ export interface RebaseBisectSlice {
   bisectState: BisectState | null;
 
   initRebase: (upstream: string) => Promise<void>;
-  writeRebaseTodo: (items: RebaseTodoItem[]) => Promise<void>;
+  /** Replace the plan being edited. Local only: git sees it at `startRebase`. */
+  setRebaseTodoItems: (items: RebaseTodoItem[]) => void;
   startRebase: () => Promise<RebaseStatus>;
   stepRebase: (
     action: string,
@@ -25,48 +26,6 @@ export interface RebaseBisectSlice {
   startBisect: (bad: string, good: string) => Promise<void>;
   markBisect: (status: string) => Promise<void>;
   resetBisect: () => Promise<void>;
-}
-
-/** Debounce window for persisting the in-progress rebase plan to disk. */
-const PLAN_PERSIST_DELAY_MS = 400;
-
-/**
- * One pending write per repository.
- *
- * This was a single module-level handle shared by every repository, so editing
- * a rebase plan in one tab cancelled a pending write for another — the second
- * repository's plan was simply never persisted. Keying by path makes the
- * debounce per-repository, which is the scope it was always meant to have.
- */
-const planPersistTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-function schedulePlanPersist(repoPath: string, items: RebaseTodoItem[]) {
-  const pending = planPersistTimers.get(repoPath);
-  if (pending) clearTimeout(pending);
-
-  planPersistTimers.set(
-    repoPath,
-    setTimeout(() => {
-      planPersistTimers.delete(repoPath);
-      commands
-        .rebaseWriteTodo(repoPath, items, { silent: true })
-        .catch((err) => console.warn("Failed to persist rebase plan:", err));
-    }, PLAN_PERSIST_DELAY_MS),
-  );
-}
-
-/**
- * Drop any pending plan write for a repository.
- *
- * Called when a rebase concludes, so a debounced write cannot land against a
- * repository whose rebase has already finished or been aborted.
- */
-export function cancelPlanPersist(repoPath: string) {
-  const pending = planPersistTimers.get(repoPath);
-  if (pending) {
-    clearTimeout(pending);
-    planPersistTimers.delete(repoPath);
-  }
 }
 
 export const createRebaseBisectSlice: StateCreator<
@@ -81,15 +40,12 @@ export const createRebaseBisectSlice: StateCreator<
   bisectState: null,
 
   initRebase: async (upstream: string) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "collaboration",
       "Failed to initialize rebase",
-      async () => {
+      async (activeTabId) => {
         const items = await commands.rebaseInit(activeTabId, upstream, {
           errorPrefix: "Failed to initialize rebase",
         });
@@ -108,16 +64,12 @@ export const createRebaseBisectSlice: StateCreator<
     );
   },
 
-  writeRebaseTodo: async (items: RebaseTodoItem[]) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    // Applied optimistically: editing the plan is a local action and must stay
-    // responsive. Persistence is debounced because inline message editing fires
-    // this on every keystroke, and it is best-effort — the plan that matters is
-    // the one handed to `rebase_start`.
+  setRebaseTodoItems: (items: RebaseTodoItem[]) => {
+    // Editing the plan is purely local. It used to be written to a JSON file
+    // in `.git/` after every edit (debounced, per keystroke of an inline
+    // message edit), but nothing ever read that file back — the plan that
+    // matters is the one handed to `rebase_start`.
     set({ rebaseTodoItems: items });
-    schedulePlanPersist(activeTabId, items);
   },
 
   startRebase: async () => {
@@ -133,9 +85,6 @@ export const createRebaseBisectSlice: StateCreator<
       "collaboration",
       "Failed to start rebase",
       async () => {
-        // The plan is being handed to git now, so any debounced write of it is
-        // redundant at best and, once the rebase rewrites history, stale.
-        cancelPlanPersist(activeTabId);
         const status = await commands.rebaseStart(
           activeTabId,
           rebaseUpstream,
@@ -167,7 +116,6 @@ export const createRebaseBisectSlice: StateCreator<
         );
         set({ rebaseStatus: status });
         if (status.status === "finished" || status.status === "none") {
-          cancelPlanPersist(activeTabId);
           set({ rebaseTodoItems: [], rebaseUpstream: null });
         }
         await get().refreshCommitsAndStatus();
@@ -177,15 +125,12 @@ export const createRebaseBisectSlice: StateCreator<
   },
 
   startBisect: async (bad: string, good: string) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "collaboration",
       "Failed to start bisect",
-      async () => {
+      async (activeTabId) => {
         const state = await commands.bisectStart(activeTabId, bad, good, {
           errorPrefix: "Failed to start bisect",
         });
@@ -196,15 +141,12 @@ export const createRebaseBisectSlice: StateCreator<
   },
 
   markBisect: async (status: string) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "collaboration",
       "Failed to mark bisect step",
-      async () => {
+      async (activeTabId) => {
         const state = await commands.bisectMark(activeTabId, status, {
           errorPrefix: "Failed to mark bisect step",
         });
@@ -215,15 +157,12 @@ export const createRebaseBisectSlice: StateCreator<
   },
 
   resetBisect: async () => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "collaboration",
       "Failed to reset bisect",
-      async () => {
+      async (activeTabId) => {
         await commands.bisectReset(activeTabId, {
           errorPrefix: "Failed to reset bisect",
         });

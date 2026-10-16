@@ -14,6 +14,15 @@ export default defineConfig(async (env) => {
       // Deliberately not `passWithNoTests`: a broken include glob or a renamed
       // test directory would otherwise report a green run with zero tests.
       passWithNoTests: false,
+      // `pnpm test:coverage`. Report-only for now: no thresholds, so the
+      // numbers are visible without failing a build over them.
+      coverage: {
+        provider: "v8",
+        include: ["src/**/*.{ts,tsx}"],
+        exclude: ["src/main.tsx", "src/vite-env.d.ts"],
+        reporter: ["text-summary", "html", "lcov"],
+        reportsDirectory: "coverage",
+      },
     },
   });
 });

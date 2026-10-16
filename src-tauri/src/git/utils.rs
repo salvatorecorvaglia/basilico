@@ -13,9 +13,19 @@ pub fn validate_path(base_path: &Path, user_path: &Path) -> Result<PathBuf, AppE
         return Err(AppError::invalid_state("Absolute paths are not allowed"));
     }
 
+    // Only plain names (and `.`) may appear. `is_absolute` alone is not
+    // enough on Windows: `\foo` has a root but no drive, and `C:foo` a drive
+    // but no root, so neither counts as absolute — yet `Path::join` treats
+    // both as replacing the base, escaping the repository.
     for component in user_path.components() {
-        if let Component::ParentDir = component {
-            return Err(AppError::invalid_state("Path traversal is not allowed"));
+        match component {
+            Component::Normal(_) | Component::CurDir => {}
+            Component::ParentDir => {
+                return Err(AppError::invalid_state("Path traversal is not allowed"));
+            }
+            Component::RootDir | Component::Prefix(_) => {
+                return Err(AppError::invalid_state("Absolute paths are not allowed"));
+            }
         }
     }
 

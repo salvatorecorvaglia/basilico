@@ -94,6 +94,25 @@ describe("Toolbar — force push", () => {
     });
   });
 
+  // Phase 8: pull always merged. A plain click follows the repository's own
+  // `pull.rebase`/`pull.ff` settings; right-click offers an explicit mode.
+  it("offers pull modes via right-click", async () => {
+    const user = userEvent.setup();
+    render(<Toolbar />);
+
+    const pullBtn = screen.getByRole("button", { name: /^Pull from remote/ });
+    fireEvent.contextMenu(pullBtn);
+    await user.click(await screen.findByText("Pull (rebase)"));
+
+    await waitFor(() => {
+      expect(useRepoStore.getState().pull).toHaveBeenCalledWith(
+        "origin",
+        "main",
+        "rebase",
+      );
+    });
+  });
+
   it("a plain click still does a normal (non-force) push", async () => {
     const user = userEvent.setup();
     render(<Toolbar />);
@@ -222,6 +241,79 @@ describe("Toolbar — remote selection", () => {
     await waitFor(() => {
       expect(useRepoStore.getState().fetch).toHaveBeenCalledWith("canonical");
     });
+  });
+
+  // B2: a branch that tracks a remote other than `origin` must pull from the
+  // remote it tracks. `selectDefaultRemote` prefers `origin` outright, so a
+  // fork layout pulls the wrong remote.
+  it("pulls from the remote the checked-out branch tracks, even when origin exists", async () => {
+    const user = userEvent.setup();
+    seed({
+      status: {
+        branch: "feature",
+        ahead: 0,
+        behind: 0,
+        staged: [],
+        unstaged: [],
+        untracked: [],
+        conflicted: [],
+        state: "Clean",
+      },
+      remotes: [
+        { name: "origin", url: "git@github.com:me/r.git", pushUrl: null },
+        { name: "upstream", url: "git@github.com:up/r.git", pushUrl: null },
+      ],
+      branches: [
+        {
+          name: "feature",
+          isHead: true,
+          isRemote: false,
+          upstream: "upstream/main",
+          ahead: 0,
+          behind: 0,
+          oid: "a".repeat(40),
+        },
+      ],
+    });
+    render(<Toolbar />);
+
+    await user.click(screen.getByRole("button", { name: /^Pull from remote/ }));
+
+    await waitFor(() => {
+      expect(useRepoStore.getState().pull).toHaveBeenCalled();
+    });
+    expect(useRepoStore.getState().pull).toHaveBeenCalledWith(
+      "upstream",
+      "main",
+    );
+  });
+
+  // B2: on a detached HEAD `status.branch` is "HEAD", and pushing it created
+  // `refs/heads/HEAD` on the remote.
+  it("does not push from a detached HEAD", async () => {
+    const user = userEvent.setup();
+    seed({
+      status: {
+        branch: "HEAD",
+        ahead: 0,
+        behind: 0,
+        staged: [],
+        unstaged: [],
+        untracked: [],
+        conflicted: [],
+        state: "Clean",
+      },
+      remotes: [
+        { name: "origin", url: "git@github.com:me/r.git", pushUrl: null },
+      ],
+    });
+    render(<Toolbar />);
+
+    const pushBtn = screen.getByRole("button", { name: /^Push to remote/ });
+    if (!pushBtn.hasAttribute("disabled")) {
+      await user.click(pushBtn);
+    }
+    expect(useRepoStore.getState().push).not.toHaveBeenCalled();
   });
 
   it("disables the sync buttons when the repository has no remote", () => {

@@ -143,6 +143,30 @@ kbd,
   border-radius: var(--radius-full);
 }
 
+/* Layout for loading placeholders, shared by the sidebar, commit list and
+   commit detail skeletons (previously repeated as inline style objects). */
+.skeleton-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.skeleton-line.flush {
+  margin-bottom: 0;
+}
+
+.skeleton-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+}
+
 /* ── Links ── */
 a {
   color: var(--text-link);
@@ -197,6 +221,29 @@ select:focus {
 
 .text-tertiary {
   color: var(--text-tertiary);
+}
+
+/* Semantic text colours. Tailwind is loaded without a theme, so a class like
+   `text-danger` is never generated from it: these were used across the app
+   (the Hard reset warning among them) and rendered in the default colour. */
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-accent {
+  color: var(--accent-primary);
+}
+
+.text-success {
+  color: var(--color-success);
+}
+
+.text-warning {
+  color: var(--color-warning);
+}
+
+.text-danger {
+  color: var(--color-danger);
 }
 
 .truncate {

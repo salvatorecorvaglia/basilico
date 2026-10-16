@@ -36,12 +36,16 @@ import type { DiffHunkInfo } from "./git-types";
  * @param selectedLineIndices Indices into `hunk.lines` to include. Omit to
  *   apply the whole hunk.
  * @param reverse `true` to undo the change (unstage) rather than apply it.
+ * @param isNewFile `true` when the file is untracked, so its pre-image is
+ *   "no file" rather than an empty file. Only the caller knows: an empty
+ *   tracked file has the same empty pre-image.
  */
 export function constructHunkPatch(
   filePath: string,
   hunk: DiffHunkInfo,
   selectedLineIndices?: Set<number>,
   reverse = false,
+  isNewFile = false,
 ): string {
   // In reverse, an addition is what gets removed and a deletion is what gets
   // restored, so the two roles swap.
@@ -106,6 +110,20 @@ export function constructHunkPatch(
 
   const oldStart = reverse ? hunk.newStart : hunk.oldStart;
   const newStart = reverse ? hunk.oldStart : hunk.newStart;
+
+  // Staging lines of an untracked file creates it in the index. Written as a
+  // plain modification, git looked for the path in the index, found nothing,
+  // and rejected the patch ("does not exist in index").
+  if (isNewFile && !reverse) {
+    return (
+      `diff --git a/${filePath} b/${filePath}\n` +
+      "new file mode 100644\n" +
+      "--- /dev/null\n" +
+      `+++ b/${filePath}\n` +
+      `@@ -0,0 +${newStart},${newCount} @@\n` +
+      body
+    );
+  }
 
   return (
     `diff --git a/${filePath} b/${filePath}\n` +

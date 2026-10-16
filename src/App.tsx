@@ -4,8 +4,7 @@
    ═══════════════════════════════════════════════════════ */
 
 import { listen } from "@tauri-apps/api/event";
-import { ArrowLeft, Wrench } from "lucide-react";
-import React, { lazy, Suspense, useCallback, useEffect } from "react";
+import React, { lazy, Suspense, useEffect } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import { CommandPalette } from "./components/command-palette/CommandPalette";
 import { CommitDetail } from "./components/graph/CommitDetail";
@@ -84,22 +83,25 @@ const SettingsModal = lazy(() =>
   })),
 );
 
-import { open } from "@tauri-apps/plugin-dialog";
 import { useShallow } from "zustand/react/shallow";
 import { ConfirmModal } from "./components/layout/ConfirmModal";
+import { GitPromptHost } from "./components/layout/GitPromptHost";
+import { NetworkProgress } from "./components/layout/NetworkProgress";
 import { NotificationToast } from "./components/layout/NotificationToast";
 import { PromptModal } from "./components/layout/PromptModal";
 import { UpdaterToast } from "./components/layout/UpdaterToast";
+import { useOpenRepositoryDialog } from "./hooks/use-open-repository-dialog";
 import { useUpdater } from "./hooks/use-updater";
 import { matchesShortcut } from "./lib/shortcuts";
 import { useRepoStore } from "./store/repo-store";
 import { useUIStore } from "./store/ui-store";
 import "./App.css";
 import { reportError } from "./lib/git-error";
+import type { ActiveView } from "./lib/git-types";
 import { STORAGE_KEYS } from "./lib/persistence";
 
 interface ViewRouterProps {
-  activeView: string;
+  activeView: ActiveView;
 }
 
 const ViewRouter = React.memo(function ViewRouter({
@@ -182,34 +184,14 @@ const ViewRouter = React.memo(function ViewRouter({
           <ReflogInspector />
         </PanelErrorBoundary>
       );
-    default:
-      return (
-        <div className="view-fallback">
-          <div className="view-fallback-card animate-scale-in">
-            <div className="view-fallback-icon">
-              <Wrench size={24} />
-            </div>
-            <h3 className="view-fallback-title">
-              {activeView
-                ? activeView.charAt(0).toUpperCase() + activeView.slice(1)
-                : "Unknown"}{" "}
-              View
-            </h3>
-            <p className="view-fallback-desc">
-              This view is currently under construction or coming in a later
-              phase of Basilico.
-            </p>
-            <button
-              type="button"
-              className="view-fallback-btn"
-              onClick={() => useUIStore.getState().setActiveView("graph")}
-            >
-              <ArrowLeft size={14} />
-              <span>Back to Commit History</span>
-            </button>
-          </div>
-        </div>
-      );
+    default: {
+      // Every view is handled above. Assigning to `never` makes adding a
+      // view to `ActiveView` without a case here a compile error, rather than
+      // the "under construction" screen this used to render for it.
+      const unhandled: never = activeView;
+      void unhandled;
+      return null;
+    }
   }
 });
 
@@ -223,7 +205,6 @@ function App() {
     loadSettings,
     settings,
     refreshAll,
-    openRepository,
     loadRecentRepos,
   } = useRepoStore(
     useShallow((s) => ({
@@ -232,7 +213,6 @@ function App() {
       loadSettings: s.loadSettings,
       settings: s.settings,
       refreshAll: s.refreshAll,
-      openRepository: s.openRepository,
       loadRecentRepos: s.loadRecentRepos,
     })),
   );
@@ -240,6 +220,7 @@ function App() {
     sidebarVisible,
     activeView,
     fileViewerOpen,
+    settingsOpen,
     toggleSettings,
     toggleCommandPalette,
     setActiveView,
@@ -249,6 +230,7 @@ function App() {
       sidebarVisible: s.sidebarVisible,
       activeView: s.activeView,
       fileViewerOpen: s.fileViewerOpen,
+      settingsOpen: s.settingsOpen,
       toggleSettings: s.toggleSettings,
       toggleCommandPalette: s.toggleCommandPalette,
       setActiveView: s.setActiveView,
@@ -305,20 +287,26 @@ function App() {
     let active = true;
     let unsubscribe: (() => void) | undefined;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    // Sticky across the debounce window: if any event in the burst moved a
+    // ref, the refresh that finally runs must reload the log.
+    let pendingRefsChanged = false;
 
     const setupListener = async () => {
-      const unsub = await listen<{ repoPath: string }>(
+      const unsub = await listen<{ repoPath: string; refsChanged?: boolean }>(
         "repo:changed",
         (event) => {
           if (!active) return;
           const currentActive = useRepoStore.getState().activeTabId;
           if (currentActive === event.payload.repoPath) {
+            pendingRefsChanged ||= event.payload.refsChanged === true;
             // Debounce watcher refreshes on the frontend
             if (timeoutId) {
               clearTimeout(timeoutId);
             }
             timeoutId = setTimeout(() => {
-              useRepoStore.getState().refreshOnFileSystemChange();
+              const refsChanged = pendingRefsChanged;
+              pendingRefsChanged = false;
+              useRepoStore.getState().refreshOnFileSystemChange(refsChanged);
             }, 300);
           }
         },
@@ -339,24 +327,8 @@ function App() {
     };
   }, []);
 
-  // Open repository via file dialog (shared by both shortcut paths)
-  const handleOpenRepo = useCallback(async () => {
-    // `openRepository` raises its own toast and then rethrows, so without this
-    // catch every failed open also surfaced as an unhandled rejection — and
-    // this handler is invoked from a keydown listener that cannot await it.
-    try {
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: "Open Git Repository",
-      });
-      if (selected) {
-        await openRepository(selected as string);
-      }
-    } catch (err) {
-      console.error("Failed to open repository:", err);
-    }
-  }, [openRepository]);
+  // Open repository via file dialog (the Cmd/Ctrl+O shortcut)
+  const handleOpenRepo = useOpenRepositoryDialog();
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -432,6 +404,8 @@ function App() {
     <div className="app">
       {/* Notifications */}
       <NotificationToast />
+      <NetworkProgress />
+      <GitPromptHost />
       <UpdaterToast />
 
       {/* Global prompts/confirms */}
@@ -444,10 +418,14 @@ function App() {
       {/* Command Palette Overlay */}
       <CommandPalette />
 
-      {/* Settings Modal */}
-      <Suspense fallback={null}>
-        <SettingsModal />
-      </Suspense>
+      {/* Settings Modal — gated on `settingsOpen` for the same reason as the
+          file viewer below: a lazy component is loaded when it is rendered,
+          so rendering it unconditionally fetched its chunk at startup. */}
+      {settingsOpen && (
+        <Suspense fallback={null}>
+          <SettingsModal />
+        </Suspense>
+      )}
 
       {/* Reset Modal */}
       <ResetModal />
@@ -497,20 +475,7 @@ function App() {
               {/* Center Panel (depends on activeView) */}
               <Panel id="center" minSize="40%">
                 <Suspense
-                  fallback={
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        height: "100%",
-                        color: "var(--text-secondary)",
-                        fontSize: "14px",
-                      }}
-                    >
-                      Loading view...
-                    </div>
-                  }
+                  fallback={<div className="view-loading">Loading view...</div>}
                 >
                   <ViewRouter activeView={activeView} />
                 </Suspense>

@@ -52,6 +52,18 @@ pub fn get_workdir_diff(path: &str) -> Result<Vec<FileDiff>, AppError> {
     parse_diff(&diff)
 }
 
+/// Pair deletions with additions of similar content into renames.
+///
+/// Commit, staged and compare diffs never ran this, so every moved file showed
+/// up as an unrelated deletion plus a brand-new file. Working-tree diffs are
+/// left alone, matching `git status`, which does not pair untracked files.
+fn detect_renames(diff: &mut Diff) -> Result<(), AppError> {
+    let mut opts = git2::DiffFindOptions::new();
+    opts.renames(true);
+    diff.find_similar(Some(&mut opts))?;
+    Ok(())
+}
+
 /// Get the diff of the index vs HEAD (staged changes).
 pub fn get_staged_diff(path: &str) -> Result<Vec<FileDiff>, AppError> {
     let repo = Repository::open(path)?;
@@ -61,7 +73,8 @@ pub fn get_staged_diff(path: &str) -> Result<Vec<FileDiff>, AppError> {
         Err(_) => None,
     };
     let mut opts = DiffOptions::new();
-    let diff = repo.diff_tree_to_index(head_tree.as_ref(), None, Some(&mut opts))?;
+    let mut diff = repo.diff_tree_to_index(head_tree.as_ref(), None, Some(&mut opts))?;
+    detect_renames(&mut diff)?;
     parse_diff(&diff)
 }
 
@@ -75,7 +88,8 @@ pub fn get_commit_diff(path: &str, oid_str: &str) -> Result<Vec<FileDiff>, AppEr
     let parent_tree = commit.parent(0).ok().and_then(|p| p.tree().ok());
 
     let mut opts = DiffOptions::new();
-    let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut opts))?;
+    let mut diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut opts))?;
+    detect_renames(&mut diff)?;
     parse_diff(&diff)
 }
 
@@ -89,7 +103,8 @@ pub fn get_compare_diff(path: &str, base: &str, target: &str) -> Result<Vec<File
     let target_tree = target_obj.peel_to_tree()?;
 
     let mut opts = DiffOptions::new();
-    let diff = repo.diff_tree_to_tree(Some(&base_tree), Some(&target_tree), Some(&mut opts))?;
+    let mut diff = repo.diff_tree_to_tree(Some(&base_tree), Some(&target_tree), Some(&mut opts))?;
+    detect_renames(&mut diff)?;
     parse_diff(&diff)
 }
 
@@ -179,13 +194,14 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
         });
     }
 
-    // Build a hashmap mapping path -> files index for fast lookup
+    // Map each delta's path to its index, keyed by the *new* path only (libgit2
+    // fills both sides, so a deletion has one too). Keying by both paths let a
+    // rename chain collide: with A→B and B→C, "B" is one delta's new path and
+    // the other's old path, and whichever was inserted last received both
+    // deltas' hunks.
     let mut file_map = std::collections::HashMap::new();
     for (i, f) in files.iter().enumerate() {
-        if let Some(ref path) = f.new_path {
-            file_map.insert(path.clone(), i);
-        }
-        if let Some(ref path) = f.old_path {
+        if let Some(path) = f.new_path.as_ref().or(f.old_path.as_ref()) {
             file_map.insert(path.clone(), i);
         }
     }

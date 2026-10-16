@@ -1,0 +1,12 @@
+{
+  /* The application code alone, without Node's types. `tsconfig.json` also
+     covers `tests/`, which read files from disk and so need `node` types —
+     but with those in scope, `process` or `fs` used by mistake in `src/`
+     typechecked fine and failed only at runtime in the webview. `pnpm build`
+     checks against this file. */
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": []
+  },
+  "include": ["src"]
+}

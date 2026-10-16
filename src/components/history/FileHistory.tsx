@@ -70,25 +70,33 @@ export function FileHistory() {
     // another commit's heading.
     let cancelled = false;
     setLoadingDiff(true);
-    const selectedEntry = fileHistory.find(
+    const selectedIndex = fileHistory.findIndex(
       (h) => h.commitOid === selectedCommitOid,
     );
-    // Renamed files can have a different path in older commits
-    const pathInCommit = selectedEntry
-      ? selectedEntry.filePath
-      : selectedFilePath;
+    const pathInCommit =
+      selectedIndex >= 0
+        ? fileHistory[selectedIndex].filePath
+        : selectedFilePath;
+    // The parent side lives under the path of the next-older entry: for the
+    // commit that renamed the file, reading the parent under the new name
+    // found nothing and showed the whole file as added.
+    const pathInParent =
+      (selectedIndex >= 0 && fileHistory[selectedIndex + 1]?.filePath) ||
+      pathInCommit;
 
-    // Fetch modified (at commit) and original (at parent commit)
     const modifiedPromise = getFileContentAtRevision(
       activeTabId,
       pathInCommit,
       selectedCommitOid,
     );
+    // The commit that added the file has no parent version of it. That is
+    // expected, so it must not raise an error toast.
     const originalPromise = getFileContentAtRevision(
       activeTabId,
-      pathInCommit,
+      pathInParent,
       `${selectedCommitOid}^`,
-    ).catch(() => ""); // Fallback to empty string for root commits
+      { silent: true },
+    ).catch(() => "");
 
     Promise.all([originalPromise, modifiedPromise])
       .then(([orig, mod]) => {

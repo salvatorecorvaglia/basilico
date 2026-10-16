@@ -200,6 +200,9 @@
     "JetBrains Mono", "Cascadia Code", "Fira Code", "SF Mono", Consolas,
     monospace;
 
+  /* Badge and counter text. */
+  --font-size-4xs: 8px;
+  --font-size-3xs: 9px;
   --font-size-2xs: 10px;
   --font-size-xs: 11px;
   --font-size-sm: 12px;
@@ -208,6 +211,8 @@
   --font-size-lg: 16px;
   --font-size-xl: 18px;
   --font-size-2xl: 24px;
+  /* The welcome screen's hero heading. */
+  --font-size-display: 36px;
 
   --weight-normal: 400;
   --weight-medium: 500;

@@ -21,7 +21,7 @@ const REPO_STATUS = {
   unstaged: [],
   untracked: [],
   conflicted: [],
-  state: "Clean",
+  state: "Clean" as const,
 };
 
 const REPO_INFO = {
@@ -30,7 +30,7 @@ const REPO_INFO = {
   headBranch: "main",
   isBare: false,
   isEmpty: false,
-  state: "Clean",
+  state: "Clean" as const,
 };
 
 describe("StatusBar — GitHub CI status opt-in", () => {
@@ -65,6 +65,13 @@ describe("StatusBar — GitHub CI status opt-in", () => {
   });
 
   it("calls the GitHub API, with the stored PAT as bearer auth, once enabled", async () => {
+    // The token is never part of the settings the UI holds; it is fetched
+    // from the keychain-backed command only for this request.
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === "get_github_pat"
+        ? Promise.resolve("abc123")
+        : Promise.resolve(undefined),
+    );
     useRepoStore.setState({
       settings: {
         theme: "sage-green",
@@ -73,7 +80,7 @@ describe("StatusBar — GitHub CI status opt-in", () => {
         gitAuthorEmail: null,
         keyboardShortcuts: {},
         checkGithubCiStatus: true,
-        githubPat: "abc123",
+        hasGithubPat: true,
       },
     });
     vi.mocked(fetch).mockResolvedValue({

@@ -27,6 +27,12 @@ export interface TabsSlice {
   loadRecentRepos: () => void;
 }
 
+/** Recent repositories order: pinned first, then most recently opened. */
+function byPinnedThenRecent(a: RecentRepo, b: RecentRepo): number {
+  if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+  return b.lastOpened - a.lastOpened;
+}
+
 /** Tracks in-flight openRepository calls to prevent duplicate concurrent opens */
 const pendingOpens = new Set<string>();
 
@@ -53,13 +59,46 @@ function activateTab(
   tabId: string,
   extra?: Partial<RepoState>,
 ): Partial<RepoState> {
+  // Keep the tab being left, and bring back what the target tab last showed.
+  if (state.activeTabId && state.activeTabId !== tabId) {
+    tabSnapshots.set(state.activeTabId, snapshotOf(state));
+  }
+  const restored = tabSnapshots.get(tabId);
+  tabSnapshots.delete(tabId);
+
   return {
     tabs: state.tabs.map((t) => ({ ...t, isActive: t.id === tabId })),
     activeTabId: tabId,
     ...PER_TAB_RESET_STATE,
+    ...restored,
     refreshGeneration: state.refreshGeneration + 1,
     ...extra,
   };
+}
+
+/**
+ * Per-tab state saved when a tab is left, restored when it is activated again.
+ *
+ * Switching tabs used to clear everything and refetch it — the full commit
+ * log included — so returning to a large repository meant an empty view and
+ * a multi-second wait every time. The snapshot is shown immediately, and the
+ * refresh that follows a switch reuses the restored log whenever its ref
+ * fingerprint is unchanged. It is always the tab's *own* data: nothing of the
+ * tab being left can carry over, which is what the reset exists to prevent.
+ */
+const tabSnapshots = new Map<string, Partial<RepoState>>();
+
+function snapshotOf(state: RepoState): Partial<RepoState> {
+  const snapshot: Record<string, unknown> = {};
+  for (const key of Object.keys(PER_TAB_RESET_STATE)) {
+    snapshot[key] = state[key as keyof RepoState];
+  }
+  return snapshot as Partial<RepoState>;
+}
+
+/** Forget every saved tab snapshot. For tests, which share this module. */
+export function resetTabSnapshots() {
+  tabSnapshots.clear();
 }
 
 export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
@@ -91,11 +130,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
     };
 
     const nextRecents = [newRecent, ...filtered].slice(0, 50);
-    nextRecents.sort((a, b) => {
-      if (a.isPinned && !b.isPinned) return -1;
-      if (!a.isPinned && b.isPinned) return 1;
-      return b.lastOpened - a.lastOpened;
-    });
+    nextRecents.sort(byPinnedThenRecent);
 
     set({ recentRepos: nextRecents });
     localStorage.setItem(STORAGE_KEYS.recentRepos, JSON.stringify(nextRecents));
@@ -197,15 +232,20 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
     closeTab: (tabId: string) => {
       const { tabs, activeTabId } = get();
       const filtered = tabs.filter((t) => t.id !== tabId);
+      tabSnapshots.delete(tabId);
 
       if (activeTabId === tabId) {
         const newActive =
           filtered.length > 0 ? filtered[filtered.length - 1].id : null;
+        const restored = newActive ? tabSnapshots.get(newActive) : undefined;
+        if (newActive) tabSnapshots.delete(newActive);
         set({
           tabs: filtered,
           activeTabId: newActive,
-          // Reset all per-tab state to prevent stale data
+          // Reset all per-tab state to prevent stale data, then bring back
+          // what the newly active tab last showed.
           ...PER_TAB_RESET_STATE,
+          ...restored,
           loadingStates: { ...INITIAL_LOADING_STATES },
           isLoading: false,
           // Increment generation to invalidate in-flight async responses from old tab
@@ -386,11 +426,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
       const updated = get().recentRepos.map((r) =>
         r.path === path ? { ...r, isPinned } : r,
       );
-      updated.sort((a, b) => {
-        if (a.isPinned && !b.isPinned) return -1;
-        if (!a.isPinned && b.isPinned) return 1;
-        return b.lastOpened - a.lastOpened;
-      });
+      updated.sort(byPinnedThenRecent);
       set({ recentRepos: updated });
       localStorage.setItem(STORAGE_KEYS.recentRepos, JSON.stringify(updated));
     },
@@ -406,11 +442,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
       if (recentStr) {
         try {
           const recents = JSON.parse(recentStr) as RecentRepo[];
-          recents.sort((a, b) => {
-            if (a.isPinned && !b.isPinned) return -1;
-            if (!a.isPinned && b.isPinned) return 1;
-            return b.lastOpened - a.lastOpened;
-          });
+          recents.sort(byPinnedThenRecent);
           set({ recentRepos: recents });
         } catch (e) {
           console.error("Failed to parse recent repos:", e);

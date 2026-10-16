@@ -63,6 +63,29 @@ export function CommitGraph({
     return map;
   }, [commits]);
 
+  // Every edge as a row span. An edge from a commit far above the viewport to
+  // one far below crosses it, and has to be drawn even though neither end is
+  // on screen — drawing only edges that *start* near the viewport made long
+  // lanes vanish mid-scroll. `toIdx` is null when the parent is not loaded
+  // yet (it is on a later page); that edge continues to the list's end.
+  const edgeSpans = useMemo(() => {
+    const spans: {
+      fromIdx: number;
+      toIdx: number | null;
+      edge: GraphCommit["edges"][number];
+    }[] = [];
+    for (let i = 0; i < commits.length; i++) {
+      for (const edge of commits[i].edges) {
+        spans.push({
+          fromIdx: i,
+          toIdx: commitIndices.get(edge.toOid) ?? null,
+          edge,
+        });
+      }
+    }
+    return spans;
+  }, [commits, commitIndices]);
+
   // Fetch theme colors dynamically from CSS variables only when theme changes.
   // biome-ignore lint/correctness/useExhaustiveDependencies: `theme` and `isDark` are not read in the body — they are the cache keys. The body reads the DOM, which the linter cannot see changing, so these are exactly the values that must invalidate the memo.
   const laneColors = useMemo(() => {
@@ -115,39 +138,39 @@ export function CommitGraph({
         Math.ceil((scrollOffset + containerHeight) / rowHeight) + 5,
       );
 
-      // Draw edges first (behind nodes)
-      for (let i = startIdx; i < endIdx; i++) {
-        const commit = commits[i];
-        const y = i * rowHeight + rowHeight / 2 - scrollOffset;
+      // Draw edges first (behind nodes): every edge whose row span overlaps
+      // the visible range, wherever its endpoints are.
+      for (const { fromIdx, toIdx, edge } of edgeSpans) {
+        const lastIdx = toIdx ?? commits.length;
+        if (lastIdx < startIdx || fromIdx >= endIdx) continue;
 
-        for (const edge of commit.edges) {
-          const fromX = LANE_OFFSET + edge.fromLane * LANE_WIDTH;
-          const toX = LANE_OFFSET + edge.toLane * LANE_WIDTH;
+        const y = fromIdx * rowHeight + rowHeight / 2 - scrollOffset;
+        const fromX = LANE_OFFSET + edge.fromLane * LANE_WIDTH;
+        const toX = LANE_OFFSET + edge.toLane * LANE_WIDTH;
 
-          // Find target commit index using O(1) Map cache instead of linear scanning
-          const targetIdx = commitIndices.get(edge.toOid);
-          if (targetIdx === undefined) continue;
+        // A parent that is not loaded yet sits below the last loaded row.
+        const toY =
+          toIdx === null
+            ? commits.length * rowHeight - scrollOffset
+            : toIdx * rowHeight + rowHeight / 2 - scrollOffset;
+        const color = laneColors[edge.fromLane % laneColors.length];
 
-          const toY = targetIdx * rowHeight + rowHeight / 2 - scrollOffset;
-          const color = laneColors[edge.fromLane % laneColors.length];
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = edge.isMerge ? 0.5 : 0.7;
 
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 1.5;
-          ctx.globalAlpha = edge.isMerge ? 0.5 : 0.7;
+        ctx.beginPath();
+        ctx.moveTo(fromX, y);
 
-          ctx.beginPath();
-          ctx.moveTo(fromX, y);
-
-          if (fromX === toX) {
-            ctx.lineTo(toX, toY);
-          } else {
-            const midY = y + (toY - y) * 0.4;
-            ctx.bezierCurveTo(fromX, midY, toX, midY, toX, toY);
-          }
-
-          ctx.stroke();
-          ctx.globalAlpha = 1;
+        if (fromX === toX) {
+          ctx.lineTo(toX, toY);
+        } else {
+          const midY = y + (toY - y) * 0.4;
+          ctx.bezierCurveTo(fromX, midY, toX, midY, toX, toY);
         }
+
+        ctx.stroke();
+        ctx.globalAlpha = 1;
       }
 
       // Draw vertical lane lines for context
@@ -209,7 +232,7 @@ export function CommitGraph({
     };
   }, [
     commits,
-    commitIndices,
+    edgeSpans,
     laneColors,
     nodeFillColor,
     rowHeight,
@@ -228,8 +251,12 @@ export function CommitGraph({
       width={graphWidth * dpr}
       height={containerHeight * dpr}
       style={{
+        // The canvas lives inside the scrolled content but draws rows at
+        // `y - scrollOffset`, i.e. in viewport coordinates. Pinned at `top: 0`
+        // it scrolled away with the content after one screen; offsetting it by
+        // the scroll position keeps it over the visible rows.
         position: "absolute",
-        top: 0,
+        top: scrollOffset,
         left: 12,
         pointerEvents: "none",
         zIndex: 1,

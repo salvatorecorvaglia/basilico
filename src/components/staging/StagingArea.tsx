@@ -337,12 +337,7 @@ export function StagingArea() {
                 onClick={() => handleFileClick(row.file, false, true)}
                 onKeyDown={createKeyDownHandler(row.file, false, true)}
               >
-                <span
-                  className="staging-file-status"
-                  style={{ color: "var(--color-warning)" }}
-                >
-                  !
-                </span>
+                <span className="staging-file-status text-warning">!</span>
                 <div className="staging-file-paths truncate">
                   <span className="file-name">{getFileName(row.file)}</span>
                   <span className="file-dir">{getDirectory(row.file)}</span>
@@ -379,25 +374,24 @@ export function StagingArea() {
             <span className="staging-count">{row.count}</span>
             <button
               type="button"
-              className="staging-action-btn"
+              // Pushed right on its own; next to "Unstage All" it sits 8px off.
+              className={`staging-action-btn ${row.count > 0 ? "staging-action-gap" : "staging-action-push"}`}
               onClick={(e) => {
                 e.stopPropagation();
                 handleSaveStashPrompt();
               }}
               title="Stash staged and unstaged changes"
-              style={{ marginLeft: row.count > 0 ? "8px" : "auto" }}
             >
               Stash...
             </button>
             {row.count > 0 && (
               <button
                 type="button"
-                className="staging-action-btn"
+                className="staging-action-btn staging-action-gap"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleUnstageAll();
                 }}
-                style={{ marginLeft: "8px" }}
               >
                 Unstage All
               </button>
@@ -588,12 +582,7 @@ export function StagingArea() {
                   onChange={() => handleCheckboxChange(row.file, false)}
                   onClick={(e) => e.stopPropagation()}
                 />
-                <span
-                  className="staging-file-status"
-                  style={{ color: "var(--color-success)" }}
-                >
-                  ?
-                </span>
+                <span className="staging-file-status text-success">?</span>
                 <div className="staging-file-paths truncate">
                   <span className="file-name">{getFileName(row.file)}</span>
                   <span className="file-dir">{getDirectory(row.file)}</span>

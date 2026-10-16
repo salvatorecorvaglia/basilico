@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod error;
 pub mod git;
+pub mod secrets;
 pub mod state;
 pub mod watcher;
 
@@ -34,6 +35,7 @@ pub fn run() {
             commands::repo::open_external_tool,
             // Log commands
             commands::log::get_log,
+            commands::log::get_log_fingerprint,
             // Diff commands
             commands::diff::get_workdir_diff,
             commands::diff::get_staged_diff,
@@ -78,6 +80,7 @@ pub fn run() {
             commands::commit::revert_abort,
             commands::commit::reset_to_commit,
             commands::commit::get_commit_tree,
+            commands::commit::get_commit_message,
             // Merge commands
             commands::merge::merge_branch,
             commands::merge::abort_merge,
@@ -87,9 +90,10 @@ pub fn run() {
             commands::remote::fetch,
             commands::remote::push,
             commands::remote::pull,
+            commands::remote::cancel_network_operation,
+            commands::remote::answer_git_prompt,
             // Rebase commands
             commands::rebase::rebase_init,
-            commands::rebase::rebase_write_todo,
             commands::rebase::rebase_start,
             commands::rebase::rebase_step,
             // Bisect commands
@@ -121,11 +125,13 @@ pub fn run() {
             // Settings commands
             commands::settings::get_settings,
             commands::settings::save_settings,
+            commands::settings::get_github_pat,
             commands::settings::generate_ssh_key,
             commands::settings::list_ssh_keys,
             // Conflict resolver commands
             commands::conflict_resolver::get_conflict_stages,
             commands::conflict_resolver::save_merged_resolution,
+            commands::conflict_resolver::resolve_conflict_side,
             commands::conflict_resolver::launch_external_merge_tool,
             // GPG commands
             commands::gpg::get_commit_signature,

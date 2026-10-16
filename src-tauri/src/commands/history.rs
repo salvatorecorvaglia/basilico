@@ -20,6 +20,7 @@ pub async fn get_file_history(
     file_path: String,
     max_commits: Option<usize>,
 ) -> Result<Vec<FileHistoryEntry>, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
         let mut walk = repo.revwalk()?;

@@ -22,6 +22,7 @@ import type { DanglingCommitInfo, DoctorReport } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
+import "../modals/ToolModal.css";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 Bytes";
@@ -152,10 +153,7 @@ export function GitDoctorModal({ open, onOpenChange }: GitDoctorModalProps) {
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="settings-overlay" />
-        <Dialog.Content
-          className="settings-modal"
-          style={{ maxWidth: "620px", maxHeight: "85vh" }}
-        >
+        <Dialog.Content className="settings-modal tool-modal tool-modal-doctor">
           {/* Header */}
           <div className="settings-header">
             <Dialog.Title asChild>
@@ -176,17 +174,11 @@ export function GitDoctorModal({ open, onOpenChange }: GitDoctorModalProps) {
           </div>
 
           {/* Body */}
-          <div className="settings-body" style={{ padding: "var(--space-4)" }}>
+          <div className="settings-body tool-modal-body">
             {loadingHealth ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "var(--space-6) 0",
-                  color: "var(--text-tertiary)",
-                }}
-              >
+              <div className="tool-modal-state">
                 <span className="spinner-large" />
-                <p style={{ marginTop: "var(--space-2)" }}>
+                <p className="tool-modal-state-text">
                   Analyzing repository health...
                 </p>
               </div>
@@ -194,158 +186,63 @@ export function GitDoctorModal({ open, onOpenChange }: GitDoctorModalProps) {
               <>
                 {/* Storage Metrics Cards */}
                 {report && (
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(3, 1fr)",
-                      gap: "var(--space-3)",
-                      marginBottom: "var(--space-5)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: "var(--space-3)",
-                        background: "var(--bg-secondary)",
-                        border: "1px solid var(--border-color)",
-                        borderRadius: "var(--radius-md)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-tertiary)",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px",
-                        }}
-                      >
+                  <div className="doctor-metrics">
+                    <div className="doctor-metric">
+                      <div className="doctor-metric-label">
                         <HardDrive size={12} /> Total Repo Size
                       </div>
-                      <div
-                        style={{
-                          fontSize: "16px",
-                          fontWeight: 600,
-                          marginTop: "4px",
-                        }}
-                      >
+                      <div className="doctor-metric-value">
                         {formatBytes(report.totalSizeBytes)}
                       </div>
-                      <div
-                        style={{
-                          fontSize: "10px",
-                          color: "var(--text-tertiary)",
-                          marginTop: "2px",
-                        }}
-                      >
+                      <div className="tool-modal-meta">
                         Git dir: {formatBytes(report.gitSizeBytes)}
                       </div>
                     </div>
 
-                    <div
-                      style={{
-                        padding: "var(--space-3)",
-                        background: "var(--bg-secondary)",
-                        border: "1px solid var(--border-color)",
-                        borderRadius: "var(--radius-md)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-tertiary)",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px",
-                        }}
-                      >
+                    <div className="doctor-metric">
+                      <div className="doctor-metric-label">
                         <Database size={12} /> Loose / Packfiles
                       </div>
-                      <div
-                        style={{
-                          fontSize: "16px",
-                          fontWeight: 600,
-                          marginTop: "4px",
-                        }}
-                      >
+                      <div className="doctor-metric-value">
                         {report.looseObjectsCount} loose
                       </div>
-                      <div
-                        style={{
-                          fontSize: "10px",
-                          color: "var(--text-tertiary)",
-                          marginTop: "2px",
-                        }}
-                      >
+                      <div className="tool-modal-meta">
                         {report.packfilesCount} packfile(s)
                       </div>
                     </div>
 
-                    <div
-                      style={{
-                        padding: "var(--space-3)",
-                        background: "var(--bg-secondary)",
-                        border: "1px solid var(--border-color)",
-                        borderRadius: "var(--radius-md)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-tertiary)",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px",
-                        }}
-                      >
+                    <div className="doctor-metric">
+                      <div className="doctor-metric-label">
                         <LifeBuoy size={12} /> Lost Work Candidates
                       </div>
                       <div
-                        style={{
-                          fontSize: "16px",
-                          fontWeight: 600,
-                          marginTop: "4px",
-                          color:
-                            dangling.length > 0
-                              ? "var(--accent-primary)"
-                              : "inherit",
-                        }}
+                        className={`doctor-metric-value ${dangling.length > 0 ? "highlight" : ""}`}
                       >
                         {dangling.length} commit(s)
                       </div>
-                      <div
-                        style={{
-                          fontSize: "10px",
-                          color: "var(--text-tertiary)",
-                          marginTop: "2px",
-                        }}
-                      >
-                        Unreachable commits
-                      </div>
+                      <div className="tool-modal-meta">Unreachable commits</div>
                     </div>
                   </div>
                 )}
 
                 {/* Maintenance Operations */}
-                <div
-                  className="settings-section"
-                  style={{ marginBottom: "var(--space-5)" }}
-                >
+                <div className="settings-section doctor-section">
                   <div className="settings-section-title">
                     Maintenance & Optimization
                   </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "var(--space-3)",
-                      marginTop: "var(--space-2)",
-                    }}
-                  >
+                  {report && !report.hasCommitGraph && (
+                    <p className="doctor-hint">
+                      This repository has no commit-graph, so history operations
+                      (log, rebase, merge-base) are slower than they need to be.
+                      Garbage collection writes one.
+                    </p>
+                  )}
+                  <div className="doctor-actions">
                     <button
                       type="button"
-                      className="settings-btn"
+                      className="settings-btn doctor-action-btn"
                       onClick={handleRunGc}
                       disabled={runningGc}
-                      style={{ flex: 1 }}
                     >
                       <Sparkles
                         size={13}
@@ -360,10 +257,9 @@ export function GitDoctorModal({ open, onOpenChange }: GitDoctorModalProps) {
 
                     <button
                       type="button"
-                      className="settings-btn settings-btn-outline"
+                      className="settings-btn settings-btn-outline doctor-action-btn"
                       onClick={handleRunFsck}
                       disabled={runningFsck}
-                      style={{ flex: 1 }}
                     >
                       <Wrench
                         size={13}
@@ -378,22 +274,7 @@ export function GitDoctorModal({ open, onOpenChange }: GitDoctorModalProps) {
                   </div>
 
                   {fsckOutput && (
-                    <div
-                      style={{
-                        marginTop: "var(--space-3)",
-                        padding: "var(--space-3)",
-                        background: "var(--bg-tertiary)",
-                        border: "1px solid var(--border-color)",
-                        borderRadius: "var(--radius-md)",
-                        fontSize: "11px",
-                        fontFamily: "monospace",
-                        whiteSpace: "pre-wrap",
-                        maxHeight: "120px",
-                        overflowY: "auto",
-                      }}
-                    >
-                      {fsckOutput}
-                    </div>
+                    <div className="doctor-output">{fsckOutput}</div>
                   )}
                 </div>
 
@@ -404,84 +285,28 @@ export function GitDoctorModal({ open, onOpenChange }: GitDoctorModalProps) {
                   </div>
 
                   {dangling.length === 0 ? (
-                    <div
-                      style={{
-                        textAlign: "center",
-                        padding: "var(--space-4) 0",
-                        color: "var(--text-tertiary)",
-                        fontSize: "12px",
-                      }}
-                    >
+                    <div className="doctor-dangling-empty">
                       <CheckCircle
+                        className="tool-modal-state-icon accent"
                         size={20}
-                        style={{
-                          margin: "0 auto var(--space-2)",
-                          color: "var(--accent-primary)",
-                        }}
                       />
                       No orphaned commits found. All commits are attached to
                       active branches.
                     </div>
                   ) : (
-                    <div
-                      style={{
-                        maxHeight: "200px",
-                        overflowY: "auto",
-                        border: "1px solid var(--border-color)",
-                        borderRadius: "var(--radius-md)",
-                        background: "var(--bg-secondary)",
-                      }}
-                    >
+                    <div className="tool-modal-list doctor-dangling-list">
                       {dangling.map((c) => (
-                        <div
-                          key={c.oid}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "var(--space-2) var(--space-3)",
-                            borderBottom: "1px solid var(--border-subtle)",
-                            fontSize: "12px",
-                          }}
-                        >
-                          <div
-                            style={{
-                              flex: 1,
-                              minWidth: 0,
-                              paddingRight: "var(--space-3)",
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "6px",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontFamily: "monospace",
-                                  fontWeight: 600,
-                                  color: "var(--accent-primary)",
-                                }}
-                              >
+                        <div className="tool-modal-row compact" key={c.oid}>
+                          <div className="tool-modal-row-main">
+                            <div className="tool-modal-row-title">
+                              <span className="doctor-dangling-oid">
                                 {c.shortOid}
                               </span>
-                              <span
-                                className="truncate"
-                                style={{ fontWeight: 500 }}
-                              >
+                              <span className="truncate tool-modal-strong">
                                 {c.message}
                               </span>
                             </div>
-                            <div
-                              style={{
-                                fontSize: "10px",
-                                color: "var(--text-tertiary)",
-                                marginTop: "2px",
-                              }}
-                              className="truncate"
-                            >
+                            <div className="tool-modal-meta truncate">
                               Action: {c.actionSubject || "Dangling commit"} —{" "}
                               {c.authorName}
                             </div>
@@ -489,8 +314,7 @@ export function GitDoctorModal({ open, onOpenChange }: GitDoctorModalProps) {
 
                           <button
                             type="button"
-                            className="hunk-btn hunk-btn-primary"
-                            style={{ fontSize: "11px", height: "24px" }}
+                            className="hunk-btn hunk-btn-primary tool-modal-btn-sm"
                             onClick={() => handleRestoreCommit(c)}
                           >
                             <GitBranch size={11} />

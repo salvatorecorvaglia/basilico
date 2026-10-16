@@ -1,7 +1,7 @@
 import type { StateCreator } from "zustand";
 import type { FileDiff, TreeEntryInfo } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
-import { withLoading } from "../store-helpers";
+import { withActiveRepo, withLoading } from "../store-helpers";
 import type { RepoState } from "../types";
 
 export interface CollaborationSlice {
@@ -24,15 +24,19 @@ export interface CollaborationSlice {
     force?: boolean,
   ) => Promise<void>;
   pushTag: (remote: string, tagName: string) => Promise<void>;
-  mergeBranch: (branchName: string) => Promise<"success" | "conflicts">;
+  mergeBranch: (branchName: string) => Promise<commands.MergeOutcome>;
   abortMerge: () => Promise<void>;
   resolveConflict: (filePath: string) => Promise<void>;
   fetch: (remote: string) => Promise<void>;
-  pull: (remote: string, branch: string) => Promise<"success" | "conflicts">;
+  pull: (
+    remote: string,
+    branch: string,
+    mode?: commands.PullMode | null,
+  ) => Promise<commands.MergeOutcome>;
   push: (remote: string, branch: string, force: boolean) => Promise<void>;
-  cherryPickCommit: (oid: string) => Promise<"success" | "conflicts">;
+  cherryPickCommit: (oid: string) => Promise<commands.MergeOutcome>;
   cherryPickAbort: () => Promise<void>;
-  revertCommit: (oid: string) => Promise<"success" | "conflicts">;
+  revertCommit: (oid: string) => Promise<commands.MergeOutcome>;
   revertAbort: () => Promise<void>;
   resetToCommit: (
     oid: string,
@@ -59,34 +63,36 @@ export const createCollaborationSlice: StateCreator<
   // All actions below now use withLoading() to eliminate boilerplate
 
   checkoutBranch: async (branchName) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "branches",
       "Failed to checkout branch",
-      async () => {
+      async (activeTabId) => {
         await commands.checkoutBranch(activeTabId, branchName, {
           errorPrefix: "Failed to checkout branch",
         });
         set({ selectedFilePath: null, localDiff: null });
-        await get().refreshAll();
+        // The working tree, HEAD and the worktree list's branch labels move;
+        // stashes and remotes cannot.
+        await get().refresh([
+          "refs",
+          "log",
+          "repoInfo",
+          "worktrees",
+          "submodules",
+        ]);
       },
     );
   },
 
   createBranch: async (name, startPoint = null) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "branches",
       "Failed to create branch",
-      async () => {
+      async (activeTabId) => {
         await commands.createBranch(activeTabId, name, startPoint, {
           errorPrefix: "Failed to create branch",
         });
@@ -96,15 +102,12 @@ export const createCollaborationSlice: StateCreator<
   },
 
   deleteBranch: async (name, isRemote) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "branches",
       "Failed to delete branch",
-      async () => {
+      async (activeTabId) => {
         await commands.deleteBranch(activeTabId, name, isRemote, {
           errorPrefix: "Failed to delete branch",
         });
@@ -114,15 +117,12 @@ export const createCollaborationSlice: StateCreator<
   },
 
   renameBranch: async (currentName, newName) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "branches",
       "Failed to rename branch",
-      async () => {
+      async (activeTabId) => {
         await commands.renameBranch(activeTabId, currentName, newName, {
           errorPrefix: "Failed to rename branch",
         });
@@ -132,15 +132,12 @@ export const createCollaborationSlice: StateCreator<
   },
 
   deleteTag: async (name) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "collaboration",
       "Failed to delete tag",
-      async () => {
+      async (activeTabId) => {
         await commands.deleteTag(activeTabId, name, {
           errorPrefix: "Failed to delete tag",
         });
@@ -150,15 +147,12 @@ export const createCollaborationSlice: StateCreator<
   },
 
   createTag: async (name, targetOid, message = null, force = false) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "collaboration",
       "Failed to create tag",
-      async () => {
+      async (activeTabId) => {
         await commands.createTag(activeTabId, name, targetOid, message, force, {
           errorPrefix: "Failed to create tag",
         });
@@ -168,15 +162,12 @@ export const createCollaborationSlice: StateCreator<
   },
 
   pushTag: async (remote, tagName) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "collaboration",
       "Failed to push tag",
-      async () => {
+      async (activeTabId) => {
         await commands.pushTag(activeTabId, remote, tagName, {
           errorPrefix: "Failed to push tag",
         });
@@ -205,15 +196,12 @@ export const createCollaborationSlice: StateCreator<
   },
 
   abortMerge: async () => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "collaboration",
       "Failed to abort merge",
-      async () => {
+      async (activeTabId) => {
         await commands.abortMerge(activeTabId, {
           errorPrefix: "Failed to abort merge",
         });
@@ -223,15 +211,12 @@ export const createCollaborationSlice: StateCreator<
   },
 
   resolveConflict: async (filePath) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "collaboration",
       "Failed to resolve conflict",
-      async () => {
+      async (activeTabId) => {
         await commands.resolveConflict(activeTabId, filePath, {
           errorPrefix: "Failed to resolve conflict",
         });
@@ -241,18 +226,22 @@ export const createCollaborationSlice: StateCreator<
   },
 
   fetch: async (remote) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(get, set, "collaboration", "Fetch failed", async () => {
-      await commands.fetch(activeTabId, remote, {
-        errorPrefix: "Fetch failed",
-      });
-      await get().refreshAll();
-    });
+    await withActiveRepo(
+      get,
+      set,
+      "collaboration",
+      "Fetch failed",
+      async (activeTabId) => {
+        await commands.fetch(activeTabId, remote, {
+          errorPrefix: "Fetch failed",
+        });
+        // Only remote-tracking refs move.
+        await get().refresh(["refs", "log"]);
+      },
+    );
   },
 
-  pull: async (remote, branch) => {
+  pull: async (remote, branch, mode = null) => {
     const { activeTabId } = get();
     if (!activeTabId) return "conflicts";
 
@@ -262,10 +251,12 @@ export const createCollaborationSlice: StateCreator<
       "collaboration",
       "Pull failed",
       async () => {
-        const result = await commands.pull(activeTabId, remote, branch, {
+        const result = await commands.pull(activeTabId, remote, branch, mode, {
           errorPrefix: "Pull failed",
         });
-        await get().refreshAll();
+        // HEAD and the working tree move, and a conflicted pull changes the
+        // repository state.
+        await get().refresh(["refs", "log", "repoInfo", "submodules"]);
         return result;
       },
     );
@@ -278,9 +269,19 @@ export const createCollaborationSlice: StateCreator<
     // The remote-tracking tip as currently known to the UI. Passing it lets the
     // backend detect that someone else pushed since our last fetch and refuse a
     // force push that would discard their commits.
+    // `branch` is the local branch; the backend pushes it to its upstream when
+    // that upstream is on `remote`, so the lease has to read the same
+    // tracking ref — not `<remote>/<local name>`, which differs whenever the
+    // upstream has another name.
+    const upstream = branches.find(
+      (b) => !b.isRemote && b.name === branch,
+    )?.upstream;
+    const trackingName =
+      upstream?.startsWith(`${remote}/`) === true
+        ? upstream
+        : `${remote}/${branch}`;
     const expectedRemoteOid =
-      branches.find((b) => b.isRemote && b.name === `${remote}/${branch}`)
-        ?.oid ?? null;
+      branches.find((b) => b.isRemote && b.name === trackingName)?.oid ?? null;
 
     await withLoading(get, set, "collaboration", "Push failed", async () => {
       await commands.push(
@@ -291,7 +292,8 @@ export const createCollaborationSlice: StateCreator<
         expectedRemoteOid,
         { errorPrefix: "Push failed" },
       );
-      await get().refreshAll();
+      // Only the remote-tracking ref (and possibly the upstream) moves.
+      await get().refresh(["refs", "log"]);
     });
   },
 
@@ -309,7 +311,7 @@ export const createCollaborationSlice: StateCreator<
           errorPrefix: "Cherry-pick failed",
         });
         await get().refreshCommitsAndStatus();
-        return res as "success" | "conflicts";
+        return res;
       },
     );
   },
@@ -346,7 +348,7 @@ export const createCollaborationSlice: StateCreator<
           errorPrefix: "Revert failed",
         });
         await get().refreshCommitsAndStatus();
-        return res as "success" | "conflicts";
+        return res;
       },
     );
   },
@@ -392,7 +394,9 @@ export const createCollaborationSlice: StateCreator<
       "Failed to load commit tree",
       async () => {
         set({ commitTree: [] });
-        const tree = await commands.getCommitTree(activeTabId, oid, {
+        // The root folder only; CommitDetail fetches deeper folders as they
+        // are expanded.
+        const tree = await commands.getCommitTree(activeTabId, oid, "", {
           silent: true,
         });
         // Guard: only apply if still the same tab and this commit is still selected

@@ -18,6 +18,9 @@ pub struct DoctorReport {
     pub loose_objects_count: u64,
     pub packfiles_count: u64,
     pub lfs_objects_count: u64,
+    /// Whether a commit-graph file exists. It speeds up history walks for the
+    /// git CLI (log, merge-base, rebase); `git gc` writes one by default.
+    pub has_commit_graph: bool,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -31,20 +34,10 @@ pub struct DanglingCommitInfo {
     pub action_subject: String,
 }
 
-/// Directories skipped when measuring repository size — they are build output or
-/// dependency caches, not repository content, and walking them can take minutes.
-const SKIPPED_DIRS: &[&str] = &[
-    "node_modules",
-    "target",
-    "dist",
-    "build",
-    ".next",
-    ".turbo",
-    "out",
-    "vendor",
-    "coverage",
-    ".cache",
-];
+// Directories skipped when measuring repository size are build output or
+// dependency caches, not repository content, and walking them can take
+// minutes. The names are the watcher's conventional list: this module kept its
+// own copy, which had already drifted from it (no `.venv`, `Pods`, `bin`, …).
 
 /// Guards against pathological trees. Symlinks are never followed (see below),
 /// but deeply nested real directories should not blow the stack either.
@@ -53,7 +46,7 @@ const MAX_WALK_DEPTH: usize = 64;
 fn is_skipped_dir(path: &Path) -> bool {
     path.file_name()
         .and_then(|n| n.to_str())
-        .map(|name| SKIPPED_DIRS.contains(&name))
+        .map(crate::watcher::is_conventionally_ignored)
         .unwrap_or(false)
 }
 
@@ -160,6 +153,7 @@ fn count_loose_objects<P: AsRef<Path>>(git_dir: P) -> u64 {
 
 #[tauri::command]
 pub async fn get_repo_health(path: String) -> Result<DoctorReport, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let repo_path = Path::new(&path);
 
@@ -187,12 +181,18 @@ pub async fn get_repo_health(path: String) -> Result<DoctorReport, AppError> {
             0
         };
 
+        let info = object_store.join("objects").join("info");
+        // A single file, or the split chain git writes incrementally.
+        let has_commit_graph =
+            info.join("commit-graph").is_file() || info.join("commit-graphs").is_dir();
+
         Ok(DoctorReport {
             total_size_bytes,
             git_size_bytes,
             loose_objects_count,
             packfiles_count,
             lfs_objects_count,
+            has_commit_graph,
         })
     })
     .await?
@@ -200,8 +200,14 @@ pub async fn get_repo_health(path: String) -> Result<DoctorReport, AppError> {
 
 #[tauri::command]
 pub async fn run_git_gc(path: String) -> Result<String, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
-        let stdout = crate::commands::run_git_cmd(&["gc", "--prune=now"], &path)?;
+        // git's default prune window (two weeks) rather than `--prune=now`:
+        // pruning immediately can delete objects a concurrently running git
+        // process (an IDE, a terminal) has just written but not yet referenced,
+        // and it destroys recently-unreachable commits the Lost Work view
+        // exists to recover.
+        let stdout = crate::commands::run_git_cmd(&["gc"], &path)?;
         if stdout.is_empty() {
             Ok("Repository optimized successfully (git gc completed)".to_string())
         } else {
@@ -213,6 +219,7 @@ pub async fn run_git_gc(path: String) -> Result<String, AppError> {
 
 #[tauri::command]
 pub async fn run_git_fsck(path: String) -> Result<String, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         // `fsck` can exit non-zero while still just reporting non-fatal notes,
         // so the exit status is intentionally not checked here — the combined
@@ -234,6 +241,7 @@ pub async fn run_git_fsck(path: String) -> Result<String, AppError> {
 
 #[tauri::command]
 pub async fn find_dangling_commits(path: String) -> Result<Vec<DanglingCommitInfo>, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
 

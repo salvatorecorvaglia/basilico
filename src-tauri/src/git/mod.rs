@@ -4,5 +4,8 @@ pub mod graph;
 pub mod helpers;
 pub mod hooks;
 pub mod known_hosts;
+pub mod progress;
+pub mod prompts;
+pub mod push;
 pub mod repository;
 pub mod utils;

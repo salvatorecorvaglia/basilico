@@ -4,6 +4,7 @@ use git2::Repository;
 
 #[tauri::command]
 pub async fn list_branches(path: String) -> Result<Vec<repository::BranchInfo>, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || repository::list_branches(&path)).await?
 }
 
@@ -13,15 +14,16 @@ pub async fn create_branch(
     name: String,
     start_point: Option<String>,
 ) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
         let target = match start_point {
-            Some(ref s) => {
-                let obj = repo.revparse_single(s)?;
-                obj.as_commit()
-                    .ok_or_else(|| AppError::invalid_state("Start point is not a commit"))?
-                    .clone()
-            }
+            // Peel rather than downcast: an annotated tag resolves to a tag
+            // object, which `as_commit` rejected as "not a commit".
+            Some(ref s) => repo
+                .revparse_single(s)?
+                .peel_to_commit()
+                .map_err(|_| AppError::invalid_state("Start point is not a commit"))?,
             None => {
                 let head = repo.head()?;
                 head.peel_to_commit()?
@@ -41,6 +43,7 @@ pub async fn delete_branch<R: tauri::Runtime>(
     name: String,
     is_remote: bool,
 ) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&path)?;
     let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
@@ -58,17 +61,9 @@ pub async fn delete_branch<R: tauri::Runtime>(
             let mut remote_obj = repo.find_remote(remote_name)?;
             let refspec = format!(":refs/heads/{}", branch_name);
 
-            let rejections = crate::git::credentials::new_push_rejections();
-            let mut push_opts = git2::PushOptions::new();
-            push_opts.remote_callbacks(crate::git::credentials::make_push_callbacks(
-                ssh_key_path,
-                rejections.clone(),
-            ));
-
-            remote_obj.push(&[refspec.as_str()], Some(&mut push_opts))?;
             // A rejected deletion must not be followed by dropping the local
             // tracking ref — that would hide a branch that still exists.
-            crate::git::credentials::check_push_rejections(&rejections)?;
+            crate::git::push::push_refspecs(&mut remote_obj, &[refspec.as_str()], ssh_key_path)?;
 
             // 2. Delete the local remote-tracking reference
             let ref_name = format!("refs/remotes/{}", name);
@@ -86,6 +81,7 @@ pub async fn delete_branch<R: tauri::Runtime>(
 
 #[tauri::command]
 pub async fn checkout_branch(path: String, name: String) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
 
@@ -169,6 +165,7 @@ pub async fn rename_branch(
     current_name: String,
     new_name: String,
 ) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
         let mut branch = repo.find_branch(&current_name, git2::BranchType::Local)?;
@@ -191,18 +188,35 @@ const PROTECTED_BRANCH_NAMES: &[&str] = &[
     "release",
 ];
 
-/// True when `branch_name` names a protected branch, in either its local
-/// (`main`) or remote-tracking (`origin/main`) form.
-pub fn is_protected_branch(branch_name: &str, target_name: &str) -> bool {
-    // Compare the last path segment so `origin/main` is caught alongside `main`.
-    let bare = branch_name.rsplit('/').next().unwrap_or(branch_name);
-    let target_bare = target_name.rsplit('/').next().unwrap_or(target_name);
+/// `name` without its remote, when it is a remote-tracking branch of `remote`.
+fn without_remote<'a>(name: &'a str, remote: Option<&str>) -> &'a str {
+    remote
+        .and_then(|r| name.strip_prefix(r))
+        .and_then(|rest| rest.strip_prefix('/'))
+        .unwrap_or(name)
+}
 
-    if bare == target_bare {
-        return true;
-    }
+/// True when a branch must be kept out of a sweep: it is the target itself, in
+/// local or remote-tracking form, or one of the well-known long-lived branches.
+///
+/// `branch_remote` / `target_remote` name the remote when the name is a
+/// remote-tracking branch, so only a real remote prefix is stripped. Comparing
+/// the last path segment instead made `feature/main` count as `main`.
+pub fn is_protected_branch(
+    branch_name: &str,
+    branch_remote: Option<&str>,
+    target_name: &str,
+    target_remote: Option<&str>,
+) -> bool {
+    let bare = without_remote(branch_name, branch_remote);
+    bare == without_remote(target_name, target_remote) || PROTECTED_BRANCH_NAMES.contains(&bare)
+}
 
-    PROTECTED_BRANCH_NAMES.contains(&bare)
+/// The remote a remote-tracking branch short name (`origin/main`) belongs to.
+fn remote_of(repo: &Repository, name: &str) -> Option<String> {
+    repo.branch_remote_name(&format!("refs/remotes/{}", name))
+        .ok()
+        .and_then(|buf| buf.as_str().ok().map(str::to_string))
 }
 
 #[tauri::command]
@@ -210,6 +224,7 @@ pub async fn list_merged_branches(
     path: String,
     target_branch: Option<String>,
 ) -> Result<Vec<repository::BranchInfo>, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
 
@@ -217,6 +232,19 @@ pub async fn list_merged_branches(
         let target_obj = repo.revparse_single(&target_name)?;
         let target_commit = target_obj.peel_to_commit()?;
         let target_oid = target_commit.id();
+
+        // Sweeping from `HEAD` protects the checked-out branch by name, so its
+        // own upstream is never offered for deletion either.
+        let target_short = if target_name == "HEAD" {
+            repo.head()
+                .ok()
+                .filter(|h| h.is_branch())
+                .and_then(|h| h.shorthand().ok().map(str::to_string))
+                .unwrap_or_else(|| target_name.clone())
+        } else {
+            target_name.clone()
+        };
+        let target_remote = remote_of(&repo, &target_short);
 
         let all_branches = repository::list_branches(&path)?;
         let mut merged_branches = Vec::new();
@@ -230,7 +258,17 @@ pub async fn list_merged_branches(
             // plus the well-known long-lived branches. Without this, sweeping
             // from a feature branch that has `main` merged in would offer
             // `origin/main` for deletion.
-            if is_protected_branch(&b.name, &target_name) {
+            let branch_remote = if b.is_remote {
+                remote_of(&repo, &b.name)
+            } else {
+                None
+            };
+            if is_protected_branch(
+                &b.name,
+                branch_remote.as_deref(),
+                &target_short,
+                target_remote.as_deref(),
+            ) {
                 continue;
             }
 

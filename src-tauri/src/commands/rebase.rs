@@ -28,13 +28,33 @@ use std::path::{Path, PathBuf};
 pub struct RebaseTodoItem {
     pub action: String, // "pick", "reword", "edit", "squash", "fixup", "drop"
     pub oid: String,
+    /// The subject line, as shown and edited in the UI.
     pub summary: String,
+    /// The commit's full original message. Rewording or squashing only
+    /// replaces the subject; without this the body was silently dropped,
+    /// because `summary` was all the plan carried.
+    #[serde(default)]
+    pub message: String,
+}
+
+/// Where an interactive rebase stands. Serialised lowercase: "none",
+/// "conflict", "edit", "finished".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RebasePhase {
+    /// No rebase in progress (e.g. after an abort).
+    None,
+    /// Stopped on conflicts.
+    Conflict,
+    /// Stopped on an `edit` step, or another non-conflict stop.
+    Edit,
+    Finished,
 }
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RebaseStatus {
-    pub status: String, // "none", "conflict", "edit", "finished"
+    pub status: RebasePhase,
     pub current_oid: Option<String>,
     pub message: Option<String>,
 }
@@ -44,12 +64,9 @@ fn plan_path(repo: &Repository) -> PathBuf {
     repo.path().join("basilico-rebase-plan")
 }
 
-/// The JSON sidecar `rebase_write_todo` persists the in-progress plan to.
-///
-/// Named rather than spelled `plan_path(..).with_extension("json")` at the one
-/// call site, because cleanup used to remove `plan_path` only — so every edit
-/// to a rebase plan left a `basilico-rebase-plan.json` behind in `.git/`, and
-/// they accumulated for the life of the repository.
+/// A JSON copy of the plan that earlier versions wrote on every edit and
+/// never read back. Nothing writes it any more; it is still removed during
+/// cleanup so repositories that have one are left tidy.
 fn plan_json_path(repo: &Repository) -> PathBuf {
     plan_path(repo).with_extension("json")
 }
@@ -95,14 +112,29 @@ fn validate_oid(oid: &str) -> Result<(), AppError> {
 /// Actions that ordinarily require an interactive editor are expressed without
 /// one, so nothing can block waiting on input:
 ///
-/// * `reword` → `pick` followed by `exec git commit --amend --file=…`
-/// * `squash` → `fixup` (which drops the message) plus the same amend, using
-///   the summary the user edited in the UI
+/// * `reword` → `pick` followed by `exec git commit --amend --file=…`, with
+///   the edited subject over the commit's original body
+/// * `squash` → `fixup` (which drops the message) plus the same amend. The
+///   combined message is both messages, as git writes it, or — when the user
+///   edited the subject — that subject over both bodies
 ///
 /// `drop` is expressed by omitting the commit entirely.
 fn build_todo(items: &[RebaseTodoItem], msg_dir: &Path) -> Result<String, AppError> {
     let mut todo = String::new();
     let mut wrote_any = false;
+    // The message of the commit a `squash` folds into: the previous kept
+    // commit's message, as rewritten by any reword or squash before it.
+    let mut previous_message = String::new();
+
+    let write_message = |todo: &mut String, idx: usize, message: &str| -> Result<(), AppError> {
+        let msg_file = msg_dir.join(format!("{}.msg", idx));
+        fs::write(&msg_file, message)?;
+        todo.push_str(&format!(
+            "exec git commit --amend --file={}\n",
+            shell_quote(&msg_file.to_string_lossy())
+        ));
+        Ok(())
+    };
 
     for (idx, item) in items.iter().enumerate() {
         validate_oid(&item.oid)?;
@@ -113,36 +145,49 @@ fn build_todo(items: &[RebaseTodoItem], msg_dir: &Path) -> Result<String, AppErr
         }
 
         let short = item.oid.as_str();
+        // A client that predates `message` sends only the summary.
+        let original = if item.message.trim().is_empty() {
+            item.summary.clone()
+        } else {
+            item.message.clone()
+        };
 
         match action.as_str() {
             "reword" | "r" => {
                 todo.push_str(&format!("pick {}\n", short));
-                let msg_file = msg_dir.join(format!("{}.msg", idx));
-                fs::write(&msg_file, format!("{}\n", item.summary.trim()))?;
-                todo.push_str(&format!(
-                    "exec git commit --amend --file={}\n",
-                    shell_quote(&msg_file.to_string_lossy())
-                ));
+                let reworded = compose_message(&item.summary, &[message_body(&original)]);
+                write_message(&mut todo, idx, &reworded)?;
+                previous_message = reworded;
             }
             "squash" | "s" => {
                 // `fixup` keeps the base commit's message; the amend below then
-                // replaces it with the combined message the user chose.
+                // replaces it with the combined message.
                 todo.push_str(&format!("fixup {}\n", short));
-                let msg_file = msg_dir.join(format!("{}.msg", idx));
-                fs::write(&msg_file, format!("{}\n", item.summary.trim()))?;
-                todo.push_str(&format!(
-                    "exec git commit --amend --file={}\n",
-                    shell_quote(&msg_file.to_string_lossy())
-                ));
+                let edited = item.summary.trim() != message_subject(&original);
+                let combined = if edited {
+                    // The user wrote a new subject for the combined commit; keep
+                    // both bodies under it.
+                    compose_message(
+                        &item.summary,
+                        &[message_body(&previous_message), message_body(&original)],
+                    )
+                } else {
+                    // git's default: both messages, one after the other.
+                    join_messages(&previous_message, &original)
+                };
+                write_message(&mut todo, idx, &combined)?;
+                previous_message = combined;
             }
             "fixup" | "f" => {
                 todo.push_str(&format!("fixup {}\n", short));
             }
             "edit" | "e" => {
                 todo.push_str(&format!("edit {}\n", short));
+                previous_message = original;
             }
             _ => {
                 todo.push_str(&format!("pick {}\n", short));
+                previous_message = original;
             }
         }
 
@@ -156,6 +201,47 @@ fn build_todo(items: &[RebaseTodoItem], msg_dir: &Path) -> Result<String, AppErr
     }
 
     Ok(todo)
+}
+
+/// The first line of a commit message.
+fn message_subject(message: &str) -> &str {
+    message.lines().next().unwrap_or("").trim()
+}
+
+/// Everything after the subject line, without the separating blank lines.
+fn message_body(message: &str) -> &str {
+    message
+        .split_once('\n')
+        .map(|(_, rest)| rest)
+        .unwrap_or("")
+        .trim()
+}
+
+/// `subject`, then the non-empty `bodies` separated by blank lines.
+fn compose_message(subject: &str, bodies: &[&str]) -> String {
+    let mut message = subject.trim().to_string();
+    let body = bodies
+        .iter()
+        .map(|b| b.trim())
+        .filter(|b| !b.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    if !body.is_empty() {
+        message.push_str("\n\n");
+        message.push_str(&body);
+    }
+    message.push('\n');
+    message
+}
+
+/// Two whole messages, the way `git rebase` combines a squash by default.
+fn join_messages(first: &str, second: &str) -> String {
+    let (first, second) = (first.trim(), second.trim());
+    match (first.is_empty(), second.is_empty()) {
+        (true, _) => format!("{}\n", second),
+        (false, true) => format!("{}\n", first),
+        (false, false) => format!("{}\n\n{}\n", first, second),
+    }
 }
 
 /// Run a git command with the sequence editor bound to our plan file.
@@ -211,7 +297,7 @@ fn current_status(
             }));
         }
         return Ok(RebaseStatus {
-            status: "finished".to_string(),
+            status: RebasePhase::Finished,
             current_oid: None,
             message: Some("Rebase completed successfully".to_string()),
         });
@@ -226,7 +312,7 @@ fn current_status(
 
     if has_conflicts {
         return Ok(RebaseStatus {
-            status: "conflict".to_string(),
+            status: RebasePhase::Conflict,
             current_oid: head_oid,
             message: Some(
                 "Conflicts detected. Resolve them in the staging area, then continue.".to_string(),
@@ -235,7 +321,7 @@ fn current_status(
     }
 
     Ok(RebaseStatus {
-        status: "edit".to_string(),
+        status: RebasePhase::Edit,
         current_oid: head_oid,
         message: Some(if stderr.is_empty() {
             "Rebase paused. Make your changes, then continue.".to_string()
@@ -254,6 +340,7 @@ pub async fn rebase_init(
     repo_path: String,
     upstream: String,
 ) -> Result<Vec<RebaseTodoItem>, AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
 
@@ -270,10 +357,17 @@ pub async fn rebase_init(
         for oid in revwalk {
             let oid = oid?;
             let commit = repo.find_commit(oid)?;
+            // `git rebase -i` (without --rebase-merges) drops merge commits
+            // from the todo; listing them offered actions git would ignore,
+            // and `pick <merge>` makes git stop with an error.
+            if commit.parent_count() > 1 {
+                continue;
+            }
             items.push(RebaseTodoItem {
                 action: "pick".to_string(),
                 oid: oid.to_string(),
                 summary: commit.summary().ok().flatten().unwrap_or("").to_string(),
+                message: commit.message().unwrap_or("").to_string(),
             });
         }
 
@@ -293,26 +387,6 @@ pub async fn rebase_init(
     .await?
 }
 
-/// Persist the plan the user assembled. Repository state is untouched until
-/// [`rebase_start`] runs.
-#[tauri::command]
-pub async fn rebase_write_todo(
-    repo_path: String,
-    items: Vec<RebaseTodoItem>,
-) -> Result<(), AppError> {
-    tokio::task::spawn_blocking(move || {
-        let repo = Repository::open(&repo_path)?;
-        // Mapped explicitly: the blanket `From<serde_json::Error>` tags every
-        // JSON failure as a SettingsError, which is right for settings.rs and
-        // wrong here — a frontend branching on `kind` would mis-handle it.
-        let json = serde_json::to_string(&items)
-            .map_err(|e| AppError::invalid_state(format!("Failed to encode rebase plan: {}", e)))?;
-        fs::write(plan_json_path(&repo), json)?;
-        Ok(())
-    })
-    .await?
-}
-
 /// Begin the rebase, handing `items` to git as the todo list.
 #[tauri::command]
 pub async fn rebase_start(
@@ -320,6 +394,7 @@ pub async fn rebase_start(
     upstream: String,
     items: Vec<RebaseTodoItem>,
 ) -> Result<RebaseStatus, AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     // `upstream` lands in a positional argv slot right after `-i`, where a value
     // such as `--exec=<cmd>` would be read by git as a flag that runs an
     // arbitrary command after every replayed commit.
@@ -355,6 +430,7 @@ pub async fn rebase_step(
     action: String,
     commit_message: Option<String>,
 ) -> Result<RebaseStatus, AppError> {
+    crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&repo_path)?;
 
@@ -380,7 +456,7 @@ pub async fn rebase_step(
                 return Err(AppError::git(format!("Rebase abort failed: {}", stderr)));
             }
             return Ok(RebaseStatus {
-                status: "none".to_string(),
+                status: RebasePhase::None,
                 current_oid: None,
                 message: Some("Rebase aborted".to_string()),
             });
@@ -417,7 +493,7 @@ pub async fn rebase_step(
         let output = run_rebase_command(&repo_path, &["rebase", git_arg], None)?;
         let status = current_status(&repo_path, &output)?;
 
-        if status.status == "finished" {
+        if status.status == RebasePhase::Finished {
             let _ = fs::remove_dir_all(message_dir(&repo));
             remove_plan_files(&repo);
         }
@@ -425,4 +501,25 @@ pub async fn rebase_step(
         Ok(status)
     })
     .await?
+}
+
+#[cfg(test)]
+mod rebase_phase_tests {
+    use super::RebasePhase;
+
+    /// `RebaseStatus.status` on the frontend compares against these strings.
+    #[test]
+    fn serialises_to_the_frontend_strings() {
+        for (phase, name) in [
+            (RebasePhase::None, "none"),
+            (RebasePhase::Conflict, "conflict"),
+            (RebasePhase::Edit, "edit"),
+            (RebasePhase::Finished, "finished"),
+        ] {
+            assert_eq!(
+                serde_json::to_string(&phase).unwrap(),
+                format!("\"{}\"", name)
+            );
+        }
+    }
 }

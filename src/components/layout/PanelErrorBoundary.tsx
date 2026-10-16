@@ -1,5 +1,6 @@
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import React, { type ErrorInfo, type ReactNode } from "react";
+import "./PanelErrorBoundary.css";
 
 interface Props {
   children: ReactNode;
@@ -34,66 +35,19 @@ export class PanelErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100%",
-            width: "100%",
-            background: "var(--bg-surface)",
-            color: "var(--text-primary)",
-            padding: "var(--space-6)",
-            gap: "var(--space-3)",
-            textAlign: "center",
-            boxSizing: "border-box",
-            border: "1px dashed var(--color-danger)",
-            borderRadius: "var(--radius-lg)",
-          }}
-        >
-          <div
-            style={{
-              color: "var(--color-danger)",
-              background:
-                "color-mix(in srgb, var(--color-danger) 10%, transparent)",
-              padding: "var(--space-2)",
-              borderRadius: "var(--radius-full)",
-            }}
-          >
+        <div className="panel-error">
+          <div className="panel-error-icon">
             <AlertTriangle size={24} />
           </div>
-          <h4 style={{ margin: 0, fontWeight: "var(--weight-semibold)" }}>
-            Failed to render panel
-          </h4>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "var(--font-size-xs)",
-              color: "var(--text-secondary)",
-              maxWidth: "280px",
-              lineHeight: "var(--leading-normal)",
-            }}
-          >
+          <h4 className="panel-error-title">Failed to render panel</h4>
+          <p className="panel-error-message">
             {this.state.error?.message ||
               "An unexpected error occurred in this view."}
           </p>
           <button
             type="button"
             onClick={this.handleReset}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-2)",
-              background: "var(--bg-elevated)",
-              color: "var(--text-primary)",
-              border: "1px solid var(--border-default)",
-              padding: "var(--space-2) var(--space-4)",
-              borderRadius: "var(--radius-md)",
-              fontSize: "var(--font-size-xs)",
-              fontWeight: "var(--weight-medium)",
-              cursor: "pointer",
-            }}
+            className="btn btn-secondary panel-error-retry"
           >
             <RotateCcw size={12} />
             <span>Retry</span>

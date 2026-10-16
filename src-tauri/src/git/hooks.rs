@@ -137,6 +137,49 @@ pub fn commit_msg_path(repo: &Repository) -> PathBuf {
     repo.path().join("COMMIT_EDITMSG")
 }
 
+/// Clean up a commit message the way `git commit -m` would, honouring
+/// `commit.cleanup`.
+///
+/// Every message used to go through [`strip_comments`], so a subject such as
+/// `#123 fix crash` — or a Markdown heading in the body — was silently deleted.
+/// git strips comments only when the message was composed in an editor (or
+/// `commit.cleanup = strip`); for a message supplied up front its default is
+/// `whitespace`, which keeps `#` lines.
+pub fn cleanup_message(repo: &Repository, message: &str) -> String {
+    let mode = repo
+        .config()
+        .ok()
+        .and_then(|c| c.get_string("commit.cleanup").ok())
+        .unwrap_or_default();
+    match mode.as_str() {
+        "verbatim" => message.to_string(),
+        "strip" => strip_comments(message),
+        // "whitespace", and "default"/"scissors" for a message not composed
+        // in an editor.
+        _ => cleanup_whitespace(message),
+    }
+}
+
+/// git's `whitespace` cleanup: strip trailing whitespace, drop leading and
+/// trailing blank lines, and collapse runs of blank lines into one.
+pub fn cleanup_whitespace(message: &str) -> String {
+    let mut lines: Vec<&str> = Vec::new();
+    let mut pending_blank = false;
+    for line in message.lines() {
+        let line = line.trim_end();
+        if line.is_empty() {
+            pending_blank = true;
+            continue;
+        }
+        if pending_blank && !lines.is_empty() {
+            lines.push("");
+        }
+        pending_blank = false;
+        lines.push(line);
+    }
+    lines.join("\n")
+}
+
 /// Strip comment lines the way git does before using an edited message.
 ///
 /// `commit-msg` hooks may rewrite the file wholesale, and some templates leave

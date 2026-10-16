@@ -155,6 +155,8 @@ export function CommitList() {
   });
 
   const { rows } = table.getRowModel();
+  // True when the rows no longer follow `commits` one-to-one.
+  const isReordered = sorting.length > 0 || globalFilter.trim() !== "";
 
   /**
    * Every column was a fixed `size`, so on a wide window the row ended at the
@@ -280,10 +282,7 @@ export function CommitList() {
         <div className="commit-list-controls">
           <div className="commit-list-search-wrapper">
             <Search size={13} className="commit-list-search-icon" />
-            <div
-              className="skeleton-shimmer skeleton-line"
-              style={{ width: "80px", height: "12px", marginBottom: 0 }}
-            />
+            <div className="skeleton-shimmer skeleton-line commit-skeleton-search" />
           </div>
         </div>
         <div className="commit-list-header">
@@ -291,48 +290,32 @@ export function CommitList() {
             className="commit-list-header-graph"
             style={{ width: GRAPH_WIDTH }}
           />
-          <div className="commit-list-header-cell" style={{ width: "70px" }}>
-            SHA
-          </div>
+          <div className="commit-list-header-cell commit-skeleton-sha">SHA</div>
           <div className="commit-list-header-cell flex-1">Message</div>
-          <div className="commit-list-header-cell" style={{ width: "110px" }}>
+          <div className="commit-list-header-cell commit-skeleton-branch">
             Branch
           </div>
-          <div className="commit-list-header-cell" style={{ width: "90px" }}>
+          <div className="commit-list-header-cell commit-skeleton-tags">
             Tags
           </div>
-          <div className="commit-list-header-cell" style={{ width: "130px" }}>
+          <div className="commit-list-header-cell commit-skeleton-author">
             Author
           </div>
-          <div className="commit-list-header-cell" style={{ width: "95px" }}>
+          <div className="commit-list-header-cell commit-skeleton-date">
             Date
           </div>
         </div>
-        <div
-          className="commit-list-scroll"
-          style={{ padding: "var(--space-1) 0", overflow: "hidden" }}
-        >
+        <div className="commit-list-scroll commit-skeleton-rows">
           {Array.from({ length: 15 }).map((_, index) => (
             <div
               key={index}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                height: `${ROW_HEIGHT}px`,
-                borderBottom: "1px solid var(--border-subtle)",
-                gap: "var(--space-4)",
-                padding: "0 var(--space-3)",
-              }}
+              className="skeleton-row commit-skeleton-row"
+              style={{ height: `${ROW_HEIGHT}px` }}
             >
               <div style={{ width: GRAPH_WIDTH }} />
               <div
-                className="skeleton-shimmer skeleton-line"
-                style={{
-                  width: `${50 + (index % 3) * 15}%`,
-                  height: "12px",
-                  marginBottom: 0,
-                  flex: 1,
-                }}
+                className="skeleton-shimmer skeleton-line flush commit-skeleton-message"
+                style={{ width: `${50 + (index % 3) * 15}%` }}
               />
             </div>
           ))}
@@ -344,23 +327,9 @@ export function CommitList() {
   if (commits.length === 0 && !isLoading) {
     return (
       <div className="commit-list-empty">
-        <GitBranch
-          size={32}
-          className="text-tertiary"
-          style={{ marginBottom: "var(--space-3)" }}
-        />
-        <p style={{ fontWeight: 500, marginBottom: "var(--space-2)" }}>
-          No commits yet
-        </p>
-        <p
-          className="text-tertiary"
-          style={{
-            fontSize: "var(--font-size-sm)",
-            maxWidth: "280px",
-            textAlign: "center",
-            lineHeight: 1.5,
-          }}
-        >
+        <GitBranch size={32} className="text-tertiary commit-list-empty-icon" />
+        <p className="commit-list-empty-title">No commits yet</p>
+        <p className="text-tertiary commit-list-empty-text">
           This repository has no commits. Stage some files and create your first
           commit to get started.
         </p>
@@ -371,19 +340,8 @@ export function CommitList() {
   return (
     <div className="commit-list-container">
       {/* Controls */}
-      <div
-        className="commit-list-controls"
-        style={{
-          display: "flex",
-          gap: "var(--space-2)",
-          flexWrap: "wrap",
-          alignItems: "center",
-        }}
-      >
-        <div
-          className="commit-list-search-wrapper"
-          style={{ flex: 1, minWidth: "160px" }}
-        >
+      <div className="commit-list-controls wrap">
+        <div className="commit-list-search-wrapper commit-list-search-main">
           <Search size={13} className="commit-list-search-icon" />
           <input
             type="text"
@@ -395,7 +353,7 @@ export function CommitList() {
         </div>
 
         {/* Path Filter */}
-        <div className="commit-list-search-wrapper" style={{ width: "160px" }}>
+        <div className="commit-list-search-wrapper commit-list-search-path">
           <Filter size={12} className="commit-list-search-icon" />
           <input
             type="text"
@@ -409,10 +367,9 @@ export function CommitList() {
         {/* Topology Toggles */}
         <button
           type="button"
-          className={`hunk-btn ${firstParentOnly ? "hunk-btn-primary" : "hunk-btn-secondary"}`}
+          className={`hunk-btn ${firstParentOnly ? "hunk-btn-primary" : "hunk-btn-secondary"} commit-list-filter-btn`}
           onClick={() => setGraphFilters({ firstParentOnly: !firstParentOnly })}
           title="First Parent Only (--first-parent)"
-          style={{ height: "26px", fontSize: "11px" }}
         >
           <GitMerge size={12} />
           <span>First-Parent</span>
@@ -420,12 +377,11 @@ export function CommitList() {
 
         <button
           type="button"
-          className={`hunk-btn ${hideRemoteBranches ? "hunk-btn-primary" : "hunk-btn-secondary"}`}
+          className={`hunk-btn ${hideRemoteBranches ? "hunk-btn-primary" : "hunk-btn-secondary"} commit-list-filter-btn`}
           onClick={() =>
             setGraphFilters({ hideRemoteBranches: !hideRemoteBranches })
           }
           title="Hide Remote Branches"
-          style={{ height: "26px", fontSize: "11px" }}
         >
           <EyeOff size={12} />
           <span>Local Only</span>
@@ -433,10 +389,9 @@ export function CommitList() {
 
         <button
           type="button"
-          className="hunk-btn hunk-btn-secondary"
+          className="hunk-btn hunk-btn-secondary commit-list-filter-btn"
           onClick={() => setSweeperOpen(true)}
           title="Detect and prune merged branches"
-          style={{ height: "26px", fontSize: "11px" }}
         >
           <Trash2 size={12} />
           <span>Sweep Merged</span>
@@ -481,23 +436,9 @@ export function CommitList() {
             {flexRender(header.column.columnDef.header, header.getContext())}
             {header.column.getIsSorted() ? (
               header.column.getIsSorted() === "desc" ? (
-                <ChevronDown
-                  size={11}
-                  style={{
-                    marginLeft: "4px",
-                    color: "var(--accent-primary)",
-                    display: "inline-block",
-                  }}
-                />
+                <ChevronDown className="commit-list-sort-icon" size={11} />
               ) : (
-                <ChevronUp
-                  size={11}
-                  style={{
-                    marginLeft: "4px",
-                    color: "var(--accent-primary)",
-                    display: "inline-block",
-                  }}
-                />
+                <ChevronUp className="commit-list-sort-icon" size={11} />
               )
             ) : null}
             {/* Presentational drag grip: column widths are a pointer-only
@@ -530,15 +471,20 @@ export function CommitList() {
             position: "relative",
           }}
         >
-          {/* Graph canvas overlay */}
-          <CommitGraph
-            commits={commits}
-            rowHeight={ROW_HEIGHT}
-            graphWidth={GRAPH_WIDTH}
-            scrollOffset={virtualizer.scrollOffset ?? 0}
-            containerHeight={containerHeight}
-            maxLane={maxLane}
-          />
+          {/* Graph canvas overlay. Lanes describe the history in walk order,
+              row by row, so they only line up with an unsorted, unfiltered
+              list — with a sort or filter active the rows are reordered or
+              missing, and a drawn graph would connect the wrong commits. */}
+          {!isReordered && (
+            <CommitGraph
+              commits={commits}
+              rowHeight={ROW_HEIGHT}
+              graphWidth={GRAPH_WIDTH}
+              scrollOffset={virtualizer.scrollOffset ?? 0}
+              containerHeight={containerHeight}
+              maxLane={maxLane}
+            />
+          )}
 
           {/* Table rows */}
           {virtualizer.getVirtualItems().map((virtualRow) => {
@@ -554,8 +500,11 @@ export function CommitList() {
                     // It cannot be a <button>: rows contain links (autolinked
                     // issue references), and nesting those is invalid HTML.
                     // Arrow-key navigation is handled once at the window level.
+                    // The selected row is the list's one tab stop (a roving
+                    // tabindex): every row used to be -1, so Tab skipped the
+                    // commit list entirely.
                     role="button"
-                    tabIndex={-1}
+                    tabIndex={isSelected ? 0 : -1}
                     aria-pressed={isSelected}
                     className={`commit-row ${isSelected ? "selected" : ""}`}
                     style={{

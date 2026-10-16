@@ -4,7 +4,11 @@ use git2::Repository;
 use std::path::Path;
 
 #[tauri::command]
-pub async fn merge_branch(path: String, branch_name: String) -> Result<String, AppError> {
+pub async fn merge_branch(
+    path: String,
+    branch_name: String,
+) -> Result<crate::git::helpers::MergeOutcome, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
 
@@ -23,6 +27,7 @@ pub async fn merge_branch(path: String, branch_name: String) -> Result<String, A
 
 #[tauri::command]
 pub async fn abort_merge(path: String) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
 
@@ -44,6 +49,7 @@ pub async fn abort_merge(path: String) -> Result<(), AppError> {
 
 #[tauri::command]
 pub async fn get_conflicts(path: String) -> Result<Vec<String>, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
         let index = repo.index()?;
@@ -74,12 +80,24 @@ pub async fn get_conflicts(path: String) -> Result<Vec<String>, AppError> {
 
 #[tauri::command]
 pub async fn resolve_conflict(path: String, file_path: String) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
+        let workdir = repo
+            .workdir()
+            .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
+        let full_path = crate::git::utils::validate_path(workdir, Path::new(&file_path))?;
         let mut index = repo.index()?;
 
-        // Adding resolved file to index clears conflict in git
-        index.add_path(Path::new(&file_path))?;
+        // Staging the working-tree state clears the conflict, as `git add`
+        // does. A file the user deleted resolves the conflict as a deletion:
+        // `add_path` would fail on it, so remove the path instead, as `git rm`
+        // does. `symlink_metadata` so a dangling symlink still counts as present.
+        if std::fs::symlink_metadata(&full_path).is_ok() {
+            index.add_path(Path::new(&file_path))?;
+        } else {
+            index.remove_path(Path::new(&file_path))?;
+        }
         index.write()?;
         Ok(())
     })

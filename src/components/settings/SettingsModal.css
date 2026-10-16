@@ -125,7 +125,7 @@
 
 .settings-section-title {
   font-family: var(--font-family);
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
   font-weight: var(--weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -277,7 +277,7 @@
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
   font-family: var(--font-family);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -331,7 +331,7 @@
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
-  font-size: 9px;
+  font-size: var(--font-size-3xs);
   font-family: var(--font-mono);
   color: var(--text-secondary);
   box-shadow: var(--shadow-sm);
@@ -438,4 +438,44 @@
   margin-top: var(--space-2);
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
+}
+
+/* ── Formerly inline styles ──
+   Same values, scoped under the dialog so they keep outranking the classes
+   these elements also carry, as the inline styles did. */
+.settings-modal .settings-section-spaced {
+  margin-top: var(--space-5);
+}
+
+.settings-modal .settings-hint-small {
+  font-size: var(--font-size-2xs);
+  color: var(--text-tertiary);
+  margin-top: var(--space-1);
+  display: block;
+}
+
+.settings-modal .settings-hint-block {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  display: block;
+  margin-bottom: var(--space-4);
+}
+
+.settings-modal .settings-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.settings-modal .settings-toggle-row.tight {
+  margin-bottom: 0;
+}
+
+.settings-modal .settings-toggle-label {
+  cursor: pointer;
+}
+
+.settings-modal .settings-toggle-label.strong {
+  font-weight: var(--weight-medium);
 }

@@ -268,3 +268,16 @@
   opacity: 0.3;
   cursor: not-allowed;
 }
+
+/* Inline message editing for reword/squash rows. */
+.rebase-inline-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rebase-inline-input {
+  flex: 1;
+  height: 24px;
+  font-size: var(--font-size-sm);
+}

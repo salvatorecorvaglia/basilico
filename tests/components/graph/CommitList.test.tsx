@@ -113,4 +113,24 @@ describe("CommitList", () => {
       expect(invokeMock.mock.calls.some((c) => c[0] === "get_log")).toBe(true);
     });
   });
+
+  // B7: the canvas is drawn from the unsorted, unfiltered `commits` while the
+  // rows come from the filtered/sorted table, so once a filter is active the
+  // lanes no longer line up with the rows they describe.
+  it("hides the graph while the commit filter is active", async () => {
+    const { container } = render(<CommitList />);
+    await waitFor(() => {
+      expect(screen.getByText("commit a")).toBeInTheDocument();
+    });
+    expect(container.querySelector(".commit-graph-canvas")).not.toBeNull();
+
+    fireEvent.change(screen.getByPlaceholderText("Search commits..."), {
+      target: { value: "commit b" },
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("commit a")).not.toBeInTheDocument();
+    });
+    expect(container.querySelector(".commit-graph-canvas")).toBeNull();
+  });
 });

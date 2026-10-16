@@ -1,7 +1,7 @@
 import type { StateCreator } from "zustand";
 import type { ConflictStages, FileDiff, StashInfo } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
-import { setLoading, withLoading } from "../store-helpers";
+import { setLoading, withActiveRepo, withLoading } from "../store-helpers";
 import type { RepoState } from "../types";
 
 export interface StagingSlice {
@@ -102,15 +102,12 @@ export const createStagingSlice: StateCreator<
   },
 
   stageFiles: async (files) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "staging",
       "Failed to stage files",
-      async () => {
+      async (activeTabId) => {
         await commands.stageFiles(activeTabId, files, {
           errorPrefix: "Failed to stage files",
         });
@@ -127,15 +124,12 @@ export const createStagingSlice: StateCreator<
   },
 
   unstageFiles: async (files) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "staging",
       "Failed to unstage files",
-      async () => {
+      async (activeTabId) => {
         await commands.unstageFiles(activeTabId, files, {
           errorPrefix: "Failed to unstage files",
         });
@@ -152,15 +146,12 @@ export const createStagingSlice: StateCreator<
   },
 
   discardChanges: async (files) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "staging",
       "Failed to discard changes",
-      async () => {
+      async (activeTabId) => {
         await commands.discardChanges(activeTabId, files, {
           errorPrefix: "Failed to discard changes",
         });
@@ -178,15 +169,12 @@ export const createStagingSlice: StateCreator<
   },
 
   applyPatch: async (patch, location) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "staging",
       "Failed to apply patch",
-      async () => {
+      async (activeTabId) => {
         await commands.applyPatch(activeTabId, patch, location, {
           errorPrefix: "Failed to apply patch",
         });
@@ -237,29 +225,29 @@ export const createStagingSlice: StateCreator<
   },
 
   saveStash: async (message, includeUntracked) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(get, set, "stashes", "Failed to save stash", async () => {
-      await commands.saveStash(activeTabId, message, includeUntracked, {
-        errorPrefix: "Failed to save stash",
-      });
-      // Targeted refresh: commits + status after stash save
-      await get().refreshCommitsAndStatus();
-      await get().loadStashes();
-    });
+    await withActiveRepo(
+      get,
+      set,
+      "stashes",
+      "Failed to save stash",
+      async (activeTabId) => {
+        await commands.saveStash(activeTabId, message, includeUntracked, {
+          errorPrefix: "Failed to save stash",
+        });
+        // Targeted refresh: commits + status after stash save
+        await get().refreshCommitsAndStatus();
+        await get().loadStashes();
+      },
+    );
   },
 
   applyStash: async (index) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "stashes",
       "Failed to apply stash",
-      async () => {
+      async (activeTabId) => {
         await commands.applyStash(activeTabId, index, stashOidAt(get, index), {
           errorPrefix: "Failed to apply stash",
         });
@@ -271,31 +259,37 @@ export const createStagingSlice: StateCreator<
   },
 
   popStash: async (index) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(get, set, "stashes", "Failed to pop stash", async () => {
-      await commands.popStash(activeTabId, index, stashOidAt(get, index), {
-        errorPrefix: "Failed to pop stash",
-      });
-      // Targeted refresh: commits + status after stash pop
-      await get().refreshCommitsAndStatus();
-      await get().loadStashes();
-    });
+    await withActiveRepo(
+      get,
+      set,
+      "stashes",
+      "Failed to pop stash",
+      async (activeTabId) => {
+        await commands.popStash(activeTabId, index, stashOidAt(get, index), {
+          errorPrefix: "Failed to pop stash",
+        });
+        // Targeted refresh: commits + status after stash pop
+        await get().refreshCommitsAndStatus();
+        await get().loadStashes();
+      },
+    );
   },
 
   dropStash: async (index) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(get, set, "stashes", "Failed to drop stash", async () => {
-      await commands.dropStash(activeTabId, index, stashOidAt(get, index), {
-        errorPrefix: "Failed to drop stash",
-      });
-      // Targeted refresh: commits + status after stash drop
-      await get().refreshCommitsAndStatus();
-      await get().loadStashes();
-    });
+    await withActiveRepo(
+      get,
+      set,
+      "stashes",
+      "Failed to drop stash",
+      async (activeTabId) => {
+        await commands.dropStash(activeTabId, index, stashOidAt(get, index), {
+          errorPrefix: "Failed to drop stash",
+        });
+        // Targeted refresh: commits + status after stash drop
+        await get().refreshCommitsAndStatus();
+        await get().loadStashes();
+      },
+    );
   },
 
   loadStashDetail: async (index) => {
@@ -381,7 +375,8 @@ export const createStagingSlice: StateCreator<
           errorPrefix: "Failed to pop stash",
         });
 
-        await get().refreshAll();
+        // A new branch is checked out and the stash is popped.
+        await get().refresh(["refs", "log", "repoInfo", "stashes"]);
       },
     );
   },
@@ -415,15 +410,12 @@ export const createStagingSlice: StateCreator<
   },
 
   resolveConflictStages: async (filePath: string, mergedContent: string) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "staging",
       "Failed to resolve conflict",
-      async () => {
+      async (activeTabId) => {
         await commands.saveMergedResolution(
           activeTabId,
           filePath,
@@ -440,21 +432,17 @@ export const createStagingSlice: StateCreator<
     filePath: string,
     side: "ours" | "theirs",
   ) => {
-    const { activeTabId } = get();
-    if (!activeTabId) return;
-
-    await withLoading(
+    await withActiveRepo(
       get,
       set,
       "staging",
       `Failed to resolve conflict using ${side}`,
-      async () => {
-        const stages = await commands.getConflictStages(activeTabId, filePath, {
-          silent: true,
-        });
-        const content =
-          side === "ours" ? (stages.ours ?? "") : (stages.theirs ?? "");
-        await commands.saveMergedResolution(activeTabId, filePath, content, {
+      async (activeTabId) => {
+        // Resolved in the backend rather than by round-tripping the stage
+        // through the renderer: the text path decoded blobs as UTF-8, which
+        // corrupted binary files, and wrote an empty file when the chosen
+        // side had deleted it.
+        await commands.resolveConflictSide(activeTabId, filePath, side, {
           errorPrefix: `Failed to resolve conflict using ${side}`,
         });
         set({ conflictStages: null, activeConflictedPath: null });

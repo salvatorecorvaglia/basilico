@@ -72,6 +72,23 @@
   transition: all var(--transition-fast);
 }
 
+/* CI result colour: green on success, red on failure, blue while running. */
+.statusbar-ci {
+  color: var(--color-info);
+}
+
+.statusbar-ci--success {
+  color: var(--accent-primary);
+}
+
+.statusbar-ci--failure {
+  color: var(--color-danger);
+}
+
+.statusbar-btn.no-link {
+  cursor: default;
+}
+
 .statusbar-btn:hover {
   background: var(--bg-hover);
   color: var(--text-primary);

@@ -107,22 +107,9 @@ export function BlameView() {
         </div>
         <button
           type="button"
-          className="blame-btn-editor"
+          className="btn btn-secondary btn-sm blame-btn-editor"
           onClick={() => handleOpenInIde()}
           title={`Open file in ${settings?.externalEditor || "code"}`}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "4px",
-            padding: "4px 8px",
-            fontSize: "12px",
-            background: "var(--bg-tertiary)",
-            border: "1px solid var(--border-color)",
-            borderRadius: "var(--radius-sm)",
-            color: "var(--text-primary)",
-            cursor: "pointer",
-            marginRight: "8px",
-          }}
         >
           <ExternalLink size={12} />
           <span>Open in {settings?.externalEditor || "Code"}</span>
@@ -193,11 +180,6 @@ export function BlameView() {
                     className="blame-line-number text-tertiary"
                     onClick={() => handleOpenInIde(line.lineNo)}
                     title={`Open line ${line.lineNo} in external editor`}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                    }}
                   >
                     {line.lineNo}
                   </button>

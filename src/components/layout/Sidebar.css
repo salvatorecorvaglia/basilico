@@ -29,7 +29,7 @@
   background: transparent;
   color: var(--text-secondary);
   font-family: var(--font-family);
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
   font-weight: var(--weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -61,7 +61,7 @@
 }
 
 .sidebar-section-count {
-  font-size: 9px;
+  font-size: var(--font-size-3xs);
   color: var(--text-secondary);
   font-weight: var(--weight-semibold);
   background: var(--bg-hover);
@@ -167,11 +167,11 @@
 .sidebar-item-name {
   flex: 1;
   min-width: 0;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 .sidebar-badge {
-  font-size: 8px;
+  font-size: var(--font-size-4xs);
   font-weight: var(--weight-bold);
   padding: 1px var(--space-1);
   border-radius: var(--radius-xs);
@@ -194,7 +194,7 @@
 .sidebar-sync {
   display: flex;
   gap: var(--space-1);
-  font-size: 9px;
+  font-size: var(--font-size-3xs);
   font-family: var(--font-mono);
   flex-shrink: 0;
 }
@@ -219,13 +219,13 @@
   gap: var(--space-2);
   padding: var(--space-1) var(--space-3);
   padding-left: var(--space-6);
-  font-size: 10px;
+  font-size: var(--font-size-2xs);
   font-weight: var(--weight-semibold);
   color: var(--text-tertiary);
 }
 
 .sidebar-remote-url {
-  font-size: 9px;
+  font-size: var(--font-size-3xs);
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -309,4 +309,22 @@
 .context-menu-item.danger:hover svg,
 .context-menu-item.danger:focus svg {
   color: var(--color-danger);
+}
+
+/* ── Loading skeleton ── */
+.sidebar-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-4);
+}
+
+.sidebar-skeleton-heading {
+  width: 60%;
+  height: 14px;
+}
+
+.sidebar-skeleton-item {
+  gap: var(--space-3);
+  padding-left: var(--space-2);
 }

@@ -16,6 +16,7 @@ use basilico_lib::commands::staging::*;
 use basilico_lib::commands::tag::*;
 use basilico_lib::commands::worktree::*;
 use basilico_lib::error::AppError;
+use basilico_lib::git::helpers::MergeOutcome;
 use basilico_lib::test_utils::TempRepo;
 
 #[tokio::test]
@@ -149,6 +150,26 @@ async fn test_list_merged_branches() {
     assert_eq!(merged[0].name, "merged-feature");
 }
 
+/// Only a real remote prefix makes a branch "the same" as a protected one:
+/// `feature/main` is an ordinary topic branch and can be swept.
+#[tokio::test]
+async fn test_list_merged_branches_offers_topic_branch_named_like_main() {
+    let repo = TempRepo::new();
+    repo.write_file("test.txt", "hello");
+    repo.commit("initial commit");
+
+    let path = repo.path_str().to_string();
+    create_branch(path.clone(), "feature/main".to_string(), None)
+        .await
+        .unwrap();
+    repo.write_file("test.txt", "hello world");
+    repo.commit("second commit");
+
+    let merged = list_merged_branches(path, None).await.unwrap();
+    let names: Vec<_> = merged.iter().map(|b| b.name.as_str()).collect();
+    assert_eq!(names, vec!["feature/main"]);
+}
+
 #[tokio::test]
 async fn test_create_commit_and_amend() {
     let repo = TempRepo::new();
@@ -235,7 +256,7 @@ async fn test_get_commit_tree() {
 
     let head_oid = repo.repo.head().unwrap().target().unwrap();
 
-    let entries = get_commit_tree(repo.path_str().to_string(), head_oid.to_string())
+    let entries = get_commit_tree(repo.path_str().to_string(), head_oid.to_string(), None)
         .await
         .unwrap();
 
@@ -452,12 +473,67 @@ fn test_user_settings_round_trips_through_json() {
     let json = serde_json::to_string(&original).unwrap();
     let parsed: UserSettings = serde_json::from_str(&json).unwrap();
 
-    assert_eq!(parsed.github_pat, original.github_pat);
+    // The token lives in the OS credential store: serializing settings —
+    // to `settings.json`, or to the UI — must never include it.
+    assert!(
+        !json.contains("ghp_test"),
+        "the GitHub token must never be serialized: {json}"
+    );
+    assert_eq!(parsed.github_pat, None);
     assert_eq!(
         parsed.check_github_ci_status,
         original.check_github_ci_status
     );
     assert_eq!(parsed.theme, original.theme);
+}
+
+/// A token in a `settings.json` written by an earlier version is still read,
+/// so it can be migrated into the credential store.
+#[test]
+fn test_user_settings_still_reads_a_legacy_plaintext_token() {
+    use basilico_lib::commands::settings::UserSettings;
+
+    let legacy_json = r#"{
+        "theme": "sage-green",
+        "sshKeyPath": null,
+        "gitAuthorName": null,
+        "gitAuthorEmail": null,
+        "keyboardShortcuts": {},
+        "githubPat": "ghp_legacy"
+    }"#;
+    let parsed: UserSettings = serde_json::from_str(legacy_json).unwrap();
+    assert_eq!(parsed.github_pat.as_deref(), Some("ghp_legacy"));
+}
+
+#[test]
+fn test_github_token_is_stored_and_cleared_in_the_secret_store() {
+    use basilico_lib::secrets;
+
+    secrets::use_in_memory_store();
+    secrets::set_github_pat("  ghp_secret  ").unwrap();
+    assert_eq!(
+        secrets::github_pat().unwrap().as_deref(),
+        Some("ghp_secret")
+    );
+
+    // An empty token removes the stored one.
+    secrets::set_github_pat("").unwrap();
+    assert_eq!(secrets::github_pat().unwrap(), None);
+}
+
+/// The GitHub token is offered for HTTPS git auth to github.com only.
+#[test]
+fn test_github_token_is_only_offered_to_github_https_urls() {
+    use basilico_lib::git::credentials::is_github_https_url;
+
+    assert!(is_github_https_url("https://github.com/o/r.git"));
+    assert!(is_github_https_url("https://user@GitHub.com/o/r"));
+
+    assert!(!is_github_https_url("https://github.com.evil.com/o/r"));
+    assert!(!is_github_https_url("https://gitlab.com/o/r"));
+    assert!(!is_github_https_url("http://github.com/o/r"));
+    assert!(!is_github_https_url("git@github.com:o/r.git"));
+    assert!(!is_github_https_url("https://evil.com/github.com/o/r"));
 }
 
 /// A `settings.json` written before a field like `check_github_ci_status`
@@ -512,6 +588,29 @@ fn test_write_private_file_sets_0600_permissions() {
     std::fs::remove_file(&path).ok();
 }
 
+/// The settings file is replaced atomically: the new content lands in full,
+/// and no temporary file is left behind next to it.
+#[test]
+fn test_write_private_file_replaces_atomically_without_leftovers() {
+    use basilico_lib::commands::settings::write_private_file;
+
+    let dir = std::env::temp_dir().join(format!("basilico-atomic-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("settings.json");
+
+    write_private_file(&path, "first").unwrap();
+    write_private_file(&path, "second").unwrap();
+
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "second");
+    let entries: Vec<_> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(entries, vec!["settings.json".to_string()]);
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
 #[tokio::test]
 async fn test_get_repo_health() {
     let repo = TempRepo::new();
@@ -522,6 +621,12 @@ async fn test_get_repo_health() {
 
     assert!(report.total_size_bytes > 0);
     assert!(report.git_size_bytes > 0);
+    assert!(!report.has_commit_graph);
+
+    basilico_lib::commands::run_git_cmd(&["commit-graph", "write", "--reachable"], repo.path_str())
+        .unwrap();
+    let report = get_repo_health(repo.path_str().to_string()).await.unwrap();
+    assert!(report.has_commit_graph);
 }
 
 #[tokio::test]
@@ -576,7 +681,7 @@ async fn test_merge_branch_fast_forward() {
     let result = merge_branch(repo.path_str().to_string(), "branch1".to_string())
         .await
         .unwrap();
-    assert_eq!(result, "success");
+    assert_eq!(result, MergeOutcome::Success);
 
     let main_head = repo.repo.head().unwrap().peel_to_commit().unwrap();
     assert_eq!(main_head.message().unwrap(), "commit 2");
@@ -608,7 +713,7 @@ async fn test_merge_branch_merge_commit() {
     let result = merge_branch(repo.path_str().to_string(), "branch1".to_string())
         .await
         .unwrap();
-    assert_eq!(result, "success");
+    assert_eq!(result, MergeOutcome::Success);
 
     let head_commit = repo.repo.head().unwrap().peel_to_commit().unwrap();
     assert_eq!(head_commit.parent_count(), 2);
@@ -641,7 +746,7 @@ async fn test_merge_branch_conflicts_and_abort() {
     let result = merge_branch(repo.path_str().to_string(), "branch1".to_string())
         .await
         .unwrap();
-    assert_eq!(result, "conflicts");
+    assert_eq!(result, MergeOutcome::Conflicts);
 
     let conflicts = get_conflicts(repo.path_str().to_string()).await.unwrap();
     assert_eq!(conflicts.len(), 1);
@@ -774,7 +879,7 @@ async fn test_rebase_start_applies_plan_in_order() {
         .await
         .unwrap();
 
-    assert_eq!(status.status, "finished");
+    assert_eq!(status.status, RebasePhase::Finished);
 
     let messages = commit_messages(&repo);
     assert_eq!(messages, vec!["commit 2", "commit 3", "initial"]);
@@ -793,7 +898,7 @@ async fn test_rebase_start_drop_removes_commit() {
     let status = rebase_start(repo.path_str().to_string(), base_oid.to_string(), todos)
         .await
         .unwrap();
-    assert_eq!(status.status, "finished");
+    assert_eq!(status.status, RebasePhase::Finished);
 
     let messages = commit_messages(&repo);
     assert_eq!(messages, vec!["commit 3", "initial"]);
@@ -831,7 +936,7 @@ async fn test_rebase_start_fixup_melds_without_editor() {
     let status = rebase_start(repo.path_str().to_string(), base_oid.to_string(), todos)
         .await
         .unwrap();
-    assert_eq!(status.status, "finished");
+    assert_eq!(status.status, RebasePhase::Finished);
 
     let head_commit = repo.repo.head().unwrap().peel_to_commit().unwrap();
     assert_eq!(head_commit.parent_count(), 1);
@@ -857,7 +962,7 @@ async fn test_rebase_start_squash_uses_edited_message() {
     let status = rebase_start(repo.path_str().to_string(), base_oid.to_string(), todos)
         .await
         .unwrap();
-    assert_eq!(status.status, "finished");
+    assert_eq!(status.status, RebasePhase::Finished);
 
     let head_commit = repo.repo.head().unwrap().peel_to_commit().unwrap();
     assert_eq!(head_commit.parent_count(), 1);
@@ -887,7 +992,7 @@ async fn test_rebase_reword_message_survives_shell_metacharacters() {
     let status = rebase_start(repo.path_str().to_string(), base_oid.to_string(), todos)
         .await
         .unwrap();
-    assert_eq!(status.status, "finished");
+    assert_eq!(status.status, RebasePhase::Finished);
 
     let messages = commit_messages(&repo);
     assert!(
@@ -938,7 +1043,8 @@ async fn test_rebase_conflict_then_abort_restores_original_head() {
         .unwrap();
 
     assert_eq!(
-        status.status, "conflict",
+        status.status,
+        RebasePhase::Conflict,
         "expected the rebase to stop on a conflict, got {:?}",
         status
     );
@@ -1189,6 +1295,8 @@ async fn test_pre_commit_hook_discovery_in_worktree() {
 
     // Attempt to create commit in worktree with failing pre-commit hook
     std::fs::write(wt_dir.join("main.txt"), "modified in wt").unwrap();
+    // The app opens a worktree in its own tab before acting on it.
+    basilico_lib::state::register_open_repo(&wt_dir.to_string_lossy());
 
     let result = create_commit(
         wt_dir.to_string_lossy().to_string(),
@@ -1817,15 +1925,53 @@ async fn test_workdir_reads_and_writes_refuse_symlinked_paths() {
     std::fs::write(&secret, "TOP SECRET").unwrap();
     std::os::unix::fs::symlink(&secret, repo.path.join("leak.txt")).unwrap();
 
-    // `FileContentPair` is not `Debug`, so match rather than `expect_err`.
-    match get_file_content_pair(repo.path_str().to_string(), "leak.txt".to_string(), false).await {
-        Ok(_) => panic!("reading through a symlink must be refused"),
+    // A symlink is diffed as git records it — its target path — and never
+    // followed: the secret's content must not come back.
+    // `FileContentPair` is not `Debug`, so match rather than `expect`.
+    match get_file_content_pair(
+        repo.path_str().to_string(),
+        "leak.txt".to_string(),
+        false,
+        None,
+    )
+    .await
+    {
+        Ok(pair) => {
+            assert!(
+                !pair.modified.contains("TOP SECRET"),
+                "the symlink was followed and its target's content leaked"
+            );
+            assert_eq!(pair.modified, secret.to_string_lossy());
+        }
+        Err(err) => panic!("diffing a symlink should show its target: {}", err.message),
+    }
+
+    // A symlinked *parent* still redirects outside the repository, so reading
+    // through one stays refused.
+    let outside_dir = repo
+        .path
+        .parent()
+        .unwrap()
+        .join(format!("basilico-outside-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&outside_dir).unwrap();
+    std::fs::write(outside_dir.join("secret.txt"), "TOP SECRET").unwrap();
+    std::os::unix::fs::symlink(&outside_dir, repo.path.join("linkdir")).unwrap();
+    match get_file_content_pair(
+        repo.path_str().to_string(),
+        "linkdir/secret.txt".to_string(),
+        false,
+        None,
+    )
+    .await
+    {
+        Ok(_) => panic!("reading through a symlinked directory must be refused"),
         Err(err) => assert!(
             err.message.contains("symbolic link"),
             "got: {}",
             err.message
         ),
     }
+    std::fs::remove_dir_all(&outside_dir).ok();
 
     let err = save_merged_resolution(
         repo.path_str().to_string(),
@@ -2103,7 +2249,7 @@ async fn test_cherry_pick_commit_applies_cleanly() {
     let result = cherry_pick_commit(repo.path_str().to_string(), feature_oid.to_string())
         .await
         .unwrap();
-    assert_eq!(result, "success");
+    assert_eq!(result, MergeOutcome::Success);
     assert_eq!(
         std::fs::read_to_string(repo.path.join("other.txt")).unwrap(),
         "from feature"
@@ -2138,7 +2284,7 @@ async fn test_cherry_pick_commit_conflicts_and_abort() {
     let result = cherry_pick_commit(repo.path_str().to_string(), feature_oid.to_string())
         .await
         .unwrap();
-    assert_eq!(result, "conflicts");
+    assert_eq!(result, MergeOutcome::Conflicts);
 
     cherry_pick_abort(repo.path_str().to_string())
         .await
@@ -2163,7 +2309,7 @@ async fn test_revert_commit_applies_cleanly() {
     let result = revert_commit(repo.path_str().to_string(), to_revert.to_string())
         .await
         .unwrap();
-    assert_eq!(result, "success");
+    assert_eq!(result, MergeOutcome::Success);
     assert_eq!(
         std::fs::read_to_string(repo.path.join("test.txt")).unwrap(),
         "base"
@@ -2187,7 +2333,7 @@ async fn test_revert_commit_conflicts_and_abort() {
     let result = revert_commit(repo.path_str().to_string(), to_revert.to_string())
         .await
         .unwrap();
-    assert_eq!(result, "conflicts");
+    assert_eq!(result, MergeOutcome::Conflicts);
 
     revert_abort(repo.path_str().to_string()).await.unwrap();
 
@@ -2321,10 +2467,11 @@ async fn test_pull_fast_forwards_local_branch() {
         repo.path_str().to_string(),
         "origin".to_string(),
         branch,
+        None,
     )
     .await
     .unwrap();
-    assert_eq!(result, "success");
+    assert_eq!(result, MergeOutcome::Success);
 
     let local_head = repo.repo.head().unwrap().peel_to_commit().unwrap();
     assert_eq!(local_head.message().unwrap(), "remote commit 2");
@@ -2395,10 +2542,11 @@ async fn test_pull_reports_conflicts_and_leaves_them_resolvable() {
         repo.path_str().to_string(),
         "origin".to_string(),
         branch,
+        None,
     )
     .await
     .unwrap();
-    assert_eq!(result, "conflicts");
+    assert_eq!(result, MergeOutcome::Conflicts);
 
     let conflicts = get_conflicts(repo.path_str().to_string()).await.unwrap();
     assert_eq!(conflicts, vec!["test.txt".to_string()]);
@@ -2577,6 +2725,27 @@ async fn test_search_commits_merges_message_and_author_matches_without_duplicate
     assert_eq!(all.len(), 3);
 }
 
+/// B14: the query is literal text. Passed to `--grep`/`--author` as a regex,
+/// `fix(` made git fail with "Unmatched ( or \(" instead of finding commits.
+#[tokio::test]
+async fn test_search_commits_treats_the_query_as_literal_text() {
+    use basilico_lib::commands::search::search_commits;
+
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "one");
+    repo.commit("fix(parser): handle [WIP] markers");
+    repo.write_file("a.txt", "two");
+    repo.commit("fixparser without the parenthesis");
+
+    for query in ["fix(", "[WIP", "fix(parser)"] {
+        let results = search_commits(repo.path_str().to_string(), query.to_string())
+            .await
+            .unwrap_or_else(|e| panic!("query {:?} failed: {}", query, e.message));
+        assert_eq!(results.len(), 1, "query {:?}", query);
+        assert!(results[0].message.starts_with("fix(parser)"));
+    }
+}
+
 /// `get_repo_health` used to hardcode `<repo>/.git`. In a linked worktree that
 /// path is a *file*, so every measurement came back as zero and the Doctor
 /// panel reported a perfectly healthy, empty repository.
@@ -2600,6 +2769,8 @@ async fn test_repo_health_measures_a_linked_worktree() {
     .await
     .expect("worktree should be created");
 
+    // The app opens a worktree in its own tab before acting on it.
+    basilico_lib::state::register_open_repo(&worktree_path.to_string_lossy());
     let report = get_repo_health(worktree_path.to_string_lossy().to_string())
         .await
         .expect("health report for a linked worktree");
@@ -2626,7 +2797,7 @@ async fn test_commit_tree_reports_blob_sizes() {
     repo.commit("with files");
 
     let head = repo.repo.head().unwrap().target().unwrap().to_string();
-    let entries = get_commit_tree(repo.path_str().to_string(), head)
+    let entries = get_commit_tree(repo.path_str().to_string(), head, None)
         .await
         .expect("commit tree");
 
@@ -2757,4 +2928,1298 @@ async fn test_force_push_rejects_a_non_oid_lease_without_panicking() {
             err.message
         );
     }
+}
+
+// ── Phase 0 regression tests ──────────────────────────────────────────────
+//
+// Each test below reproduces a bug from the audit and is `#[ignore]`d until
+// the phase that fixes it, so CI stays green while the failure stays on
+// record. Run them with `cargo test -- --ignored`.
+
+/// B1: the lease must be checked against the *remote*, not against the local
+/// remote-tracking ref the expected tip was read from in the first place.
+///
+/// Another clone pushes after our last fetch. Our tracking ref still holds the
+/// old tip, so the UI sends that old tip as the lease — and a lease that only
+/// compares against the same local ref always matches, letting the force push
+/// overwrite the other clone's commit.
+#[tokio::test]
+async fn test_force_push_refuses_when_someone_else_pushed_since_last_fetch() {
+    use basilico_lib::commands::remote::push;
+
+    let repo = TempRepo::new();
+    repo.write_file("f.txt", "one");
+    repo.commit("one");
+    let branch = repo.repo.head().unwrap().shorthand().unwrap().to_string();
+
+    let scratch = repo.path.parent().unwrap().to_path_buf();
+    let remote_path = scratch.join(format!("lease-shared-{}.git", uuid::Uuid::new_v4()));
+    git2::Repository::init_bare(&remote_path).unwrap();
+    repo.repo
+        .remote("origin", remote_path.to_str().unwrap())
+        .unwrap();
+
+    let app = tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap()
+        .handle()
+        .clone();
+
+    push(
+        app.clone(),
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch.clone(),
+        false,
+        None,
+    )
+    .await
+    .expect("initial push should succeed");
+
+    // What our UI believes the remote tip is, and will send as the lease.
+    let stale_tip = repo
+        .repo
+        .find_reference(&format!("refs/remotes/origin/{}", branch))
+        .unwrap()
+        .target()
+        .unwrap();
+
+    // Someone else pushes on top of it from their own clone.
+    let other_path = scratch.join(format!("lease-other-{}", uuid::Uuid::new_v4()));
+    let other = git2::Repository::clone(remote_path.to_str().unwrap(), &other_path).unwrap();
+    let base = other
+        .find_reference(&format!("refs/remotes/origin/{}", branch))
+        .unwrap()
+        .peel_to_commit()
+        .unwrap();
+    let sig = git2::Signature::now("Other", "other@example.com").unwrap();
+    let theirs = other
+        .commit(
+            None,
+            &sig,
+            &sig,
+            "someone else's work",
+            &base.tree().unwrap(),
+            &[&base],
+        )
+        .unwrap();
+    other
+        .reference(&format!("refs/heads/{}", branch), theirs, true, "test")
+        .unwrap();
+    other
+        .find_remote("origin")
+        .unwrap()
+        .push(&[format!("refs/heads/{0}:refs/heads/{0}", branch)], None)
+        .unwrap();
+
+    // We rewrite our own history without fetching, then force push.
+    repo.write_file("f.txt", "rewritten");
+    repo.commit("rewrite");
+    let result = push(
+        app,
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch.clone(),
+        true,
+        Some(stale_tip.to_string()),
+    )
+    .await;
+
+    let remote_tip = git2::Repository::open_bare(&remote_path)
+        .unwrap()
+        .find_reference(&format!("refs/heads/{}", branch))
+        .unwrap()
+        .target()
+        .unwrap();
+
+    std::fs::remove_dir_all(&remote_path).ok();
+    std::fs::remove_dir_all(&other_path).ok();
+
+    let err = result.expect_err("the force push must be refused: the remote moved");
+    assert!(
+        err.message.contains("Refusing to force push"),
+        "got: {}",
+        err.message
+    );
+    assert_eq!(remote_tip, theirs, "the other clone's commit must survive");
+}
+
+/// B3: a conflicted path has no stage-0 index entry, so `discard_changes`
+/// classified it as untracked and deleted it from disk.
+#[tokio::test]
+async fn test_discard_on_conflicted_file_does_not_delete_it() {
+    let repo = TempRepo::new();
+    repo.write_file("test.txt", "initial content");
+    repo.commit("initial commit");
+    let main_branch = repo.repo.head().unwrap().shorthand().unwrap().to_string();
+
+    create_branch(repo.path_str().to_string(), "other".to_string(), None)
+        .await
+        .unwrap();
+    checkout_branch(repo.path_str().to_string(), "other".to_string())
+        .await
+        .unwrap();
+    repo.write_file("test.txt", "their content");
+    repo.commit("theirs");
+
+    checkout_branch(repo.path_str().to_string(), main_branch)
+        .await
+        .unwrap();
+    repo.write_file("test.txt", "our content");
+    repo.commit("ours");
+
+    let result = merge_branch(repo.path_str().to_string(), "other".to_string())
+        .await
+        .unwrap();
+    assert_eq!(result, MergeOutcome::Conflicts);
+
+    let err = discard_changes(repo.path_str().to_string(), vec!["test.txt".to_string()])
+        .await
+        .expect_err("discarding a conflicted file must be refused");
+    assert!(
+        err.message.contains("cannot be discarded"),
+        "got: {}",
+        err.message
+    );
+
+    assert!(
+        repo.path.join("test.txt").exists(),
+        "discarding a conflicted file must never delete it"
+    );
+}
+
+/// B4: reword wrote only the edited summary line as the whole message, so the
+/// commit body was silently lost.
+#[tokio::test]
+async fn test_rebase_reword_keeps_commit_body() {
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "a");
+    repo.commit("initial");
+    let base_oid = repo.repo.head().unwrap().target().unwrap();
+
+    repo.write_file("b.txt", "b");
+    repo.commit("old subject\n\nA body paragraph that explains why.\n");
+
+    let mut todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
+        .await
+        .unwrap();
+    assert_eq!(todos.len(), 1);
+    todos[0].action = "reword".to_string();
+    todos[0].summary = "new subject".to_string();
+
+    let status = rebase_start(repo.path_str().to_string(), base_oid.to_string(), todos)
+        .await
+        .unwrap();
+    assert_eq!(status.status, RebasePhase::Finished);
+
+    let head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    let message = head.message().unwrap();
+    assert!(message.starts_with("new subject"), "got: {:?}", message);
+    assert!(
+        message.contains("A body paragraph that explains why."),
+        "the body must survive a reword, got: {:?}",
+        message
+    );
+}
+
+/// B4: an unedited squash combines both messages, bodies included, the way
+/// `git rebase -i` does by default — it used to keep only one subject line.
+#[tokio::test]
+async fn test_rebase_squash_without_edit_keeps_both_messages() {
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "a");
+    repo.commit("initial");
+    let base_oid = repo.repo.head().unwrap().target().unwrap();
+
+    repo.write_file("b.txt", "b");
+    repo.commit("first subject\n\nfirst body\n");
+    repo.write_file("c.txt", "c");
+    repo.commit("second subject\n\nsecond body\n");
+
+    let mut todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
+        .await
+        .unwrap();
+    todos[1].action = "squash".to_string();
+
+    let status = rebase_start(repo.path_str().to_string(), base_oid.to_string(), todos)
+        .await
+        .unwrap();
+    assert_eq!(status.status, RebasePhase::Finished);
+
+    let head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    assert_eq!(head.parent(0).unwrap().id(), base_oid);
+    assert_eq!(
+        head.message().unwrap(),
+        "first subject\n\nfirst body\n\nsecond subject\n\nsecond body\n"
+    );
+}
+
+/// B4: a squash whose subject was edited keeps both bodies under it.
+#[tokio::test]
+async fn test_rebase_squash_with_edited_subject_keeps_both_bodies() {
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "a");
+    repo.commit("initial");
+    let base_oid = repo.repo.head().unwrap().target().unwrap();
+
+    repo.write_file("b.txt", "b");
+    repo.commit("first subject\n\nfirst body\n");
+    repo.write_file("c.txt", "c");
+    repo.commit("second subject\n\nsecond body\n");
+
+    let mut todos = rebase_init(repo.path_str().to_string(), base_oid.to_string())
+        .await
+        .unwrap();
+    todos[1].action = "squash".to_string();
+    todos[1].summary = "combined subject".to_string();
+
+    rebase_start(repo.path_str().to_string(), base_oid.to_string(), todos)
+        .await
+        .unwrap();
+
+    let head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    assert_eq!(
+        head.message().unwrap(),
+        "combined subject\n\nfirst body\n\nsecond body\n"
+    );
+}
+
+/// Build a merge conflict on `path` where "ours" writes `ours` and "theirs"
+/// writes `theirs`; `None` means that side deletes the file.
+async fn conflicted_repo(path: &str, ours: Option<&[u8]>, theirs: Option<&[u8]>) -> TempRepo {
+    let repo = TempRepo::new();
+    std::fs::write(repo.path.join(path), b"base\n").unwrap();
+    repo.commit("base");
+    let main_branch = repo.repo.head().unwrap().shorthand().unwrap().to_string();
+
+    let apply = |content: Option<&[u8]>| match content {
+        Some(bytes) => std::fs::write(repo.path.join(path), bytes).unwrap(),
+        None => std::fs::remove_file(repo.path.join(path)).unwrap(),
+    };
+    // `TempRepo::commit` stages with `add_all`, which does not record
+    // deletions, so stage them explicitly.
+    let stage_deletion = |content: Option<&[u8]>| {
+        if content.is_none() {
+            let mut index = repo.repo.index().unwrap();
+            index.remove_path(std::path::Path::new(path)).unwrap();
+            index.write().unwrap();
+        }
+    };
+
+    create_branch(repo.path_str().to_string(), "theirs".to_string(), None)
+        .await
+        .unwrap();
+    checkout_branch(repo.path_str().to_string(), "theirs".to_string())
+        .await
+        .unwrap();
+    apply(theirs);
+    stage_deletion(theirs);
+    repo.commit("theirs");
+
+    checkout_branch(repo.path_str().to_string(), main_branch)
+        .await
+        .unwrap();
+    apply(ours);
+    stage_deletion(ours);
+    repo.commit("ours");
+
+    let result = merge_branch(repo.path_str().to_string(), "theirs".to_string())
+        .await
+        .unwrap();
+    assert_eq!(result, MergeOutcome::Conflicts);
+    repo
+}
+
+/// B15: taking a side used to round-trip the blob through lossy UTF-8 text in
+/// the renderer, corrupting binary files. The bytes must survive exactly.
+#[tokio::test]
+async fn test_resolve_conflict_side_keeps_binary_content_exactly() {
+    let ours: &[u8] = &[0x89, b'P', b'N', b'G', 0x00, 0xff, 0xfe, 0x01];
+    let theirs: &[u8] = &[0x00, 0x80, 0x81, 0xc3, 0x28, 0xff];
+
+    for (side, expected) in [("ours", ours), ("theirs", theirs)] {
+        let repo = conflicted_repo("image.bin", Some(ours), Some(theirs)).await;
+
+        resolve_conflict_side(
+            repo.path_str().to_string(),
+            "image.bin".to_string(),
+            side.to_string(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            std::fs::read(repo.path.join("image.bin")).unwrap(),
+            expected
+        );
+        let mut index = repo.repo.index().unwrap();
+        // `TempRepo` keeps its own handle, whose index is cached in memory.
+        index.read(true).unwrap();
+        assert!(!index.has_conflicts(), "{side}: conflict must be cleared");
+        let entry = index
+            .get_path(std::path::Path::new("image.bin"), 0)
+            .unwrap();
+        assert_eq!(repo.repo.find_blob(entry.id).unwrap().content(), expected);
+    }
+}
+
+/// B15: when the chosen side deleted the file, the resolution is a deletion —
+/// not an empty file.
+#[tokio::test]
+async fn test_resolve_conflict_side_with_deleting_side_removes_the_file() {
+    let repo = conflicted_repo("f.txt", Some(b"ours\n"), None).await;
+
+    resolve_conflict_side(
+        repo.path_str().to_string(),
+        "f.txt".to_string(),
+        "theirs".to_string(),
+    )
+    .await
+    .unwrap();
+
+    assert!(!repo.path.join("f.txt").exists());
+    let mut index = repo.repo.index().unwrap();
+    index.read(true).unwrap();
+    assert!(!index.has_conflicts());
+    assert!(index.get_path(std::path::Path::new("f.txt"), 0).is_none());
+}
+
+#[tokio::test]
+async fn test_resolve_conflict_side_rejects_a_path_not_in_conflict() {
+    let repo = conflicted_repo("f.txt", Some(b"ours\n"), Some(b"theirs\n")).await;
+    let err = resolve_conflict_side(
+        repo.path_str().to_string(),
+        "other.txt".to_string(),
+        "ours".to_string(),
+    )
+    .await
+    .expect_err("a path that is not conflicted must be refused");
+    assert!(
+        err.message.contains("not in conflict"),
+        "got: {}",
+        err.message
+    );
+}
+
+/// B10: working-tree blame used to blame the committed file and pair its
+/// hunks with the *working-tree* lines by index, so one inserted line shifted
+/// every line below it onto the wrong commit.
+#[tokio::test]
+async fn test_blame_accounts_for_local_edits() {
+    use basilico_lib::commands::blame::get_file_blame;
+
+    let repo = TempRepo::new();
+    repo.write_file("f.txt", "a\nb\nc\n");
+    repo.commit("initial");
+    let head = repo.repo.head().unwrap().target().unwrap().to_string();
+
+    // A local, uncommitted line at the top.
+    repo.write_file("f.txt", "new\na\nb\nc\n");
+
+    let lines = get_file_blame(repo.path_str().to_string(), "f.txt".to_string(), None)
+        .await
+        .unwrap();
+    assert_eq!(lines.len(), 4);
+
+    assert_eq!(lines[0].line_content, "new");
+    assert_eq!(lines[0].commit_oid, "", "an uncommitted line has no commit");
+    assert_eq!(lines[0].author_name, "Not Committed Yet");
+
+    for line in &lines[1..] {
+        assert_eq!(
+            line.commit_oid, head,
+            "committed line {:?} must keep its commit",
+            line.line_content
+        );
+    }
+}
+
+/// B19: blame at a tag resolves through the tag object to its commit.
+#[tokio::test]
+async fn test_blame_at_an_annotated_tag() {
+    use basilico_lib::commands::blame::get_file_blame;
+
+    let repo = TempRepo::new();
+    repo.write_file("f.txt", "a\n");
+    repo.commit("initial");
+    let head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    let sig = git2::Signature::now("Test User", "test@example.com").unwrap();
+    repo.repo
+        .tag("v1", head.as_object(), &sig, "release", false)
+        .unwrap();
+
+    let lines = get_file_blame(
+        repo.path_str().to_string(),
+        "f.txt".to_string(),
+        Some("v1".to_string()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(lines.len(), 1);
+    assert_eq!(lines[0].commit_oid, head.id().to_string());
+}
+
+/// B19: a branch can start at an annotated tag.
+#[tokio::test]
+async fn test_create_branch_from_an_annotated_tag() {
+    let repo = TempRepo::new();
+    repo.write_file("f.txt", "a\n");
+    repo.commit("initial");
+    let head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    let sig = git2::Signature::now("Test User", "test@example.com").unwrap();
+    repo.repo
+        .tag("v1", head.as_object(), &sig, "release", false)
+        .unwrap();
+
+    create_branch(
+        repo.path_str().to_string(),
+        "from-tag".to_string(),
+        Some("v1".to_string()),
+    )
+    .await
+    .unwrap();
+
+    let branch = repo
+        .repo
+        .find_branch("from-tag", git2::BranchType::Local)
+        .unwrap();
+    assert_eq!(branch.get().target(), Some(head.id()));
+}
+
+/// B11: `StatusEntry::path` is the entry's *old* path, so a staged rename was
+/// listed (and staged, and diffed) under the name the file no longer has.
+/// Unstaging it by its new name must also restore the old one.
+#[tokio::test]
+async fn test_staged_rename_is_listed_under_its_new_path_and_unstages_whole() {
+    use basilico_lib::git::repository::get_status;
+    use std::path::Path;
+
+    let repo = TempRepo::new();
+    repo.write_file(
+        "old.txt",
+        "a file with enough content\nthat git recognises\nthe move as a rename\n",
+    );
+    repo.commit("initial");
+
+    std::fs::rename(repo.path.join("old.txt"), repo.path.join("new.txt")).unwrap();
+    let mut index = repo.repo.index().unwrap();
+    index.remove_path(Path::new("old.txt")).unwrap();
+    index.add_path(Path::new("new.txt")).unwrap();
+    index.write().unwrap();
+
+    let status = get_status(repo.path_str()).unwrap();
+    assert_eq!(status.staged.len(), 1, "{:?}", status.staged);
+    assert_eq!(status.staged[0].path, "new.txt");
+    assert_eq!(
+        status.staged[0].status,
+        basilico_lib::git::repository::FileChangeKind::Renamed
+    );
+    assert_eq!(status.staged[0].old_path.as_deref(), Some("old.txt"));
+
+    unstage_files(repo.path_str().to_string(), vec!["new.txt".to_string()])
+        .await
+        .unwrap();
+
+    let status = get_status(repo.path_str()).unwrap();
+    assert!(status.staged.is_empty(), "{:?}", status.staged);
+    assert!(status.untracked.contains(&"new.txt".to_string()));
+    assert!(status.unstaged.iter().any(|f| f.path == "old.txt"
+        && f.status == basilico_lib::git::repository::FileChangeKind::Deleted));
+}
+
+/// B11: a type change (a file replaced by a symlink) was not listed at all.
+#[cfg(unix)]
+#[test]
+fn test_status_reports_a_typechange() {
+    use basilico_lib::git::repository::get_status;
+
+    let repo = TempRepo::new();
+    repo.write_file("target.txt", "x");
+    repo.write_file("link", "a plain file for now");
+    repo.commit("initial");
+
+    std::fs::remove_file(repo.path.join("link")).unwrap();
+    std::os::unix::fs::symlink("target.txt", repo.path.join("link")).unwrap();
+
+    let status = get_status(repo.path_str()).unwrap();
+    assert!(
+        status.unstaged.iter().any(|f| f.path == "link"
+            && f.status == basilico_lib::git::repository::FileChangeKind::Typechange),
+        "{:?}",
+        status.unstaged
+    );
+}
+
+/// B12: with hooks enabled, every `#` line was stripped from the message, so
+/// an issue-number subject or a Markdown heading silently vanished. `git
+/// commit -m` keeps them unless `commit.cleanup = strip`.
+#[tokio::test]
+async fn test_commit_keeps_hash_lines_unless_cleanup_is_strip() {
+    let message = "#123 fix crash\n\n## Details\nbody line  \n\n\n";
+
+    for (cleanup, expected) in [
+        (None, "#123 fix crash\n\n## Details\nbody line"),
+        (Some("strip"), "body line"),
+    ] {
+        let repo = TempRepo::new();
+        if let Some(mode) = cleanup {
+            repo.repo
+                .config()
+                .unwrap()
+                .set_str("commit.cleanup", mode)
+                .unwrap();
+        }
+        repo.write_file("a.txt", "hello");
+        let mut index = repo.repo.index().unwrap();
+        index
+            .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+            .unwrap();
+        index.write().unwrap();
+
+        create_commit(
+            repo.path_str().to_string(),
+            message.to_string(),
+            None,
+            None,
+            false,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+        assert_eq!(
+            head.message().unwrap().trim_end(),
+            expected,
+            "cleanup mode {:?}",
+            cleanup
+        );
+    }
+}
+
+/// B13: with `gpg.format = ssh`, signing used to call `gpg` anyway and every
+/// commit failed. It must sign with `ssh-keygen -Y sign`.
+#[cfg(unix)]
+#[tokio::test]
+async fn test_commit_signs_with_ssh_when_gpg_format_is_ssh() {
+    let repo = TempRepo::new();
+
+    let key_dir = repo
+        .path
+        .parent()
+        .unwrap()
+        .join(format!("sshkey-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&key_dir).unwrap();
+    let key_path = key_dir.join("id_ed25519");
+    let status = std::process::Command::new("ssh-keygen")
+        .args(["-q", "-t", "ed25519", "-N", "", "-C", "test", "-f"])
+        .arg(&key_path)
+        .status()
+        .expect("ssh-keygen must be available");
+    assert!(status.success());
+
+    let mut config = repo.repo.config().unwrap();
+    config.set_bool("commit.gpgsign", true).unwrap();
+    config.set_str("gpg.format", "ssh").unwrap();
+    config
+        .set_str("user.signingkey", key_path.to_str().unwrap())
+        .unwrap();
+
+    repo.write_file("a.txt", "hello");
+    let mut index = repo.repo.index().unwrap();
+    index
+        .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+        .unwrap();
+    index.write().unwrap();
+
+    let oid = create_commit(
+        repo.path_str().to_string(),
+        "signed".to_string(),
+        None,
+        None,
+        false,
+        true,
+    )
+    .await
+    .unwrap();
+
+    let (signature, _) = repo
+        .repo
+        .extract_signature(&git2::Oid::from_str(&oid).unwrap(), None)
+        .expect("the commit must carry a signature");
+    let signature = String::from_utf8_lossy(&signature).into_owned();
+    std::fs::remove_dir_all(&key_dir).ok();
+
+    assert!(
+        signature.contains("BEGIN SSH SIGNATURE"),
+        "expected an SSH signature, got: {signature}"
+    );
+}
+
+/// B16: staging selected lines of an untracked file sends a new-file patch
+/// (`--- /dev/null`); the backend must accept it and create the file in the
+/// index with just the selected lines.
+#[tokio::test]
+async fn test_apply_patch_stages_lines_of_an_untracked_file() {
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "a");
+    repo.commit("initial");
+    repo.write_file("new.txt", "x\ny\n");
+
+    let patch = "diff --git a/new.txt b/new.txt\n\
+                 new file mode 100644\n\
+                 --- /dev/null\n\
+                 +++ b/new.txt\n\
+                 @@ -0,0 +1,1 @@\n\
+                 +x\n";
+    apply_patch(
+        repo.path_str().to_string(),
+        patch.to_string(),
+        "index".to_string(),
+    )
+    .await
+    .unwrap();
+
+    let mut index = repo.repo.index().unwrap();
+    index.read(true).unwrap();
+    let entry = index
+        .get_path(std::path::Path::new("new.txt"), 0)
+        .expect("the file must now be in the index");
+    assert_eq!(repo.repo.find_blob(entry.id).unwrap().content(), b"x\n");
+}
+
+/// Phase 6: code search streams `git grep` and stops it at the match limit,
+/// instead of buffering all of its output first.
+#[tokio::test]
+async fn test_grep_code_streams_and_stops_at_the_limit() {
+    use basilico_lib::commands::search::grep_code;
+
+    let repo = TempRepo::new();
+    repo.write_file("few.txt", "needle one\nhay\nneedle two\n");
+    repo.write_file("many.txt", &"haystack line\n".repeat(10));
+    repo.commit("initial");
+
+    let found = grep_code(repo.path_str().to_string(), "needle".to_string())
+        .await
+        .unwrap();
+    assert_eq!(found.len(), 2);
+    assert_eq!(found[0].file_path, "few.txt");
+    assert_eq!(found[0].line_number, 1);
+    assert_eq!(found[0].content, "needle one");
+
+    let none = grep_code(repo.path_str().to_string(), "absent-text".to_string())
+        .await
+        .unwrap();
+    assert!(
+        none.is_empty(),
+        "no matches is an empty result, not an error"
+    );
+
+    repo.write_file("huge.txt", &"match me\n".repeat(5_000));
+    repo.commit("lots of matches");
+    let capped = grep_code(repo.path_str().to_string(), "match me".to_string())
+        .await
+        .expect("stopping git at the limit is not a failure");
+    assert_eq!(capped.len(), 2_000);
+}
+
+/// Phase 6: the diff editor is not sent binary data decoded as text, nor
+/// files too large to lay out; the UI is told why instead.
+#[tokio::test]
+async fn test_file_content_pair_flags_binary_and_oversized_files() {
+    use basilico_lib::commands::diff::{get_file_content_pair, MAX_EDITOR_BYTES};
+
+    let repo = TempRepo::new();
+    repo.write_file("text.txt", "hello\n");
+    std::fs::write(repo.path.join("image.bin"), [0u8, 159, 146, 150, 0, 1]).unwrap();
+    repo.commit("initial");
+
+    repo.write_file("text.txt", "hello world\n");
+    let pair =
+        match get_file_content_pair(repo.path_str().to_string(), "text.txt".into(), false, None)
+            .await
+        {
+            Ok(pair) => pair,
+            Err(e) => panic!("{}", e.message),
+        };
+    assert_eq!(pair.original, "hello\n");
+    assert_eq!(pair.modified, "hello world\n");
+    assert!(!pair.is_binary && !pair.too_large);
+
+    std::fs::write(repo.path.join("image.bin"), [0u8, 1, 2, 3]).unwrap();
+    let pair =
+        match get_file_content_pair(repo.path_str().to_string(), "image.bin".into(), false, None)
+            .await
+        {
+            Ok(pair) => pair,
+            Err(e) => panic!("{}", e.message),
+        };
+    assert!(pair.is_binary);
+    assert!(pair.original.is_empty() && pair.modified.is_empty());
+
+    std::fs::write(repo.path.join("text.txt"), "x".repeat(MAX_EDITOR_BYTES + 1)).unwrap();
+    let pair =
+        match get_file_content_pair(repo.path_str().to_string(), "text.txt".into(), false, None)
+            .await
+        {
+            Ok(pair) => pair,
+            Err(e) => panic!("{}", e.message),
+        };
+    assert!(pair.too_large);
+    assert!(pair.original.is_empty() && pair.modified.is_empty());
+}
+
+/// Phase 5: repository commands refuse paths that were not opened in a tab,
+/// so a compromised renderer cannot run hooks or git against arbitrary
+/// directories.
+#[tokio::test]
+async fn test_commands_refuse_a_repository_that_is_not_open() {
+    let dir = std::env::temp_dir().join(format!("basilico-unopened-{}", uuid::Uuid::new_v4()));
+    git2::Repository::init(&dir).unwrap();
+    let path = dir.to_string_lossy().to_string();
+
+    let err = basilico_lib::commands::repo::get_status(path.clone())
+        .await
+        .expect_err("an unopened repository must be refused");
+    assert!(
+        err.message.contains("not a repository open"),
+        "got: {}",
+        err.message
+    );
+
+    let err = create_commit(path.clone(), "x".to_string(), None, None, false, true)
+        .await
+        .expect_err("committing in an unopened repository must be refused");
+    assert!(
+        err.message.contains("not a repository open"),
+        "got: {}",
+        err.message
+    );
+
+    // Once opened it is accepted, and closing it revokes that again.
+    basilico_lib::state::register_open_repo(&path);
+    assert!(basilico_lib::commands::repo::get_status(path.clone())
+        .await
+        .is_ok());
+    basilico_lib::state::unregister_open_repo(&path);
+    assert!(basilico_lib::commands::repo::get_status(path.clone())
+        .await
+        .is_err());
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+/// Phase 5: on Windows, `\foo` (root, no drive) and `C:foo` (drive, no root)
+/// are not "absolute", so they passed validation — and `Path::join` then
+/// replaced the repository base with them.
+#[cfg(windows)]
+#[test]
+fn test_validate_path_rejects_windows_rooted_and_drive_relative_paths() {
+    use basilico_lib::git::utils::validate_path;
+    let base = std::path::Path::new(r"C:\repo");
+    for bad in [
+        r"\Windows\win.ini",
+        r"C:Windows\win.ini",
+        r"\\server\share\x",
+    ] {
+        assert!(
+            validate_path(base, std::path::Path::new(bad)).is_err(),
+            "{bad} must be refused"
+        );
+    }
+    assert!(validate_path(base, std::path::Path::new(r"src\main.rs")).is_ok());
+}
+
+/// A repository with one commit and a bare `origin` it has not pushed to.
+fn repo_with_bare_origin() -> (TempRepo, std::path::PathBuf) {
+    let repo = TempRepo::new();
+    repo.write_file("f.txt", "one");
+    repo.commit("one");
+    let remote_path = repo
+        .path
+        .parent()
+        .unwrap()
+        .join(format!("sync-remote-{}.git", uuid::Uuid::new_v4()));
+    git2::Repository::init_bare(&remote_path).unwrap();
+    repo.repo
+        .remote("origin", remote_path.to_str().unwrap())
+        .unwrap();
+    (repo, remote_path)
+}
+
+fn mock_app() -> tauri::AppHandle<tauri::test::MockRuntime> {
+    tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap()
+        .handle()
+        .clone()
+}
+
+/// A repository whose branch and `origin`'s have each gained one commit since
+/// they last agreed, touching different files (so any pull mode can succeed).
+async fn diverged_from_origin() -> (TempRepo, std::path::PathBuf, String, git2::Oid) {
+    use basilico_lib::commands::remote::push;
+
+    let (repo, remote_path) = repo_with_bare_origin();
+    let branch = repo.repo.head().unwrap().shorthand().unwrap().to_string();
+    push(
+        mock_app(),
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch.clone(),
+        false,
+        None,
+    )
+    .await
+    .unwrap();
+
+    // Someone else's commit on the remote: adds remote.txt.
+    let bare = git2::Repository::open_bare(&remote_path).unwrap();
+    let base = bare
+        .find_reference(&format!("refs/heads/{}", branch))
+        .unwrap()
+        .peel_to_commit()
+        .unwrap();
+    let blob = bare.blob(b"from the remote\n").unwrap();
+    let mut builder = bare.treebuilder(Some(&base.tree().unwrap())).unwrap();
+    builder.insert("remote.txt", blob, 0o100644).unwrap();
+    let tree = bare.find_tree(builder.write().unwrap()).unwrap();
+    let sig = git2::Signature::now("Other", "other@example.com").unwrap();
+    let remote_tip = bare
+        .commit(
+            Some(&format!("refs/heads/{}", branch)),
+            &sig,
+            &sig,
+            "remote work",
+            &tree,
+            &[&base],
+        )
+        .unwrap();
+
+    // Our own commit: adds local.txt.
+    repo.write_file("local.txt", "from here\n");
+    repo.commit("local work");
+
+    (repo, remote_path, branch, remote_tip)
+}
+
+/// Phase 8: `pull.ff = only` / the "fast-forward only" mode refuses to merge
+/// diverged histories, with a message that says what to do instead.
+#[tokio::test]
+async fn test_pull_fast_forward_only_refuses_diverged_history() {
+    use basilico_lib::commands::remote::pull;
+
+    let (repo, remote_path, branch, _) = diverged_from_origin().await;
+    let before = repo.repo.head().unwrap().target().unwrap();
+
+    let err = pull(
+        mock_app(),
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch,
+        Some("ff-only".to_string()),
+    )
+    .await
+    .expect_err("diverged history cannot be fast-forwarded");
+    assert!(
+        err.message.contains("Cannot fast-forward"),
+        "got: {}",
+        err.message
+    );
+    assert_eq!(repo.repo.head().unwrap().target().unwrap(), before);
+
+    std::fs::remove_dir_all(&remote_path).ok();
+}
+
+/// Phase 8: the rebase mode replays local commits on top of the remote — no
+/// merge commit — and the repository's `pull.rebase` setting selects it when
+/// no mode is given, as it does for `git pull`.
+#[tokio::test]
+async fn test_pull_rebase_mode_and_pull_rebase_config() {
+    use basilico_lib::commands::remote::pull;
+
+    for (requested, configured) in [(Some("rebase"), None), (None, Some("true"))] {
+        let (repo, remote_path, branch, remote_tip) = diverged_from_origin().await;
+        if let Some(value) = configured {
+            repo.repo
+                .config()
+                .unwrap()
+                .set_str("pull.rebase", value)
+                .unwrap();
+        }
+
+        let result = pull(
+            mock_app(),
+            repo.path_str().to_string(),
+            "origin".to_string(),
+            branch,
+            requested.map(str::to_string),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result, MergeOutcome::Success);
+
+        let head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+        assert_eq!(head.parent_count(), 1, "a rebase leaves no merge commit");
+        assert_eq!(head.parent(0).unwrap().id(), remote_tip);
+        assert_eq!(head.summary().unwrap(), Some("local work"));
+        assert!(repo.path.join("remote.txt").exists());
+        assert!(repo.path.join("local.txt").exists());
+
+        std::fs::remove_dir_all(&remote_path).ok();
+    }
+}
+
+/// Without a mode or any `pull.*` config, pull still merges, as before.
+#[tokio::test]
+async fn test_pull_defaults_to_merge() {
+    use basilico_lib::commands::remote::pull;
+
+    let (repo, remote_path, branch, remote_tip) = diverged_from_origin().await;
+    let result = pull(
+        mock_app(),
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch,
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result, MergeOutcome::Success);
+
+    let head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    assert_eq!(
+        head.parent_count(),
+        2,
+        "a merge commit joins both histories"
+    );
+    assert!(head.parent_ids().any(|id| id == remote_tip));
+
+    std::fs::remove_dir_all(&remote_path).ok();
+}
+
+/// B2: the first push of an unpublished branch sets its upstream, as
+/// `git push -u` does — otherwise ahead/behind read 0/0 forever.
+#[tokio::test]
+async fn test_push_publishes_a_branch_and_sets_its_upstream() {
+    use basilico_lib::commands::remote::push;
+
+    let (repo, remote_path) = repo_with_bare_origin();
+    let branch = repo.repo.head().unwrap().shorthand().unwrap().to_string();
+
+    push(
+        mock_app(),
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        branch.clone(),
+        false,
+        None,
+    )
+    .await
+    .unwrap();
+
+    let local = repo
+        .repo
+        .find_branch(&branch, git2::BranchType::Local)
+        .unwrap();
+    let upstream = local
+        .upstream()
+        .expect("upstream must be set after publishing");
+    assert_eq!(
+        upstream.name().unwrap().unwrap(),
+        format!("origin/{}", branch)
+    );
+
+    std::fs::remove_dir_all(&remote_path).ok();
+}
+
+/// B2: a branch tracking a differently-named remote branch pushes to *that*
+/// branch, not to a new branch with the local name.
+#[tokio::test]
+async fn test_push_goes_to_the_upstream_branch_even_with_a_different_name() {
+    use basilico_lib::commands::remote::push;
+
+    let (repo, remote_path) = repo_with_bare_origin();
+    let head = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    repo.repo.branch("feature", &head, false).unwrap();
+
+    // Publish `feature` as `origin/shared`, then track it.
+    let mut remote = repo.repo.find_remote("origin").unwrap();
+    remote
+        .push(&["refs/heads/feature:refs/heads/shared"], None)
+        .unwrap();
+    let mut feature = repo
+        .repo
+        .find_branch("feature", git2::BranchType::Local)
+        .unwrap();
+    feature.set_upstream(Some("origin/shared")).unwrap();
+
+    checkout_branch(repo.path_str().to_string(), "feature".to_string())
+        .await
+        .unwrap();
+    repo.write_file("f.txt", "two");
+    repo.commit("two");
+    let new_tip = repo.repo.head().unwrap().target().unwrap();
+
+    push(
+        mock_app(),
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        "feature".to_string(),
+        false,
+        None,
+    )
+    .await
+    .unwrap();
+
+    let bare = git2::Repository::open_bare(&remote_path).unwrap();
+    assert_eq!(
+        bare.find_reference("refs/heads/shared").unwrap().target(),
+        Some(new_tip)
+    );
+    assert!(
+        bare.find_reference("refs/heads/feature").is_err(),
+        "no new remote branch named after the local one"
+    );
+
+    std::fs::remove_dir_all(&remote_path).ok();
+}
+
+/// B2: on a detached HEAD the current "branch" is the literal `HEAD`, and
+/// pushing it created a branch called `HEAD` on the remote.
+#[tokio::test]
+async fn test_push_and_pull_refuse_a_detached_head() {
+    use basilico_lib::commands::remote::{pull, push};
+
+    let (repo, remote_path) = repo_with_bare_origin();
+
+    let err = push(
+        mock_app(),
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        "HEAD".to_string(),
+        false,
+        None,
+    )
+    .await
+    .expect_err("pushing a detached HEAD must be refused");
+    assert!(
+        err.message.contains("detached HEAD"),
+        "got: {}",
+        err.message
+    );
+
+    let err = pull(
+        mock_app(),
+        repo.path_str().to_string(),
+        "origin".to_string(),
+        "HEAD".to_string(),
+        None,
+    )
+    .await
+    .expect_err("pulling into a detached HEAD must be refused");
+    assert!(
+        err.message.contains("detached HEAD"),
+        "got: {}",
+        err.message
+    );
+
+    let bare = git2::Repository::open_bare(&remote_path).unwrap();
+    assert!(bare.find_reference("refs/heads/HEAD").is_err());
+
+    std::fs::remove_dir_all(&remote_path).ok();
+}
+
+/// B19: deleting a conflicted file and marking it resolved must record the
+/// deletion; `add_path` on the missing file used to fail.
+#[tokio::test]
+async fn test_resolve_conflict_accepts_a_deleted_file() {
+    let repo = conflicted_repo("f.txt", Some(b"ours\n"), Some(b"theirs\n")).await;
+    std::fs::remove_file(repo.path.join("f.txt")).unwrap();
+
+    resolve_conflict(repo.path_str().to_string(), "f.txt".to_string())
+        .await
+        .unwrap();
+
+    let mut index = repo.repo.index().unwrap();
+    index.read(true).unwrap();
+    assert!(!index.has_conflicts());
+    assert!(index.get_path(std::path::Path::new("f.txt"), 0).is_none());
+}
+
+/// Amending must start from the full message: the graph only has subjects.
+#[tokio::test]
+async fn test_get_commit_message_returns_subject_and_body() {
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "a");
+    repo.commit("subject line\n\nThe body explains why.\n");
+
+    let message = get_commit_message(repo.path_str().to_string(), "HEAD".to_string())
+        .await
+        .unwrap();
+    assert_eq!(message, "subject line\n\nThe body explains why.\n");
+}
+
+/// A staged rename must diff against the file's old name in HEAD, not show the
+/// whole file as added.
+#[tokio::test]
+async fn test_content_pair_for_staged_rename_reads_head_under_old_name() {
+    let repo = TempRepo::new();
+    repo.write_file("old.txt", "one\ntwo\n");
+    repo.commit("add old");
+
+    std::fs::rename(repo.path.join("old.txt"), repo.path.join("new.txt")).unwrap();
+    std::fs::write(repo.path.join("new.txt"), "one\ntwo\nthree\n").unwrap();
+    let git = git2::Repository::open(&repo.path).unwrap();
+    let mut index = git.index().unwrap();
+    index.remove_path(std::path::Path::new("old.txt")).unwrap();
+    index.add_path(std::path::Path::new("new.txt")).unwrap();
+    index.write().unwrap();
+
+    let pair = basilico_lib::commands::diff::get_file_content_pair(
+        repo.path_str().to_string(),
+        "new.txt".to_string(),
+        true,
+        Some("old.txt".to_string()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(pair.original, "one\ntwo\n");
+    assert_eq!(pair.modified, "one\ntwo\nthree\n");
+
+    // Without the old name the HEAD side is (correctly) empty — that was the bug.
+    let pair = basilico_lib::commands::diff::get_file_content_pair(
+        repo.path_str().to_string(),
+        "new.txt".to_string(),
+        true,
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(pair.original, "");
+}
+
+/// Comparing across a rename reads the base side under the base's path.
+#[tokio::test]
+async fn test_content_pair_revisions_reads_base_under_its_own_path() {
+    let repo = TempRepo::new();
+    repo.write_file("old.txt", "v1\n");
+    repo.commit("add old");
+    let base = git2::Repository::open(&repo.path)
+        .unwrap()
+        .head()
+        .unwrap()
+        .target()
+        .unwrap()
+        .to_string();
+    std::fs::rename(repo.path.join("old.txt"), repo.path.join("new.txt")).unwrap();
+    repo.write_file("new.txt", "v2\n");
+    repo.commit("rename");
+
+    let pair = basilico_lib::commands::diff::get_file_content_pair_revisions(
+        repo.path_str().to_string(),
+        "new.txt".to_string(),
+        base,
+        "HEAD".to_string(),
+        Some("old.txt".to_string()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(pair.original, "v1\n");
+    assert_eq!(pair.modified, "v2\n");
+}
+
+/// The extra path is validated like the main one.
+#[tokio::test]
+async fn test_content_pair_rejects_escaping_original_path() {
+    let repo = TempRepo::new();
+    repo.write_file("a.txt", "a");
+    repo.commit("init");
+
+    let err = basilico_lib::commands::diff::get_file_content_pair(
+        repo.path_str().to_string(),
+        "a.txt".to_string(),
+        true,
+        Some("../outside.txt".to_string()),
+    )
+    .await
+    .unwrap_err();
+    assert!(err.message.contains("traversal"), "got: {}", err.message);
+}
+
+/// A root commit's changes are viewed as a comparison against git's empty
+/// tree, which libgit2 resolves without the object being in the repository.
+#[tokio::test]
+async fn test_compare_root_commit_against_the_empty_tree() {
+    let repo = TempRepo::new();
+    repo.write_file("first.txt", "hello\n");
+    repo.commit("root");
+
+    let diffs = basilico_lib::commands::diff::get_compare_diff(
+        repo.path_str().to_string(),
+        "4b825dc642cb6eb9a060e54bf8d69288fbee4904".to_string(),
+        "HEAD".to_string(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(diffs.len(), 1);
+    assert_eq!(diffs[0].new_path.as_deref(), Some("first.txt"));
+
+    let pair = basilico_lib::commands::diff::get_file_content_pair_revisions(
+        repo.path_str().to_string(),
+        "first.txt".to_string(),
+        "4b825dc642cb6eb9a060e54bf8d69288fbee4904".to_string(),
+        "HEAD".to_string(),
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(pair.original, "");
+    assert_eq!(pair.modified, "hello\n");
+}
+
+/// Spawned processes have no controlling terminal, so ssh or pinentry cannot
+/// stop and wait on the terminal Basilico was started from.
+#[cfg(unix)]
+#[test]
+fn test_spawned_commands_have_no_controlling_terminal() {
+    let output = basilico_lib::commands::new_command("sh")
+        .args([
+            "-c",
+            "if (exec 3</dev/tty) 2>/dev/null; then echo tty; else echo none; fi",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "none");
+}
+
+/// The File Tree view lists one folder at a time instead of the whole tree.
+#[tokio::test]
+async fn test_commit_tree_lists_one_folder_at_a_time() {
+    let repo = TempRepo::new();
+    repo.write_file("README.md", "readme");
+    repo.write_file("src/main.rs", "fn main() {}");
+    repo.write_file("src/util/mod.rs", "");
+    repo.commit("tree");
+    let head = repo.repo.head().unwrap().target().unwrap().to_string();
+    let path = repo.path_str().to_string();
+
+    let root = get_commit_tree(path.clone(), head.clone(), Some(String::new()))
+        .await
+        .unwrap();
+    let names: Vec<_> = root.iter().map(|e| (e.path.as_str(), e.is_dir)).collect();
+    // Folders first, and nothing from inside them.
+    assert_eq!(names, vec![("src", true), ("README.md", false)]);
+
+    let src = get_commit_tree(path.clone(), head.clone(), Some("src".to_string()))
+        .await
+        .unwrap();
+    let names: Vec<_> = src.iter().map(|e| e.path.as_str()).collect();
+    assert_eq!(names, vec!["src/util", "src/main.rs"]);
+    assert_eq!(src[1].size, Some(12));
+
+    let err = get_commit_tree(path, head, Some("README.md".to_string()))
+        .await
+        .unwrap_err();
+    assert!(err.message.contains("not a folder"), "got: {}", err.message);
 }

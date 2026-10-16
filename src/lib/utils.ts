@@ -6,10 +6,15 @@
  * Open an external URL in the system browser. Refuses anything that isn't
  * `https://` — forge-link builders always produce an https URL, but this is
  * the last line of defense against a malformed/attacker-controlled remote
- * URL producing something like a `javascript:` URL. Passes `noopener,noreferrer`
- * so the opened page cannot reach back into this window via `window.opener`.
+ * URL producing something like a `javascript:` URL.
+ *
+ * Goes through the opener plugin rather than `window.open`: Tauri's webview
+ * does not hand `window.open` to the system browser, so "Open on GitHub" and
+ * every autolinked reference did nothing. Opening in the system browser also
+ * means the page never shares a process or a window with the app.
  */
 
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useUIStore } from "../store/ui-store";
 export function openExternalUrl(url: string): void {
   if (!url.startsWith("https://")) {
@@ -25,7 +30,14 @@ export function openExternalUrl(url: string): void {
     });
     return;
   }
-  window.open(url, "_blank", "noopener,noreferrer");
+  openUrl(url).catch((err: unknown) => {
+    console.error(`Failed to open ${url}:`, err);
+    useUIStore.getState().addNotification({
+      type: "error",
+      message: "Could not open the link in your browser.",
+      description: url,
+    });
+  });
 }
 
 /** Format a Unix timestamp as a relative time string (e.g., "2 hours ago") */
@@ -58,9 +70,13 @@ export function formatRelativeTime(timestamp: number): string {
   return `${years}y ago`;
 }
 
-/** Format a Unix timestamp as an absolute date/time */
+/**
+ * Format a Unix timestamp as an absolute date/time, in the user's own locale.
+ * It was pinned to `en-US`, so everyone got month-first dates and a 12-hour
+ * clock regardless of their system settings.
+ */
 export function formatDateTime(timestamp: number): string {
-  return new Date(timestamp * 1000).toLocaleDateString("en-US", {
+  return new Date(timestamp * 1000).toLocaleString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -136,6 +152,8 @@ export function getStatusIcon(status: string): string {
       return "R";
     case "copied":
       return "C";
+    case "typechange":
+      return "T";
     default:
       return "?";
   }
@@ -156,45 +174,97 @@ export function getStatusColor(status: string): string {
   }
 }
 
+/**
+ * File extension → Monaco language id. Every built-in Monaco tokenizer is
+ * loaded (see `monaco-setup.ts`); this map only has to name them. It used to
+ * cover about fifteen languages, so Kotlin, Swift, Ruby, PHP, SQL, XML, C and
+ * many more rendered as plain text.
+ */
+const LANGUAGE_BY_EXTENSION: Record<string, string> = {
+  js: "javascript",
+  jsx: "javascript",
+  mjs: "javascript",
+  cjs: "javascript",
+  ts: "typescript",
+  tsx: "typescript",
+  mts: "typescript",
+  cts: "typescript",
+  rs: "rust",
+  py: "python",
+  pyi: "python",
+  go: "go",
+  java: "java",
+  kt: "kotlin",
+  kts: "kotlin",
+  scala: "scala",
+  swift: "swift",
+  m: "objective-c",
+  c: "cpp",
+  h: "cpp",
+  cc: "cpp",
+  cpp: "cpp",
+  cxx: "cpp",
+  hpp: "cpp",
+  hh: "cpp",
+  cs: "csharp",
+  fs: "fsharp",
+  fsx: "fsharp",
+  vb: "vb",
+  rb: "ruby",
+  php: "php",
+  pl: "perl",
+  pm: "perl",
+  lua: "lua",
+  r: "r",
+  dart: "dart",
+  ex: "elixir",
+  exs: "elixir",
+  clj: "clojure",
+  cljs: "clojure",
+  jl: "julia",
+  sol: "sol",
+  css: "css",
+  scss: "scss",
+  less: "less",
+  html: "html",
+  htm: "html",
+  vue: "html",
+  svelte: "html",
+  xml: "xml",
+  svg: "xml",
+  xaml: "xml",
+  plist: "xml",
+  json: "json",
+  jsonc: "json",
+  md: "markdown",
+  mdx: "markdown",
+  rst: "restructuredtext",
+  sh: "shell",
+  bash: "shell",
+  zsh: "shell",
+  ps1: "powershell",
+  bat: "bat",
+  cmd: "bat",
+  yml: "yaml",
+  yaml: "yaml",
+  ini: "ini",
+  cfg: "ini",
+  toml: "ini",
+  sql: "sql",
+  graphql: "graphql",
+  gql: "graphql",
+  proto: "proto",
+  tf: "hcl",
+  hcl: "hcl",
+  dockerfile: "dockerfile",
+};
+
 /** Get language code for Monaco editor based on file path extension */
 export function getLanguageFromPath(filePath: string): string {
-  const ext = filePath.split(".").pop()?.toLowerCase();
-  switch (ext) {
-    case "js":
-    case "jsx":
-      return "javascript";
-    case "ts":
-    case "tsx":
-      return "typescript";
-    case "rs":
-      return "rust";
-    case "py":
-      return "python";
-    case "go":
-      return "go";
-    case "java":
-      return "java";
-    case "cpp":
-    case "cc":
-    case "h":
-      return "cpp";
-    case "cs":
-      return "csharp";
-    case "css":
-      return "css";
-    case "html":
-      return "html";
-    case "json":
-      return "json";
-    case "md":
-      return "markdown";
-    case "sh":
-    case "bash":
-      return "shell";
-    case "yml":
-    case "yaml":
-      return "yaml";
-    default:
-      return "plaintext";
+  const name = getFileName(filePath).toLowerCase();
+  if (name === "dockerfile" || name.startsWith("dockerfile.")) {
+    return "dockerfile";
   }
+  const ext = name.includes(".") ? name.split(".").pop() : undefined;
+  return (ext && LANGUAGE_BY_EXTENSION[ext]) || "plaintext";
 }

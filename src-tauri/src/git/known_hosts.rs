@@ -37,6 +37,9 @@ struct Entry {
     /// Comma-separated plain hostname patterns (may contain `*`/`?`), empty
     /// when this entry uses hashed hostnames instead.
     patterns: Vec<String>,
+    /// `!pattern` exclusions (stored without the `!`): a host matching one of
+    /// these is not covered by the entry even if `patterns` match it.
+    negated: Vec<String>,
     /// `(salt, hmac-sha1 hash)` for a `|1|salt|hash` hashed-hostname entry.
     hashed: Option<(Vec<u8>, Vec<u8>)>,
     /// The key algorithm this entry records (`ssh-ed25519`, `ssh-rsa`, ...).
@@ -104,13 +107,55 @@ fn wildmatch(pattern: &[u8], text: &[u8]) -> bool {
     }
 }
 
-fn host_matches_plain(pattern: &str, hostname: &str) -> bool {
-    // `[host]:port` entries: match on the host part, ignore port granularity.
-    let pattern = pattern
-        .strip_prefix('[')
-        .and_then(|p| p.split(']').next())
-        .unwrap_or(pattern);
-    wildmatch(pattern.as_bytes(), hostname.as_bytes())
+/// The SSH port a remote URL connects to, or `None` for a non-SSH URL.
+///
+/// `ssh://[user@]host[:port]/path` carries an explicit port; the scp-like
+/// `[user@]host:path` form always uses 22.
+pub fn ssh_port_of_url(url: &str) -> Option<u16> {
+    let rest = ["ssh://", "git+ssh://", "ssh+git://"]
+        .iter()
+        .find_map(|scheme| url.strip_prefix(scheme));
+    let Some(rest) = rest else {
+        // scp-like syntax has no scheme, a colon, and no slash before it.
+        let is_scp_like = !url.contains("://")
+            && url
+                .find(':')
+                .is_some_and(|colon| !url[..colon].contains('/'));
+        return is_scp_like.then_some(22);
+    };
+    let authority = rest.split('/').next().unwrap_or(rest);
+    let host_port = authority.rsplit('@').next().unwrap_or(authority);
+    let port = match host_port.strip_prefix('[') {
+        // IPv6 literal: `[::1]:2222`
+        Some(v6) => v6.split_once("]:").map(|(_, port)| port),
+        None => host_port.split_once(':').map(|(_, port)| port),
+    };
+    Some(port.and_then(|p| p.parse().ok()).unwrap_or(22))
+}
+
+/// How OpenSSH names a host in `known_hosts`: bare on port 22, and
+/// `[host]:port` on any other port. Hashed entries are a hash of this name.
+pub fn host_entry_name(hostname: &str, port: Option<u16>) -> String {
+    match port {
+        Some(port) if port != 22 => format!("[{}]:{}", hostname, port),
+        _ => hostname.to_string(),
+    }
+}
+
+/// Plain-pattern match with OpenSSH's port rule: a bare pattern covers port
+/// 22 only, and `[pattern]:port` that one port. With the port unknown
+/// (`None`), only the host part is compared.
+fn host_matches_plain(pattern: &str, hostname: &str, port: Option<u16>) -> bool {
+    let (host_pattern, pattern_port) =
+        match pattern.strip_prefix('[').and_then(|p| p.split_once("]:")) {
+            Some((host, port)) => (host, port.parse::<u16>().ok()),
+            None => (pattern, Some(22)),
+        };
+    let port_ok = match port {
+        None => true,
+        Some(port) => pattern_port == Some(port),
+    };
+    port_ok && wildmatch(host_pattern.as_bytes(), hostname.as_bytes())
 }
 
 /// Parse one non-comment `known_hosts` line, if it's a well-formed entry.
@@ -154,6 +199,7 @@ fn parse_line(line: &str) -> Option<Entry> {
         let hash = decode_base64(fields.next()?)?;
         return Some(Entry {
             patterns: Vec::new(),
+            negated: Vec::new(),
             hashed: Some((salt, hash)),
             key_type,
             revoked,
@@ -161,13 +207,20 @@ fn parse_line(line: &str) -> Option<Entry> {
         });
     }
 
-    let patterns = first
+    // `!pattern` excludes a host the other patterns would match. Negations
+    // used to be dropped, so `*.example.com,!legacy.example.com` applied to
+    // `legacy.example.com` too — reporting a mismatch (and a MITM warning)
+    // for a host the entry explicitly excludes.
+    let (negated, patterns): (Vec<String>, Vec<String>) = first
         .split(',')
-        .filter(|p| !p.starts_with('!')) // negated patterns: not supported, skip rather than mismatch
         .map(str::to_string)
-        .collect();
+        .partition(|p| p.starts_with('!'));
     Some(Entry {
         patterns,
+        negated: negated
+            .into_iter()
+            .map(|p| p.trim_start_matches('!').to_string())
+            .collect(),
         hashed: None,
         key_type,
         revoked,
@@ -175,7 +228,10 @@ fn parse_line(line: &str) -> Option<Entry> {
     })
 }
 
-fn entries_for_host(hostname: &str) -> Vec<Entry> {
+fn entries_for_host(hostname: &str, port: Option<u16>) -> Vec<Entry> {
+    // A hashed entry for a non-standard port is a hash of `[host]:port`, so
+    // hashing the bare hostname never matched it.
+    let entry_name = host_entry_name(hostname, port);
     let mut matches = Vec::new();
     for path in known_hosts_paths() {
         let Ok(content) = std::fs::read_to_string(&path) else {
@@ -186,11 +242,17 @@ fn entries_for_host(hostname: &str) -> Vec<Entry> {
                 continue;
             };
             let is_match = match &entry.hashed {
-                Some((salt, hash)) => host_matches_hashed(salt, hash, hostname),
-                None => entry
-                    .patterns
-                    .iter()
-                    .any(|p| host_matches_plain(p, hostname)),
+                Some((salt, hash)) => host_matches_hashed(salt, hash, &entry_name),
+                None => {
+                    entry
+                        .patterns
+                        .iter()
+                        .any(|p| host_matches_plain(p, hostname, port))
+                        && !entry
+                            .negated
+                            .iter()
+                            .any(|p| host_matches_plain(p, hostname, port))
+                }
             };
             if is_match {
                 matches.push(entry);
@@ -205,11 +267,12 @@ fn entries_for_host(hostname: &str) -> Vec<Entry> {
 /// makes available — availability depends on the libssh2 build.
 pub fn verify(
     hostname: &str,
+    port: Option<u16>,
     sha256: Option<&[u8; 32]>,
     sha1: Option<&[u8; 20]>,
     raw: Option<&[u8]>,
 ) -> HostKeyVerdict {
-    let candidates = entries_for_host(hostname);
+    let candidates = entries_for_host(hostname, port);
     if candidates.is_empty() {
         return HostKeyVerdict::Unknown;
     }
@@ -292,6 +355,78 @@ mod tests {
         assert!(!host_matches_hashed(&salt, &hash, "example.org"));
     }
 
+    fn hmac(salt: &[u8], name: &str) -> Vec<u8> {
+        let mut mac = Hmac::<Sha1>::new_from_slice(salt).unwrap();
+        mac.update(name.as_bytes());
+        mac.finalize().into_bytes().to_vec()
+    }
+
+    /// A non-standard port is recorded as `[host]:port`, and a hashed entry is
+    /// the hash of that whole string. Hashing the bare host never matched it.
+    #[test]
+    fn hashed_entries_for_non_standard_ports_match_on_that_port() {
+        let salt = b"0123456789abcdefghij";
+        let on_2222 = hmac(salt, "[git.example.com]:2222");
+        let name = host_entry_name("git.example.com", Some(2222));
+        assert!(host_matches_hashed(salt, &on_2222, &name));
+        assert!(!host_matches_hashed(salt, &on_2222, "git.example.com"));
+
+        let on_22 = hmac(salt, "git.example.com");
+        assert!(host_matches_hashed(
+            salt,
+            &on_22,
+            &host_entry_name("git.example.com", Some(22))
+        ));
+    }
+
+    #[test]
+    fn plain_patterns_follow_openssh_port_rules() {
+        // A bare pattern is port 22 only.
+        assert!(host_matches_plain("example.com", "example.com", Some(22)));
+        assert!(!host_matches_plain(
+            "example.com",
+            "example.com",
+            Some(2222)
+        ));
+        // A bracketed pattern is its own port only.
+        assert!(host_matches_plain(
+            "[example.com]:2222",
+            "example.com",
+            Some(2222)
+        ));
+        assert!(!host_matches_plain(
+            "[example.com]:2222",
+            "example.com",
+            Some(22)
+        ));
+        assert!(host_matches_plain(
+            "[*.example.com]:2222",
+            "git.example.com",
+            Some(2222)
+        ));
+        // Port unknown: host part only, as before.
+        assert!(host_matches_plain(
+            "[example.com]:2222",
+            "example.com",
+            None
+        ));
+        assert!(host_matches_plain("example.com", "example.com", None));
+    }
+
+    #[test]
+    fn ssh_port_is_read_from_every_url_form() {
+        assert_eq!(
+            ssh_port_of_url("ssh://git@example.com:2222/r.git"),
+            Some(2222)
+        );
+        assert_eq!(ssh_port_of_url("ssh://example.com/r.git"), Some(22));
+        assert_eq!(ssh_port_of_url("git+ssh://u@h:7999/r"), Some(7999));
+        assert_eq!(ssh_port_of_url("ssh://git@[::1]:2200/r"), Some(2200));
+        assert_eq!(ssh_port_of_url("git@github.com:org/repo.git"), Some(22));
+        assert_eq!(ssh_port_of_url("https://github.com/org/repo.git"), None);
+        assert_eq!(ssh_port_of_url("/local/path/repo"), None);
+    }
+
     #[test]
     fn parse_line_reads_plain_and_hashed_entries() {
         let plain = parse_line("github.com,ssh.github.com ssh-ed25519 QUJD").unwrap();
@@ -305,6 +440,15 @@ mod tests {
 
         assert!(parse_line("# a comment").is_none());
         assert!(parse_line("").is_none());
+    }
+
+    /// `!pattern` excludes a host; it used to be dropped, so the entry applied
+    /// to the very host it excluded.
+    #[test]
+    fn parse_line_keeps_negated_patterns_as_exclusions() {
+        let entry = parse_line("*.example.com,!legacy.example.com ssh-ed25519 QUJD").unwrap();
+        assert_eq!(entry.patterns, vec!["*.example.com"]);
+        assert_eq!(entry.negated, vec!["legacy.example.com"]);
     }
 
     /// A `@revoked` line used to be dropped, which made a host whose only entry

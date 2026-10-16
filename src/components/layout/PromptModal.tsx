@@ -184,7 +184,7 @@ export function PromptModal() {
                         </div>
                       ) : (
                         <input
-                          type="text"
+                          type={field.type === "password" ? "password" : "text"}
                           id={`prompt-field-${field.name}`}
                           ref={(el) => {
                             inputRefs.current[field.name] = el;
@@ -196,7 +196,9 @@ export function PromptModal() {
                             handleValueChange(field.name, e.target.value)
                           }
                           required={field.required}
-                          autoComplete="off"
+                          autoComplete={
+                            field.type === "password" ? "new-password" : "off"
+                          }
                         />
                       )}
                     </div>

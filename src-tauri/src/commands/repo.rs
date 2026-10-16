@@ -11,6 +11,7 @@ pub async fn open_repo(
     let info = tokio::task::spawn_blocking(move || repository::open_repo(&path)).await??;
 
     let canonical_path = crate::git::utils::canonicalize_path(&info.path);
+    crate::state::register_open_repo(&canonical_path);
     let watcher_id = uuid::Uuid::new_v4().to_string();
     if state.try_add_repo(canonical_path.clone(), watcher_id.clone()) {
         crate::watcher::start_watching(app, canonical_path, watcher_id);
@@ -23,16 +24,19 @@ pub async fn open_repo(
 pub async fn close_repo(path: String, state: tauri::State<'_, AppState>) -> Result<(), AppError> {
     let canonical = crate::git::utils::canonicalize_path(&path);
     state.remove_repo(&canonical);
+    crate::state::unregister_open_repo(&canonical);
     Ok(())
 }
 
 #[tauri::command]
 pub async fn get_status(path: String) -> Result<repository::RepoStatus, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || repository::get_status(&path)).await?
 }
 
 #[tauri::command]
 pub async fn list_remotes(path: String) -> Result<Vec<repository::RemoteInfo>, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || repository::list_remotes(&path)).await?
 }
 
@@ -40,6 +44,7 @@ pub async fn list_remotes(path: String) -> Result<Vec<repository::RemoteInfo>, A
 /// Used by refreshAll to avoid the open_repo side-effect.
 #[tauri::command]
 pub async fn get_repo_info(path: String) -> Result<repository::RepoInfo, AppError> {
+    crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || repository::open_repo(&path)).await?
 }
 
@@ -51,14 +56,22 @@ pub async fn clone_repo(
 ) -> Result<repository::RepoInfo, AppError> {
     let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
     let info = tokio::task::spawn_blocking(move || {
-        let callbacks = crate::git::credentials::make_callbacks(ssh_key_path);
+        // Keyed by the destination: there is no repository path yet.
+        let op = crate::git::progress::NetworkOperation::begin(&path, "clone", app);
+        let reporter = std::rc::Rc::new(std::cell::RefCell::new(op.reporter()));
+        let callbacks = crate::git::credentials::make_callbacks_with_progress(
+            ssh_key_path,
+            Some(reporter),
+            Some(&url),
+        );
         let mut fetch_opts = git2::FetchOptions::new();
         fetch_opts.remote_callbacks(callbacks);
 
         let mut builder = git2::build::RepoBuilder::new();
         builder.fetch_options(fetch_opts);
 
-        builder.clone(&url, std::path::Path::new(&path))?;
+        op.finish(builder.clone(&url, std::path::Path::new(&path)))?;
+        drop(op);
         repository::open_repo(&path)
     })
     .await??;

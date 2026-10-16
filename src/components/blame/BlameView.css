@@ -108,7 +108,7 @@
 .blame-gutter-oid {
   background: transparent;
   color: var(--text-link);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   padding: 0 var(--space-2);
   text-align: left;
   width: 65px;
@@ -123,7 +123,7 @@
 .blame-gutter-author {
   flex: 1;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   padding-right: var(--space-1);
 }
 
@@ -157,9 +157,21 @@
   /* A theme surface, so it takes a surface token: the gutter needs to read as
      a distinct band in both themes, which a fixed black alpha cannot do. */
   background: var(--bg-elevated);
+  /* It is a <button>: clear the default border before drawing the divider.
+     An inline `background: none; border: none` used to override both of
+     these, so the gutter band and its divider never rendered. */
+  border: none;
   border-right: 1px solid var(--scrim-border);
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
   flex-shrink: 0;
   user-select: none;
+}
+
+/* Look comes from the shared .btn primitives; only placement is local. */
+.blame-btn-editor {
+  margin-right: var(--space-2);
 }
 
 .blame-line-content {
