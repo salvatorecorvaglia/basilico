@@ -332,6 +332,7 @@ pub fn verify(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use uuid::Uuid;
 
     #[test]
     fn wildmatch_supports_star_and_question() {
@@ -365,7 +366,12 @@ mod tests {
     /// the hash of that whole string. Hashing the bare host never matched it.
     #[test]
     fn hashed_entries_for_non_standard_ports_match_on_that_port() {
-        let salt = b"0123456789abcdefghij";
+        // A fresh random salt each run: this test only cares that both sides
+        // hash with the *same* salt, and a hard-coded one trips
+        // rust/hard-coded-cryptographic-value, which cannot tell a test
+        // fixture from real key material.
+        let uuid = Uuid::new_v4();
+        let salt = uuid.as_bytes();
         let on_2222 = hmac(salt, "[git.example.com]:2222");
         let name = host_entry_name("git.example.com", Some(2222));
         assert!(host_matches_hashed(salt, &on_2222, &name));
