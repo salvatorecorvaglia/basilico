@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -83,7 +89,9 @@ describe("Toolbar — force push", () => {
     // Nothing pushed yet — only after the user confirms.
     expect(useRepoStore.getState().push).not.toHaveBeenCalled();
 
-    await confirm?.onConfirm();
+    await act(async () => {
+      await confirm?.onConfirm();
+    });
 
     await waitFor(() => {
       expect(useRepoStore.getState().push).toHaveBeenCalledWith(

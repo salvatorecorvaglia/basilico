@@ -43,7 +43,7 @@ import { useRepoStore } from "../src/store/repo-store";
 import { useUIStore } from "../src/store/ui-store";
 
 const SETTINGS: UserSettings = {
-  theme: "sage",
+  theme: "sage-green",
   sshKeyPath: null,
   gitAuthorName: null,
   gitAuthorEmail: null,

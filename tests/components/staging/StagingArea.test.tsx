@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -110,7 +110,9 @@ describe("StagingArea", () => {
       false,
     );
 
-    await confirm?.onConfirm();
+    await act(async () => {
+      await confirm?.onConfirm();
+    });
 
     await waitFor(() => {
       expect(

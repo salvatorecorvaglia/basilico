@@ -8,12 +8,21 @@ globalThis.ResizeObserver = class ResizeObserver {
 };
 
 // jsdom never lays out content, so every element reports 0x0. @tanstack/
-// react-virtual reads offsetWidth/offsetHeight to size its viewport, and
+// react-virtual reads clientWidth/clientHeight to size its viewport and
+// offsetWidth/offsetHeight to measure rows. With
 // with 0 it renders zero rows — a virtualized list would look empty (and
 // its rows unqueryable) in any test, regardless of what it's actually
 // rendering. A fixed non-zero size is a stand-in for "the window is big
 // enough to show content", which is all a test needs.
 if (typeof HTMLElement !== "undefined") {
+  Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+    configurable: true,
+    value: 600,
+  });
+  Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+    configurable: true,
+    value: 800,
+  });
   Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
     configurable: true,
     value: 600,
