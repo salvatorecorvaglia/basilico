@@ -27,7 +27,6 @@ coverage/
 lcov.info
 .vitest/
 .biome_cache/
-.eslintcache
 
 # Logs
 logs/
