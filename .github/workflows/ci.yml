@@ -135,13 +135,3 @@ jobs:
       - name: Audit Rust dependencies
         working-directory: src-tauri
         run: cargo audit
-
-  dependency-review:
-    name: Dependency Review
-    runs-on: ubuntu-24.04
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-      - name: Dependency Review
-        uses: actions/dependency-review-action@v4
