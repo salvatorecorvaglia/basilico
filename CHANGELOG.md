@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Updated frontend dependencies, including lucide-react `1.59.0`,
+  react-resizable-panels `4.14.6` and TanStack Virtual `3.14.21`, and upgraded
+  Rust Tokio to `1.54.0`.
+- Disabled legacy ZIP support in the Tauri updater, removing the ZIP dependency
+  affected by RUSTSEC-2026-0367, RUSTSEC-2026-0368 and RUSTSEC-2026-0369 while
+  retaining native v2 installer updates, Rustls TLS and system-proxy support.
+- CI now cancels superseded runs on both pushes and pull requests, runs for
+  non-Markdown changes under `docs/`, and no longer runs the Dependency Review
+  job.
+- SSH known-host hash tests now generate a random salt instead of using a
+  hard-coded cryptographic fixture.
+
+### Fixed
+
+- Added non-zero client dimensions to the jsdom test setup so virtualized lists
+  render their rows in component tests.
+- Corrected the app test's theme fixture and wrapped confirmation callbacks in
+  React `act` so toolbar and staging tests wait for asynchronous state updates.
+
 ## [1.1.0] - 2026-10-16
 
 ### Added
