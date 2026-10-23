@@ -33,7 +33,7 @@ git2 = { version = "0.21.0", features = ["ssh", "https", "vendored-openssl"] }
 notify = "8"
 notify-debouncer-mini = "0.7.0"
 # `rt` for `spawn_blocking`, `macros` for `join!` — Tauri owns the runtime.
-tokio = { version = "1.54.0", features = ["rt", "macros"] }
+tokio = { version = "1.54.1", features = ["rt", "macros"] }
 parking_lot = "0.12"
 log = "0.4"
 env_logger = "0.11"
@@ -49,7 +49,7 @@ keyring = "4.2"
 # Self-dependency so `cargo test`/`cargo clippy --all-targets` turn on
 # `test-utils` automatically, while a release build leaves it off.
 basilico = { path = ".", features = ["test-utils"] }
-tokio = { version = "1.53.3", features = ["full"] }
+tokio = { version = "1.54.1", features = ["full"] }
 
 [profile.release]
 strip = true
