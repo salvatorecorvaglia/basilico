@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: release-run-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -59,11 +59,16 @@ jobs:
             exit 1
           fi
 
+  quality:
+    name: Release checks
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+
   publish-tauri:
     name: Release (${{ matrix.platform }})
     permissions:
       contents: write
-    needs: validate
+    needs: [validate, quality]
     strategy:
       fail-fast: false
       matrix:
