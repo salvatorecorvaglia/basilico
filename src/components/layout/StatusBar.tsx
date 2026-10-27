@@ -181,6 +181,7 @@ export function StatusBar() {
           )}
 
           <span className="statusbar-item statusbar-version">
+            <img src="/basilico-logo-icon-transparent.svg" alt="" width={16} height={16} />
             Basilico v{version || "1.3.0"}
           </span>
         </div>
