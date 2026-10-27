@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Updated frontend dependencies, including lucide-react `1.59.0`,
-  react-resizable-panels `4.14.6` and TanStack Virtual `3.14.21`, and upgraded
-  Rust Tokio to `1.54.0`.
+- Updated frontend dependencies, including lucide-react `1.61.0`,
+  react-resizable-panels `4.15.0` and TanStack Virtual `3.14.23`, and upgraded
+  Rust Tokio to `1.54.1`.
 - Disabled legacy ZIP support in the Tauri updater, removing the ZIP dependency
   affected by RUSTSEC-2026-0367, RUSTSEC-2026-0368 and RUSTSEC-2026-0369 while
   retaining native v2 installer updates, Rustls TLS and system-proxy support.
@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   job.
 - SSH known-host hash tests now generate a random salt instead of using a
   hard-coded cryptographic fixture.
+- Require the reusable CI quality checks before packaging releases.
+- Use ad-hoc signing for macOS application bundles.
+- Refresh the README and application branding.
+
 
 ### Fixed
 
