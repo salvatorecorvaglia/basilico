@@ -92,29 +92,6 @@ pnpm format
 pnpm lint:fix
 ```
 
-## 💻 Platform-Specific Installation Notes
-
-### macOS
-
-Since pre-built release binaries may not be notarized with an Apple Developer certificate, macOS Gatekeeper may block the app or display a warning saying **`"Basilico" is damaged and can't be opened`** (*`"Basilico" è danneggiato e non può essere aperto`*).
-
-To resolve this and allow Basilico to open:
-
-1. **Remove Quarantine Attribute** (Recommended):
-   Open Terminal and run:
-   ```bash
-   xattr -cr /Applications/Basilico.app
-   ```
-   *(If the app is in your Downloads folder, use `xattr -cr ~/Downloads/Basilico.app` instead).*
-
-2. **Alternative (First Launch via Finder)**:
-   - Locate `Basilico.app` in `Finder`.
-   - Right-click (or Control-click) the application icon and choose **Open**.
-   - Click **Open** in the confirmation dialog.
-
-### Windows
-If Windows SmartScreen blocks execution of unsigned binaries, click **More info** and then choose **Run anyway**.
-
 ---
 
 ## 🤝 Contributing
