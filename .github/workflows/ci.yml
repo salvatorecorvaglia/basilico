@@ -246,11 +246,13 @@ jobs:
           if [[ -z "$TAURI_SIGNING_PRIVATE_KEY" ]]; then
             node -e 'const fs = require("node:fs"); const path = "src-tauri/tauri.conf.json"; const config = JSON.parse(fs.readFileSync(path)); config.bundle.createUpdaterArtifacts = false; delete config.plugins.updater; fs.writeFileSync(path, JSON.stringify(config, null, 2));'
           fi
-      - name: Build installers once without publishing
+      - name: Build installers without publishing
         id: installers
         uses: tauri-apps/tauri-action@v0
         with:
           args: ${{ matrix.args }}
+          # hdiutil can transiently fail with "Resource busy" on macOS runners.
+          retryAttempts: ${{ runner.os == 'macOS' && 3 || 0 }}
       - name: Stage and checksum the installers
         shell: bash
         env:
