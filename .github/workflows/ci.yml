@@ -185,7 +185,7 @@ jobs:
             updater-platform: windows-x86_64
 
     runs-on: ${{ matrix.platform }}
-    timeout-minutes: 40
+    timeout-minutes: ${{ matrix.target == 'aarch64-apple-darwin' && 60 || 40 }}
     env:
       TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.release && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ inputs.release && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
@@ -252,6 +252,7 @@ jobs:
         with:
           args: ${{ matrix.args }}
       - name: Stage and checksum the installers
+        shell: bash
         env:
           ARTIFACT_PATHS: ${{ steps.installers.outputs.artifactPaths }}
           APP_VERSION: ${{ steps.installers.outputs.appVersion }}
