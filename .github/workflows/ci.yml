@@ -244,7 +244,6 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         with:
           args: ${{ matrix.args }}
-          # hdiutil can transiently fail with "Resource busy" on macOS runners.
           retryAttempts: ${{ runner.os == 'macOS' && 3 || 0 }}
       - name: Stage and checksum the installers
         shell: bash
