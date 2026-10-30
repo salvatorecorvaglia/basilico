@@ -231,7 +231,7 @@ importers:
         version: 5.0.16(@types/react@19.3.0)(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
     devDependencies:
       '@biomejs/biome':
-        specifier: 2.6.4
+        specifier: ^2.6.4
         version: 2.6.4
       '@tailwindcss/vite':
         specifier: ^4.3.3
