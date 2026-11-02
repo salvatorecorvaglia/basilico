@@ -10,7 +10,7 @@
 
 ---
 
-## ✨ Features
+## Features ✨
 
 - **🚀 Push & Force-Push with Safety Guards**: Fetch, pull, and push against whichever remote your repository actually uses — `origin`, the remote your branch tracks, or a custom name — with dedicated right-click force-push options protected by danger confirmation dialogs and a `--force-with-lease` equivalent that refuses to overwrite commits pushed since your last fetch.
 - **📊 Beautiful Commit Graph & Topology Filters**: Visualize your project's commit history, branches, and tags with a fluid, theme-aware interactive timeline and topology filters.
@@ -35,7 +35,7 @@
 
 ---
 
-## 🚀 Getting Started
+## Getting Started 🚀
 
 ### Prerequisites
 
@@ -65,55 +65,24 @@ To build Basilico from source, you will need the following tools installed on yo
    ```
    This will run Vite in the background and open the Tauri application window with hot reloading and developer tools enabled.
 
-### Testing
-
-Run frontend unit and component test suites (UI components, state stores, keyboard shortcuts, patch construction, autolink parsing, and reference validation under `tests/`) using Vitest:
-```bash
-pnpm test
-```
-
-Type-check the frontend without emitting output:
-```bash
-pnpm exec tsc --noEmit
-```
-
-Run backend Rust unit and integration test suites (`src-tauri/tests/`):
-```bash
-cd src-tauri && cargo test
-```
-
-### Formatting & Linting
-
-We use Biome for formatting and linting frontend code with strict zero-warning enforcement (`--error-on-warnings`):
-```bash
-# Check code style and run linter (errors on warnings)
-pnpm lint
-
-# Format code automatically
-pnpm format
-
-# Run linter and apply safe auto-fixes
-pnpm lint:fix
-```
-
 ---
 
-## 🤝 Contributing
+## Contributing 🤝
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-## 📜 Changelog
+## Changelog 📜
 
 Detailed release history and version changes can be found in [CHANGELOG.md](CHANGELOG.md).
 
-## 🔐 Security
+## Security 🔐
 
 If you discover a security vulnerability, please see our [Security Policy](SECURITY.md).
 
-## 📝 License
+## License 📝
 
 Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 
----
+## Author ✍️
 
-**Author**: [Salvatore Corvaglia](https://github.com/salvatorecorvaglia)
+[Salvatore Corvaglia](https://github.com/salvatorecorvaglia)
