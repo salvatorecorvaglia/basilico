@@ -143,6 +143,20 @@ async function click(selector, using = "css selector") {
     {},
   );
 }
+async function focusInput(selector) {
+  // Staging/amend refreshes temporarily disable the controlled inputs. WKWebView
+  // needs an explicit click once enabled before it can accept keyboard events.
+  return until(`enabled and focused input: ${selector}`, async () => {
+    const id = await element(selector);
+    if (!(await command("GET", `/element/${id}/enabled`))) return false;
+    await command("POST", `/element/${id}/click`, {});
+    const focused = await evaluate(
+      "return document.activeElement === arguments[0] && !arguments[0].disabled",
+      [{ [elementKey]: id }],
+    );
+    return focused && id;
+  });
+}
 async function palette() {
   // Style reads flush layout even when an unfocused WKWebView throttles RAF.
   return evaluate(
@@ -328,7 +342,7 @@ try {
     ),
   );
   assert.ok(!git(a, "show", ":partial.txt").includes("second edited line"));
-  const summary = await element(".commit-summary-input");
+  const summary = await focusInput(".commit-summary-input");
   await command("POST", `/element/${summary}/value`, {
     text: "Native partial commit",
   });
@@ -355,7 +369,7 @@ try {
         `/element/${await element(".commit-summary-input")}/property/value`,
       )) === "Native partial commit",
   );
-  const amendSummary = await element(".commit-summary-input");
+  const amendSummary = await focusInput(".commit-summary-input");
   // WebKit's element-clear can leave React's controlled value unchanged and
   // the next keystrokes append to the old title. Replace it through keyboard
   // events so the browser and React observe the same edit.
