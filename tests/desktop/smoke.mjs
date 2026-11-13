@@ -349,10 +349,22 @@ try {
       )) === "Native partial commit",
   );
   const amendSummary = await element(".commit-summary-input");
-  await command("POST", `/element/${amendSummary}/clear`, {});
+  // WebKit's element-clear can leave React's controlled value unchanged and
+  // the next keystrokes append to the old title. Replace it through keyboard
+  // events so the browser and React observe the same edit.
+  await command("POST", `/element/${amendSummary}/value`, {
+    text: `${embedded ? "\uE03D" : "\uE009"}a\uE000\uE003`,
+  });
   await command("POST", `/element/${amendSummary}/value`, {
     text: "Native amended commit",
   });
+  assert.equal(
+    await command("GET", `/element/${amendSummary}/property/value`),
+    "Native amended commit",
+  );
+  await until("amend enabled", async () =>
+    command("GET", `/element/${await element(".commit-submit-btn")}/enabled`),
+  );
   await click(".commit-submit-btn");
   await until(
     "amended commit persisted",
