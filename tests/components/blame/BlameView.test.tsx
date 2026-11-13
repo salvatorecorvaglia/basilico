@@ -45,7 +45,7 @@ describe("BlameView", () => {
       selectCommit: vi.fn().mockResolvedValue(undefined),
       openInIde: vi.fn().mockResolvedValue(undefined),
     });
-    useUIStore.setState({ activeView: "blame" });
+    useUIStore.setState({ activeView: "blame", blameTarget: null });
   });
 
   it("blames the selected file at the working tree by default", () => {
@@ -107,5 +107,40 @@ describe("BlameView", () => {
     expect(
       screen.getByText("No blame data available for this file."),
     ).toBeInTheDocument();
+  });
+  it("keeps the DOM bounded for a large blame result", () => {
+    useRepoStore.setState({
+      blameLines: Array.from({ length: 20_000 }, (_, index) => ({
+        ...LINES[0],
+        lineNo: index + 1,
+      })),
+    });
+    const { container } = render(<BlameView />);
+    expect(container.querySelectorAll(".blame-line-row").length).toBeLessThan(
+      60,
+    );
+    expect(
+      container.querySelectorAll(".blame-line-row").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("uses the working tree for a search target even with a graph commit selected", () => {
+    useRepoStore.setState({ activeTabId: "/repo", selectedCommitOid: OID });
+    useUIStore.setState({
+      blameTarget: { repoPath: "/repo", filePath: "src/a.ts", line: 2 },
+    });
+    const scrollTo = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+      value: scrollTo,
+      configurable: true,
+    });
+    const { container } = render(<BlameView />);
+    expect(useRepoStore.getState().loadFileBlame).toHaveBeenCalledWith(
+      "src/a.ts",
+      null,
+    );
+    expect(container.querySelector(".blame-line-target")).toHaveTextContent(
+      "const b = 2;",
+    );
   });
 });

@@ -451,10 +451,14 @@ export function CommitDetail() {
                           </span>
                           <span className="commit-detail-file-stats text-mono">
                             <span className="stat-add">
-                              +{file.stats.additions}
+                              {file.truncated
+                                ? "…"
+                                : `+${file.stats.additions}`}
                             </span>
                             <span className="stat-del">
-                              -{file.stats.deletions}
+                              {file.truncated
+                                ? "…"
+                                : `-${file.stats.deletions}`}
                             </span>
                           </span>
                         </div>
@@ -464,9 +468,10 @@ export function CommitDetail() {
                           <ContextMenu.Item
                             className="context-menu-item"
                             onSelect={() => {
-                              selectLocalFile(filePath, false).catch((err) =>
-                                reportError(err, "Failed to load file"),
-                              );
+                              useRepoStore
+                                .getState()
+                                .selectFileForBlame(filePath);
+                              useUIStore.setState({ blameTarget: null });
                               setActiveView("blame");
                             }}
                           >

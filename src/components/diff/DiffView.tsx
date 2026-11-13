@@ -254,7 +254,7 @@ export function DiffView() {
 
   // Fetch full contents for Monaco editor when selected file changes
   useEffect(() => {
-    if (!activeTabId || !selectedFilePath) {
+    if (!activeTabId || !selectedFilePath || localDiff?.truncated) {
       setContents(null);
       return;
     }
@@ -285,7 +285,13 @@ export function DiffView() {
     return () => {
       cancelled = true;
     };
-  }, [activeTabId, selectedFilePath, selectedFileIsStaged, renamedFrom]);
+  }, [
+    activeTabId,
+    selectedFilePath,
+    selectedFileIsStaged,
+    renamedFrom,
+    localDiff?.truncated,
+  ]);
 
   if (!selectedFilePath) {
     return (
@@ -325,6 +331,7 @@ export function DiffView() {
 
   // Staging specific Hunk
   const handleStageHunk = async (hunk: DiffHunkInfo) => {
+    if (localDiff?.truncated) return;
     const patch = constructHunkPatch(
       selectedFilePath,
       hunk,
@@ -347,6 +354,7 @@ export function DiffView() {
     hunkIndex: number,
     hunk: DiffHunkInfo,
   ) => {
+    if (localDiff?.truncated) return;
     const lineIndices = selectedLines[hunkIndex];
     if (!lineIndices || lineIndices.size === 0) return;
 
@@ -401,8 +409,12 @@ export function DiffView() {
           </span>
           {localDiff && (
             <span className="diff-view-file-stats text-mono">
-              <span className="stat-add">+{localDiff.stats.additions}</span>
-              <span className="stat-del">-{localDiff.stats.deletions}</span>
+              <span className="stat-add">
+                {localDiff.truncated ? "…" : `+${localDiff.stats.additions}`}
+              </span>
+              <span className="stat-del">
+                {localDiff.truncated ? "…" : `-${localDiff.stats.deletions}`}
+              </span>
             </span>
           )}
         </div>
@@ -501,7 +513,15 @@ export function DiffView() {
 
       {/* Editor Content Area */}
       <div className="diff-view-content">
-        {localDiff?.isBinary ? (
+        {localDiff?.truncated ? (
+          <div className="diff-binary-placeholder" role="status">
+            <h3>Diff display limit reached</h3>
+            <p>
+              Open this file in your editor or stage the whole file. Partial
+              hunks cannot be staged safely.
+            </p>
+          </div>
+        ) : localDiff?.isBinary ? (
           <div className="diff-binary-placeholder">
             <FileCode size={48} strokeWidth={1} />
             <h3>Binary File</h3>

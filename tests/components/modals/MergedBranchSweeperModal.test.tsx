@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -48,7 +48,14 @@ describe("MergedBranchSweeperModal", () => {
     useUIStore.setState({ confirmOptions: null });
 
     invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === "list_merged_branches") return Promise.resolve(MERGED);
+      if (cmd === "scan_merged_branches")
+        return Promise.resolve({
+          targetRef: "refs/heads/main",
+          targetOid: "target-tip",
+          branches: MERGED,
+        });
+      if (cmd === "delete_merged_branches")
+        return Promise.resolve([{ name: "feature/done", error: null }]);
       return Promise.resolve(undefined);
     });
   });
@@ -88,9 +95,9 @@ describe("MergedBranchSweeperModal", () => {
     });
 
     // Crucially, nothing has been deleted yet.
-    expect(invokeMock.mock.calls.some((c) => c[0] === "delete_branch")).toBe(
-      false,
-    );
+    expect(
+      invokeMock.mock.calls.some((c) => c[0] === "delete_merged_branches"),
+    ).toBe(false);
   });
 
   it("warns explicitly when the selection includes a remote branch", async () => {
@@ -131,9 +138,36 @@ describe("MergedBranchSweeperModal", () => {
     await useUIStore.getState().confirmOptions?.onConfirm();
 
     await waitFor(() => {
-      expect(invokeMock.mock.calls.some((c) => c[0] === "delete_branch")).toBe(
-        true,
-      );
+      expect(
+        invokeMock.mock.calls.some((c) => c[0] === "delete_merged_branches"),
+      ).toBe(true);
     });
+  });
+  it("keeps the confirmed batch on its scanned repository after a tab switch", async () => {
+    const user = userEvent.setup();
+    render(<MergedBranchSweeperModal open onOpenChange={() => {}} />);
+    await screen.findByText("feature/done");
+    await user.click(screen.getByRole("button", { name: "Select All" }));
+    await user.click(screen.getByRole("button", { name: /Prune Selected/ }));
+    const confirmed = useUIStore.getState().confirmOptions;
+    act(() => useRepoStore.setState({ activeTabId: "/other" }));
+    await act(async () => {
+      await confirmed?.onConfirm();
+    });
+    expect(invokeMock).toHaveBeenCalledWith("delete_merged_branches", {
+      path: "/repo",
+      targetRef: "refs/heads/main",
+      targetOid: "target-tip",
+      branches: MERGED.map(({ name, isRemote, oid }) => ({
+        name,
+        isRemote,
+        oid,
+      })),
+    });
+    expect(
+      invokeMock.mock.calls.filter(
+        ([name]) => name === "delete_merged_branches",
+      ),
+    ).toHaveLength(1);
   });
 });

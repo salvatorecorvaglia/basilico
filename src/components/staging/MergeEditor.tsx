@@ -16,17 +16,13 @@ import { getLanguageFromPath } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./MergeEditor.css";
+import {
+  hasConflictMarkers,
+  parseConflictBlocks,
+} from "../../lib/conflict-blocks";
 import { reportError } from "../../lib/git-error";
 // Registers the bundled Monaco + workers; keeps it off the startup chunk.
 import { disposeModelsOnUnmount } from "../../lib/monaco-setup";
-
-interface ConflictBlock {
-  start: number; // 0-indexed line index
-  sep: number;
-  end: number;
-  ours: string;
-  theirs: string;
-}
 
 export function MergeEditor() {
   const isDark = useDarkMode();
@@ -49,11 +45,10 @@ export function MergeEditor() {
       settings: s.settings,
     })),
   );
-  const { setActiveView, addNotification, openConfirm } = useUIStore(
+  const { setActiveView, addNotification } = useUIStore(
     useShallow((s) => ({
       setActiveView: s.setActiveView,
       addNotification: s.addNotification,
-      openConfirm: s.openConfirm,
     })),
   );
 
@@ -62,6 +57,7 @@ export function MergeEditor() {
   const [mergedValue, setMergedValue] = useState<string>("");
   const [oursValue, setOursValue] = useState<string>("");
   const [theirsValue, setTheirsValue] = useState<string>("");
+  const [loadFailed, setLoadFailed] = useState(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [activeBlockIndex, setActiveBlockIndex] = useState<number>(0);
 
@@ -75,21 +71,29 @@ export function MergeEditor() {
     // content is what gets written back to disk.
     let cancelled = false;
     setLoading(true);
+    setLoadFailed(false);
     const fetchStages = async () => {
       try {
         // Fetch ours/theirs from index stages
         await loadConflictStages(activeConflictedPath);
+        if (cancelled) return;
 
         // Fetch current working dir content with conflict markers
         const contentPair = await commands.getFileContentPair(
-          useRepoStore.getState().activeTabId || "",
+          activeTabId || "",
           activeConflictedPath,
           false,
         );
         if (cancelled) return;
+        if (contentPair.isBinary || contentPair.tooLarge) {
+          throw new Error(
+            "This conflict cannot be edited as text. Choose a side in Staging instead.",
+          );
+        }
         setMergedValue(contentPair.modified);
       } catch (err) {
         if (cancelled) return;
+        setLoadFailed(true);
         reportError(err, "Failed to load conflict files");
         setActiveView("staging");
       } finally {
@@ -101,7 +105,7 @@ export function MergeEditor() {
     return () => {
       cancelled = true;
     };
-  }, [activeConflictedPath, loadConflictStages, setActiveView]);
+  }, [activeTabId, activeConflictedPath, loadConflictStages, setActiveView]);
 
   // Sync ours and theirs from store
   useEffect(() => {
@@ -111,35 +115,14 @@ export function MergeEditor() {
     }
   }, [conflictStages]);
 
-  // Parse conflict blocks from mergedValue
-  const conflictBlocks = useMemo((): ConflictBlock[] => {
-    const lines = mergedValue.split("\n");
-    const blocks: ConflictBlock[] = [];
-    let currentStart = -1;
-    let currentSep = -1;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.startsWith("<<<<<<<")) {
-        currentStart = i;
-      } else if (line.startsWith("=======")) {
-        currentSep = i;
-      } else if (line.startsWith(">>>>>>>")) {
-        if (currentStart !== -1 && currentSep !== -1) {
-          blocks.push({
-            start: currentStart,
-            sep: currentSep,
-            end: i,
-            ours: lines.slice(currentStart + 1, currentSep).join("\n"),
-            theirs: lines.slice(currentSep + 1, i).join("\n"),
-          });
-        }
-        currentStart = -1;
-        currentSep = -1;
-      }
-    }
-    return blocks;
-  }, [mergedValue]);
+  const conflictBlocks = useMemo(
+    () => parseConflictBlocks(mergedValue, conflictStages?.markerSize),
+    [mergedValue, conflictStages?.markerSize],
+  );
+  const unresolved = hasConflictMarkers(
+    mergedValue,
+    conflictStages?.markerSize,
+  );
 
   // Adjust active block index if out of range
   useEffect(() => {
@@ -181,7 +164,7 @@ export function MergeEditor() {
   };
 
   const doSave = async () => {
-    if (!activeConflictedPath) return;
+    if (!activeConflictedPath || loading || loadFailed || unresolved) return;
     try {
       await resolveConflictStages(activeConflictedPath, mergedValue);
       addNotification({
@@ -197,17 +180,14 @@ export function MergeEditor() {
   const handleSave = () => {
     if (!activeConflictedPath) return;
 
-    if (conflictBlocks.length > 0) {
-      openConfirm({
-        title: "Save with Conflicts?",
-        message: `There are still ${conflictBlocks.length} unresolved conflict markers in the file. Are you sure you want to save?`,
-        confirmLabel: "Save Anyway",
-        isDanger: true,
-        onConfirm: doSave,
+    if (loading || loadFailed || unresolved) {
+      addNotification({
+        type: "warning",
+        message: "Resolve all conflict markers before saving.",
       });
-    } else {
-      doSave();
+      return;
     }
+    doSave();
   };
 
   const handleLaunchExternalTool = async () => {
@@ -267,6 +247,10 @@ export function MergeEditor() {
               {conflictBlocks.length} conflict
               {conflictBlocks.length > 1 ? "s" : ""} remaining
             </span>
+          ) : unresolved ? (
+            <span className="conflict-badge warning">
+              Incomplete conflict markers
+            </span>
           ) : (
             <span className="conflict-badge success">
               <Check size={12} /> All markers cleared
@@ -290,7 +274,12 @@ export function MergeEditor() {
           >
             <X size={14} /> Cancel
           </button>
-          <button type="button" className="merge-btn" onClick={handleSave}>
+          <button
+            type="button"
+            className="merge-btn"
+            onClick={handleSave}
+            disabled={loading || loadFailed || unresolved}
+          >
             <CheckSquare size={14} /> Save Resolution
           </button>
         </div>

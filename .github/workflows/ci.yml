@@ -59,11 +59,20 @@ jobs:
       - name: Run linting (Biome)
         run: pnpm run lint
 
-      - name: Run tests
-        run: pnpm run test
+      - name: Run frontend tests and enforce coverage floors
+        run: pnpm run test:coverage
+
+      - name: Upload frontend coverage
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: frontend-coverage
+          path: coverage/
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Typecheck
-        run: pnpm exec tsc --noEmit
+        run: pnpm run typecheck
 
       - name: Production build
         run: pnpm run build
@@ -90,7 +99,7 @@ jobs:
   rust-clippy-test:
     name: Rust Clippy & Test
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -129,7 +138,12 @@ jobs:
           git config --global user.email "ci@example.com"
 
       - name: Run tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+
+      - name: Verify optimized GLib security backport
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/src-tauri/target
+        run: cargo test --locked --release --manifest-path tests/desktop/glib-check/Cargo.toml
 
       - name: Verify Rust cache inputs and compiled artifacts
         shell: bash
@@ -138,6 +152,49 @@ jobs:
           cargo metadata --locked --all-features --format-version 1 --manifest-path src-tauri/Cargo.toml > "$RUNNER_TEMP/cargo-metadata.json"
           du -sh src-tauri/target | tee -a "$GITHUB_STEP_SUMMARY"
           test -n "$(find src-tauri/target -name '*.rlib' -print -quit)"
+
+  native-workflows:
+    name: Native command workflows (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-15, windows-latest]
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          prefix-key: v1-native-workflows
+      - uses: mozilla-actions/sccache-action@v0.0.11
+      - name: Run native IPC, display-budget, editor and watcher regressions
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib --test backend_integration_test --test watcher_tests --test editor_process_test
+      - uses: pnpm/action-setup@v6
+        if: runner.os == 'macOS'
+      - uses: actions/setup-node@v6
+        if: runner.os == 'macOS'
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install frontend for macOS webview validation
+        if: runner.os == 'macOS'
+        run: pnpm install --frozen-lockfile
+      - name: Build isolated macOS validation app
+        if: runner.os == 'macOS'
+        run: pnpm tauri build --debug --no-bundle --features desktop-tests --config tests/desktop/tauri.mac.conf.json
+      - name: Exercise the real macOS webview
+        if: runner.os == 'macOS'
+        run: pnpm test:desktop src-tauri/target/debug/basilico
+      - name: Upload macOS native screenshots and diagnostics
+        if: always() && runner.os == 'macOS'
+        uses: actions/upload-artifact@v6
+        with:
+          name: native-desktop-macos
+          path: test-results/desktop/
+          if-no-files-found: warn
+          retention-days: 7
 
   rust-audit:
     name: Rust Dependency Audit
@@ -224,6 +281,12 @@ jobs:
           sudo apt-get "${options[@]}" update
           sudo apt-get "${options[@]}" install -y --no-install-recommends libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      - name: Install native WebDriver dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends webkit2gtk-driver xvfb dbus-x11
+          cargo install tauri-driver --version 2.1.0 --locked
+
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
@@ -245,6 +308,19 @@ jobs:
         with:
           args: ${{ matrix.args }}
           retryAttempts: ${{ runner.os == 'macOS' && 3 || 0 }}
+      - name: Smoke-test the built Linux webview and real Git workflows
+        if: matrix.platform == 'ubuntu-22.04'
+        run: dbus-run-session -- xvfb-run -a pnpm test:desktop
+
+      - name: Upload native smoke screenshots and diagnostics
+        if: always() && matrix.platform == 'ubuntu-22.04'
+        uses: actions/upload-artifact@v6
+        with:
+          name: native-desktop-smoke
+          path: test-results/desktop/
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Stage and checksum the installers
         shell: bash
         env:

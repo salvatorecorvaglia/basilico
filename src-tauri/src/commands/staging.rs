@@ -2,10 +2,36 @@ use crate::error::AppError;
 use git2::{build::CheckoutBuilder, ApplyLocation, ApplyOptions, Repository};
 use std::path::Path;
 
+/// A file selection must never resolve to the repository root or Git metadata.
+fn validate_selection(files: &[String]) -> Result<(), AppError> {
+    for file in files {
+        let parts: Vec<_> = Path::new(file).components().collect();
+        if !parts
+            .iter()
+            .any(|part| matches!(part, std::path::Component::Normal(_)))
+            || parts.iter().any(|part| {
+                part.as_os_str()
+                    .to_string_lossy()
+                    .eq_ignore_ascii_case(".git")
+            })
+        {
+            return Err(AppError::invalid_state(
+                "Select working-tree files, not the repository root or Git metadata.",
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn stage_files(path: String, files: Vec<String>) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&path)?;
+    validate_selection(&files)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         let repo = Repository::open(&path)?;
         let workdir = repo
             .workdir()
@@ -32,7 +58,12 @@ pub async fn stage_files(path: String, files: Vec<String>) -> Result<(), AppErro
 #[tauri::command]
 pub async fn unstage_files(path: String, files: Vec<String>) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&path)?;
+    validate_selection(&files)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         let repo = Repository::open(&path)?;
         let workdir = repo
             .workdir()
@@ -41,21 +72,33 @@ pub async fn unstage_files(path: String, files: Vec<String>) -> Result<(), AppEr
             let _ = crate::git::utils::validate_path(workdir, Path::new(file))?;
         }
         let files = with_rename_sources(&repo, files)?;
-        let head = repo.head();
-        match head {
-            Ok(head_ref) => {
-                let commit = head_ref.peel_to_commit()?;
-                repo.reset_default(Some(commit.as_object()), &files)?;
-            }
-            Err(_) => {
-                // Empty repo: remove from index
-                let mut index = repo.index()?;
-                for file in files {
-                    let _ = index.remove_path(Path::new(&file));
+        let mut baseline = git2::Index::new()?;
+        match repo.head() {
+            Ok(head) => baseline.read_tree(&head.peel_to_tree()?)?,
+            Err(e)
+                if matches!(
+                    e.code(),
+                    git2::ErrorCode::UnbornBranch | git2::ErrorCode::NotFound
+                ) => {}
+            Err(e) => return Err(e.into()),
+        }
+        let mut index = repo.index()?;
+        for file in files {
+            let file = Path::new(&file);
+            if let Err(e) = index.conflict_remove(file) {
+                if e.code() != git2::ErrorCode::NotFound {
+                    return Err(e.into());
                 }
-                index.write()?;
+            }
+            if let Some(entry) = baseline.get_path(file, 0) {
+                index.add(&entry)?;
+            } else if let Err(e) = index.remove_path(file) {
+                if e.code() != git2::ErrorCode::NotFound {
+                    return Err(e.into());
+                }
             }
         }
+        index.write()?;
         Ok(())
     })
     .await?
@@ -106,6 +149,10 @@ fn with_rename_sources(repo: &Repository, mut files: Vec<String>) -> Result<Vec<
 pub async fn apply_patch(path: String, patch: String, location: String) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         let repo = Repository::open(&path)?;
         let workdir = repo
             .workdir()
@@ -143,7 +190,12 @@ pub async fn apply_patch(path: String, patch: String, location: String) -> Resul
 #[tauri::command]
 pub async fn discard_changes(path: String, files: Vec<String>) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&path)?;
+    validate_selection(&files)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         let repo = Repository::open(&path)?;
         let index = repo.index()?;
         let workdir = repo
@@ -197,7 +249,7 @@ pub async fn discard_changes(path: String, files: Vec<String>) -> Result<(), App
         // 1. Discard changes in tracked files
         if !tracked_files.is_empty() {
             let mut opts = CheckoutBuilder::new();
-            opts.force();
+            opts.force().disable_pathspec_match(true);
             for file in &tracked_files {
                 opts.path(Path::new(file));
             }

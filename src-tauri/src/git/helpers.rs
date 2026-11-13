@@ -2,8 +2,6 @@
 
 use crate::error::AppError;
 use git2::{AnnotatedCommit, Commit, Repository, Signature};
-use std::io::Write;
-use std::process::Stdio;
 
 /// Get the repository signature, rejecting with a descriptive error if `user.name`/
 /// `user.email` are not configured — every commit-like operation (commits, stashes,
@@ -318,25 +316,16 @@ fn expand_home(path: &str) -> std::path::PathBuf {
 
 /// Feed `content` to a signing program and return what it writes to stdout.
 fn run_signer(
-    mut cmd: std::process::Command,
+    cmd: std::process::Command,
     program: &str,
     content: &str,
 ) -> Result<String, AppError> {
-    cmd.stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| AppError::command(format!("Failed to run {}: {}", program, e)))?;
-
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(content.as_bytes())?;
-    }
-
-    let output = child
-        .wait_with_output()
-        .map_err(|e| AppError::command(format!("Failed to wait for {}: {}", program, e)))?;
+    let output = crate::commands::command_output_with_input(
+        cmd,
+        content.as_bytes().to_vec(),
+        std::time::Duration::from_secs(300),
+    )
+    .map_err(|e| AppError::command(format!("Failed to run {}: {}", program, e)))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();

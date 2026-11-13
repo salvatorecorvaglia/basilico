@@ -5,7 +5,7 @@
 
 import { Check, Edit2 } from "lucide-react";
 import type React from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { reportError } from "../../lib/git-error";
 import * as commands from "../../lib/tauri-commands";
@@ -33,6 +33,11 @@ function splitMessage(message: string): CommitMessageParts {
 }
 
 export function CommitBox() {
+  const path = useRepoStore((s) => s.activeTabId);
+  return path ? <RepositoryCommitBox key={path} path={path} /> : null;
+}
+
+function RepositoryCommitBox({ path }: { path: string }) {
   const { activeTabId, status, commit, isLoading } = useRepoStore(
     useShallow((s) => ({
       activeTabId: s.activeTabId,
@@ -41,14 +46,12 @@ export function CommitBox() {
       isLoading: s.isLoading,
     })),
   );
-  // Only the head commit and whether there is one at all are used here.
-  // Subscribing to the whole `commits` array re-rendered this box on every
-  // "load more" page and every refresh; these two are primitives, so they
-  // only fire when the value actually changes.
-  const lastCommit = useRepoStore((s) => s.commits[0] ?? null);
-  const hasCommits = useRepoStore((s) => s.commits.length > 0);
-  const [summary, setSummary] = useState("");
-  const [description, setDescription] = useState("");
+  const isEmpty = useRepoStore((s) => s.repoInfo?.isEmpty === true);
+  const draft = useRepoStore.getState().commitDrafts[path];
+  const [summary, setSummary] = useState(draft?.title ?? "");
+  const [description, setDescription] = useState(draft?.body ?? "");
+  const [amendOid, setAmendOid] = useState<string | null>(null);
+  const [amendLoading, setAmendLoading] = useState(false);
   const [amend, setAmend] = useState(false);
 
   // Backup of user message before checking Amend
@@ -64,37 +67,52 @@ export function CommitBox() {
   // has already unticked Amend.
   const amendRequest = useRef(0);
 
+  useEffect(() => {
+    if (!amend)
+      useRepoStore.setState((s) => ({
+        commitDrafts: {
+          ...s.commitDrafts,
+          [path]: { title: summary, body: description },
+        },
+      }));
+  }, [path, summary, description, amend]);
+  useEffect(
+    () => () => {
+      amendRequest.current++;
+    },
+    [],
+  );
+
   const handleAmendToggle = (checked: boolean) => {
     setAmend(checked);
+    setAmendOid(null);
     const ticket = ++amendRequest.current;
     if (checked) {
-      // Backup current text
       setUserSummaryBackup(summary);
       setUserDescriptionBackup(description);
-      if (!lastCommit) return;
-
-      // The graph only carries the subject line. Show it straight away, then
-      // swap in the full message: amending from the subject alone silently
-      // dropped the commit's body.
-      const subjectOnly = splitMessage(lastCommit.message);
-      setSummary(subjectOnly.title);
-      setDescription(subjectOnly.body);
-      setAmendTemplate(subjectOnly);
-      if (!activeTabId) return;
+      setAmendLoading(true);
       commands
-        .getCommitMessage(activeTabId, lastCommit.oid, { silent: true })
-        .then((message) => {
+        .getAmendCommit(path, { silent: true })
+        .then(({ oid, message }) => {
           if (ticket !== amendRequest.current) return;
           const full = splitMessage(message);
-          // Leave alone whatever the user has already started editing.
-          setSummary((s) => (s === subjectOnly.title ? full.title : s));
-          setDescription((d) => (d === subjectOnly.body ? full.body : d));
+          setSummary(full.title);
+          setDescription(full.body);
           setAmendTemplate(full);
+          setAmendOid(oid);
         })
-        .catch(() => {
-          // Keep the subject-only pre-fill; the user can still type the body.
+        .catch((err) => {
+          if (ticket !== amendRequest.current) return;
+          reportError(
+            err,
+            "Could not load HEAD for Amend. Toggle Amend to retry.",
+          );
+        })
+        .finally(() => {
+          if (ticket === amendRequest.current) setAmendLoading(false);
         });
     } else {
+      setAmendLoading(false);
       const hasEdited =
         amendTemplate !== null &&
         (summary !== amendTemplate.title || description !== amendTemplate.body);
@@ -109,14 +127,15 @@ export function CommitBox() {
   };
 
   const performCommit = async () => {
-    if (!summary.trim()) return;
+    if (!canCommit || activeTabId !== path) return;
 
     const fullMessage = description.trim()
       ? `${summary.trim()}\n\n${description.trim()}`
       : summary.trim();
 
     try {
-      await commit(fullMessage, amend);
+      if (amend) await commit(fullMessage, true, amendOid ?? undefined);
+      else await commit(fullMessage, false);
       setSummary("");
       setDescription("");
       setAmend(false);
@@ -152,7 +171,11 @@ export function CommitBox() {
 
   const hasStaged = status ? status.staged.length > 0 : false;
   const canCommit =
-    summary.trim().length > 0 && (hasStaged || amend) && !isLoading;
+    summary.trim().length > 0 &&
+    (hasStaged || amend) &&
+    !isLoading &&
+    !amendLoading &&
+    (!amend || amendOid !== null);
 
   return (
     <form className="commit-box" onSubmit={handleCommitSubmit}>
@@ -164,6 +187,7 @@ export function CommitBox() {
             key={type.label}
             type="button"
             className="conventional-btn"
+            disabled={isLoading || amendLoading}
             onClick={() => handlePrefixClick(type.label)}
             title={type.desc}
           >
@@ -181,7 +205,7 @@ export function CommitBox() {
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={isLoading}
+          disabled={isLoading || amendLoading}
           maxLength={72}
           required
         />
@@ -191,7 +215,7 @@ export function CommitBox() {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={isLoading}
+          disabled={isLoading || amendLoading}
           rows={3}
         />
       </div>
@@ -203,7 +227,7 @@ export function CommitBox() {
             type="checkbox"
             checked={amend}
             onChange={(e) => handleAmendToggle(e.target.checked)}
-            disabled={isLoading || !hasCommits}
+            disabled={isLoading || isEmpty}
           />
           <span>Amend last commit</span>
         </label>

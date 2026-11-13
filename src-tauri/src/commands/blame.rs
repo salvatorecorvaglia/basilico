@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use crate::git::content_limits::{self, MAX_LINE_BYTES, MAX_TEXT_LINES};
 use git2::Repository;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -30,9 +31,13 @@ pub async fn get_file_blame(
         let workdir = repo
             .workdir()
             .ok_or_else(|| AppError::invalid_state("Repository has no working directory"))?;
-        // Read below via `fs::read_to_string`, which follows symlinks.
-        let validated_full_path =
-            crate::git::utils::validate_path_no_symlink(workdir, Path::new(&file_path))?;
+        // Historical reads stay in the object database; current symlinked
+        // parents must not prevent inspection of a safe historical path.
+        let validated_full_path = if commit_oid.is_some() {
+            crate::git::utils::validate_path(workdir, Path::new(&file_path))?
+        } else {
+            crate::git::utils::validate_path_no_symlink(workdir, Path::new(&file_path))?
+        };
 
         // 1. Get file content at the specified revision or HEAD/workdir
         let (content, resolved_oid) = if let Some(ref oid_str) = commit_oid {
@@ -44,20 +49,42 @@ pub async fn get_file_blame(
                 .map_err(|_| AppError::invalid_state(format!("'{}' is not a commit", oid_str)))?;
             let tree = commit.tree()?;
             let entry = tree.get_path(Path::new(&file_path))?;
+            if !content_limits::check_blob(&repo, entry.id())? {
+                return Err(AppError::invalid_state(
+                    "File exceeds the 5 MB blame limit. Open it in your editor.",
+                ));
+            }
             let object = entry.to_object(&repo)?;
             let blob = object
                 .as_blob()
                 .ok_or_else(|| AppError::invalid_state("Not a blob"))?;
             (
-                String::from_utf8_lossy(blob.content()).to_string(),
+                String::from_utf8(blob.content().to_vec())
+                    .map_err(|_| AppError::invalid_state("Blame requires UTF-8 text"))?,
                 Some(commit.id()),
             )
         } else {
             // Read from workdir
-            let text = std::fs::read_to_string(&validated_full_path)
-                .map_err(|e| AppError::io(format!("Failed to read file from workdir: {}", e)))?;
+            let bytes = content_limits::read_file(&validated_full_path)
+                .map_err(|e| AppError::io(format!("Failed to read file from workdir: {}", e)))?
+                .ok_or_else(|| {
+                    AppError::invalid_state(
+                        "File exceeds the 5 MB blame limit. Open it in your editor.",
+                    )
+                })?;
+            let text = String::from_utf8(bytes)
+                .map_err(|_| AppError::invalid_state("Blame requires UTF-8 text"))?;
             (text, None)
         };
+
+        if content.as_bytes().contains(&0)
+            || content.lines().take(MAX_TEXT_LINES + 1).count() > MAX_TEXT_LINES
+            || content.lines().any(|line| line.len() > MAX_LINE_BYTES)
+        {
+            return Err(AppError::invalid_state(
+                "File exceeds blame text/line limits. Open it in your editor.",
+            ));
+        }
 
         // 2. Initialize blame options
         let mut blame_opts = git2::BlameOptions::new();
@@ -83,7 +110,7 @@ pub async fn get_file_blame(
         // buffer itself maps committed lines through the edit, and reports
         // lines that exist only locally with a zero commit id.
         let buffer_blame = match (&blame, resolved_oid) {
-            (Some(b), None) => b.blame_buffer(content.as_bytes()).ok(),
+            (Some(b), None) => Some(b.blame_buffer(content.as_bytes())?),
             _ => None,
         };
         let effective_blame = buffer_blame.as_ref().or(blame.as_ref());
@@ -92,6 +119,7 @@ pub async fn get_file_blame(
         let lines: Vec<&str> = content.lines().collect();
         let mut blame_lines = Vec::new();
         let mut commit_cache = HashMap::new();
+        let mut retained_bytes = 0usize;
 
         for (idx, line_content) in lines.iter().enumerate() {
             let line_no = idx + 1; // 1-based index
@@ -118,9 +146,26 @@ pub async fn get_file_blame(
                     } else {
                         let (name, email, summ) = if let Ok(commit) = repo.find_commit(final_oid) {
                             let sig = commit.author();
-                            let name = sig.name().unwrap_or("Unknown").to_string();
-                            let email = sig.email().unwrap_or("").to_string();
-                            let summary = commit.summary().ok().flatten().unwrap_or("").to_string();
+                            let name = sig
+                                .name()
+                                .unwrap_or("Unknown")
+                                .chars()
+                                .take(128)
+                                .collect::<String>();
+                            let email = sig
+                                .email()
+                                .unwrap_or("")
+                                .chars()
+                                .take(128)
+                                .collect::<String>();
+                            let summary = commit
+                                .summary()
+                                .ok()
+                                .flatten()
+                                .unwrap_or("")
+                                .chars()
+                                .take(256)
+                                .collect::<String>();
                             (name, email, summary)
                         } else {
                             ("Unknown".to_string(), "".to_string(), "".to_string())
@@ -152,6 +197,17 @@ pub async fn get_file_blame(
                     commit_summary: "Local modifications".to_string(),
                     line_content: line_content.to_string(),
                 });
+            }
+            let result = blame_lines.last().unwrap();
+            retained_bytes += 256
+                + 6 * (result.line_content.len()
+                    + result.author_name.len()
+                    + result.author_email.len()
+                    + result.commit_summary.len());
+            if retained_bytes > 4 * 1024 * 1024 {
+                return Err(AppError::invalid_state(
+                    "Blame exceeds the 4 MB display budget. Open it in your editor.",
+                ));
             }
         }
 

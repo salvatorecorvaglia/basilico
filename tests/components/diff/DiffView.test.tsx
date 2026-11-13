@@ -223,4 +223,24 @@ describe("DiffView", () => {
       isDanger: true,
     });
   });
+  it("explains truncated diffs and does not load or stage partial hunks", () => {
+    useRepoStore.setState({
+      selectedFilePath: "huge.txt",
+      localDiff: {
+        oldPath: "huge.txt",
+        newPath: "huge.txt",
+        status: "modified",
+        isBinary: false,
+        truncated: true,
+        stats: { additions: 0, deletions: 0 },
+        hunks: [],
+      },
+    });
+    render(<DiffView />);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Diff display limit reached",
+    );
+    expect(screen.queryByTestId("diff-editor")).not.toBeInTheDocument();
+    expect(getFileContentPairMock).not.toHaveBeenCalled();
+  });
 });

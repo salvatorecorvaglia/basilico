@@ -10,6 +10,10 @@ pub async fn merge_branch(
 ) -> Result<crate::git::helpers::MergeOutcome, AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         let repo = Repository::open(&path)?;
 
         // Find the branch reference
@@ -29,6 +33,10 @@ pub async fn merge_branch(
 pub async fn abort_merge(path: String) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         let repo = Repository::open(&path)?;
 
         if repo.state() == git2::RepositoryState::Clean {
@@ -82,6 +90,10 @@ pub async fn get_conflicts(path: String) -> Result<Vec<String>, AppError> {
 pub async fn resolve_conflict(path: String, file_path: String) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         let repo = Repository::open(&path)?;
         let workdir = repo
             .workdir()

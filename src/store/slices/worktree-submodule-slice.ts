@@ -1,7 +1,7 @@
 import type { StateCreator } from "zustand";
 import type { SubmoduleInfo, WorktreeInfo } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
-import { setLoading, withActiveRepo } from "../store-helpers";
+import { beginLoading, beginRequest, withActiveRepo } from "../store-helpers";
 import type { RepoState } from "../types";
 
 export interface WorktreeSubmoduleSlice {
@@ -33,20 +33,22 @@ export const createWorktreeSubmoduleSlice: StateCreator<
   submodules: [],
 
   loadWorktrees: async () => {
-    const { activeTabId, refreshGeneration } = get();
+    const request = beginRequest(get, "worktrees");
+    const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
+    const finishLoading = beginLoading(get, set, "collaboration");
     try {
       const list = await commands.listWorktrees(activeTabId, { silent: true });
       // Guard: only apply if still the same tab
-      if (get().refreshGeneration === refreshGeneration) {
+      if (request.isCurrent()) {
         set({ worktrees: list });
       }
     } catch (err) {
+      if (!request.isCurrent()) return;
       console.error("Failed to load worktrees:", err);
     } finally {
-      setLoading(get, set, "collaboration", false);
+      finishLoading();
     }
   },
 
@@ -56,11 +58,14 @@ export const createWorktreeSubmoduleSlice: StateCreator<
       set,
       "collaboration",
       "Failed to add worktree",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.addWorktree(activeTabId, path, branch, newBranch, {
           errorPrefix: "Failed to add worktree",
         });
+        if (!context.isCurrent()) return;
+
         await get().loadWorktrees();
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -71,11 +76,14 @@ export const createWorktreeSubmoduleSlice: StateCreator<
       set,
       "collaboration",
       "Failed to remove worktree",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.removeWorktree(activeTabId, worktreePath, force, {
           errorPrefix: "Failed to remove worktree",
         });
+        if (!context.isCurrent()) return;
+
         await get().loadWorktrees();
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -86,30 +94,35 @@ export const createWorktreeSubmoduleSlice: StateCreator<
       set,
       "collaboration",
       "Failed to prune worktrees",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.pruneWorktrees(activeTabId, {
           errorPrefix: "Failed to prune worktrees",
         });
+        if (!context.isCurrent()) return;
+
         await get().loadWorktrees();
+        if (!context.isCurrent()) return;
       },
     );
   },
 
   loadSubmodules: async () => {
-    const { activeTabId, refreshGeneration } = get();
+    const request = beginRequest(get, "submodules");
+    const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "collaboration", true);
+    const finishLoading = beginLoading(get, set, "collaboration");
     try {
       const list = await commands.listSubmodules(activeTabId, { silent: true });
       // Guard: only apply if still the same tab
-      if (get().refreshGeneration === refreshGeneration) {
+      if (request.isCurrent()) {
         set({ submodules: list });
       }
     } catch (err) {
+      if (!request.isCurrent()) return;
       console.error("Failed to load submodules:", err);
     } finally {
-      setLoading(get, set, "collaboration", false);
+      finishLoading();
     }
   },
 
@@ -119,11 +132,14 @@ export const createWorktreeSubmoduleSlice: StateCreator<
       set,
       "collaboration",
       "Failed to initialize submodules",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.initSubmodules(activeTabId, paths, {
           errorPrefix: "Failed to initialize submodules",
         });
+        if (!context.isCurrent()) return;
+
         await get().loadSubmodules();
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -134,11 +150,14 @@ export const createWorktreeSubmoduleSlice: StateCreator<
       set,
       "collaboration",
       "Failed to update submodules",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.updateSubmodules(activeTabId, paths, recursive, {
           errorPrefix: "Failed to update submodules",
         });
+        if (!context.isCurrent()) return;
+
         await get().loadSubmodules();
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -149,11 +168,14 @@ export const createWorktreeSubmoduleSlice: StateCreator<
       set,
       "collaboration",
       "Failed to sync submodules",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.syncSubmodules(activeTabId, paths, {
           errorPrefix: "Failed to sync submodules",
         });
+        if (!context.isCurrent()) return;
+
         await get().loadSubmodules();
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -164,11 +186,14 @@ export const createWorktreeSubmoduleSlice: StateCreator<
       set,
       "collaboration",
       "Failed to add submodule",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.addSubmodule(activeTabId, url, path, {
           errorPrefix: "Failed to add submodule",
         });
+        if (!context.isCurrent()) return;
+
         await get().loadSubmodules();
+        if (!context.isCurrent()) return;
       },
     );
   },

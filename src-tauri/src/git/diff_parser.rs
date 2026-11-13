@@ -1,4 +1,4 @@
-use git2::{Diff, DiffFormat, DiffOptions, Repository};
+use git2::{Diff, DiffOptions, Repository};
 use serde::Serialize;
 
 use crate::error::AppError;
@@ -13,6 +13,7 @@ pub struct FileDiff {
     pub hunks: Vec<DiffHunkInfo>,
     pub stats: DiffStats,
     pub is_binary: bool,
+    pub truncated: bool,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -46,6 +47,7 @@ pub struct DiffStats {
 pub fn get_workdir_diff(path: &str) -> Result<Vec<FileDiff>, AppError> {
     let repo = Repository::open(path)?;
     let mut opts = DiffOptions::new();
+    opts.max_size(crate::git::content_limits::MAX_TEXT_BYTES as i64);
     opts.include_untracked(true).recurse_untracked_dirs(true);
 
     let diff = repo.diff_index_to_workdir(None, Some(&mut opts))?;
@@ -73,6 +75,7 @@ pub fn get_staged_diff(path: &str) -> Result<Vec<FileDiff>, AppError> {
         Err(_) => None,
     };
     let mut opts = DiffOptions::new();
+    opts.max_size(crate::git::content_limits::MAX_TEXT_BYTES as i64);
     let mut diff = repo.diff_tree_to_index(head_tree.as_ref(), None, Some(&mut opts))?;
     detect_renames(&mut diff)?;
     parse_diff(&diff)
@@ -88,6 +91,7 @@ pub fn get_commit_diff(path: &str, oid_str: &str) -> Result<Vec<FileDiff>, AppEr
     let parent_tree = commit.parent(0).ok().and_then(|p| p.tree().ok());
 
     let mut opts = DiffOptions::new();
+    opts.max_size(crate::git::content_limits::MAX_TEXT_BYTES as i64);
     let mut diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut opts))?;
     detect_renames(&mut diff)?;
     parse_diff(&diff)
@@ -103,6 +107,7 @@ pub fn get_compare_diff(path: &str, base: &str, target: &str) -> Result<Vec<File
     let target_tree = target_obj.peel_to_tree()?;
 
     let mut opts = DiffOptions::new();
+    opts.max_size(crate::git::content_limits::MAX_TEXT_BYTES as i64);
     let mut diff = repo.diff_tree_to_tree(Some(&base_tree), Some(&target_tree), Some(&mut opts))?;
     detect_renames(&mut diff)?;
     parse_diff(&diff)
@@ -112,7 +117,8 @@ pub fn get_compare_diff(path: &str, base: &str, target: &str) -> Result<Vec<File
 pub fn get_file_diff(path: &str, file_path: &str, is_staged: bool) -> Result<FileDiff, AppError> {
     let repo = Repository::open(path)?;
     let mut opts = DiffOptions::new();
-    opts.pathspec(file_path);
+    opts.max_size(crate::git::content_limits::MAX_TEXT_BYTES as i64);
+    opts.pathspec(file_path).disable_pathspec_match(true);
 
     let diff = if is_staged {
         if let Ok(head_ref) = repo.head() {
@@ -153,6 +159,11 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
     let mut files: Vec<FileDiff> = Vec::new();
 
     let num_deltas = diff.deltas().len();
+    if num_deltas > 1000 {
+        return Err(AppError::invalid_state(
+            "Diff exceeds 1,000 files. Select an individual file to inspect changes.",
+        ));
+    }
     for delta_idx in 0..num_deltas {
         let delta = diff.get_delta(delta_idx).unwrap();
         let old_path = delta
@@ -191,132 +202,100 @@ pub fn parse_diff(diff: &Diff) -> Result<Vec<FileDiff>, AppError> {
                 deletions: 0,
             },
             is_binary,
+            truncated: false,
         });
     }
 
-    // Map each delta's path to its index, keyed by the *new* path only (libgit2
-    // fills both sides, so a deletion has one too). Keying by both paths let a
-    // rename chain collide: with A→B and B→C, "B" is one delta's new path and
-    // the other's old path, and whichever was inserted last received both
-    // deltas' hunks.
-    let mut file_map = std::collections::HashMap::new();
-    for (i, f) in files.iter().enumerate() {
-        if let Some(path) = f.new_path.as_ref().or(f.old_path.as_ref()) {
-            file_map.insert(path.clone(), i);
+    // A patch is built one file at a time. Stopping retention never leaves a
+    // partial hunk eligible for staging; oversized files show a notice instead.
+    let mut retained_bytes: usize = files
+        .iter()
+        .map(|f| {
+            512 + 6
+                * (f.old_path.as_ref().map_or(0, |s| s.len())
+                    + f.new_path.as_ref().map_or(0, |s| s.len()))
+        })
+        .sum();
+    if retained_bytes > 4 * 1024 * 1024 {
+        return Err(AppError::invalid_state(
+            "Diff paths exceed the display budget. Select an individual file.",
+        ));
+    }
+    for (idx, file) in files.iter_mut().enumerate() {
+        let delta = diff.get_delta(idx).unwrap();
+        let oversized = delta.old_file().size() > crate::git::content_limits::MAX_TEXT_BYTES as u64
+            || delta.new_file().size() > crate::git::content_limits::MAX_TEXT_BYTES as u64;
+        if oversized || retained_bytes >= 4 * 1024 * 1024 {
+            mark_truncated(file);
+            continue;
+        }
+        let patch = git2::Patch::from_diff(diff, idx)?;
+        let inspected = patch
+            .as_ref()
+            .map(|patch| patch.delta())
+            .unwrap_or_else(|| diff.get_delta(idx).unwrap());
+        file.is_binary = inspected.flags().is_binary();
+        if inspected.old_file().size() > crate::git::content_limits::MAX_TEXT_BYTES as u64
+            || inspected.new_file().size() > crate::git::content_limits::MAX_TEXT_BYTES as u64
+        {
+            mark_truncated(file);
+            continue;
+        }
+        let Some(patch) = patch else {
+            file.is_binary = inspected.flags().is_binary();
+            continue;
+        };
+        let mut file_bytes = 0usize;
+        let mut lines = 0usize;
+        'hunks: for hunk_idx in 0..patch.num_hunks() {
+            let (hunk, count) = patch.hunk(hunk_idx)?;
+            let mut parsed = DiffHunkInfo {
+                header: String::from_utf8_lossy(hunk.header()).trim().to_string(),
+                old_start: hunk.old_start(),
+                old_lines: hunk.old_lines(),
+                new_start: hunk.new_start(),
+                new_lines: hunk.new_lines(),
+                lines: Vec::new(),
+            };
+            for line_idx in 0..count {
+                let line = patch.line_in_hunk(hunk_idx, line_idx)?;
+                // Charge conservatively for JSON escaping and repeated keys.
+                let cost = line.content().len().saturating_mul(6) + 128;
+                if line.content().len() > 16 * 1024
+                    || lines >= 5000
+                    || file_bytes + cost > 1024 * 1024
+                    || retained_bytes + cost > 4 * 1024 * 1024
+                {
+                    mark_truncated(file);
+                    break 'hunks;
+                }
+                lines += 1;
+                file_bytes += cost;
+                retained_bytes += cost;
+                match line.origin() {
+                    '+' => file.stats.additions += 1,
+                    '-' => file.stats.deletions += 1,
+                    _ => {}
+                }
+                parsed.lines.push(DiffLineInfo {
+                    origin: line.origin().to_string(),
+                    content: String::from_utf8_lossy(line.content()).into_owned(),
+                    old_lineno: line.old_lineno(),
+                    new_lineno: line.new_lineno(),
+                });
+            }
+            file.hunks.push(parsed);
         }
     }
-
-    // Now walk the diff to populate hunks and lines
-    let mut line_counts = vec![0usize; num_deltas];
-
-    diff.print(DiffFormat::Patch, |delta, hunk, line| {
-        let file_path = delta
-            .new_file()
-            .path()
-            .or_else(|| delta.old_file().path())
-            .map(|p| p.to_string_lossy().to_string());
-
-        // Find matching file
-        let file_idx = file_path
-            .as_ref()
-            .and_then(|path| file_map.get(path).copied());
-
-        if let Some(idx) = file_idx {
-            // 'B' marks libgit2's "Binary files differ" line. Catching it here
-            // is the only reliable signal: the delta flag is not populated until
-            // the content has been examined, so reading it up front reported
-            // every binary file as text.
-            if line.origin() == 'B' {
-                files[idx].is_binary = true;
-                return true;
-            }
-
-            // Truncate parsing if diff is too large
-            let total_lines = line_counts[idx];
-            if total_lines > 5000 {
-                let already_truncated = files[idx]
-                    .hunks
-                    .last()
-                    .map(|h| h.header == "Truncated")
-                    .unwrap_or(false);
-                if !already_truncated {
-                    files[idx].hunks.push(DiffHunkInfo {
-                        header: "Truncated".to_string(),
-                        old_start: 0,
-                        old_lines: 0,
-                        new_start: 0,
-                        new_lines: 0,
-                        lines: vec![DiffLineInfo {
-                            origin: "info".to_string(),
-                            content: "Diff truncated: too many lines to display.".to_string(),
-                            old_lineno: None,
-                            new_lineno: None,
-                        }],
-                    });
-                    line_counts[idx] += 1;
-                }
-                return true;
-            }
-
-            if let Some(hunk_info) = hunk {
-                let header = String::from_utf8_lossy(hunk_info.header())
-                    .trim()
-                    .to_string();
-
-                // Ensure hunk exists
-                let hunk_exists = files[idx]
-                    .hunks
-                    .last()
-                    .map(|h| {
-                        h.old_start == hunk_info.old_start() && h.new_start == hunk_info.new_start()
-                    })
-                    .unwrap_or(false);
-
-                if !hunk_exists {
-                    files[idx].hunks.push(DiffHunkInfo {
-                        header,
-                        old_start: hunk_info.old_start(),
-                        old_lines: hunk_info.old_lines(),
-                        new_start: hunk_info.new_start(),
-                        new_lines: hunk_info.new_lines(),
-                        lines: Vec::new(),
-                    });
-                }
-
-                // Skip hunk header lines from being added to the hunk's lines list
-                if line.origin() == 'H' {
-                    return true;
-                }
-
-                let origin = match line.origin() {
-                    '+' => {
-                        files[idx].stats.additions += 1;
-                        "+".to_string()
-                    }
-                    '-' => {
-                        files[idx].stats.deletions += 1;
-                        "-".to_string()
-                    }
-                    ' ' => " ".to_string(),
-                    _ => line.origin().to_string(),
-                };
-
-                let content = String::from_utf8_lossy(line.content()).to_string();
-
-                if let Some(last_hunk) = files[idx].hunks.last_mut() {
-                    last_hunk.lines.push(DiffLineInfo {
-                        origin,
-                        content,
-                        old_lineno: line.old_lineno(),
-                        new_lineno: line.new_lineno(),
-                    });
-                    line_counts[idx] += 1;
-                }
-            }
-        }
-
-        true
-    })?;
-
     Ok(files)
+}
+
+fn mark_truncated(file: &mut FileDiff) {
+    file.truncated = true;
+    file.stats.additions = 0;
+    file.stats.deletions = 0;
+    file.hunks = vec![DiffHunkInfo {
+        header: "Truncated".into(), old_start: 0, old_lines: 0, new_start: 0, new_lines: 0,
+        lines: vec![DiffLineInfo { origin: "info".into(), content: "Diff truncated: display limit exceeded. Use your external editor or stage the whole file.".into(), old_lineno: None, new_lineno: None }],
+    }];
 }

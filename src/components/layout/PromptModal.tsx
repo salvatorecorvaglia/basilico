@@ -28,7 +28,7 @@ export function PromptModal() {
     if (promptOptions?.onCancel) {
       promptOptions.onCancel();
     }
-    closePrompt();
+    if (useUIStore.getState().promptOptions === promptOptions) closePrompt();
   }, [promptOptions, closePrompt, isSubmitting]);
 
   // Stay open and keep the fields/buttons disabled until the action settles —
@@ -52,13 +52,14 @@ export function PromptModal() {
     setIsSubmitting(true);
     try {
       await promptOptions.onSubmit(formValues);
-      closePrompt();
+      if (useUIStore.getState().promptOptions === promptOptions) closePrompt();
     } catch {
       // The action's own error handling (or invokeCommand's built-in toast)
       // already surfaced the failure; keep the dialog open so the user can
       // retry or cancel instead of silently losing their input.
     } finally {
-      setIsSubmitting(false);
+      if (useUIStore.getState().promptOptions === promptOptions)
+        setIsSubmitting(false);
     }
   };
 
@@ -70,6 +71,7 @@ export function PromptModal() {
     }) ?? false;
 
   useEffect(() => {
+    setIsSubmitting(false);
     if (promptOptions) {
       // Initialize form values from fields default values
       const initial: Record<string, string> = {};

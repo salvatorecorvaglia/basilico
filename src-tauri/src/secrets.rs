@@ -10,7 +10,10 @@
 use crate::error::AppError;
 
 /// The credential-store service every Basilico secret is filed under.
+#[cfg(not(feature = "desktop-tests"))]
 const SERVICE: &str = "com.salvatorecorvaglia.basilico";
+#[cfg(feature = "desktop-tests")]
+const SERVICE: &str = "com.salvatorecorvaglia.basilico.validation";
 
 /// The entry holding the GitHub personal access token.
 const GITHUB_PAT: &str = "github-pat";

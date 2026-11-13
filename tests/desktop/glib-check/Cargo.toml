@@ -1,0 +1,12 @@
+[package]
+name = "basilico-glib-regression"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+glib = { path = "../../../src-tauri/vendor/glib-0.18.5" }
+
+[[test]]
+name = "glib_backport"
+path = "../../../src-tauri/tests/glib_backport_test.rs"

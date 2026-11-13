@@ -1,0 +1,17 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Basilico Validation",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 800,
+        "minHeight": 600,
+        "devtools": false
+      }
+    ]
+  },
+  "bundle": { "active": false, "createUpdaterArtifacts": false },
+  "plugins": { "updater": { "endpoints": [] } }
+}

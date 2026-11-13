@@ -97,8 +97,7 @@ pub fn run_hook(
         cmd.env("GIT_WORK_TREE", wd);
     }
 
-    let output = cmd
-        .output()
+    let output = crate::commands::command_output(cmd, std::time::Duration::from_secs(300), None)
         .map_err(|e| AppError::command(format!("Failed to run {} hook: {}", name, e)))?;
 
     let combined = format!(

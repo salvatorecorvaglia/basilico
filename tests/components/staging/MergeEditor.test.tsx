@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -143,5 +143,64 @@ describe("MergeEditor", () => {
     });
     const merged = editableTextarea().value;
     expect(merged).not.toContain("<<<<<<<");
+  });
+  it.each(["isBinary", "tooLarge"])(
+    "never saves an unsupported %s file",
+    async (flag) => {
+      invokeMock.mockImplementation((cmd: string) =>
+        Promise.resolve(
+          cmd === "get_conflict_stages"
+            ? { base: null, ours: "ours", theirs: "theirs" }
+            : { original: "", modified: "", [flag]: true },
+        ),
+      );
+      render(<MergeEditor />);
+      await waitFor(() =>
+        expect(invokeMock).toHaveBeenCalledWith(
+          "get_file_content_pair",
+          expect.anything(),
+        ),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByText("Loading conflict stages..."),
+        ).not.toBeInTheDocument(),
+      );
+      expect(
+        screen.getByRole("button", { name: /Save Resolution/ }),
+      ).toBeDisabled();
+      expect(invokeMock).not.toHaveBeenCalledWith(
+        "save_merged_resolution",
+        expect.anything(),
+      );
+    },
+  );
+
+  it("accepts diff3 ours without copying the ancestor and rejects partial markers", async () => {
+    invokeMock.mockImplementation((cmd: string) =>
+      Promise.resolve(
+        cmd === "get_conflict_stages"
+          ? { base: "base", ours: "ours", theirs: "theirs" }
+          : {
+              original: "",
+              modified:
+                "<<<<<<<<< ours\nours\n||||||||| base\nancestor\n=========\ntheirs\n>>>>>>>>> theirs\n",
+            },
+      ),
+    );
+    render(<MergeEditor />);
+    await screen.findByText(/Conflict 1 of 1/);
+    await userEvent.click(screen.getByText("Accept Ours"));
+    expect(editableTextarea().value).toBe("ours\n");
+    expect(
+      screen.getByRole("button", { name: /Save Resolution/ }),
+    ).toBeEnabled();
+    fireEvent.change(editableTextarea(), {
+      target: { value: "<<<<<<< ours\nunfinished" },
+    });
+    expect(
+      screen.getByRole("button", { name: /Save Resolution/ }),
+    ).toBeDisabled();
+    expect(screen.queryByText("All markers cleared")).not.toBeInTheDocument();
   });
 });

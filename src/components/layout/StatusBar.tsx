@@ -40,6 +40,10 @@ export function StatusBar() {
   // `remotes[0]` is libgit2's ordering, not a meaningful choice — on a fork
   // with both `origin` and `upstream` it picked whichever came first and
   // reported the wrong repository's CI.
+  const activePath = useRepoStore((s) => s.activeTabId);
+  const watcherDegraded = useUIStore((s) =>
+    activePath ? s.watcherDegraded[activePath] : false,
+  );
   const defaultRemoteUrl = useRepoStore(selectDefaultRemoteUrl);
 
   const { setActiveView } = useUIStore(
@@ -164,6 +168,15 @@ export function StatusBar() {
             </button>
           )}
 
+          {watcherDegraded && (
+            <span
+              className="statusbar-item"
+              role="status"
+              title="Some directories cannot be watched. Refresh manually to see all external changes."
+            >
+              <AlertCircle size={12} /> Auto-refresh limited
+            </span>
+          )}
           {isRefreshing && (
             <span className="statusbar-item statusbar-refreshing">
               <Clock size={12} className="animate-spin" />

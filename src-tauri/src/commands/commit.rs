@@ -13,9 +13,90 @@ pub async fn create_commit(
     amend: bool,
     bypass_hooks: bool,
 ) -> Result<String, AppError> {
+    create_commit_checked(
+        path,
+        message,
+        author_name,
+        author_email,
+        amend,
+        bypass_hooks,
+        None,
+    )
+    .await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AmendCommit {
+    pub oid: String,
+    pub message: String,
+}
+
+#[tauri::command]
+pub async fn get_amend_commit(path: String) -> Result<AmendCommit, AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
         let repo = Repository::open(&path)?;
+        let commit = repo.head()?.peel_to_commit()?;
+        Ok(AmendCommit {
+            oid: commit.id().to_string(),
+            message: std::str::from_utf8(commit.message_bytes())
+                .map_err(|_| AppError::invalid_state("The commit message is not UTF-8."))?
+                .to_string(),
+        })
+    })
+    .await?
+}
+
+#[tauri::command]
+pub async fn amend_commit(
+    path: String,
+    message: String,
+    author_name: Option<String>,
+    author_email: Option<String>,
+    bypass_hooks: bool,
+    expected_head_oid: String,
+) -> Result<String, AppError> {
+    create_commit_checked(
+        path,
+        message,
+        author_name,
+        author_email,
+        true,
+        bypass_hooks,
+        Some(expected_head_oid),
+    )
+    .await
+}
+
+async fn create_commit_checked(
+    path: String,
+    message: String,
+    author_name: Option<String>,
+    author_email: Option<String>,
+    amend: bool,
+    bypass_hooks: bool,
+    expected_head_oid: Option<String>,
+) -> Result<String, AppError> {
+    crate::state::ensure_open_repo(&path)?;
+    tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
+        let repo = Repository::open(&path)?;
+        let expected = expected_head_oid.as_deref().map(git2::Oid::from_str).transpose()?;
+        let original_ref = repo.head().ok().and_then(|h| h.name().ok().map(str::to_string));
+        let check_head = || -> Result<(), AppError> {
+            if let Some(expected) = expected {
+                let head = repo.head()?;
+                if head.target() != Some(expected) || head.name().ok() != original_ref.as_deref() {
+                    return Err(AppError::invalid_state("HEAD changed since Amend was opened. Reload the commit message before amending."));
+                }
+            }
+            Ok(())
+        };
+        check_head()?;
         let hook_workdir = repo.workdir().unwrap_or_else(|| repo.path()).to_path_buf();
 
         // Hook lifecycle, in the order git runs it:
@@ -52,6 +133,7 @@ pub async fn create_commit(
             message = edited;
         }
 
+        check_head()?;
         let mut index = repo.index()?;
         let tree_id = index.write_tree()?;
         let tree = repo.find_tree(tree_id)?;
@@ -109,7 +191,22 @@ pub async fn create_commit(
 
         let signing = crate::git::helpers::signing_config(&repo);
 
-        let commit_id = if signing.enabled {
+        let commit_id = if let Some(expected) = expected {
+            // Create the object first, then compare-and-swap the original ref.
+            // Signing and hooks can take long enough for another process to move HEAD.
+            let oid = if signing.enabled {
+                let buffer = repo.commit_create_buffer(&sig, &committer_sig, &message, &tree, &parent_refs)?;
+                let content = std::str::from_utf8(&buffer).map_err(|_| AppError::invalid_state("Commit is not UTF-8"))?;
+                let signature = crate::git::helpers::sign_buffer(&signing, content)?;
+                repo.commit_signed(content, &signature, Some("gpgsig"))?
+            } else {
+                repo.find_commit(expected)?.amend(None, Some(&sig), Some(&committer_sig), None, Some(&message), Some(&tree))?
+            };
+            check_head()?;
+            let refname = original_ref.as_deref().ok_or_else(|| AppError::invalid_state("No HEAD to amend"))?;
+            repo.reference_matching(refname, oid, true, expected, "commit (amend)")?;
+            oid
+        } else if signing.enabled {
             let commit_oid = crate::git::helpers::commit_signed_and_update_head(
                 &repo,
                 &sig,
@@ -193,6 +290,10 @@ pub async fn cherry_pick_commit(
 ) -> Result<crate::git::helpers::MergeOutcome, AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         // Validate OID format to prevent command line option/argument injection
         let _ = git2::Oid::from_str(&oid)?;
 
@@ -222,6 +323,10 @@ pub async fn cherry_pick_commit(
 pub async fn cherry_pick_abort(path: String) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         crate::commands::run_git_cmd(&["cherry-pick", "--abort"], &path)?;
         Ok(())
     })
@@ -235,6 +340,10 @@ pub async fn revert_commit(
 ) -> Result<crate::git::helpers::MergeOutcome, AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         // Validate OID format to prevent command line option/argument injection
         let _ = git2::Oid::from_str(&oid)?;
 
@@ -264,6 +373,10 @@ pub async fn revert_commit(
 pub async fn revert_abort(path: String) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         crate::commands::run_git_cmd(&["revert", "--abort"], &path)?;
         Ok(())
     })
@@ -274,6 +387,10 @@ pub async fn revert_abort(path: String) -> Result<(), AppError> {
 pub async fn reset_to_commit(path: String, oid: String, mode: String) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         let repo = Repository::open(&path)?;
         // Peel rather than downcast: a tag or a ref resolves to a tag object,
         // which `as_commit` rejects outright.

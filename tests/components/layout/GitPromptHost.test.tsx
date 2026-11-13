@@ -9,9 +9,11 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 type PromptCallback = (event: { payload: unknown }) => void;
 let promptCallback: PromptCallback | null = null;
+let closedCallback: PromptCallback | null = null;
 vi.mock("@tauri-apps/api/event", () => ({
   listen: (name: string, cb: PromptCallback) => {
     if (name === "git:prompt") promptCallback = cb;
+    if (name === "git:prompt-closed") closedCallback = cb;
     return Promise.resolve(() => {});
   },
 }));
@@ -30,6 +32,7 @@ describe("GitPromptHost", () => {
     invokeMock.mockReset();
     invokeMock.mockResolvedValue(true);
     promptCallback = null;
+    closedCallback = null;
     useUIStore.setState({ promptOptions: null, confirmOptions: null });
   });
 
@@ -115,5 +118,41 @@ describe("GitPromptHost", () => {
       id: "h2",
       answer: { accept: false },
     });
+  });
+  it("queues concurrent prompts and dismisses an expired request without closing a newer dialog", async () => {
+    render(<GitPromptHost />);
+    await waitFor(() => expect(closedCallback).not.toBeNull());
+    emit({
+      kind: "credentials",
+      id: "first",
+      url: "https://one",
+      username: null,
+      retry: false,
+    });
+    emit({
+      kind: "credentials",
+      id: "second",
+      url: "https://two",
+      username: null,
+      retry: false,
+    });
+    expect(useUIStore.getState().promptOptions?.description).toContain(
+      "https://one",
+    );
+    act(() => closedCallback?.({ payload: "first" }));
+    expect(useUIStore.getState().promptOptions?.description).toContain(
+      "https://two",
+    );
+    act(() => closedCallback?.({ payload: "first" }));
+    expect(useUIStore.getState().promptOptions?.description).toContain(
+      "https://two",
+    );
+    act(() =>
+      useUIStore
+        .getState()
+        .openPrompt({ title: "Unrelated", fields: [], onSubmit: () => {} }),
+    );
+    act(() => closedCallback?.({ payload: "second" }));
+    expect(useUIStore.getState().promptOptions?.title).toBe("Unrelated");
   });
 });

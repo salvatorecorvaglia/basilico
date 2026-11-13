@@ -12,6 +12,10 @@ pub async fn list_tags(path: String) -> Result<Vec<repository::TagInfo>, AppErro
 pub async fn delete_tag(path: String, name: String) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         let repo = git2::Repository::open(&path)?;
         repo.tag_delete(&name)?;
         Ok(())
@@ -29,6 +33,10 @@ pub async fn create_tag(
 ) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         let repo = git2::Repository::open(&path)?;
         let oid = git2::Oid::from_str(&target_oid)?;
         let target = repo.find_object(oid, None)?;
@@ -54,6 +62,10 @@ pub async fn push_tag(
     crate::state::ensure_open_repo(&path)?;
     let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         let repo = git2::Repository::open(&path)?;
         let mut remote_obj = repo.find_remote(&remote)?;
 

@@ -13,6 +13,7 @@ import "./NetworkProgress.css";
 /** One `git:progress` event from the backend (see `git/progress.rs`). */
 export interface NetworkProgressEvent {
   key: string;
+  operationId: string;
   operation: "clone" | "fetch" | "pull" | "push" | string;
   phase: "receiving" | "resolving" | "uploading" | string;
   current: number;
@@ -58,22 +59,29 @@ export function NetworkProgress() {
 
   useEffect(() => {
     let active = true;
+    const completed = new Set<string>();
     let unsubscribe: (() => void) | undefined;
     listen<NetworkProgressEvent>("git:progress", (event) => {
+      if (!active) return;
       const payload = event.payload;
+      if (payload.done) {
+        completed.add(payload.operationId);
+        if (completed.size > 256)
+          completed.delete(completed.values().next().value as string);
+      } else if (completed.has(payload.operationId)) return;
       setOperations((current) => {
         const next = { ...current };
         if (payload.done) {
-          delete next[payload.key];
+          delete next[payload.operationId];
         } else {
-          next[payload.key] = payload;
+          next[payload.operationId] = payload;
         }
         return next;
       });
       if (payload.done) {
         setCancelling((current) => {
           const next = { ...current };
-          delete next[payload.key];
+          delete next[payload.operationId];
           return next;
         });
       }
@@ -97,9 +105,24 @@ export function NetworkProgress() {
 
   const handleCancel = (key: string) => {
     setCancelling((current) => ({ ...current, [key]: true }));
-    cancelNetworkOperation(key, { silent: true }).catch(() => {
-      setCancelling((current) => ({ ...current, [key]: false }));
-    });
+    cancelNetworkOperation(key, { silent: true })
+      .then((cancelled) => {
+        if (!cancelled) {
+          setOperations((current) => {
+            const next = { ...current };
+            delete next[key];
+            return next;
+          });
+          setCancelling((current) => {
+            const next = { ...current };
+            delete next[key];
+            return next;
+          });
+        }
+      })
+      .catch(() => {
+        setCancelling((current) => ({ ...current, [key]: false }));
+      });
   };
 
   return (
@@ -110,7 +133,7 @@ export function NetworkProgress() {
             ? Math.min(100, Math.round((op.current / op.total) * 100))
             : null;
         return (
-          <div className="network-progress-item" key={op.key}>
+          <div className="network-progress-item" key={op.operationId}>
             <div className="network-progress-header">
               <span className="network-progress-title">
                 {OPERATION_LABEL[op.operation] ?? op.operation}{" "}
@@ -119,8 +142,8 @@ export function NetworkProgress() {
               <button
                 type="button"
                 className="network-progress-cancel"
-                onClick={() => handleCancel(op.key)}
-                disabled={cancelling[op.key]}
+                onClick={() => handleCancel(op.operationId)}
+                disabled={cancelling[op.operationId]}
                 aria-label={`Cancel ${op.operation} of ${nameFor(op.key)}`}
                 title="Cancel"
               >
@@ -128,7 +151,7 @@ export function NetworkProgress() {
               </button>
             </div>
             <div className="network-progress-detail">
-              {cancelling[op.key]
+              {cancelling[op.operationId]
                 ? "Cancelling…"
                 : `${PHASE_LABEL[op.phase] ?? "Connecting"}${
                     percent === null ? "" : ` ${percent}%`

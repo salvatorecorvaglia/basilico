@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Repository-specific commit drafts that survive tab switches.
+- Code-search results open working-tree blame at the matching line, with
+  virtualized blame rows for larger files.
+- Native desktop smoke tests for real Git workflows and webviews on Linux and
+  macOS, plus native command regression checks on macOS and Windows.
+
+### Changed
+
+- Serialize repository mutations to prevent overlapping Git operations from
+  changing the index, working tree or refs concurrently.
+- Bound subprocess output and execution time, drain stdout and stderr
+  concurrently, and terminate child processes on cancellation or timeout.
+- Enforce content and serialized-response limits before sending diff, blame,
+  conflict and search data to the UI; reject non-UTF-8 text in editors.
+- Code search uses NUL-delimited filenames, bounded records and a timeout;
+  search results now indicate when the display limit is reached.
+- Update frontend and Rust dependencies, including Vite `8.3.8`, Zustand
+  `5.1.0`, lucide-react `1.72.0`, react-resizable-panels `4.22.0` and
+  parking_lot `0.13.0`. Align Vitest and V8 coverage tooling at `5.1.0` and
+  declare supported Node.js versions.
+- CI enforces frontend coverage floors, uploads coverage and desktop diagnostics,
+  checks all TypeScript configurations, and runs Rust tests with the lockfile.
+- Release version validation uses the shared version-checking script.
+- Backport the GLib `0.18.5` variant-iterator fix for RUSTSEC-2024-0429 in the
+  Linux GTK stack, with debug and optimized regression checks.
+
+### Fixed
+
+- Amend loads the actual HEAD commit independently of graph filters and refuses
+  to update a commit if HEAD changed after its message was loaded.
+- Merged-branch sweeping revalidates the scanned target and branch tips before
+  deletion, protecting branches that changed after the scan.
+- Conflict editing handles diff3 sections and custom marker sizes, blocks saves
+  with incomplete or unresolved markers, and rejects files that are no longer
+  conflicted or cannot safely be edited as text.
+- Stale asynchronous responses no longer overwrite newer tab, file-selection,
+  search, rebase or bisect state; loading indicators track pending requests.
+- Network progress and Git prompts are scoped to their operation, preventing
+  stale events or replies from affecting another operation.
+- Improve repository watcher refresh handling for refs, linked worktrees and
+  working-tree changes.
+- Search failures are reported in the view, and clearing or changing a search
+  prevents an earlier request from restoring obsolete results.
+
 ## [1.2.0] - 2026-10-28
 
 ### Changed

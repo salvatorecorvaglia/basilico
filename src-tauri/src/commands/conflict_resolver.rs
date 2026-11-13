@@ -5,7 +5,9 @@ use std::fs;
 use std::path::Path;
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct ConflictStages {
+    pub marker_size: usize,
     pub base: Option<String>,
     pub ours: Option<String>,
     pub theirs: Option<String>,
@@ -51,26 +53,44 @@ pub fn extract_conflict_stages(
         };
 
         if path_matched {
-            if let Some(entry) = conflict.ancestor {
-                if let Ok(blob) = repo.find_blob(entry.id) {
-                    base = Some(String::from_utf8_lossy(blob.content()).into_owned());
-                }
-            }
-            if let Some(entry) = conflict.our {
-                if let Ok(blob) = repo.find_blob(entry.id) {
-                    ours = Some(String::from_utf8_lossy(blob.content()).into_owned());
-                }
-            }
-            if let Some(entry) = conflict.their {
-                if let Ok(blob) = repo.find_blob(entry.id) {
-                    theirs = Some(String::from_utf8_lossy(blob.content()).into_owned());
-                }
-            }
+            let read = |entry: Option<git2::IndexEntry>| -> Result<Option<String>, AppError> {
+                entry
+                    .map(|entry| {
+                        if !crate::git::content_limits::check_blob(repo, entry.id)? {
+                            return Err(AppError::invalid_state(
+                                "Conflict exceeds the 5 MB editor limit. Choose a side instead.",
+                            ));
+                        }
+                        let blob = repo.find_blob(entry.id)?;
+                        if blob.size() > crate::commands::diff::MAX_EDITOR_BYTES
+                            || blob.is_binary()
+                            || blob.content().contains(&0)
+                        {
+                            return Err(AppError::invalid_state(
+                                "This conflict cannot be edited as text. Choose a side instead.",
+                            ));
+                        }
+                        String::from_utf8(blob.content().to_vec()).map_err(|_| {
+                            AppError::invalid_state(
+                                "Conflict contains non-UTF-8 content; choose a side instead.",
+                            )
+                        })
+                    })
+                    .transpose()
+            };
+            base = read(conflict.ancestor)?;
+            ours = read(conflict.our)?;
+            theirs = read(conflict.their)?;
             break;
         }
     }
 
-    Ok(ConflictStages { base, ours, theirs })
+    Ok(ConflictStages {
+        base,
+        ours,
+        theirs,
+        marker_size: conflict_marker_size(repo, file_path),
+    })
 }
 
 #[tauri::command]
@@ -94,6 +114,10 @@ pub async fn save_merged_resolution(
 ) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         let repo = Repository::open(&repo_path)?;
         let workdir = repo
             .workdir()
@@ -103,6 +127,40 @@ pub async fn save_merged_resolution(
         let validated_full_path =
             crate::git::utils::validate_path_no_symlink(workdir, Path::new(&file_path))?;
 
+        if has_conflict_markers_with_size(&merged_content, conflict_marker_size(&repo, &file_path))
+        {
+            return Err(AppError::conflict(
+                "Resolve all conflict markers before staging.",
+            ));
+        }
+        if conflict_sides(&repo, &file_path)?.is_none() {
+            return Err(AppError::invalid_state(
+                "This file is no longer conflicted. Refresh before saving.",
+            ));
+        }
+        extract_conflict_stages(&repo, &file_path)?;
+        if merged_content.len() > crate::commands::diff::MAX_EDITOR_BYTES
+            || merged_content.contains('\0')
+        {
+            return Err(AppError::invalid_state(
+                "The merged result cannot be saved as text.",
+            ));
+        }
+        let metadata = fs::metadata(&validated_full_path)?;
+        if metadata.len() > crate::commands::diff::MAX_EDITOR_BYTES as u64 {
+            return Err(AppError::invalid_state(
+                "The working file is too large for the merge editor.",
+            ));
+        }
+        let current =
+            crate::git::content_limits::read_file(&validated_full_path)?.ok_or_else(|| {
+                AppError::invalid_state("The working file is too large for the merge editor.")
+            })?;
+        if current.contains(&0) || std::str::from_utf8(&current).is_err() {
+            return Err(AppError::invalid_state(
+                "The working file cannot be edited as text.",
+            ));
+        }
         fs::write(&validated_full_path, merged_content)?;
 
         let mut index = repo.index()?;
@@ -153,6 +211,10 @@ pub async fn resolve_conflict_side(
 ) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         let repo = Repository::open(&repo_path)?;
         let workdir = repo
             .workdir()
@@ -211,6 +273,10 @@ pub async fn launch_external_merge_tool<R: tauri::Runtime>(
     // the IPC parameter itself — see `get_merge_tool`.
     let stored_merge_tool = crate::commands::settings::get_merge_tool(&app);
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         let repo = Repository::open(&repo_path)?;
         let stages = extract_conflict_stages(&repo, &file_path)?;
 
@@ -392,7 +458,7 @@ pub async fn launch_external_merge_tool<R: tauri::Runtime>(
                 file_path, e
             ))
         })?;
-        if has_conflict_markers(&merged_text) {
+        if has_conflict_markers_with_size(&merged_text, conflict_marker_size(&repo, &file_path)) {
             return Err(AppError::conflict(format!(
                 "'{}' still contains conflict markers (<<<<<<<, =======, >>>>>>>). \
                  Resolve them before staging the file.",
@@ -417,25 +483,31 @@ impl Drop for TempDirGuard {
     }
 }
 
-/// Detects leftover merge-conflict markers at the start of a line.
-///
-/// Requiring an opening *and* a closing marker keeps a line of `=======` in a
-/// Markdown underline or an ASCII rule from being mistaken for a conflict. The
-/// separator is deliberately not required: `merge.conflictStyle = diff3` (and
-/// `zdiff3`) writes `|||||||` for the base section, so a file left in that
-/// style has `<<<<<<<` and `>>>>>>>` but no `=======` at all — and demanding
-/// all three let exactly those files be staged with their markers intact.
+/// Reject complete or incomplete marker lines, including custom marker sizes.
+/// A separator alone is ordinary text (for example a Markdown heading underline).
+fn conflict_marker_size(repo: &Repository, path: &str) -> usize {
+    repo.get_attr(
+        Path::new(path),
+        "conflict-marker-size",
+        git2::AttrCheckFlags::FILE_THEN_INDEX,
+    )
+    .ok()
+    .flatten()
+    .and_then(|s| s.parse::<usize>().ok())
+    .filter(|&n| n > 0)
+    .unwrap_or(7)
+}
+
 pub fn has_conflict_markers(content: &str) -> bool {
-    let mut has_start = false;
-    let mut has_end = false;
+    has_conflict_markers_with_size(content, 7)
+}
 
-    for line in content.lines() {
-        if line.starts_with("<<<<<<<") {
-            has_start = true;
-        } else if line.starts_with(">>>>>>>") {
-            has_end = true;
-        }
-    }
-
-    has_start && has_end
+fn has_conflict_markers_with_size(content: &str, marker_size: usize) -> bool {
+    content.lines().any(|line| {
+        ['<', '>', '|'].iter().any(|&marker| {
+            let count = line.chars().take_while(|&c| c == marker).count();
+            (count >= 3 || count == marker_size)
+                && line[count..].chars().next().is_none_or(char::is_whitespace)
+        })
+    })
 }

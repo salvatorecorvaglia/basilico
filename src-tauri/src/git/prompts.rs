@@ -9,12 +9,14 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 /// The event name the frontend listens for.
 pub const PROMPT_EVENT: &str = "git:prompt";
+pub const PROMPT_CLOSED_EVENT: &str = "git:prompt-closed";
 
 /// How long an operation waits for an answer before giving up.
 pub const PROMPT_TIMEOUT: Duration = Duration::from_secs(180);
@@ -54,8 +56,42 @@ pub struct PromptAnswer {
 /// Sends a prompt to the UI.
 pub type Prompter = Arc<dyn Fn(PromptRequest) + Send + Sync>;
 
-static PENDING: LazyLock<parking_lot::Mutex<HashMap<String, mpsc::Sender<Option<PromptAnswer>>>>> =
+struct PendingPrompt {
+    sender: mpsc::Sender<Option<PromptAnswer>>,
+    operation_id: Option<String>,
+}
+static PENDING: LazyLock<parking_lot::Mutex<HashMap<String, PendingPrompt>>> =
     LazyLock::new(|| parking_lot::Mutex::new(HashMap::new()));
+
+#[derive(Clone)]
+pub struct PromptSession {
+    pub prompter: Prompter,
+    pub operation_id: String,
+    pub cancelled: Arc<AtomicBool>,
+    pub close: Arc<dyn Fn(String) + Send + Sync>,
+}
+impl PromptSession {
+    pub fn ask(&self, build: impl FnOnce(String) -> PromptRequest) -> Option<PromptAnswer> {
+        ask_internal(&self.prompter, build, PROMPT_TIMEOUT, Some(self))
+    }
+}
+
+pub fn cancel_operation(operation_id: &str) {
+    let senders: Vec<_> = {
+        let mut pending = PENDING.lock();
+        let ids: Vec<_> = pending
+            .iter()
+            .filter(|(_, p)| p.operation_id.as_deref() == Some(operation_id))
+            .map(|(id, _)| id.clone())
+            .collect();
+        ids.into_iter()
+            .filter_map(|id| pending.remove(&id).map(|p| p.sender))
+            .collect()
+    };
+    for sender in senders {
+        let _ = sender.send(None);
+    }
+}
 
 /// Ask the user and wait for the answer. `None` means declined, dismissed or
 /// timed out.
@@ -71,14 +107,41 @@ pub fn ask_with_timeout(
     build: impl FnOnce(String) -> PromptRequest,
     timeout: Duration,
 ) -> Option<PromptAnswer> {
+    ask_internal(prompter, build, timeout, None)
+}
+
+fn ask_internal(
+    prompter: &Prompter,
+    build: impl FnOnce(String) -> PromptRequest,
+    timeout: Duration,
+    session: Option<&PromptSession>,
+) -> Option<PromptAnswer> {
     let id = uuid::Uuid::new_v4().to_string();
     let (tx, rx) = mpsc::channel();
-    PENDING.lock().insert(id.clone(), tx);
+    {
+        let mut pending = PENDING.lock();
+        if session.is_some_and(|s| s.cancelled.load(Ordering::SeqCst)) {
+            return None;
+        }
+        pending.insert(
+            id.clone(),
+            PendingPrompt {
+                sender: tx,
+                operation_id: session.map(|s| s.operation_id.clone()),
+            },
+        );
+    }
 
     prompter(build(id.clone()));
     let answer = rx.recv_timeout(timeout).ok().flatten();
 
     PENDING.lock().remove(&id);
+    if let Some(session) = session {
+        (session.close)(id);
+        if session.cancelled.load(Ordering::SeqCst) {
+            return None;
+        }
+    }
     answer
 }
 
@@ -86,7 +149,7 @@ pub fn ask_with_timeout(
 /// question with that id was still waiting.
 pub fn answer(id: &str, reply: Option<PromptAnswer>) -> bool {
     match PENDING.lock().remove(id) {
-        Some(tx) => tx.send(reply).is_ok(),
+        Some(pending) => pending.sender.send(reply).is_ok(),
         None => false,
     }
 }
@@ -202,5 +265,56 @@ mod tests {
         let fp = fingerprint(&[0u8; 32]);
         assert!(fp.starts_with("SHA256:"));
         assert!(!fp.ends_with('='), "OpenSSH omits base64 padding");
+    }
+}
+
+#[cfg(test)]
+mod cancellation_tests {
+    use super::*;
+    #[test]
+    fn cancellation_wakes_a_prompt_and_closes_only_its_request() {
+        let (shown_tx, shown_rx) = mpsc::channel();
+        let (closed_tx, closed_rx) = mpsc::channel();
+        let session = PromptSession {
+            operation_id: uuid::Uuid::new_v4().to_string(),
+            cancelled: Arc::new(AtomicBool::new(false)),
+            prompter: Arc::new(move |request| {
+                let PromptRequest::Credentials { id, .. } = request else {
+                    panic!("credentials expected")
+                };
+                shown_tx.send(id).unwrap();
+            }),
+            close: Arc::new(move |id| {
+                closed_tx.send(id).unwrap();
+            }),
+        };
+        let worker_session = session.clone();
+        let worker = std::thread::spawn(move || {
+            worker_session.ask(|id| PromptRequest::Credentials {
+                id,
+                url: "https://example.com".into(),
+                username: None,
+                retry: false,
+            })
+        });
+        let id = shown_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        session.cancelled.store(true, Ordering::SeqCst);
+        cancel_operation(&session.operation_id);
+        assert!(worker.join().unwrap().is_none());
+        assert_eq!(closed_rx.recv_timeout(Duration::from_secs(2)).unwrap(), id);
+        assert!(!answer(&id, Some(PromptAnswer::default())));
+    }
+
+    #[test]
+    fn a_cancelled_session_never_registers_or_displays_another_prompt() {
+        let session = PromptSession {
+            operation_id: uuid::Uuid::new_v4().to_string(),
+            cancelled: Arc::new(AtomicBool::new(true)),
+            prompter: Arc::new(|_| panic!("must not show a cancelled prompt")),
+            close: Arc::new(|_| {}),
+        };
+        assert!(session
+            .ask(|_| panic!("must not build a cancelled prompt"))
+            .is_none());
     }
 }

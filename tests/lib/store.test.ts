@@ -624,3 +624,41 @@ describe("repo store — opening repositories", () => {
     expect(useRepoStore.getState().activeTabId).toBe("/manual");
   });
 });
+
+describe("branch from stash repository binding", () => {
+  it("uses one backend operation and does not refresh the newly selected repository", async () => {
+    invokeMock.mockReset();
+    resetStore();
+    let release: () => void = () => {};
+    invokeMock.mockReturnValue(
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    );
+    const originalRefresh = useRepoStore.getState().refresh;
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    useRepoStore.setState({
+      activeTabId: "/original",
+      stashes: [
+        { index: 0, name: "chosen", oid: "a".repeat(40), message: "chosen" },
+      ],
+      refresh,
+    });
+    try {
+      const pending = useRepoStore
+        .getState()
+        .createBranchFromStash(0, "from-stash");
+      useRepoStore.setState({ activeTabId: "/other" });
+      release();
+      await pending;
+      expect(invokeMock).toHaveBeenCalledExactlyOnceWith("branch_from_stash", {
+        path: "/original",
+        branchName: "from-stash",
+        expectedOid: "a".repeat(40),
+      });
+      expect(refresh).not.toHaveBeenCalled();
+    } finally {
+      useRepoStore.setState({ refresh: originalRefresh });
+    }
+  });
+});

@@ -253,14 +253,13 @@ pub fn make_callbacks_with_progress<'a>(
             if let Some(prompter) = &credential_prompter {
                 if credential_prompts < 2 {
                     credential_prompts += 1;
-                    let reply = crate::git::prompts::ask(prompter, |id| {
-                        crate::git::prompts::PromptRequest::Credentials {
+                    let reply =
+                        prompter.ask(|id| crate::git::prompts::PromptRequest::Credentials {
                             id,
                             url: _url.to_string(),
                             username: username_from_url.map(str::to_string),
                             retry: userpass_attempts > 1,
-                        }
-                    });
+                        });
                     return match reply {
                         Some(crate::git::prompts::PromptAnswer {
                             username: Some(username),
@@ -331,13 +330,11 @@ pub fn make_callbacks_with_progress<'a>(
                     .map(|t| t.name().to_string())
                     .unwrap_or_else(|| "unknown key type".to_string());
 
-                let reply = crate::git::prompts::ask(prompter, |id| {
-                    crate::git::prompts::PromptRequest::HostKey {
-                        id,
-                        host: hostname.to_string(),
-                        key_type: key_type.clone(),
-                        fingerprint: crate::git::prompts::fingerprint(sha256),
-                    }
+                let reply = prompter.ask(|id| crate::git::prompts::PromptRequest::HostKey {
+                    id,
+                    host: hostname.to_string(),
+                    key_type: key_type.clone(),
+                    fingerprint: crate::git::prompts::fingerprint(sha256),
                 });
 
                 if reply.and_then(|r| r.accept) == Some(true) {
@@ -471,7 +468,9 @@ fn get_git_exec_path() -> Option<PathBuf> {
     let mut cmd = std::process::Command::new("git");
     cmd.arg("--exec-path");
     cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-    if let Ok(output) = cmd.output() {
+    if let Ok(output) =
+        crate::commands::command_output(cmd, std::time::Duration::from_secs(300), None)
+    {
         if output.status.success() {
             let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
             return Some(PathBuf::from(path_str));
@@ -627,7 +626,11 @@ fn execute_custom_helper(
         let _ = stdin.flush();
     }
 
-    let output = match child.wait_with_output() {
+    let output = match crate::commands::wait_for_command_output(
+        child,
+        std::time::Duration::from_secs(300),
+        None,
+    ) {
         Ok(out) => out,
         Err(e) => {
             log::debug!(

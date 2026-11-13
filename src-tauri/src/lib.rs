@@ -10,14 +10,23 @@ pub mod test_utils;
 
 use state::AppState;
 
-#[cfg(debug_assertions)]
+#[cfg(all(debug_assertions, not(feature = "desktop-tests")))]
 use tauri::Manager;
+
+#[cfg(all(feature = "desktop-tests", not(debug_assertions)))]
+compile_error!(
+    "desktop-tests exposes native automation and must never be compiled into release builds"
+);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::init();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(all(target_os = "macos", feature = "desktop-tests"))]
+    let builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
+
+    builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -47,6 +56,8 @@ pub fn run() {
             commands::diff::get_file_content_pair_revisions,
             // Branch commands
             commands::branch::list_branches,
+            commands::branch::scan_merged_branches,
+            commands::branch::delete_merged_branches,
             commands::branch::create_branch,
             commands::branch::delete_branch,
             commands::branch::checkout_branch,
@@ -64,6 +75,7 @@ pub fn run() {
             // Stash commands
             commands::stash::list_stashes,
             commands::stash::save_stash,
+            commands::stash::branch_from_stash,
             commands::stash::apply_stash,
             commands::stash::pop_stash,
             commands::stash::drop_stash,
@@ -74,6 +86,8 @@ pub fn run() {
             commands::staging::discard_changes,
             // Commit commands
             commands::commit::create_commit,
+            commands::commit::get_amend_commit,
+            commands::commit::amend_commit,
             commands::commit::cherry_pick_commit,
             commands::commit::cherry_pick_abort,
             commands::commit::revert_commit,
@@ -149,7 +163,7 @@ pub fn run() {
             log::info!("Basilico starting...");
 
             // Set up window
-            #[cfg(debug_assertions)]
+            #[cfg(all(debug_assertions, not(feature = "desktop-tests")))]
             {
                 let window = _app.get_webview_window("main").unwrap();
                 window.open_devtools();

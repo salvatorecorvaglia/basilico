@@ -1,4 +1,4 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const invokeMock = vi.fn();
@@ -12,6 +12,7 @@ vi.mock("@tauri-apps/api/app", () => ({
 
 import { StatusBar } from "../../../src/components/layout/StatusBar";
 import { useRepoStore } from "../../../src/store/repo-store";
+import { useUIStore } from "../../../src/store/ui-store";
 
 const REPO_STATUS = {
   branch: "main",
@@ -97,4 +98,13 @@ describe("StatusBar — GitHub CI status opt-in", () => {
     const headers = (opts?.headers ?? {}) as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer abc123");
   });
+});
+
+it("shows limited watcher coverage only for the active repository", () => {
+  useRepoStore.setState({ activeTabId: "/repo" });
+  useUIStore.setState({ watcherDegraded: { "/repo": true } });
+  render(<StatusBar />);
+  expect(screen.getByRole("status")).toHaveTextContent("Auto-refresh limited");
+  act(() => useRepoStore.setState({ activeTabId: "/other" }));
+  expect(screen.queryByText("Auto-refresh limited")).not.toBeInTheDocument();
 });

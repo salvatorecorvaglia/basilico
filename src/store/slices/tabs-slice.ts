@@ -2,11 +2,8 @@ import type { StateCreator } from "zustand";
 import type { RecentRepo, RepoInfo, RepoTab } from "../../lib/git-types";
 import { STORAGE_KEYS } from "../../lib/persistence";
 import * as commands from "../../lib/tauri-commands";
-import {
-  INITIAL_LOADING_STATES,
-  PER_TAB_RESET_STATE,
-  type RepoState,
-} from "../types";
+import { beginLoading, resetRepoLoading } from "../store-helpers";
+import { PER_TAB_RESET_STATE, type RepoState } from "../types";
 
 export interface TabsSlice {
   tabs: RepoTab[];
@@ -71,6 +68,7 @@ function activateTab(
     activeTabId: tabId,
     ...PER_TAB_RESET_STATE,
     ...restored,
+    ...resetRepoLoading(state),
     refreshGeneration: state.refreshGeneration + 1,
     ...extra,
   };
@@ -147,9 +145,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
       if (pendingOpens.has(path)) return;
       pendingOpens.add(path);
 
-      set({
-        loadingStates: { ...get().loadingStates, global: true },
-      });
+      const finishLoading = beginLoading(get, set, "global");
 
       try {
         const info = await commands.openRepo(path, {
@@ -194,15 +190,13 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
           await get().refreshAll();
         }
       } finally {
-        set({ loadingStates: { ...get().loadingStates, global: false } });
+        finishLoading();
         pendingOpens.delete(path);
       }
     },
 
     cloneRepository: async (url: string, path: string) => {
-      set({
-        loadingStates: { ...get().loadingStates, global: true },
-      });
+      const finishLoading = beginLoading(get, set, "global");
       try {
         const info = await commands.cloneRepo(url, path, {
           errorPrefix: "Failed to clone repository",
@@ -210,14 +204,12 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
         // Automatically open the cloned repo
         await get().openRepository(info.path);
       } finally {
-        set({ loadingStates: { ...get().loadingStates, global: false } });
+        finishLoading();
       }
     },
 
     initializeRepository: async (path: string) => {
-      set({
-        loadingStates: { ...get().loadingStates, global: true },
-      });
+      const finishLoading = beginLoading(get, set, "global");
       try {
         await commands.initRepo(path, {
           errorPrefix: "Failed to initialize repository",
@@ -225,7 +217,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
         // Automatically open the initialized repo
         await get().openRepository(path);
       } finally {
-        set({ loadingStates: { ...get().loadingStates, global: false } });
+        finishLoading();
       }
     },
 
@@ -246,8 +238,7 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
           // what the newly active tab last showed.
           ...PER_TAB_RESET_STATE,
           ...restored,
-          loadingStates: { ...INITIAL_LOADING_STATES },
-          isLoading: false,
+          ...resetRepoLoading(get()),
           // Increment generation to invalidate in-flight async responses from old tab
           refreshGeneration: get().refreshGeneration + 1,
         });
@@ -303,122 +294,152 @@ export const createTabsSlice: StateCreator<RepoState, [], [], TabsSlice> = (
 
       if (!paths || paths.length === 0) return;
 
-      set({
-        loadingStates: { ...get().loadingStates, global: true },
-      });
+      const finishLoading = beginLoading(get, set, "global");
 
-      const openedTabs: RepoTab[] = [];
-      const infoByPath = new Map<string, RepoInfo>();
-      let finalActiveTabId = activePath;
+      try {
+        const openedTabs: RepoTab[] = [];
+        const infoByPath = new Map<string, RepoInfo>();
+        let finalActiveTabId = activePath;
 
-      // Opens are independent, so they run concurrently: restoring N tabs
-      // sequentially made startup grow linearly with tab count, when it need
-      // only take as long as the slowest single open. `allSettled` keeps the
-      // previous behaviour of skipping repositories that no longer exist.
-      const results = await Promise.allSettled(
-        paths.map((path) => commands.openRepo(path, { silent: true })),
-      );
+        // Opens are independent, so they run concurrently: restoring N tabs
+        // sequentially made startup grow linearly with tab count, when it need
+        // only take as long as the slowest single open. `allSettled` keeps the
+        // previous behaviour of skipping repositories that no longer exist.
+        const results = await Promise.allSettled(
+          paths.map((path) => commands.openRepo(path, { silent: true })),
+        );
 
-      results.forEach((result, index) => {
-        if (result.status === "rejected") {
-          console.error(
-            `Failed to restore repository at ${paths[index]}:`,
-            result.reason,
-          );
+        results.forEach((result, index) => {
+          if (result.status === "rejected") {
+            console.error(
+              `Failed to restore repository at ${paths[index]}:`,
+              result.reason,
+            );
+            return;
+          }
+          const info = result.value;
+
+          // Add to recent repositories
+          addRepoToRecent(info);
+
+          openedTabs.push({
+            id: info.path,
+            path: info.path,
+            name: info.name,
+            isActive: false,
+          });
+          infoByPath.set(info.path, info);
+        });
+
+        if (openedTabs.length === 0) {
+          finishLoading();
+          if (get().tabs.length === 0) {
+            localStorage.removeItem(STORAGE_KEYS.openRepos);
+            localStorage.removeItem(STORAGE_KEYS.activeRepo);
+          }
           return;
         }
-        const info = result.value;
 
-        // Add to recent repositories
-        addRepoToRecent(info);
+        // Restoration takes several IPC round-trips, so the user can open a
+        // repository manually while it is still running. Merge with whatever is
+        // in the store now instead of overwriting it — the previous unconditional
+        // `set` was built purely from the local accumulator and silently dropped
+        // any tab opened in that window.
+        const concurrentTabs = get().tabs.filter(
+          (existing) => !openedTabs.some((t) => t.id === existing.id),
+        );
+        const mergedTabs = [...openedTabs, ...concurrentTabs];
 
-        openedTabs.push({
-          id: info.path,
-          path: info.path,
-          name: info.name,
-          isActive: false,
-        });
-        infoByPath.set(info.path, info);
-      });
+        // A tab the user opened by hand is a deliberate, more recent choice than
+        // the persisted one, so let it keep focus.
+        const manuallyActivated = get().activeTabId;
+        if (
+          manuallyActivated &&
+          concurrentTabs.some((t) => t.id === manuallyActivated)
+        ) {
+          finalActiveTabId = manuallyActivated;
+        }
 
-      if (openedTabs.length === 0) {
-        set({ loadingStates: { ...get().loadingStates, global: false } });
-        localStorage.removeItem(STORAGE_KEYS.openRepos);
-        localStorage.removeItem(STORAGE_KEYS.activeRepo);
-        return;
-      }
+        // Determine the active tab
+        const hasActive = mergedTabs.some((t) => t.id === finalActiveTabId);
+        if (!hasActive) {
+          finalActiveTabId = mergedTabs[0].id;
+        }
 
-      // Restoration takes several IPC round-trips, so the user can open a
-      // repository manually while it is still running. Merge with whatever is
-      // in the store now instead of overwriting it — the previous unconditional
-      // `set` was built purely from the local accumulator and silently dropped
-      // any tab opened in that window.
-      const concurrentTabs = get().tabs.filter(
-        (existing) => !openedTabs.some((t) => t.id === existing.id),
-      );
-      const mergedTabs = [...openedTabs, ...concurrentTabs];
+        let finalTabs = mergedTabs.map((t) => ({
+          ...t,
+          isActive: t.id === finalActiveTabId,
+        }));
 
-      // A tab the user opened by hand is a deliberate, more recent choice than
-      // the persisted one, so let it keep focus.
-      const manuallyActivated = get().activeTabId;
-      if (
-        manuallyActivated &&
-        concurrentTabs.some((t) => t.id === manuallyActivated)
-      ) {
-        finalActiveTabId = manuallyActivated;
-      }
-
-      // Determine the active tab
-      const hasActive = mergedTabs.some((t) => t.id === finalActiveTabId);
-      if (!hasActive) {
-        finalActiveTabId = mergedTabs[0].id;
-      }
-
-      const finalTabs = mergedTabs.map((t) => ({
-        ...t,
-        isActive: t.id === finalActiveTabId,
-      }));
-
-      // Reuse the info already fetched during restoration when it describes the
-      // tab that ended up active; a manually-opened tab can win the race above,
-      // in which case its info is not in this map and is fetched below.
-      let activeInfo: RepoInfo | null = finalActiveTabId
-        ? (infoByPath.get(finalActiveTabId) ?? null)
-        : null;
-      if (!activeInfo) {
-        const activeTab = finalTabs.find((t) => t.isActive);
-        if (activeTab) {
-          try {
-            activeInfo = await commands.getRepoInfo(activeTab.path, {
-              silent: true,
-            });
-          } catch (e) {
-            console.error("Failed to get repo info for active tab:", e);
+        // Reuse the info already fetched during restoration when it describes the
+        // tab that ended up active; a manually-opened tab can win the race above,
+        // in which case its info is not in this map and is fetched below.
+        let activeInfo: RepoInfo | null = finalActiveTabId
+          ? (infoByPath.get(finalActiveTabId) ?? null)
+          : null;
+        if (!activeInfo) {
+          const activeTab = finalTabs.find((t) => t.isActive);
+          if (activeTab) {
+            try {
+              activeInfo = await commands.getRepoInfo(activeTab.path, {
+                silent: true,
+              });
+            } catch (e) {
+              console.error("Failed to get repo info for active tab:", e);
+            }
           }
         }
-      }
 
-      set({
-        tabs: finalTabs,
-        activeTabId: finalActiveTabId,
-        repoInfo: activeInfo,
-        loadingStates: { ...get().loadingStates, global: false },
-      });
+        set((state) => {
+          // Recheck user intent after every restoration await, including info reads.
+          finalTabs = [
+            ...openedTabs,
+            ...state.tabs.filter(
+              (tab) => !openedTabs.some((opened) => opened.id === tab.id),
+            ),
+          ];
+          if (
+            state.activeTabId &&
+            state.tabs.some((tab) => tab.id === state.activeTabId)
+          )
+            finalActiveTabId = state.activeTabId;
+          finalTabs = finalTabs.map((tab) => ({
+            ...tab,
+            isActive: tab.id === finalActiveTabId,
+          }));
+          const info =
+            state.activeTabId === finalActiveTabId
+              ? (state.repoInfo ??
+                infoByPath.get(finalActiveTabId ?? "") ??
+                activeInfo)
+              : (infoByPath.get(finalActiveTabId ?? "") ?? activeInfo);
+          if (state.activeTabId === finalActiveTabId || !finalActiveTabId)
+            return { tabs: finalTabs, repoInfo: info };
+          return activateTab({ ...state, tabs: finalTabs }, finalActiveTabId, {
+            repoInfo: info,
+          });
+        });
 
-      // Save the list of successfully opened tabs back to localStorage (cleaning up any invalid/missing ones)
-      localStorage.setItem(
-        STORAGE_KEYS.openRepos,
-        JSON.stringify(finalTabs.map((t) => t.path)),
-      );
-      if (finalActiveTabId) {
-        localStorage.setItem(STORAGE_KEYS.activeRepo, finalActiveTabId);
-      }
+        // Save the list of successfully opened tabs back to localStorage (cleaning up any invalid/missing ones)
+        localStorage.setItem(
+          STORAGE_KEYS.openRepos,
+          JSON.stringify(finalTabs.map((t) => t.path)),
+        );
+        if (finalActiveTabId) {
+          localStorage.setItem(STORAGE_KEYS.activeRepo, finalActiveTabId);
+        }
 
-      // Refresh all data
-      try {
-        await get().refreshAll();
-      } catch (err) {
-        console.error("Failed to refresh repositories after restoration:", err);
+        // Refresh all data
+        try {
+          await get().refreshAll();
+        } catch (err) {
+          console.error(
+            "Failed to refresh repositories after restoration:",
+            err,
+          );
+        }
+      } finally {
+        finishLoading();
       }
     },
 

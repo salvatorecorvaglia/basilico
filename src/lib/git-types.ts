@@ -116,6 +116,7 @@ export interface FileDiff {
   hunks: DiffHunkInfo[];
   stats: DiffStats;
   isBinary: boolean;
+  truncated?: boolean;
 }
 
 export interface DiffHunkInfo {
@@ -223,6 +224,7 @@ export interface BisectState {
 }
 
 export interface GrepMatch {
+  truncated?: boolean;
   filePath: string;
   lineNumber: number;
   content: string;
@@ -306,6 +308,7 @@ export interface TreeEntryInfo {
 }
 
 export interface ConflictStages {
+  markerSize?: number;
   base: string | null;
   ours: string | null;
   theirs: string | null;

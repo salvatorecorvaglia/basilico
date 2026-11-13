@@ -13,9 +13,10 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { BranchInfo } from "../../lib/git-types";
+import * as commands from "../../lib/tauri-commands";
 import { useRepoStore } from "../../store/repo-store";
 import { useUIStore } from "../../store/ui-store";
 import "./ToolModal.css";
@@ -29,13 +30,24 @@ export function MergedBranchSweeperModal({
   open,
   onOpenChange,
 }: MergedBranchSweeperModalProps) {
-  const { branches, listMergedBranches, deleteBranch, repoInfo } = useRepoStore(
-    useShallow((s) => ({
-      branches: s.branches,
-      listMergedBranches: s.listMergedBranches,
-      deleteBranch: s.deleteBranch,
-      repoInfo: s.repoInfo,
-    })),
+  const path = useRepoStore((s) => s.activeTabId);
+  return path ? (
+    <RepositorySweeper
+      key={path}
+      path={path}
+      open={open}
+      onOpenChange={onOpenChange}
+    />
+  ) : null;
+}
+
+function RepositorySweeper({
+  path,
+  open,
+  onOpenChange,
+}: MergedBranchSweeperModalProps & { path: string }) {
+  const { branches, repoInfo } = useRepoStore(
+    useShallow((s) => ({ branches: s.branches, repoInfo: s.repoInfo })),
   );
   const { addNotification, openConfirm } = useUIStore(
     useShallow((s) => ({
@@ -47,6 +59,8 @@ export function MergedBranchSweeperModal({
   const [targetBranch, setTargetBranch] = useState<string>(
     repoInfo?.headBranch || "main",
   );
+  const [scan, setScan] = useState<commands.MergedBranchScan | null>(null);
+  const scanRequest = useRef(0);
   const [mergedList, setMergedList] = useState<BranchInfo[]>([]);
   const [selectedBranches, setSelectedBranches] = useState<Set<string>>(
     new Set(),
@@ -55,26 +69,37 @@ export function MergedBranchSweeperModal({
   const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchMerged = useCallback(async () => {
+    const ticket = ++scanRequest.current;
     setIsScanning(true);
+    setScan(null);
+    setMergedList([]);
+    setSelectedBranches(new Set());
     try {
-      const list = await listMergedBranches(targetBranch);
-      setMergedList(list);
+      const result = await commands.scanMergedBranches(path, targetBranch);
+      if (ticket !== scanRequest.current) return;
+      setScan(result);
+      setMergedList(result.branches);
       // Deliberately starts empty. Deleting a remote branch pushes the deletion
       // to the server and cannot be undone from Basilico, so bulk deletion must
       // be an explicit choice rather than the default.
       setSelectedBranches(new Set());
     } catch {
+      if (ticket !== scanRequest.current) return;
+      setScan(null);
       setMergedList([]);
       setSelectedBranches(new Set());
     } finally {
-      setIsScanning(false);
+      if (ticket === scanRequest.current) setIsScanning(false);
     }
-  }, [targetBranch, listMergedBranches]);
+  }, [path, targetBranch]);
 
   useEffect(() => {
     if (open) {
       fetchMerged();
     }
+    return () => {
+      scanRequest.current++;
+    };
   }, [open, fetchMerged]);
 
   const toggleSelectAll = () => {
@@ -95,21 +120,33 @@ export function MergedBranchSweeperModal({
     setSelectedBranches(next);
   };
 
-  const runBulkDelete = async (targets: BranchInfo[]) => {
+  const runBulkDelete = async (
+    targets: BranchInfo[],
+    snapshot: commands.MergedBranchScan,
+  ) => {
     setIsDeleting(true);
-
     let successCount = 0;
     const failures: string[] = [];
-
-    for (const bInfo of targets) {
-      try {
-        await deleteBranch(bInfo.name, bInfo.isRemote);
-        successCount++;
-      } catch (err) {
-        failures.push(`${bInfo.name}: ${err}`);
+    try {
+      const results = await commands.deleteMergedBranches(
+        path,
+        snapshot,
+        targets,
+        { silent: true },
+      );
+      for (const result of results) {
+        if (result.error) failures.push(`${result.name}: ${result.error}`);
+        else successCount++;
       }
+    } catch (err) {
+      failures.push(...targets.map((branch) => `${branch.name}: ${err}`));
     }
-
+    if (useRepoStore.getState().activeTabId === path) {
+      await useRepoStore
+        .getState()
+        .refreshBranches()
+        .catch(() => {});
+    }
     setIsDeleting(false);
 
     if (successCount > 0) {
@@ -128,11 +165,12 @@ export function MergedBranchSweeperModal({
       });
     }
 
-    onOpenChange(false);
+    if (useRepoStore.getState().activeTabId === path) onOpenChange(false);
   };
 
   const handleBulkDelete = () => {
-    if (selectedBranches.size === 0) return;
+    if (selectedBranches.size === 0 || !scan || isScanning || isDeleting)
+      return;
 
     const targets = mergedList.filter((b) => selectedBranches.has(b.name));
     if (targets.length === 0) return;
@@ -158,11 +196,11 @@ export function MergedBranchSweeperModal({
 
     openConfirm({
       title: "Delete merged branches?",
-      message: `You are about to delete ${summary}.${remoteWarning}`,
+      message: `You are about to delete ${summary} from ${path}, merged into ${targetBranch}.${remoteWarning}`,
       confirmLabel: `Delete ${targets.length} branch(es)`,
       cancelLabel: "Cancel",
       isDanger: true,
-      onConfirm: () => runBulkDelete(targets),
+      onConfirm: () => runBulkDelete(targets, scan),
     });
   };
 
@@ -203,6 +241,7 @@ export function MergedBranchSweeperModal({
                 id="sweeper-target-branch"
                 className="settings-input sweeper-target-select"
                 value={targetBranch}
+                disabled={isDeleting}
                 onChange={(e) => setTargetBranch(e.target.value)}
               >
                 {(branches || []).map((b) => (
@@ -309,7 +348,9 @@ export function MergedBranchSweeperModal({
             <button
               type="button"
               className="settings-btn sweeper-delete-btn"
-              disabled={selectedBranches.size === 0 || isDeleting}
+              disabled={
+                selectedBranches.size === 0 || isDeleting || isScanning || !scan
+              }
               onClick={handleBulkDelete}
             >
               <Trash2 size={13} />

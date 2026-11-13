@@ -18,10 +18,12 @@ tauri-build = { version = "2.7.3", features = [] }
 # `tests/`, which link against the library as an external crate and so cannot
 # see `#[cfg(test)]` items. Never enabled for a release build.
 test-utils = ["tauri/test"]
+# Development-only embedded server for exercising the macOS WKWebView.
+desktop-tests = ["dep:tauri-plugin-wdio-webdriver"]
 
 [dependencies]
-tauri = "2.12.4"
-tauri-plugin-opener = "2.7.2"
+tauri = { version = "2.12.4", features = [] }
+tauri-plugin-opener = "2.7.3"
 tauri-plugin-dialog = "2.8.3"
 # `createUpdaterArtifacts = true` uses native v2 installers; legacy ZIP support
 # is unnecessary and pulls in zip 4, affected by RUSTSEC-2026-0367/0368/0369.
@@ -30,20 +32,23 @@ tauri-plugin-process = "2.4.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.154"
 git2 = { version = "0.21.0", features = ["ssh", "https", "vendored-openssl"] }
-notify = "8"
+notify = "8.2.2"
 notify-debouncer-mini = "0.7.0"
 # `rt` for `spawn_blocking`, `macros` for `join!` — Tauri owns the runtime.
 tokio = { version = "1.54.1", features = ["rt", "macros"] }
-parking_lot = "0.12"
+parking_lot = "0.13.0"
 log = "0.4"
 env_logger = "0.11"
-uuid = { version = "1.28.0", features = ["v4"] }
+uuid = { version = "1.29.2", features = ["v4"] }
 dirs = "7.0.0"
 sha1 = "0.11.0"
 hmac = "0.13.0"
 sha2 = "0.11.1"
 base64 = "0.23.1"
 keyring = "4.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri-plugin-wdio-webdriver = { version = "1.5.1", optional = true }
 
 [dev-dependencies]
 # Self-dependency so `cargo test`/`cargo clippy --all-targets` turn on
@@ -56,3 +61,11 @@ strip = true
 lto = true
 codegen-units = 1
 opt-level = "s"
+
+# Compatible GTK 0.18 backports; see vendor/README.md. No advisory suppressions.
+[patch.crates-io]
+glib = { path = "vendor/glib-0.18.5" }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+# Exercise this exact backport, not the latest unrelated GLib API family.
+glib = { path = "vendor/glib-0.18.5" }

@@ -1,93 +1,178 @@
-/* ═══════════════════════════════════════════════════════
-   Basilico — Shared Store Helpers
-   Extracted from duplicated setLoading implementations
-   ═══════════════════════════════════════════════════════ */
+import { INITIAL_LOADING_STATES, type RepoState } from "./types";
 
-import type { RepoState } from "./types";
+type Get = () => RepoState;
+type Write = (state: Partial<RepoState>) => void;
+type Domain = keyof RepoState["loadingStates"];
 
-/**
- * Recalculate whether ANY domain loading flag is set.
- *
- * Derived from the object rather than a hand-written list of all twelve
- * domains: a domain added to `LoadingStates` but forgotten here would have been
- * silently excluded from `isLoading`, so a spinner bound to it would never
- * appear and nothing would fail.
- */
-function computeIsLoading(loadingStates: RepoState["loadingStates"]): boolean {
-  return Object.values(loadingStates).some(Boolean);
+interface Scope {
+  path: string | null;
+  generation: number;
+  requests: Map<string, symbol>;
+  loading: Map<Domain, Set<symbol>>;
+  refreshing: Set<symbol>;
+}
+interface Coordinator {
+  scope: Scope;
+  globalLoading: Map<Domain, Set<symbol>>;
+}
+const coordinators = new WeakMap<Get, Coordinator>();
+
+function coordinator(get: Get): Coordinator {
+  const state = get();
+  let owner = coordinators.get(get);
+  if (!owner) {
+    owner = { scope: makeScope(state), globalLoading: new Map() };
+    coordinators.set(get, owner);
+  } else if (
+    owner.scope.path !== state.activeTabId ||
+    owner.scope.generation !== state.refreshGeneration
+  ) {
+    owner.scope = makeScope(state);
+  }
+  return owner;
+}
+function makeScope(state: RepoState): Scope {
+  return {
+    path: state.activeTabId,
+    generation: state.refreshGeneration,
+    requests: new Map(),
+    loading: new Map(),
+    refreshing: new Set(),
+  };
 }
 
-/**
- * In-flight operations per loading domain.
- *
- * The flags were plain booleans, so when two operations in one domain
- * overlapped, the first to finish cleared the flag while the other was still
- * running — the spinner vanished early, and a guard like `loadMoreCommits`'s
- * `loadingStates.commits` check let a duplicate request through.
- */
-const inFlight = new Map<keyof RepoState["loadingStates"], number>();
-
-/** Helper to update a single loading domain flag and recalculate isLoading */
-export function setLoading(
-  get: () => RepoState,
-  set: (s: Partial<RepoState>) => void,
-  domain: keyof RepoState["loadingStates"],
-  value: boolean,
-) {
-  // The store flag is the source of truth: if something reset it (closing a
-  // tab resets per-tab state), operations counted before that no longer count.
-  let count = get().loadingStates[domain] ? (inFlight.get(domain) ?? 0) : 0;
-  count = Math.max(0, count + (value ? 1 : -1));
-  inFlight.set(domain, count);
-
-  const newLoadingStates = { ...get().loadingStates, [domain]: count > 0 };
-  set({
-    loadingStates: newLoadingStates,
-    isLoading: computeIsLoading(newLoadingStates),
-  });
+export interface RepoContext {
+  path: string | null;
+  isCurrent: () => boolean;
+}
+export function captureRepoContext(get: Get): RepoContext {
+  const scope = coordinator(get).scope;
+  return {
+    path: scope.path,
+    isCurrent: () => coordinator(get).scope === scope,
+  };
 }
 
-/**
- * Run a store action against the active repository, under a loading flag.
- * Does nothing (resolving to `undefined`) when no repository is open.
- *
- * Most store actions opened with the same three steps — read `activeTabId`,
- * return if there is none, wrap the work in `withLoading` — repeated around
- * thirty times across the slices.
- */
+/** Responses may write only while both their repository session and resource ticket are current. */
+export function beginRequest(get: Get, resource: string): RepoContext {
+  const scope = coordinator(get).scope;
+  const ticket = Symbol(resource);
+  scope.requests.set(resource, ticket);
+  return {
+    path: scope.path,
+    isCurrent: () =>
+      coordinator(get).scope === scope &&
+      scope.requests.get(resource) === ticket,
+  };
+}
+
+/** Observe a resource version without issuing a competing request. */
+export function watchRequest(get: Get, resource: string): RepoContext {
+  const scope = coordinator(get).scope;
+  const ticket = scope.requests.get(resource);
+  return {
+    path: scope.path,
+    isCurrent: () =>
+      coordinator(get).scope === scope &&
+      scope.requests.get(resource) === ticket,
+  };
+}
+
+/** Each operation releases only its own loading token, once. */
+export function beginLoading(get: Get, set: Write, domain: Domain): () => void {
+  const owner = coordinator(get);
+  const scope = owner.scope;
+  const global = domain === "global" || domain === "settings";
+  const map = global ? owner.globalLoading : scope.loading;
+  let tokens = map.get(domain);
+  if (!tokens || !get().loadingStates[domain]) {
+    tokens = new Set();
+    map.set(domain, tokens);
+  }
+  const ownTokens = tokens;
+  const token = Symbol(domain);
+  tokens.add(token);
+  const update = () => {
+    const loadingStates = {
+      ...get().loadingStates,
+      [domain]: ownTokens.size > 0,
+    };
+    set({
+      loadingStates,
+      isLoading: Object.values(loadingStates).some(Boolean),
+    });
+  };
+  update();
+  return () => {
+    if (!ownTokens.delete(token)) return;
+    if (
+      (!global && coordinator(get).scope !== scope) ||
+      map.get(domain) !== ownTokens
+    )
+      return;
+    update();
+  };
+}
+
+export function beginRefresh(get: Get, set: Write): () => void {
+  const scope = coordinator(get).scope;
+  if (!get().isRefreshing) scope.refreshing = new Set();
+  const tokens = scope.refreshing;
+  const token = Symbol("refresh");
+  tokens.add(token);
+  set({ isRefreshing: true });
+  return () => {
+    if (
+      !tokens.delete(token) ||
+      coordinator(get).scope !== scope ||
+      scope.refreshing !== tokens
+    )
+      return;
+    set({ isRefreshing: tokens.size > 0 });
+  };
+}
+
+export function resetRepoLoading(state: RepoState): Partial<RepoState> {
+  const loadingStates = {
+    ...INITIAL_LOADING_STATES,
+    global: state.loadingStates.global,
+    settings: state.loadingStates.settings,
+  };
+  return {
+    loadingStates,
+    isLoading: Object.values(loadingStates).some(Boolean),
+    isRefreshing: false,
+  };
+}
+
 export async function withActiveRepo<T>(
-  get: () => RepoState,
-  set: (s: Partial<RepoState>) => void,
-  domain: keyof RepoState["loadingStates"],
+  get: Get,
+  set: Write,
+  domain: Domain,
   errorLabel: string,
-  fn: (activeTabId: string) => Promise<T>,
+  fn: (path: string, context: RepoContext) => Promise<T>,
 ): Promise<T | undefined> {
-  const { activeTabId } = get();
-  if (!activeTabId) return undefined;
-  return withLoading(get, set, domain, errorLabel, () => fn(activeTabId));
+  const context = captureRepoContext(get);
+  const path = context.path;
+  if (!path) return undefined;
+  return withLoading(get, set, domain, errorLabel, () => fn(path, context));
 }
 
-/**
- * Wrapper that handles the loading/finally boilerplate for store actions.
- *
- * Sets loading flag, runs the action, logs and rethrows on failure (the
- * caller is expected to surface it via a toast notification — this store has
- * no error state of its own to display), and resets loading flag in finally.
- */
 export async function withLoading<T>(
-  get: () => RepoState,
-  set: (s: Partial<RepoState>) => void,
-  domain: keyof RepoState["loadingStates"],
+  get: Get,
+  set: Write,
+  domain: Domain,
   errorLabel: string,
-  fn: () => Promise<T>,
+  fn: (context: RepoContext) => Promise<T>,
 ): Promise<T> {
-  setLoading(get, set, domain, true);
+  const context = captureRepoContext(get);
+  const finish = beginLoading(get, set, domain);
   try {
-    return await fn();
+    return await fn(context);
   } catch (err) {
     console.error(`${errorLabel}:`, err);
     throw err;
   } finally {
-    setLoading(get, set, domain, false);
+    finish();
   }
 }

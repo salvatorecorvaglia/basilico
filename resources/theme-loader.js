@@ -10,5 +10,6 @@
   const scheme = localStorage.getItem("basilico-color-scheme");
   if (scheme === "light" || scheme === "dark") {
     document.documentElement.style.colorScheme = scheme;
+    document.documentElement.setAttribute("data-color-scheme", scheme);
   }
 })();

@@ -231,8 +231,12 @@ export function CompareView() {
                       <span className="file-dir">{getDirectory(filePath)}</span>
                     </div>
                     <span className="compare-file-stats text-mono">
-                      <span className="stat-add">+{file.stats.additions}</span>
-                      <span className="stat-del">-{file.stats.deletions}</span>
+                      <span className="stat-add">
+                        {file.truncated ? "…" : `+${file.stats.additions}`}
+                      </span>
+                      <span className="stat-del">
+                        {file.truncated ? "…" : `-${file.stats.deletions}`}
+                      </span>
                     </span>
                   </div>
                 );

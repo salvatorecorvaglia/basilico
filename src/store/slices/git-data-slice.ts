@@ -11,7 +11,12 @@ import type {
   TagInfo,
 } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
-import { setLoading } from "../store-helpers";
+import {
+  beginLoading,
+  beginRefresh,
+  beginRequest,
+  watchRequest,
+} from "../store-helpers";
 import type { RepoState } from "../types";
 
 // The initial commit page size. A refresh must fetch at least this many, but
@@ -19,27 +24,6 @@ import type { RepoState } from "../types";
 // many would silently truncate the list back down and lose their place —
 // so refreshes request max(this, what's already loaded) instead.
 const DEFAULT_COMMIT_PAGE_SIZE = 500;
-
-/**
- * The newest request issued for each refreshed field.
- *
- * `refreshGeneration` only protects against a *tab switch* mid-request. Two
- * refreshes of the same tab — a watcher event and a user action, say — could
- * still resolve out of order, and the older response then overwrote the
- * newer one with stale status or a stale log. Each refresh takes a ticket per
- * field it writes, and only the newest ticket's response is applied.
- */
-const latestRequest = { status: 0, refs: 0, log: 0 };
-type RefreshedField = keyof typeof latestRequest;
-
-function takeTicket(field: RefreshedField): number {
-  latestRequest[field] += 1;
-  return latestRequest[field];
-}
-
-function isLatest(field: RefreshedField, ticket: number): boolean {
-  return latestRequest[field] === ticket;
-}
 
 /**
  * Fetch the commit log only if it could have changed.
@@ -57,63 +41,47 @@ function isLatest(field: RefreshedField, ticket: number): boolean {
 async function fetchLogIfChanged(
   get: () => RepoState,
   tabId: string,
+  set: (state: Partial<RepoState>) => void,
 ): Promise<{ commits: GraphCommit[]; key: string | null } | null> {
-  const {
-    firstParentOnly,
-    hideRemoteBranches,
-    pathFilter,
-    commits: loaded,
-    logKey,
-  } = get();
-
-  // Without a usable fingerprint the log cannot be proven current: fetch it.
-  let fingerprint: string | null = null;
+  const finish = beginLoading(get, set, "commits");
   try {
-    const value: unknown = await commands.getLogFingerprint(
-      tabId,
+    const {
+      firstParentOnly,
       hideRemoteBranches,
+      pathFilter,
+      commits: loaded,
+      logKey,
+    } = get();
+
+    // Without a usable fingerprint the log cannot be proven current: fetch it.
+    let fingerprint: string | null = null;
+    try {
+      const value: unknown = await commands.getLogFingerprint(
+        tabId,
+        hideRemoteBranches,
+        { silent: true },
+      );
+      if (typeof value === "string" && value.length > 0) fingerprint = value;
+    } catch {
+      // Fall through to fetching the log.
+    }
+    const key = fingerprint
+      ? `${fingerprint}|${firstParentOnly}|${hideRemoteBranches}|${pathFilter}`
+      : null;
+    if (key !== null && key === logKey && loaded.length > 0) return null;
+
+    const commits = await commands.getLog(
+      tabId,
+      Math.max(DEFAULT_COMMIT_PAGE_SIZE, loaded.length),
+      firstParentOnly,
+      hideRemoteBranches,
+      pathFilter,
       { silent: true },
     );
-    if (typeof value === "string" && value.length > 0) fingerprint = value;
-  } catch {
-    // Fall through to fetching the log.
+    return { commits, key };
+  } finally {
+    finish();
   }
-  const key = fingerprint
-    ? `${fingerprint}|${firstParentOnly}|${hideRemoteBranches}|${pathFilter}`
-    : null;
-  if (key !== null && key === logKey && loaded.length > 0) return null;
-
-  const commits = await commands.getLog(
-    tabId,
-    Math.max(DEFAULT_COMMIT_PAGE_SIZE, loaded.length),
-    firstParentOnly,
-    hideRemoteBranches,
-    pathFilter,
-    { silent: true },
-  );
-  return { commits, key };
-}
-
-/**
- * `isRefreshing` as an in-flight count. A boolean was cleared by whichever
- * overlapping refresh finished first, while others were still running.
- */
-let refreshesInFlight = 0;
-
-function beginRefresh(
-  set: (s: Partial<RepoState>) => void,
-  get: () => RepoState,
-) {
-  // The store flag is the source of truth: if something reset it (closing a
-  // tab resets per-tab state), requests counted before that no longer count.
-  if (!get().isRefreshing) refreshesInFlight = 0;
-  refreshesInFlight += 1;
-  set({ isRefreshing: true });
-}
-
-function endRefresh(set: (s: Partial<RepoState>) => void) {
-  refreshesInFlight = Math.max(0, refreshesInFlight - 1);
-  if (refreshesInFlight === 0) set({ isRefreshing: false });
 }
 
 /**
@@ -328,14 +296,14 @@ export const createGitDataSlice: StateCreator<
     const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
-    const statusTicket = takeTicket("status");
-    beginRefresh(set, get);
+    const statusTicket = beginRequest(get, "status");
+    const finishRefresh = beginRefresh(get, set);
     try {
       const status = await commands.getStatus(activeTabId, { silent: true });
       // Guard: only apply if still the same tab and no newer request won
       if (
         get().refreshGeneration === refreshGeneration &&
-        isLatest("status", statusTicket)
+        statusTicket.isCurrent()
       ) {
         set({ status });
       }
@@ -343,7 +311,7 @@ export const createGitDataSlice: StateCreator<
       console.error("Failed to refresh status:", err);
       throw err;
     } finally {
-      endRefresh(set);
+      finishRefresh();
     }
   },
 
@@ -351,19 +319,19 @@ export const createGitDataSlice: StateCreator<
     const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
-    const statusTicket = takeTicket("status");
-    const logTicket = takeTicket("log");
-    beginRefresh(set, get);
+    const statusTicket = beginRequest(get, "status");
+    const logTicket = beginRequest(get, "log");
+    const finishRefresh = beginRefresh(get, set);
     try {
       const [status, log] = await Promise.all([
         commands.getStatus(activeTabId, { silent: true }),
-        fetchLogIfChanged(get, activeTabId),
+        fetchLogIfChanged(get, activeTabId, set),
       ]);
       // Guard: only apply if still the same tab, field by field
       if (get().refreshGeneration === refreshGeneration) {
         const update: Partial<RepoState> = {};
-        if (isLatest("status", statusTicket)) update.status = status;
-        if (log && isLatest("log", logTicket)) {
+        if (statusTicket.isCurrent()) update.status = status;
+        if (log && logTicket.isCurrent()) {
           update.commits = log.commits;
           update.logKey = log.key;
           update.hasMoreCommits = true;
@@ -374,7 +342,7 @@ export const createGitDataSlice: StateCreator<
       console.error("Failed to refresh commits and status:", err);
       throw err;
     } finally {
-      endRefresh(set);
+      finishRefresh();
     }
   },
 
@@ -382,7 +350,7 @@ export const createGitDataSlice: StateCreator<
     const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
-    const refsTicket = takeTicket("refs");
+    const refsTicket = beginRequest(get, "refs");
     try {
       const [branches, tags] = await Promise.all([
         commands.listBranches(activeTabId, { silent: true }),
@@ -391,7 +359,7 @@ export const createGitDataSlice: StateCreator<
       // Guard: only apply if still the same tab and no newer request won
       if (
         get().refreshGeneration === refreshGeneration &&
-        isLatest("refs", refsTicket)
+        refsTicket.isCurrent()
       ) {
         set({ branches, tags });
       }
@@ -407,21 +375,23 @@ export const createGitDataSlice: StateCreator<
     const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
     const want = new Set(parts);
+    const extraTickets = Object.fromEntries(
+      ["remotes", "stashes", "repoInfo", "worktrees", "submodules"]
+        .filter((part) => want.has(part as RefreshPart))
+        .map((part) => [part, beginRequest(get, part)]),
+    );
 
-    const statusTicket = takeTicket("status");
-    const refsTicket = want.has("refs") ? takeTicket("refs") : null;
-    const logTicket = want.has("log") ? takeTicket("log") : null;
-    beginRefresh(set, get);
+    const statusTicket = beginRequest(get, "status");
+    const refsTicket = want.has("refs") ? beginRequest(get, "refs") : null;
+    const logTicket = want.has("log") ? beginRequest(get, "log") : null;
+    const finishRefresh = beginRefresh(get, set);
     try {
-      const safeCall = async <T>(
-        promise: Promise<T>,
-        fallback: T,
-      ): Promise<T> => {
+      const safeCall = async <T>(promise: Promise<T>): Promise<T | null> => {
         try {
           return await promise;
         } catch (e) {
           console.warn("Secondary refresh call failed:", e);
-          return fallback;
+          return null;
         }
       };
       const skip = Promise.resolve(null);
@@ -433,14 +403,14 @@ export const createGitDataSlice: StateCreator<
             ? commands.listBranches(activeTabId, { silent: true })
             : skip,
           want.has("refs")
-            ? safeCall(commands.listTags(activeTabId, { silent: true }), [])
+            ? safeCall(commands.listTags(activeTabId, { silent: true }))
             : skip,
           want.has("remotes")
-            ? safeCall(commands.listRemotes(activeTabId, { silent: true }), [])
+            ? safeCall(commands.listRemotes(activeTabId, { silent: true }))
             : skip,
-          want.has("log") ? fetchLogIfChanged(get, activeTabId) : skip,
+          want.has("log") ? fetchLogIfChanged(get, activeTabId, set) : skip,
           want.has("stashes")
-            ? safeCall(commands.listStashes(activeTabId, { silent: true }), [])
+            ? safeCall(commands.listStashes(activeTabId, { silent: true }))
             : skip,
           want.has("repoInfo")
             ? commands.getRepoInfo(activeTabId, { silent: true })
@@ -451,20 +421,18 @@ export const createGitDataSlice: StateCreator<
       if (get().refreshGeneration === refreshGeneration) {
         // Fields a newer refresh already wrote keep that newer value.
         const update: Partial<RepoState> = {};
-        if (remotes) update.remotes = remotes;
-        if (stashes) update.stashes = stashes;
-        if (repoInfo) update.repoInfo = repoInfo;
-        if (isLatest("status", statusTicket)) update.status = status;
-        if (
-          branches &&
-          tags &&
-          refsTicket !== null &&
-          isLatest("refs", refsTicket)
-        ) {
-          update.branches = branches;
-          update.tags = tags;
+        if (remotes && extraTickets.remotes.isCurrent())
+          update.remotes = remotes;
+        if (stashes && extraTickets.stashes.isCurrent())
+          update.stashes = stashes;
+        if (repoInfo && extraTickets.repoInfo.isCurrent())
+          update.repoInfo = repoInfo;
+        if (statusTicket.isCurrent()) update.status = status;
+        if (refsTicket?.isCurrent()) {
+          if (branches) update.branches = branches;
+          if (tags) update.tags = tags;
         }
-        if (log && logTicket !== null && isLatest("log", logTicket)) {
+        if (log && logTicket?.isCurrent()) {
           update.commits = log.commits;
           update.logKey = log.key;
           update.hasMoreCommits = true;
@@ -476,28 +444,28 @@ export const createGitDataSlice: StateCreator<
           commands
             .listWorktrees(activeTabId, { silent: true })
             .then((worktrees) => {
-              if (get().refreshGeneration === refreshGeneration) {
+              if (extraTickets.worktrees.isCurrent()) {
                 set({ worktrees });
               }
             })
-            .catch(() => set({ worktrees: [] }));
+            .catch((err) => console.warn("Background refresh failed:", err));
         }
         if (want.has("submodules")) {
           commands
             .listSubmodules(activeTabId, { silent: true })
             .then((submodules) => {
-              if (get().refreshGeneration === refreshGeneration) {
+              if (extraTickets.submodules.isCurrent()) {
                 set({ submodules });
               }
             })
-            .catch(() => set({ submodules: [] }));
+            .catch((err) => console.warn("Background refresh failed:", err));
         }
       }
     } catch (err) {
       console.error("Failed to refresh:", err);
       throw err;
     } finally {
-      endRefresh(set);
+      finishRefresh();
     }
   },
 
@@ -505,10 +473,10 @@ export const createGitDataSlice: StateCreator<
     const { activeTabId, refreshGeneration } = get();
     if (!activeTabId) return;
 
-    const statusTicket = takeTicket("status");
-    const refsTicket = takeTicket("refs");
-    const logTicket = refsChanged ? takeTicket("log") : null;
-    beginRefresh(set, get);
+    const statusTicket = beginRequest(get, "status");
+    const refsTicket = beginRequest(get, "refs");
+    const logTicket = refsChanged ? beginRequest(get, "log") : null;
+    const finishRefresh = beginRefresh(get, set);
     try {
       // A plain file save refreshes status, branches and tags only: the commit
       // log is expensive (500 commits + graph layout) and a save does not
@@ -520,18 +488,18 @@ export const createGitDataSlice: StateCreator<
         commands.listBranches(activeTabId, { silent: true }),
         commands.listTags(activeTabId, { silent: true }),
         refsChanged
-          ? fetchLogIfChanged(get, activeTabId)
+          ? fetchLogIfChanged(get, activeTabId, set)
           : Promise.resolve(null),
       ]);
       // Guard: only apply if still the same tab, field by field
       if (get().refreshGeneration === refreshGeneration) {
         const update: Partial<RepoState> = {};
-        if (isLatest("status", statusTicket)) update.status = status;
-        if (isLatest("refs", refsTicket)) {
+        if (statusTicket.isCurrent()) update.status = status;
+        if (refsTicket.isCurrent()) {
           update.branches = branches;
           update.tags = tags;
         }
-        if (log && logTicket !== null && isLatest("log", logTicket)) {
+        if (log && logTicket?.isCurrent()) {
           update.commits = log.commits;
           update.logKey = log.key;
           update.hasMoreCommits = true;
@@ -541,35 +509,34 @@ export const createGitDataSlice: StateCreator<
     } catch (err) {
       console.error("Failed to refresh on file change:", err);
     } finally {
-      endRefresh(set);
+      finishRefresh();
     }
   },
 
   selectCommit: async (oid: string | null) => {
+    const request = beginRequest(get, "commitDiff");
     set({ selectedCommitOid: oid, commitDiff: [] });
 
     if (!oid) return;
 
-    const { activeTabId, refreshGeneration } = get();
+    const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "diff", true);
+    const finishLoading = beginLoading(get, set, "diff");
     try {
       const diff = await commands.getCommitDiff(activeTabId, oid, {
         silent: true,
       });
       // Guard: only apply if still the same tab and this commit is still selected
-      if (
-        get().refreshGeneration === refreshGeneration &&
-        get().selectedCommitOid === oid
-      ) {
+      if (request.isCurrent() && get().selectedCommitOid === oid) {
         set({ commitDiff: diff });
       }
     } catch (err) {
+      if (!request.isCurrent()) return;
       console.error("Failed to load commit diff:", err);
       throw err;
     } finally {
-      setLoading(get, set, "diff", false);
+      finishLoading();
     }
   },
 
@@ -586,7 +553,10 @@ export const createGitDataSlice: StateCreator<
     } = get();
     if (!activeTabId || loadingStates.commits || !hasMoreCommits) return;
 
-    setLoading(get, set, "commits", true);
+    const request = beginRequest(get, "logPage");
+    const logVersion = get().logKey;
+    const logRequest = watchRequest(get, "log");
+    const finishLoading = beginLoading(get, set, "commits");
     try {
       // Request only the next page. The backend still walks the preceding
       // commits to keep graph lanes aligned, but no longer re-serialises them,
@@ -603,7 +573,17 @@ export const createGitDataSlice: StateCreator<
 
       // Guard: a tab switch during the fetch must not paste this tab's commits
       // over the newly active one.
-      if (get().refreshGeneration !== refreshGeneration) return;
+      if (
+        !request.isCurrent() ||
+        !logRequest.isCurrent() ||
+        get().refreshGeneration !== refreshGeneration ||
+        get().firstParentOnly !== firstParentOnly ||
+        get().hideRemoteBranches !== hideRemoteBranches ||
+        get().pathFilter !== pathFilter ||
+        get().logKey !== logVersion ||
+        get().commits !== commits
+      )
+        return;
 
       if (page.length === 0) {
         set({ hasMoreCommits: false });
@@ -620,10 +600,11 @@ export const createGitDataSlice: StateCreator<
         hasMoreCommits: page.length >= count,
       });
     } catch (err) {
+      if (!request.isCurrent()) return;
       console.error("Failed to load more commits:", err);
       throw err;
     } finally {
-      setLoading(get, set, "commits", false);
+      finishLoading();
     }
   },
 
@@ -651,44 +632,54 @@ export const createGitDataSlice: StateCreator<
   },
 
   loadFileBlame: async (filePath, commitOid = null) => {
-    const { activeTabId, refreshGeneration } = get();
+    const request = beginRequest(get, "blameLines");
+    const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "blame", true);
+    const finishLoading = beginLoading(get, set, "blame");
     set({ blameLines: [] });
     try {
       const lines = await commands.getFileBlame(
         activeTabId,
         filePath,
         commitOid,
+        { silent: true },
       );
-      if (get().refreshGeneration === refreshGeneration) {
+      if (request.isCurrent()) {
         set({ blameLines: lines });
       }
     } catch (err) {
+      if (!request.isCurrent()) return;
       console.error("Failed to load file blame:", err);
       throw err;
     } finally {
-      setLoading(get, set, "blame", false);
+      finishLoading();
     }
   },
 
   loadFileHistory: async (filePath) => {
-    const { activeTabId, refreshGeneration } = get();
+    const request = beginRequest(get, "fileHistory");
+    const { activeTabId } = get();
     if (!activeTabId) return;
 
-    setLoading(get, set, "history", true);
+    const finishLoading = beginLoading(get, set, "history");
     set({ fileHistory: [] });
     try {
-      const history = await commands.getFileHistory(activeTabId, filePath);
-      if (get().refreshGeneration === refreshGeneration) {
+      const history = await commands.getFileHistory(
+        activeTabId,
+        filePath,
+        null,
+        { silent: true },
+      );
+      if (request.isCurrent()) {
         set({ fileHistory: history });
       }
     } catch (err) {
+      if (!request.isCurrent()) return;
       console.error("Failed to load file history:", err);
       throw err;
     } finally {
-      setLoading(get, set, "history", false);
+      finishLoading();
     }
   },
 });

@@ -268,7 +268,7 @@ fn run_rebase_command(
     // is supplied up front via `exec ... --file=`.
     cmd.env("GIT_EDITOR", "true");
 
-    cmd.output()
+    crate::commands::command_output(cmd, std::time::Duration::from_secs(300), None)
         .map_err(|e| AppError::command(format!("Failed to run git {:?}: {}", args, e)))
 }
 
@@ -400,6 +400,10 @@ pub async fn rebase_start(
     // arbitrary command after every replayed commit.
     crate::commands::validate_git_argument(&upstream, "Upstream revision")?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         let repo = Repository::open(&repo_path)?;
 
         if repo.state() != git2::RepositoryState::Clean {
@@ -432,6 +436,10 @@ pub async fn rebase_step(
 ) -> Result<RebaseStatus, AppError> {
     crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         let repo = Repository::open(&repo_path)?;
 
         let git_arg = match action.as_str() {

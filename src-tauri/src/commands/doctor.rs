@@ -202,6 +202,10 @@ pub async fn get_repo_health(path: String) -> Result<DoctorReport, AppError> {
 pub async fn run_git_gc(path: String) -> Result<String, AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         // git's default prune window (two weeks) rather than `--prune=now`:
         // pruning immediately can delete objects a concurrently running git
         // process (an IDE, a terminal) has just written but not yet referenced,

@@ -128,14 +128,14 @@ const ViewRouter = React.memo(function ViewRouter({
       return (
         <Group orientation="horizontal">
           {/* Staging area */}
-          <Panel id="staging-panel" defaultSize="30%" minSize="20%">
+          <Panel id="staging-panel" defaultSize="320px" minSize="280px">
             <StagingArea />
           </Panel>
 
           <Separator className="resize-handle resize-handle-horizontal" />
 
           {/* Diff viewer */}
-          <Panel id="diff-panel" defaultSize="70%" minSize="45%">
+          <Panel id="diff-panel" defaultSize="70%" minSize="240px">
             <PanelErrorBoundary>
               <DiffView />
             </PanelErrorBoundary>
@@ -281,6 +281,30 @@ function App() {
       reportError(e, "Failed to restore your session");
     });
   }, [loadSettings, loadRecentRepos]);
+
+  useEffect(() => {
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+    listen<{ repoPath: string; degraded: boolean }>(
+      "repo:watcher-status",
+      ({ payload }) => {
+        if (!active) return;
+        useUIStore.setState((s) => ({
+          watcherDegraded: {
+            ...s.watcherDegraded,
+            [payload.repoPath]: payload.degraded,
+          },
+        }));
+      },
+    ).then((stop) => {
+      if (active) unsubscribe = stop;
+      else stop();
+    });
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, []);
 
   // Listen to file system changes from Rust watcher
   useEffect(() => {
@@ -462,9 +486,9 @@ function App() {
                 <>
                   <Panel
                     id="sidebar"
-                    defaultSize="18%"
-                    minSize="12%"
-                    maxSize="30%"
+                    defaultSize="240px"
+                    minSize="180px"
+                    maxSize="360px"
                   >
                     <Sidebar />
                   </Panel>
@@ -473,7 +497,7 @@ function App() {
               )}
 
               {/* Center Panel (depends on activeView) */}
-              <Panel id="center" minSize="40%">
+              <Panel id="center" minSize="540px">
                 <Suspense
                   fallback={<div className="view-loading">Loading view...</div>}
                 >

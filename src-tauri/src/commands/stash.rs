@@ -54,6 +54,10 @@ pub async fn save_stash(
 ) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         let mut repo = Repository::open(&path)?;
 
         // Find default signature
@@ -120,6 +124,10 @@ pub async fn apply_stash(
 ) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         let mut repo = Repository::open(&path)?;
         let idx = resolve_stash_index(&mut repo, index, expected_oid.as_deref())?;
         repo.stash_apply(idx, None)?;
@@ -136,6 +144,10 @@ pub async fn pop_stash(
 ) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         let mut repo = Repository::open(&path)?;
         let idx = resolve_stash_index(&mut repo, index, expected_oid.as_deref())?;
         repo.stash_pop(idx, None)?;
@@ -152,8 +164,48 @@ pub async fn drop_stash(
 ) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
         let mut repo = Repository::open(&path)?;
         let idx = resolve_stash_index(&mut repo, index, expected_oid.as_deref())?;
+        repo.stash_drop(idx)?;
+        Ok(())
+    })
+    .await?
+}
+
+/// Keep branch creation, checkout, index restoration and stash removal on one repository.
+#[tauri::command]
+pub async fn branch_from_stash(
+    path: String,
+    branch_name: String,
+    expected_oid: String,
+) -> Result<(), AppError> {
+    crate::state::ensure_open_repo(&path)?;
+    crate::commands::validate_git_argument(&branch_name, "Branch name")?;
+    let oid = git2::Oid::from_str(&expected_oid)?;
+    tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&path)?;
+
+        let mut repo = Repository::open(&path)?;
+        resolve_stash_index(&mut repo, 0, Some(&expected_oid))?;
+        // An OID pins what is applied even if another process changes stash indices.
+        // Git keeps a stash referenced by OID; remove it only after successful application.
+        let output = crate::commands::git_output(
+            &["stash", "branch", &branch_name, &oid.to_string()],
+            &path,
+        )?;
+        if !output.status.success() {
+            return Err(AppError::git(crate::commands::git_failure_message(
+                &["stash", "branch"],
+                &output,
+            )));
+        }
+        let idx = resolve_stash_index(&mut repo, 0, Some(&expected_oid))?;
         repo.stash_drop(idx)?;
         Ok(())
     })

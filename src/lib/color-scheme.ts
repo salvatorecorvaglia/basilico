@@ -23,8 +23,8 @@ export const COLOR_SCHEME_STORAGE_KEY = STORAGE_KEYS.colorScheme;
  * stylesheet ever matched.
  *
  * The browser's own answer is `prefers-color-scheme`, and an explicit user
- * choice overrides it by setting the inline `color-scheme` property — which is
- * what `light-dark()` in `theme.css` actually resolves against.
+ * choice overrides it through the `data-color-scheme` attribute and the inline
+ * `color-scheme` property, keeping application colors and native controls aligned.
  */
 export function prefersDark(): boolean {
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -50,14 +50,10 @@ export const COLOR_SCHEME_ATTRIBUTE = "data-color-scheme";
  *
  * Two writes, because two mechanisms render the theme and both have to agree:
  *
- * - The inline `color-scheme` drives `light-dark()` in `theme.css` and the UA's
- *   own form/scrollbar rendering.
- * - The `data-color-scheme` attribute drives the plain-value fallback blocks
- *   that engines without `light-dark()` support fall back to. Those blocks used
- *   to key off `@media (prefers-color-scheme: dark)` alone — which reports the
- *   *OS* setting and ignores the inline property above — so they overrode the
- *   light-dark() result whenever the OS was dark, and picking "Light" on a
- *   dark-mode OS did nothing at all.
+ * - The inline `color-scheme` drives native form and scrollbar rendering.
+ * - The `data-color-scheme` attribute selects the explicit plain-value palette.
+ *   Plain values avoid production CSS transformations that can lower
+ *   `light-dark()` to switches based only on the OS preference.
  *
  * "system" clears both, so the `:root` declaration and the media query take
  * over again.

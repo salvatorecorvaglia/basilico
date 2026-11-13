@@ -63,7 +63,7 @@ We use **Biome** to format and lint our TypeScript, React, and CSS code. Ensure 
 
 - Use **React 19** best practices (e.g., hooks, functional components, concurrent rendering features).
 - Write strictly type-safe TypeScript code. Avoid `any` types in both application code and test files, using concrete interfaces or union types.
-- Type-check with `pnpm exec tsc --noEmit` before opening a PR; CI runs it as a separate gate from linting.
+- Type-check with `pnpm typecheck` before opening a PR; CI runs it as a separate gate from linting.
 - Use Tailwind CSS v4 class naming patterns, maintaining consistent layouts with our flexbox, grid, and spacing utilities.
 - Keep view components focused. When one grows past a few hundred lines, extract the parts with a narrow interface: pure logic into a `use-*.ts` hook or plain module (see `src/components/staging/use-staging-rows.ts`, `src/components/graph/use-commit-actions.ts`), and self-contained JSX into its own component (`StagingContextMenu.tsx`, `CommitColumns.tsx`, `CommitContextMenu.tsx`). Prefer leaving a block inline over threading a dozen props through it — the goal is readability, not a line count.
 - Never `await`-less a store action that re-throws. Store actions raise their own toast and then rethrow, so a fire-and-forget call needs its own `.catch` or it becomes an unhandled rejection the user never sees.
@@ -84,6 +84,10 @@ We use **Biome** to format and lint our TypeScript, React, and CSS code. Ensure 
 ## Testing Guidelines
 
 Always verify that your changes do not break existing functionality:
+
+See [Verification and regression coverage](docs/testing.md) for coverage gates,
+real Tauri command workflows, the Linux webview smoke test, and manual native
+acceptance checks.
 
 - **Run Frontend Tests**:
   ```bash

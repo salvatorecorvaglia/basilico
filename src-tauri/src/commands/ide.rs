@@ -106,12 +106,17 @@ pub async fn open_in_ide(
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            if !stderr.is_empty() {
-                return Err(AppError::command(format!(
-                    "Editor '{}' returned error: {}",
-                    editor_name, stderr
-                )));
-            }
+            let detail = stderr.trim();
+            return Err(AppError::command(format!(
+                "Editor '{}' failed ({}): {}",
+                editor_name,
+                output.status,
+                if detail.is_empty() {
+                    "no error output"
+                } else {
+                    detail
+                }
+            )));
         }
 
         Ok(())

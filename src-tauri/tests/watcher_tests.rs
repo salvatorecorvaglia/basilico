@@ -148,3 +148,19 @@ fn test_ref_changes_are_recognised() {
     assert!(!is_ref_change(Path::new("/repo/src/HEAD"), &git_dirs));
     assert!(!is_ref_change(Path::new("/repo/refs/notes.txt"), &git_dirs));
 }
+
+#[test]
+fn repository_root_events_are_significant_without_index_lookup() {
+    let repo = TempRepo::new();
+    let git_dirs = resolve_git_dirs(&repo.path);
+    // Linux directory notifications include the watched directory itself.
+    // Its repository-relative path is empty, which git2::Index::get_path rejects.
+    for path in [repo.path.clone(), repo.path.join(".")] {
+        assert!(is_significant_event(
+            &path,
+            &repo.path,
+            &git_dirs,
+            Some(&repo.repo)
+        ));
+    }
+}

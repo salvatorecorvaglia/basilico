@@ -23,20 +23,41 @@ import { useUIStore } from "../../store/ui-store";
 export function GitPromptHost() {
   useEffect(() => {
     let active = true;
-    let unsubscribe: (() => void) | undefined;
-
+    const pending = new Map<string, GitPromptRequest>();
+    let displayed: string | null = null;
+    const closeOwn = (id: string) => {
+      const ui = useUIStore.getState();
+      if (displayed === id) displayed = null;
+      if (ui.promptOptions?.requestId === id) ui.closePrompt();
+      if (ui.confirmOptions?.requestId === id) ui.closeConfirm();
+    };
     const reply = (id: string, answer: GitPromptAnswer | null) => {
+      pending.delete(id);
       answerGitPrompt(id, answer, { silent: true }).catch((err) =>
         console.error("Failed to answer git prompt:", err),
       );
+      closeOwn(id);
     };
-
-    listen<GitPromptRequest>("git:prompt", (event) => {
-      const request = event.payload;
+    const pump = () => {
+      if (!active) return;
       const ui = useUIStore.getState();
-
+      if (
+        displayed &&
+        ui.promptOptions?.requestId !== displayed &&
+        ui.confirmOptions?.requestId !== displayed
+      ) {
+        const displaced = displayed;
+        displayed = null;
+        pending.delete(displaced);
+        answerGitPrompt(displaced, null, { silent: true }).catch(console.error);
+      }
+      if (ui.promptOptions || ui.confirmOptions || displayed) return;
+      const request = pending.values().next().value;
+      if (!request) return;
+      displayed = request.id;
       if (request.kind === "credentials") {
         ui.openPrompt({
+          requestId: request.id,
           title: "Sign in to remote",
           description: request.retry
             ? `The remote rejected those credentials. Try again for ${request.url}.`
@@ -65,6 +86,7 @@ export function GitPromptHost() {
         });
       } else if (request.kind === "hostKey") {
         ui.openConfirm({
+          requestId: request.id,
           title: "Unknown SSH host",
           message:
             `Basilico has not connected to ${request.host} from this computer before. ` +
@@ -77,14 +99,40 @@ export function GitPromptHost() {
           onCancel: () => reply(request.id, { accept: false }),
         });
       }
-    }).then((unsub) => {
-      if (active) unsubscribe = unsub;
-      else unsub();
-    });
-
+    };
+    const unsubscribeUI = useUIStore.subscribe(pump);
+    const closed = new Set<string>();
+    const listeners = [
+      listen<string>("git:prompt-closed", ({ payload: id }) => {
+        if (!active) return;
+        closed.add(id);
+        if (closed.size > 256)
+          closed.delete(closed.values().next().value as string);
+        pending.delete(id);
+        closeOwn(id);
+        pump();
+      }),
+      listen<GitPromptRequest>("git:prompt", ({ payload: request }) => {
+        if (!active || closed.has(request.id)) return;
+        pending.set(request.id, request);
+        pump();
+      }),
+    ];
+    const unsubs: (() => void)[] = [];
+    for (const listener of listeners)
+      listener
+        .then((unsub) => {
+          if (active) unsubs.push(unsub);
+          else unsub();
+        })
+        .catch((err) =>
+          console.error("Could not listen for Git prompts:", err),
+        );
     return () => {
       active = false;
-      unsubscribe?.();
+      unsubscribeUI();
+      for (const id of pending.keys()) reply(id, null);
+      for (const unsubscribe of unsubs) unsubscribe();
     };
   }, []);
 

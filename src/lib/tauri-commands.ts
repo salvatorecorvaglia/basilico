@@ -277,6 +277,28 @@ export const discardChanges = (
 
 // ── Phase 2: Commit Commands ──
 
+export const getAmendCommit = (path: string, options?: InvokeOptions) =>
+  invokeCommand<{ oid: string; message: string }>(
+    "get_amend_commit",
+    { path },
+    options,
+  );
+
+export const amendCommit = (
+  path: string,
+  message: string,
+  authorName: string | null,
+  authorEmail: string | null,
+  bypassHooks: boolean,
+  expectedHeadOid: string,
+  options?: InvokeOptions,
+) =>
+  invokeCommand<string>(
+    "amend_commit",
+    { path, message, authorName, authorEmail, bypassHooks, expectedHeadOid },
+    options,
+  );
+
 export const createCommit = (
   path: string,
   message: string,
@@ -300,6 +322,56 @@ export const createBranch = (
   startPoint?: string | null,
   options?: InvokeOptions,
 ) => invokeCommand<void>("create_branch", { path, name, startPoint }, options);
+
+export interface MergedBranchScan {
+  targetRef: string;
+  targetOid: string;
+  branches: BranchInfo[];
+}
+
+export const scanMergedBranches = (
+  path: string,
+  targetBranch: string,
+  options?: InvokeOptions,
+) =>
+  invokeCommand<MergedBranchScan>(
+    "scan_merged_branches",
+    { path, targetBranch },
+    options,
+  );
+
+export const deleteMergedBranches = (
+  path: string,
+  scan: MergedBranchScan,
+  branches: BranchInfo[],
+  options?: InvokeOptions,
+) =>
+  invokeCommand<{ name: string; error: string | null }[]>(
+    "delete_merged_branches",
+    {
+      path,
+      targetRef: scan.targetRef,
+      targetOid: scan.targetOid,
+      branches: branches.map(({ name, isRemote, oid }) => ({
+        name,
+        isRemote,
+        oid,
+      })),
+    },
+    options,
+  );
+
+export const branchFromStash = (
+  path: string,
+  branchName: string,
+  expectedOid: string,
+  options?: InvokeOptions,
+) =>
+  invokeCommand<void>(
+    "branch_from_stash",
+    { path, branchName, expectedOid },
+    options,
+  );
 
 export const deleteBranch = (
   path: string,
@@ -383,8 +455,11 @@ export const pull = (
 
 // Stop the clone, fetch, pull or push running for `key` (a repository path,
 // or a clone's destination). Resolves to whether one was running.
-export const cancelNetworkOperation = (key: string, options?: InvokeOptions) =>
-  invokeCommand<boolean>("cancel_network_operation", { key }, options);
+export const cancelNetworkOperation = (
+  operationId: string,
+  options?: InvokeOptions,
+) =>
+  invokeCommand<boolean>("cancel_network_operation", { operationId }, options);
 
 /** A question a network operation is waiting on (see `git/prompts.rs`). */
 export type GitPromptRequest =

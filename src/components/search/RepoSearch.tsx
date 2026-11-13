@@ -4,7 +4,7 @@
    ═══════════════════════════════════════════════════════ */
 
 import { CornerDownRight, FileText, GitCommit, Search, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { formatDateTime } from "../../lib/utils";
 import { useRepoStore } from "../../store/repo-store";
@@ -13,21 +13,28 @@ import "./RepoSearch.css";
 import { reportError } from "../../lib/git-error";
 
 export function RepoSearch() {
+  const path = useRepoStore((s) => s.activeTabId);
+  return <RepositorySearch key={path} />;
+}
+
+function RepositorySearch() {
   const {
     commitSearchResults,
     grepSearchResults,
+    clearSearchResults,
     searchCommits,
     grepCode,
     selectCommit,
-    selectLocalFile,
+    selectFileForBlame,
   } = useRepoStore(
     useShallow((s) => ({
       commitSearchResults: s.commitSearchResults,
       grepSearchResults: s.grepSearchResults,
+      clearSearchResults: s.clearSearchResults,
       searchCommits: s.searchCommits,
       grepCode: s.grepCode,
       selectCommit: s.selectCommit,
-      selectLocalFile: s.selectLocalFile,
+      selectFileForBlame: s.selectFileForBlame,
     })),
   );
 
@@ -37,46 +44,73 @@ export function RepoSearch() {
 
   const [searchTab, setSearchTab] = useState<"commits" | "code">("commits");
   const [query, setQuery] = useState("");
+  const searchRequest = useRef(0);
+  useEffect(
+    () => () => {
+      searchRequest.current++;
+    },
+    [],
+  );
   const [isSearching, setIsSearching] = useState(false);
   // Whether results on screen answer a search. Before the first one, the
   // empty list said "No commits match your query" for a query never run.
   const [hasSearched, setHasSearched] = useState(false);
+  const [searchError, setSearchError] = useState(false);
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!query.trim()) return;
 
+    const ticket = ++searchRequest.current;
     setIsSearching(true);
+    setSearchError(false);
+    clearSearchResults();
     try {
       if (searchTab === "commits") {
         await searchCommits(query);
       } else {
         await grepCode(query);
       }
-      setHasSearched(true);
+      if (ticket === searchRequest.current) setHasSearched(true);
     } catch (err) {
-      console.error(err);
+      if (ticket === searchRequest.current) {
+        setSearchError(true);
+        reportError(err, "Search failed");
+      }
     } finally {
-      setIsSearching(false);
+      if (ticket === searchRequest.current) setIsSearching(false);
     }
   };
 
   const handleClear = () => {
+    searchRequest.current++;
+    setIsSearching(false);
     setQuery("");
     setHasSearched(false);
-    useRepoStore.setState({ commitSearchResults: [], grepSearchResults: [] });
+    setSearchError(false);
+    clearSearchResults();
   };
 
   const handleCommitClick = async (oid: string) => {
-    await selectCommit(oid);
-    setActiveView("graph");
+    const repo = useRepoStore.getState().activeTabId;
+    const ticket = searchRequest.current;
+    try {
+      await selectCommit(oid);
+      if (
+        repo === useRepoStore.getState().activeTabId &&
+        ticket === searchRequest.current
+      )
+        setActiveView("graph");
+    } catch (err) {
+      reportError(err, "Failed to load commit");
+    }
   };
 
-  const handleGrepClick = (filePath: string) => {
-    // Open the selected file in blame view
-    selectLocalFile(filePath, false).catch((err) =>
-      reportError(err, "Failed to load file"),
-    );
+  const handleGrepClick = (filePath: string, line: number) => {
+    const repoPath = useRepoStore.getState().activeTabId;
+    if (!repoPath) return;
+    selectFileForBlame(filePath);
+    useUIStore.setState({ blameTarget: { repoPath, filePath, line } });
     setActiveView("blame");
   };
 
@@ -88,6 +122,7 @@ export function RepoSearch() {
           <button
             type="button"
             className={`search-tab-btn ${searchTab === "commits" ? "active" : ""}`}
+            aria-pressed={searchTab === "commits"}
             onClick={() => {
               setSearchTab("commits");
               handleClear();
@@ -99,6 +134,7 @@ export function RepoSearch() {
           <button
             type="button"
             className={`search-tab-btn ${searchTab === "code" ? "active" : ""}`}
+            aria-pressed={searchTab === "code"}
             onClick={() => {
               setSearchTab("code");
               handleClear();
@@ -113,6 +149,11 @@ export function RepoSearch() {
           <Search size={16} className="search-icon-input" />
           <input
             type="text"
+            aria-label={
+              searchTab === "commits"
+                ? "Search commit messages or authors"
+                : "Search working-tree code"
+            }
             placeholder={
               searchTab === "commits"
                 ? "Search messages or authors..."
@@ -133,15 +174,18 @@ export function RepoSearch() {
           )}
           <button
             type="submit"
-            className="search-submit-btn"
-            disabled={isSearching}
+            className="btn btn-primary btn-sm"
+            disabled={isSearching || !query.trim()}
           >
             {isSearching ? "Searching..." : "Search"}
           </button>
         </form>
       </div>
 
-      <div className="search-results custom-scrollbar">
+      <div className="search-results custom-scrollbar" aria-busy={isSearching}>
+        {searchError && (
+          <p role="alert">Search failed. Adjust your query and try again.</p>
+        )}
         {searchTab === "commits" ? (
           commitSearchResults.length === 0 ? (
             <div className="empty-state search-empty">
@@ -155,7 +199,9 @@ export function RepoSearch() {
           ) : (
             <div className="search-list">
               <div className="search-results-count">
-                Found {commitSearchResults.length} matching commits
+                Showing {commitSearchResults.length} matching commits
+                {commitSearchResults.length >= 200 &&
+                  " (limit reached; narrow your query)"}
               </div>
               {commitSearchResults.map((commit) => (
                 <div
@@ -201,7 +247,9 @@ export function RepoSearch() {
         ) : (
           <div className="search-list">
             <div className="search-results-count">
-              Found {grepSearchResults.length} code matches
+              Showing {grepSearchResults.length} code matches
+              {grepSearchResults.some((match) => match.truncated) &&
+                " (results limited; narrow your query)"}
             </div>
             {grepSearchResults.map((match, i) => (
               <div
@@ -209,11 +257,13 @@ export function RepoSearch() {
                 role="button"
                 tabIndex={0}
                 className="search-result-row grep-result"
-                onClick={() => handleGrepClick(match.filePath)}
+                onClick={() =>
+                  handleGrepClick(match.filePath, match.lineNumber)
+                }
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    handleGrepClick(match.filePath);
+                    handleGrepClick(match.filePath, match.lineNumber);
                   }
                 }}
               >

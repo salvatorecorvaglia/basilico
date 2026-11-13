@@ -8,6 +8,8 @@ import { Calendar, Check, Clock, Plus, Trash2, Undo2 } from "lucide-react";
 import { reportError } from "../../lib/git-error";
 import type { ActiveView } from "../../lib/git-types";
 import { getFileName } from "../../lib/utils";
+import { useRepoStore } from "../../store/repo-store";
+import { useUIStore } from "../../store/ui-store";
 
 export interface StagingContextMenuProps {
   filePath: string;
@@ -142,9 +144,12 @@ export function StagingContextMenu({
         <ContextMenu.Item
           className="context-menu-item"
           onSelect={() => {
-            selectLocalFile(filePath, isStaged).catch((err) =>
-              reportError(err, "Failed to load file"),
-            );
+            useRepoStore.getState().selectFileForBlame(filePath);
+            const repoPath = useRepoStore.getState().activeTabId;
+            if (repoPath)
+              useUIStore.setState({
+                blameTarget: { repoPath, filePath, line: 1 },
+              });
             setActiveView("blame");
           }}
         >

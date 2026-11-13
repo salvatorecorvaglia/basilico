@@ -19,6 +19,7 @@ pub async fn get_stash_diff(
             let untracked_commit = commit.parent(2)?;
             let untracked_tree = untracked_commit.tree()?;
             let mut opts = git2::DiffOptions::new();
+            opts.max_size(crate::git::content_limits::MAX_TEXT_BYTES as i64);
             let untracked_diff =
                 repo.diff_tree_to_tree(None, Some(&untracked_tree), Some(&mut opts))?;
             let mut parsed_untracked = parse_diff(&untracked_diff)?;
@@ -30,6 +31,11 @@ pub async fn get_stash_diff(
             diffs.extend(parsed_untracked);
         }
 
+        if diffs.len() > 1000 {
+            return Err(AppError::invalid_state(
+                "Stash diff exceeds 1,000 files. Inspect it with Git in your terminal.",
+            ));
+        }
         Ok(diffs)
     })
     .await?

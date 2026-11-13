@@ -1,6 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AlertTriangle, Info, X } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useUIStore } from "../../store/ui-store";
 import "./ConfirmModal.css";
@@ -13,13 +13,16 @@ export function ConfirmModal() {
     })),
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  useEffect(() => {
+    if (confirmOptions) setIsSubmitting(false);
+  }, [confirmOptions]);
 
   const handleCancel = useCallback(() => {
     if (isSubmitting) return;
     if (confirmOptions?.onCancel) {
       confirmOptions.onCancel();
     }
-    closeConfirm();
+    if (useUIStore.getState().confirmOptions === confirmOptions) closeConfirm();
   }, [confirmOptions, closeConfirm, isSubmitting]);
 
   // Stay open and keep the buttons disabled until the action settles — closing
@@ -31,13 +34,15 @@ export function ConfirmModal() {
     setIsSubmitting(true);
     try {
       await confirmOptions.onConfirm();
-      closeConfirm();
+      if (useUIStore.getState().confirmOptions === confirmOptions)
+        closeConfirm();
     } catch {
       // The action's own error handling (or invokeCommand's built-in toast)
       // already surfaced the failure; keep the dialog open so the user can
       // retry or cancel instead of silently losing their place.
     } finally {
-      setIsSubmitting(false);
+      if (useUIStore.getState().confirmOptions === confirmOptions)
+        setIsSubmitting(false);
     }
   }, [confirmOptions, closeConfirm, isSubmitting]);
 

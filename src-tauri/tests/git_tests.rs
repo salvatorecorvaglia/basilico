@@ -273,34 +273,6 @@ Pure helpers introduced alongside the correctness fixes
 ═══════════════════════════════════════════════════════ */
 
 #[test]
-fn test_split_grep_line_handles_colons_in_paths() {
-    use basilico_lib::commands::search::split_grep_line;
-
-    // Ordinary case.
-    assert_eq!(
-        split_grep_line("src/main.rs:42:fn main() {"),
-        Some(("src/main.rs".to_string(), 42, "fn main() {".to_string()))
-    );
-
-    // Windows-style path: the drive colon must not be mistaken for the
-    // separator.
-    assert_eq!(
-        split_grep_line(r"C:\repo\main.rs:7:let x = 1;"),
-        Some((r"C:\repo\main.rs".to_string(), 7, "let x = 1;".to_string()))
-    );
-
-    // Colons inside the matched content must be preserved verbatim.
-    assert_eq!(
-        split_grep_line("a.txt:3:key: value: more"),
-        Some(("a.txt".to_string(), 3, "key: value: more".to_string()))
-    );
-
-    // Lines that are not `path:line:content` are skipped.
-    assert_eq!(split_grep_line("no separators here"), None);
-    assert_eq!(split_grep_line("path:notanumber:content"), None);
-}
-
-#[test]
 fn test_has_conflict_markers() {
     use basilico_lib::commands::conflict_resolver::has_conflict_markers;
 
@@ -329,10 +301,9 @@ fn test_has_conflict_markers() {
         "a\n<<<<<<< ours\nours\n||||||| base\nbase\ntheirs\n>>>>>>> theirs\nb\n";
     assert!(has_conflict_markers(zdiff3_without_separator));
 
-    // An opening marker alone is still not a conflict: a closing one is
-    // required, so prose quoting a single marker does not trip the check.
+    // Incomplete marker lines are unsafe to stage; prose mentioning one is fine.
     assert!(!has_conflict_markers("see <<<<<<< below\n"));
-    assert!(!has_conflict_markers("<<<<<<< HEAD\n"));
+    assert!(has_conflict_markers("<<<<<<< HEAD\n"));
 }
 
 #[test]
@@ -1101,4 +1072,19 @@ fn test_graph_excludes_stash_commits() {
         build_graph_page_cached(repo.path_str(), 0, 100, false, false, None, &cache).unwrap();
     assert_eq!(cached.len(), 1);
     assert_eq!(cached[0].oid, head);
+}
+
+#[test]
+fn test_diff_does_not_return_partial_hunks_for_an_oversized_line() {
+    let repo = TempRepo::new();
+    repo.write_file("large.txt", "small\n");
+    repo.commit("initial");
+    repo.write_file("large.txt", &"x".repeat(100_000));
+    let diff =
+        basilico_lib::git::diff_parser::get_file_diff(repo.path_str(), "large.txt", false).unwrap();
+    assert!(diff.truncated);
+    assert_eq!(diff.hunks.len(), 1);
+    assert_eq!(diff.hunks[0].header, "Truncated");
+    assert!(diff.hunks[0].lines.iter().all(|line| line.origin == "info"));
+    assert!(serde_json::to_vec(&diff).unwrap().len() < 1024);
 }

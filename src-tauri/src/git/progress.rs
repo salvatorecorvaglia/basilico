@@ -26,6 +26,7 @@ const MIN_INTERVAL: Duration = Duration::from_millis(100);
 pub struct ProgressPayload {
     /// The repository path (or clone destination) the operation runs for.
     pub key: String,
+    pub operation_id: String,
     /// `clone`, `fetch`, `pull` or `push`.
     pub operation: String,
     /// `receiving`, `resolving` or `uploading`.
@@ -44,13 +45,14 @@ static OPERATIONS: LazyLock<parking_lot::Mutex<HashMap<String, Arc<AtomicBool>>>
 
 /// Ask the operation running under `key` to stop. Returns whether one was
 /// running.
-pub fn cancel(key: &str) -> bool {
-    match OPERATIONS.lock().get(key) {
-        Some(flag) => {
-            flag.store(true, Ordering::SeqCst);
-            true
-        }
-        None => false,
+pub fn cancel(operation_id: &str) -> bool {
+    let flag = OPERATIONS.lock().get(operation_id).cloned();
+    if let Some(flag) = flag {
+        flag.store(true, Ordering::SeqCst);
+        crate::git::prompts::cancel_operation(operation_id);
+        true
+    } else {
+        false
     }
 }
 
@@ -58,11 +60,12 @@ pub fn cancel(key: &str) -> bool {
 /// reports it as done.
 pub struct NetworkOperation {
     key: String,
+    operation_id: String,
     operation: &'static str,
     cancelled: Arc<AtomicBool>,
     emit: Emitter,
     /// Asks the user for credentials or host-key trust, when there is a UI.
-    prompter: Option<crate::git::prompts::Prompter>,
+    prompter: Option<crate::git::prompts::PromptSession>,
 }
 
 impl NetworkOperation {
@@ -78,24 +81,68 @@ impl NetworkOperation {
             let _ = app.emit(PROGRESS_EVENT, payload);
         });
         let mut op = Self::begin_with(key, operation, emit);
-        op.prompter = Some(Arc::new(move |request| {
-            let _ = prompt_app.emit(crate::git::prompts::PROMPT_EVENT, request);
-        }));
+        let close_app = prompt_app.clone();
+        op.prompter = Some(crate::git::prompts::PromptSession {
+            prompter: Arc::new(move |request| {
+                let _ = prompt_app.emit(crate::git::prompts::PROMPT_EVENT, request);
+            }),
+            operation_id: op.operation_id.clone(),
+            cancelled: Arc::clone(&op.cancelled),
+            close: Arc::new(move |id| {
+                let _ = close_app.emit(crate::git::prompts::PROMPT_CLOSED_EVENT, id);
+            }),
+        });
         op
     }
 
     /// Register an operation that reports through `emit` (tests use this).
     pub fn begin_with(key: &str, operation: &'static str, emit: Emitter) -> NetworkOperation {
         let cancelled = Arc::new(AtomicBool::new(false));
+        let operation_id = uuid::Uuid::new_v4().to_string();
         OPERATIONS
             .lock()
-            .insert(key.to_string(), Arc::clone(&cancelled));
+            .insert(operation_id.clone(), Arc::clone(&cancelled));
+        emit(ProgressPayload {
+            key: key.to_string(),
+            operation_id: operation_id.clone(),
+            operation: operation.to_string(),
+            phase: "connecting".into(),
+            current: 0,
+            total: 0,
+            bytes: 0,
+            done: false,
+        });
         NetworkOperation {
+            operation_id,
             key: key.to_string(),
             operation,
             cancelled,
             emit,
             prompter: None,
+        }
+    }
+
+    pub fn id(&self) -> &str {
+        &self.operation_id
+    }
+    pub fn cancellation(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.cancelled)
+    }
+
+    pub fn lock_repository<'a>(
+        &self,
+        mutation: &'a parking_lot::Mutex<()>,
+    ) -> Result<parking_lot::MutexGuard<'a, ()>, AppError> {
+        loop {
+            if self.is_cancelled() {
+                return Err(AppError::invalid_state(format!(
+                    "The {} was cancelled.",
+                    self.operation
+                )));
+            }
+            if let Some(guard) = mutation.try_lock_for(Duration::from_millis(50)) {
+                return Ok(guard);
+            }
         }
     }
 
@@ -107,6 +154,7 @@ impl NetworkOperation {
     pub fn reporter(&self) -> ProgressReporter {
         ProgressReporter {
             key: self.key.clone(),
+            operation_id: self.operation_id.clone(),
             operation: self.operation,
             cancelled: Arc::clone(&self.cancelled),
             emit: Arc::clone(&self.emit),
@@ -129,19 +177,12 @@ impl NetworkOperation {
 
 impl Drop for NetworkOperation {
     fn drop(&mut self) {
-        let mut operations = OPERATIONS.lock();
-        // Only remove our own registration: a newer operation for the same
-        // key may already have replaced it.
-        if operations
-            .get(&self.key)
-            .is_some_and(|flag| Arc::ptr_eq(flag, &self.cancelled))
-        {
-            operations.remove(&self.key);
-        }
-        drop(operations);
+        OPERATIONS.lock().remove(&self.operation_id);
+        crate::git::prompts::cancel_operation(&self.operation_id);
 
         (self.emit)(ProgressPayload {
             key: self.key.clone(),
+            operation_id: self.operation_id.clone(),
             operation: self.operation.to_string(),
             phase: String::new(),
             current: 0,
@@ -155,16 +196,17 @@ impl Drop for NetworkOperation {
 /// Reports progress from inside libgit2's remote callbacks.
 pub struct ProgressReporter {
     key: String,
+    operation_id: String,
     operation: &'static str,
     cancelled: Arc<AtomicBool>,
     emit: Emitter,
-    prompter: Option<crate::git::prompts::Prompter>,
+    prompter: Option<crate::git::prompts::PromptSession>,
     last_emit: Option<Instant>,
 }
 
 impl ProgressReporter {
     /// How to ask the user something mid-operation, if there is a UI to ask.
-    pub fn prompter(&self) -> Option<crate::git::prompts::Prompter> {
+    pub fn prompter(&self) -> Option<crate::git::prompts::PromptSession> {
         self.prompter.clone()
     }
 
@@ -186,6 +228,7 @@ impl ProgressReporter {
         self.last_emit = Some(now);
         (self.emit)(ProgressPayload {
             key: self.key.clone(),
+            operation_id: self.operation_id.clone(),
             operation: self.operation.to_string(),
             phase: phase.to_string(),
             current,
@@ -232,7 +275,7 @@ mod tests {
         let op = NetworkOperation::begin_with("/repo/cancel-me", "fetch", emit);
         assert!(!op.is_cancelled());
 
-        assert!(cancel("/repo/cancel-me"));
+        assert!(cancel(op.id()));
         assert!(op.is_cancelled());
         assert!(op.reporter().is_cancelled());
 
@@ -284,5 +327,52 @@ mod tests {
         );
         let last = events.last().unwrap();
         assert_eq!((last.current, last.total), (100, 100));
+    }
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+    #[test]
+    fn operation_ids_isolate_concurrent_operations_for_the_same_repository() {
+        let events = Arc::new(parking_lot::Mutex::new(Vec::new()));
+        let sink = events.clone();
+        let emit: Emitter = Arc::new(move |event| sink.lock().push(event));
+        let first = NetworkOperation::begin_with("/same/repo", "fetch", emit.clone());
+        let second = NetworkOperation::begin_with("/same/repo", "push", emit);
+        let first_id = first.id().to_owned();
+        let second_id = second.id().to_owned();
+        assert_ne!(first_id, second_id);
+        assert!(cancel(&first_id));
+        assert!(first.is_cancelled());
+        assert!(!second.is_cancelled());
+        drop(first);
+        assert!(!cancel(&first_id));
+        assert!(cancel(&second_id));
+        let events = events.lock();
+        assert!(events
+            .iter()
+            .any(|event| event.done && event.operation_id == first_id));
+        assert!(!events
+            .iter()
+            .any(|event| event.done && event.operation_id == second_id));
+    }
+
+    #[test]
+    fn cancelling_a_queued_network_operation_does_not_wait_for_the_lock() {
+        let lock = Arc::new(parking_lot::Mutex::new(()));
+        let guard = lock.lock();
+        let op = NetworkOperation::begin_with("/queued/repo", "fetch", Arc::new(|_| {}));
+        let id = op.id().to_owned();
+        let queued_lock = lock.clone();
+        let (finished_tx, finished_rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let result = op.lock_repository(&queued_lock);
+            finished_tx.send(result.is_err()).unwrap();
+        });
+        assert!(cancel(&id));
+        assert!(finished_rx.recv_timeout(Duration::from_secs(2)).unwrap());
+        drop(guard);
+        worker.join().unwrap();
     }
 }

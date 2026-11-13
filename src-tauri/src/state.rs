@@ -92,3 +92,22 @@ pub fn ensure_open_repo(path: &str) -> Result<(), crate::error::AppError> {
         )))
     }
 }
+
+/// Serialize application mutations across all worktrees sharing Git metadata.
+/// Weak registrations keep closed repositories from accumulating lock objects.
+static MUTATIONS: std::sync::LazyLock<Mutex<HashMap<String, std::sync::Weak<Mutex<()>>>>> =
+    std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+
+pub fn repository_mutation_lock(path: &str) -> std::sync::Arc<Mutex<()>> {
+    let key = git2::Repository::open(path)
+        .map(|repo| crate::git::utils::canonicalize_path(&repo.commondir().to_string_lossy()))
+        .unwrap_or_else(|_| crate::git::utils::canonicalize_path(path));
+    let mut locks = MUTATIONS.lock();
+    locks.retain(|_, lock| lock.strong_count() > 0);
+    if let Some(lock) = locks.get(&key).and_then(std::sync::Weak::upgrade) {
+        return lock;
+    }
+    let lock = std::sync::Arc::new(Mutex::new(()));
+    locks.insert(key, std::sync::Arc::downgrade(&lock));
+    lock
+}

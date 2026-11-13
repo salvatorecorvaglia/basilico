@@ -1,7 +1,7 @@
 import type { StateCreator } from "zustand";
 import type { FileDiff, TreeEntryInfo } from "../../lib/git-types";
 import * as commands from "../../lib/tauri-commands";
-import { withActiveRepo, withLoading } from "../store-helpers";
+import { beginRequest, withActiveRepo, withLoading } from "../store-helpers";
 import type { RepoState } from "../types";
 
 export interface CollaborationSlice {
@@ -68,10 +68,12 @@ export const createCollaborationSlice: StateCreator<
       set,
       "branches",
       "Failed to checkout branch",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.checkoutBranch(activeTabId, branchName, {
           errorPrefix: "Failed to checkout branch",
         });
+        if (!context.isCurrent()) return;
+
         set({ selectedFilePath: null, localDiff: null });
         // The working tree, HEAD and the worktree list's branch labels move;
         // stashes and remotes cannot.
@@ -82,6 +84,7 @@ export const createCollaborationSlice: StateCreator<
           "worktrees",
           "submodules",
         ]);
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -92,11 +95,14 @@ export const createCollaborationSlice: StateCreator<
       set,
       "branches",
       "Failed to create branch",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.createBranch(activeTabId, name, startPoint, {
           errorPrefix: "Failed to create branch",
         });
+        if (!context.isCurrent()) return;
+
         await get().refreshBranches();
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -107,11 +113,14 @@ export const createCollaborationSlice: StateCreator<
       set,
       "branches",
       "Failed to delete branch",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.deleteBranch(activeTabId, name, isRemote, {
           errorPrefix: "Failed to delete branch",
         });
+        if (!context.isCurrent()) return;
+
         await get().refreshBranches();
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -122,11 +131,14 @@ export const createCollaborationSlice: StateCreator<
       set,
       "branches",
       "Failed to rename branch",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.renameBranch(activeTabId, currentName, newName, {
           errorPrefix: "Failed to rename branch",
         });
+        if (!context.isCurrent()) return;
+
         await get().refreshBranches();
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -137,11 +149,14 @@ export const createCollaborationSlice: StateCreator<
       set,
       "collaboration",
       "Failed to delete tag",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.deleteTag(activeTabId, name, {
           errorPrefix: "Failed to delete tag",
         });
+        if (!context.isCurrent()) return;
+
         await get().refreshBranches();
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -152,11 +167,14 @@ export const createCollaborationSlice: StateCreator<
       set,
       "collaboration",
       "Failed to create tag",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.createTag(activeTabId, name, targetOid, message, force, {
           errorPrefix: "Failed to create tag",
         });
+        if (!context.isCurrent()) return;
+
         await get().refreshBranches();
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -167,11 +185,14 @@ export const createCollaborationSlice: StateCreator<
       set,
       "collaboration",
       "Failed to push tag",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.pushTag(activeTabId, remote, tagName, {
           errorPrefix: "Failed to push tag",
         });
+        if (!context.isCurrent()) return;
+
         await get().refreshBranches();
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -185,11 +206,15 @@ export const createCollaborationSlice: StateCreator<
       set,
       "collaboration",
       "Failed to merge branch",
-      async () => {
+      async (context) => {
         const result = await commands.mergeBranch(activeTabId, branchName, {
           errorPrefix: "Failed to merge",
         });
+        if (!context.isCurrent()) return result;
+
         await get().refreshCommitsAndStatus();
+        if (!context.isCurrent()) return result;
+
         return result;
       },
     );
@@ -201,11 +226,14 @@ export const createCollaborationSlice: StateCreator<
       set,
       "collaboration",
       "Failed to abort merge",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.abortMerge(activeTabId, {
           errorPrefix: "Failed to abort merge",
         });
+        if (!context.isCurrent()) return;
+
         await get().refreshCommitsAndStatus();
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -216,11 +244,14 @@ export const createCollaborationSlice: StateCreator<
       set,
       "collaboration",
       "Failed to resolve conflict",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.resolveConflict(activeTabId, filePath, {
           errorPrefix: "Failed to resolve conflict",
         });
+        if (!context.isCurrent()) return;
+
         await get().refreshStatus();
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -231,12 +262,15 @@ export const createCollaborationSlice: StateCreator<
       set,
       "collaboration",
       "Fetch failed",
-      async (activeTabId) => {
+      async (activeTabId, context) => {
         await commands.fetch(activeTabId, remote, {
           errorPrefix: "Fetch failed",
         });
+        if (!context.isCurrent()) return;
+
         // Only remote-tracking refs move.
         await get().refresh(["refs", "log"]);
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -250,13 +284,17 @@ export const createCollaborationSlice: StateCreator<
       set,
       "collaboration",
       "Pull failed",
-      async () => {
+      async (context) => {
         const result = await commands.pull(activeTabId, remote, branch, mode, {
           errorPrefix: "Pull failed",
         });
+        if (!context.isCurrent()) return result;
+
         // HEAD and the working tree move, and a conflicted pull changes the
         // repository state.
         await get().refresh(["refs", "log", "repoInfo", "submodules"]);
+        if (!context.isCurrent()) return result;
+
         return result;
       },
     );
@@ -283,18 +321,27 @@ export const createCollaborationSlice: StateCreator<
     const expectedRemoteOid =
       branches.find((b) => b.isRemote && b.name === trackingName)?.oid ?? null;
 
-    await withLoading(get, set, "collaboration", "Push failed", async () => {
-      await commands.push(
-        activeTabId,
-        remote,
-        branch,
-        force,
-        expectedRemoteOid,
-        { errorPrefix: "Push failed" },
-      );
-      // Only the remote-tracking ref (and possibly the upstream) moves.
-      await get().refresh(["refs", "log"]);
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Push failed",
+      async (context) => {
+        await commands.push(
+          activeTabId,
+          remote,
+          branch,
+          force,
+          expectedRemoteOid,
+          { errorPrefix: "Push failed" },
+        );
+        if (!context.isCurrent()) return;
+
+        // Only the remote-tracking ref (and possibly the upstream) moves.
+        await get().refresh(["refs", "log"]);
+        if (!context.isCurrent()) return;
+      },
+    );
   },
 
   cherryPickCommit: async (oid) => {
@@ -306,11 +353,15 @@ export const createCollaborationSlice: StateCreator<
       set,
       "collaboration",
       "Cherry-pick failed",
-      async () => {
+      async (context) => {
         const res = await commands.cherryPickCommit(activeTabId, oid, {
           errorPrefix: "Cherry-pick failed",
         });
+        if (!context.isCurrent()) return res;
+
         await get().refreshCommitsAndStatus();
+        if (!context.isCurrent()) return res;
+
         return res;
       },
     );
@@ -325,11 +376,14 @@ export const createCollaborationSlice: StateCreator<
       set,
       "collaboration",
       "Cherry-pick abort failed",
-      async () => {
+      async (context) => {
         await commands.cherryPickAbort(activeTabId, {
           errorPrefix: "Cherry-pick abort failed",
         });
+        if (!context.isCurrent()) return;
+
         await get().refreshCommitsAndStatus();
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -343,11 +397,15 @@ export const createCollaborationSlice: StateCreator<
       set,
       "collaboration",
       "Revert failed",
-      async () => {
+      async (context) => {
         const res = await commands.revertCommit(activeTabId, oid, {
           errorPrefix: "Revert failed",
         });
+        if (!context.isCurrent()) return res;
+
         await get().refreshCommitsAndStatus();
+        if (!context.isCurrent()) return res;
+
         return res;
       },
     );
@@ -362,11 +420,14 @@ export const createCollaborationSlice: StateCreator<
       set,
       "collaboration",
       "Revert abort failed",
-      async () => {
+      async (context) => {
         await commands.revertAbort(activeTabId, {
           errorPrefix: "Revert abort failed",
         });
+        if (!context.isCurrent()) return;
+
         await get().refreshCommitsAndStatus();
+        if (!context.isCurrent()) return;
       },
     );
   },
@@ -375,16 +436,26 @@ export const createCollaborationSlice: StateCreator<
     const { activeTabId } = get();
     if (!activeTabId) throw new Error("No active repository");
 
-    await withLoading(get, set, "collaboration", "Reset failed", async () => {
-      await commands.resetToCommit(activeTabId, oid, mode, {
-        errorPrefix: "Reset failed",
-      });
-      await get().refreshCommitsAndStatus();
-    });
+    await withLoading(
+      get,
+      set,
+      "collaboration",
+      "Reset failed",
+      async (context) => {
+        await commands.resetToCommit(activeTabId, oid, mode, {
+          errorPrefix: "Reset failed",
+        });
+        if (!context.isCurrent()) return;
+
+        await get().refreshCommitsAndStatus();
+        if (!context.isCurrent()) return;
+      },
+    );
   },
 
   loadCommitTree: async (oid: string) => {
-    const { activeTabId, refreshGeneration } = get();
+    const request = beginRequest(get, "commitTree");
+    const { activeTabId } = get();
     if (!activeTabId) return;
 
     await withLoading(
@@ -392,18 +463,17 @@ export const createCollaborationSlice: StateCreator<
       set,
       "diff",
       "Failed to load commit tree",
-      async () => {
+      async (context) => {
         set({ commitTree: [] });
         // The root folder only; CommitDetail fetches deeper folders as they
         // are expanded.
         const tree = await commands.getCommitTree(activeTabId, oid, "", {
           silent: true,
         });
+        if (!context.isCurrent()) return;
+
         // Guard: only apply if still the same tab and this commit is still selected
-        if (
-          get().refreshGeneration === refreshGeneration &&
-          get().selectedCommitOid === oid
-        ) {
+        if (request.isCurrent() && get().selectedCommitOid === oid) {
           set({ commitTree: tree });
         }
       },
@@ -411,7 +481,8 @@ export const createCollaborationSlice: StateCreator<
   },
 
   startComparison: async (base: string, target: string) => {
-    const { activeTabId, refreshGeneration } = get();
+    const request = beginRequest(get, "compareDiff");
+    const { activeTabId } = get();
     if (!activeTabId) return;
 
     await withLoading(
@@ -419,7 +490,7 @@ export const createCollaborationSlice: StateCreator<
       set,
       "diff",
       "Failed to load comparison diff",
-      async () => {
+      async (context) => {
         set({
           compareBase: base,
           compareTarget: target,
@@ -430,9 +501,11 @@ export const createCollaborationSlice: StateCreator<
         const diffs = await commands.getCompareDiff(activeTabId, base, target, {
           silent: true,
         });
+        if (!context.isCurrent()) return;
+
         // Guard: only apply if still the same tab and comparison is still current
         if (
-          get().refreshGeneration !== refreshGeneration ||
+          !request.isCurrent() ||
           get().compareBase !== base ||
           get().compareTarget !== target
         ) {
@@ -445,6 +518,7 @@ export const createCollaborationSlice: StateCreator<
           const firstFile = diffs[0].newPath || diffs[0].oldPath;
           if (firstFile) {
             await get().selectCompareFile(firstFile);
+            if (!context.isCurrent()) return;
           }
         }
       },

@@ -1,0 +1,19 @@
+{
+  "identifier": "com.salvatorecorvaglia.basilico.validation",
+  "productName": "Basilico Validation",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Basilico Validation",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 800,
+        "minHeight": 600,
+        "incognito": true
+      }
+    ]
+  },
+  "bundle": { "active": false, "createUpdaterArtifacts": false },
+  "plugins": { "updater": { "endpoints": [] } }
+}

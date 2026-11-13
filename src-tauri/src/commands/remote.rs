@@ -13,6 +13,10 @@ pub async fn fetch<R: tauri::Runtime>(
     let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
     tokio::task::spawn_blocking(move || {
         let op = NetworkOperation::begin(&path, "fetch", app);
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = op.lock_repository(&mutation)?;
+        crate::state::ensure_open_repo(&path)?;
+
         let repo = Repository::open(&path)?;
         let mut remote_obj = repo.find_remote(&remote)?;
 
@@ -42,10 +46,14 @@ pub async fn push<R: tauri::Runtime>(
     crate::state::ensure_open_repo(&path)?;
     let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
     tokio::task::spawn_blocking(move || {
+        let op = NetworkOperation::begin(&path, "push", app);
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = op.lock_repository(&mutation)?;
+        crate::state::ensure_open_repo(&path)?;
+
         refuse_detached_head(&branch)?;
         // Started before the lease check, whose connection to the remote may
         // need credentials or host-key trust from the user too.
-        let op = NetworkOperation::begin(&path, "push", app);
         let repo = Repository::open(&path)?;
         let mut remote_obj = repo.find_remote(&remote)?;
 
@@ -61,8 +69,8 @@ pub async fn push<R: tauri::Runtime>(
         // carries the remote-tracking tip the UI last showed the user; if the
         // real remote has moved past it, someone else has pushed in the
         // meantime and the force would destroy their work. This is the
-        // equivalent of git's --force-with-lease, which libgit2 does not
-        // implement natively.
+        // equivalent of git's --force-with-lease: negotiation checks the old
+        // value in the same connection that sends the update.
         // The lease must fail *closed*: every path that cannot establish what
         // the remote tip was has to refuse, otherwise the one guard protecting
         // an irreversible overwrite silently disappears exactly when the local
@@ -117,42 +125,6 @@ pub async fn push<R: tauri::Runtime>(
                     short(&actual)
                 )));
             }
-
-            // The checks above only prove the UI and the local remote-tracking
-            // ref agree — both come from the last fetch. The lease is about the
-            // *remote*: if someone pushed since that fetch, the server's tip
-            // differs from `expected`, and forcing would discard their commits.
-            // libgit2 cannot send an expected old value with the push itself,
-            // so ask the server first; the window between this check and the
-            // push is the only one left open.
-            let remote_refname = format!("refs/heads/{}", remote_branch);
-            let remote_tip = crate::git::push::remote_ref_tip(
-                &mut remote_obj,
-                &remote_refname,
-                ssh_key_path.clone(),
-                Some(&op),
-            )?;
-            match remote_tip {
-                Some(tip) if tip.to_string() == expected => {}
-                Some(tip) => {
-                    return Err(AppError::invalid_state(format!(
-                        "Refusing to force push: {}/{} on the remote is at {}, but you last \
-                         fetched {}. Someone else has pushed since — fetch and review their \
-                         commits first.",
-                        remote,
-                        branch,
-                        short(&tip.to_string()),
-                        short(expected)
-                    )));
-                }
-                None => {
-                    return Err(AppError::invalid_state(format!(
-                        "Refusing to force push: {}/{} no longer exists on the remote. \
-                         Fetch first to see what changed.",
-                        remote, branch
-                    )));
-                }
-            }
         }
 
         let refspec = format!(
@@ -162,11 +134,22 @@ pub async fn push<R: tauri::Runtime>(
             remote_branch
         );
 
-        crate::git::push::push_refspecs_reporting(
+        crate::git::push::push_refspecs_with_lease(
+            &repo,
             &mut remote_obj,
             &[refspec.as_str()],
             ssh_key_path,
             Some(&op),
+            if force {
+                Some(crate::git::push::PushLease {
+                    refname: format!("refs/heads/{}", remote_branch),
+                    expected: git2::Oid::from_str(
+                        expected_remote_oid.as_deref().unwrap_or_default().trim(),
+                    )?,
+                })
+            } else {
+                None
+            },
         )?;
         drop(op);
 
@@ -230,11 +213,15 @@ pub async fn pull<R: tauri::Runtime>(
     crate::state::ensure_open_repo(&path)?;
     let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
     tokio::task::spawn_blocking(move || {
+        let op = NetworkOperation::begin(&path, "pull", app);
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = op.lock_repository(&mutation)?;
+        crate::state::ensure_open_repo(&path)?;
+
         refuse_detached_head(&branch)?;
         let repo = Repository::open(&path)?;
 
         // Step 1: Fetch
-        let op = NetworkOperation::begin(&path, "pull", app);
         let mut remote_obj = repo.find_remote(&remote)?;
         let mut fetch_opts = FetchOptions::new();
         fetch_opts.remote_callbacks(crate::git::credentials::make_callbacks_with_progress(
@@ -279,12 +266,16 @@ pub async fn pull<R: tauri::Runtime>(
                 // The git CLI rather than libgit2, so `rebase.autoStash`, hooks
                 // and signing all apply exactly as they would for `git pull
                 // --rebase`. Nothing here may wait for an editor.
-                let output = crate::commands::new_command("git")
+                let mut command = crate::commands::new_command("git");
+                command
                     .current_dir(&path)
                     .env("GIT_EDITOR", "true")
-                    .args(["rebase", &remote_ref])
-                    .output()
-                    .map_err(|e| AppError::command(format!("Failed to run git rebase: {}", e)))?;
+                    .args(["rebase", &remote_ref]);
+                let output = crate::commands::command_output(
+                    command,
+                    std::time::Duration::from_secs(300),
+                    None,
+                )?;
 
                 let repo = Repository::open(&path)?;
                 if matches!(
@@ -369,11 +360,10 @@ fn reporter_for(op: &NetworkOperation) -> crate::git::credentials::SharedProgres
     std::rc::Rc::new(std::cell::RefCell::new(op.reporter()))
 }
 
-/// Stop the clone, fetch, pull or push running for `key` (a repository path,
-/// or a clone's destination). Returns whether one was running.
+/// Cancel the operation with this unique ID, including queued operations and prompts.
 #[tauri::command]
-pub async fn cancel_network_operation(key: String) -> Result<bool, AppError> {
-    Ok(crate::git::progress::cancel(&key))
+pub async fn cancel_network_operation(operation_id: String) -> Result<bool, AppError> {
+    Ok(crate::git::progress::cancel(&operation_id))
 }
 
 /// The user's answer to a `git:prompt` question (credentials, or trusting an

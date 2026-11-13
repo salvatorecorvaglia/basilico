@@ -78,7 +78,11 @@ pub async fn get_commit_signature(
                             .arg(&sig_path)
                             .arg(&payload_path);
 
-                        if let Ok(output) = cmd.output() {
+                        if let Ok(output) = crate::commands::command_output(
+                            cmd,
+                            std::time::Duration::from_secs(300),
+                            None,
+                        ) {
                             let stdout_str = String::from_utf8_lossy(&output.stdout);
                             let resolved = parse_gpg_status_output(&stdout_str, &author_name);
                             status = resolved.0;

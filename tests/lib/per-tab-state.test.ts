@@ -24,6 +24,8 @@ const INTENTIONALLY_GLOBAL = new Set([
   "activeTabId",
   "hasRestored",
   "recentRepos",
+  // Drafts are keyed by repository and must survive navigation.
+  "commitDrafts",
   "settings",
   // Managed by activateTab itself: it is incremented on every switch rather
   // than reset to a fixed value, which is what invalidates in-flight responses.

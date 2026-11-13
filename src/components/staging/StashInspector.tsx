@@ -311,8 +311,12 @@ export function StashInspector() {
                     <ChevronRight size={12} className="chevron" />
                     <span className="file-name truncate">{filePath}</span>
                     <span className="file-stats text-mono">
-                      <span className="add">+{file.stats.additions}</span>
-                      <span className="del">-{file.stats.deletions}</span>
+                      <span className="add">
+                        {file.truncated ? "…" : `+${file.stats.additions}`}
+                      </span>
+                      <span className="del">
+                        {file.truncated ? "…" : `-${file.stats.deletions}`}
+                      </span>
                     </span>
                   </button>
                 );

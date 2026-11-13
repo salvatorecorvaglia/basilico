@@ -28,6 +28,7 @@ export interface PromptField {
 }
 
 export interface PromptOptions {
+  requestId?: string;
   title: string;
   description?: string;
   fields: PromptField[];
@@ -37,6 +38,7 @@ export interface PromptOptions {
 }
 
 export interface ConfirmOptions {
+  requestId?: string;
   title: string;
   message: string;
   confirmLabel?: string;
@@ -49,6 +51,9 @@ export interface ConfirmOptions {
 interface UIState {
   // Panels
   sidebarVisible: boolean;
+
+  watcherDegraded: Record<string, boolean>;
+  blameTarget: { repoPath: string; filePath: string; line: number } | null;
 
   // Active view
   activeView: ActiveView;
@@ -98,6 +103,8 @@ const activeTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
 export const useUIStore = create<UIState>((set, get) => ({
   sidebarVisible: true,
+  watcherDegraded: {},
+  blameTarget: null,
   activeView: "graph",
   commandPaletteOpen: false,
   settingsOpen: false,

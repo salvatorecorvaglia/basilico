@@ -28,6 +28,7 @@ function emit(payload: Record<string, unknown>) {
     progressCallback?.({
       payload: {
         key: "/repos/app",
+        operationId: "operation-1",
         operation: "fetch",
         phase: "receiving",
         current: 0,
@@ -77,7 +78,7 @@ describe("NetworkProgress", () => {
       screen.getByRole("button", { name: /Cancel fetch of app/ }),
     );
     expect(invokeMock).toHaveBeenCalledWith("cancel_network_operation", {
-      key: "/repos/app",
+      operationId: "operation-1",
     });
     expect(screen.getByText("Cancelling…")).toBeInTheDocument();
 
@@ -96,5 +97,17 @@ describe("NetworkProgress", () => {
     expect(formatBytes(512)).toBe("512 B");
     expect(formatBytes(1536)).toBe("1.5 KB");
     expect(formatBytes(5 * 1024 * 1024)).toBe("5.0 MB");
+  });
+  it("does not let an older operation's completion hide another operation on the same repository", async () => {
+    render(<NetworkProgress />);
+    await waitFor(() => expect(progressCallback).not.toBeNull());
+    emit({ operationId: "old", operation: "fetch" });
+    emit({ operationId: "new", operation: "push" });
+    expect(screen.getAllByRole("progressbar")).toHaveLength(2);
+    emit({ operationId: "old", operation: "fetch", done: true });
+    expect(screen.getAllByRole("progressbar")).toHaveLength(1);
+    expect(screen.getByText("Pushing app")).toBeInTheDocument();
+    emit({ operationId: "old", operation: "fetch", done: false });
+    expect(screen.getAllByRole("progressbar")).toHaveLength(1);
   });
 });

@@ -102,3 +102,15 @@ describe("leading hyphen", () => {
     expect(validateTagName("v1.0.0-rc1")).toBeNull();
   });
 });
+
+it.each(["\u0000", "\n", "\r", "\t", "\u007f"])(
+  "rejects control characters inside ref names (%j)",
+  (control) => {
+    expect(validateBranchName(`feature${control}name`)).toBe(
+      "Branch name cannot contain control characters.",
+    );
+    expect(validateTagName(`v1${control}name`)).toBe(
+      "Tag name cannot contain control characters.",
+    );
+  },
+);

@@ -13,6 +13,7 @@ use basilico_lib::commands::patch::*;
 use basilico_lib::commands::rebase::*;
 use basilico_lib::commands::reflog::*;
 use basilico_lib::commands::staging::*;
+use basilico_lib::commands::stash::*;
 use basilico_lib::commands::tag::*;
 use basilico_lib::commands::worktree::*;
 use basilico_lib::error::AppError;
@@ -3621,6 +3622,7 @@ async fn test_grep_code_streams_and_stops_at_the_limit() {
         .await
         .expect("stopping git at the limit is not a failure");
     assert_eq!(capped.len(), 2_000);
+    assert!(capped.last().unwrap().truncated);
 }
 
 /// Phase 6: the diff editor is not sent binary data decoded as text, nor
@@ -4222,4 +4224,706 @@ async fn test_commit_tree_lists_one_folder_at_a_time() {
         .await
         .unwrap_err();
     assert!(err.message.contains("not a folder"), "got: {}", err.message);
+}
+
+#[tokio::test]
+async fn test_literal_file_operations_preserve_neighboring_changes() {
+    let repo = TempRepo::new();
+    let mut pairs = vec![("a[1].txt", "a1.txt")];
+    #[cfg(unix)]
+    pairs.extend([("b*.txt", "bbb.txt"), ("c?.txt", "cc.txt")]);
+    for (selected, neighbor) in pairs {
+        repo.write_file(selected, "baseline\n");
+        repo.write_file(neighbor, "baseline\n");
+        repo.commit("baseline");
+        repo.write_file(selected, "selected change\n");
+        repo.write_file(neighbor, "neighbor change\n");
+        let diff = basilico_lib::commands::diff::get_file_diff(
+            repo.path_str().into(),
+            selected.into(),
+            false,
+        )
+        .await
+        .unwrap();
+        assert_eq!(diff.new_path.as_deref(), Some(selected));
+        discard_changes(repo.path_str().into(), vec![selected.into()])
+            .await
+            .unwrap();
+        assert_eq!(
+            std::fs::read(repo.path.join(selected)).unwrap(),
+            b"baseline\n"
+        );
+        assert_eq!(
+            std::fs::read(repo.path.join(neighbor)).unwrap(),
+            b"neighbor change\n"
+        );
+        repo.write_file(selected, "selected staged\n");
+        stage_files(
+            repo.path_str().into(),
+            vec![selected.into(), neighbor.into()],
+        )
+        .await
+        .unwrap();
+        unstage_files(repo.path_str().into(), vec![selected.into()])
+            .await
+            .unwrap();
+        let index = git2::Repository::open(repo.path_str())
+            .unwrap()
+            .index()
+            .unwrap();
+        let selected_entry = index.get_path(std::path::Path::new(selected), 0).unwrap();
+        let neighbor_entry = index.get_path(std::path::Path::new(neighbor), 0).unwrap();
+        assert_eq!(
+            repo.repo.find_blob(selected_entry.id).unwrap().content(),
+            b"baseline\n"
+        );
+        assert_eq!(
+            repo.repo.find_blob(neighbor_entry.id).unwrap().content(),
+            b"neighbor change\n"
+        );
+        assert_eq!(
+            std::fs::read(repo.path.join(selected)).unwrap(),
+            b"selected staged\n"
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_text_resolution_refuses_unsafe_content_without_writing_or_staging() {
+    let large = vec![b'x'; basilico_lib::commands::diff::MAX_EDITOR_BYTES + 1];
+    for bytes in [b"binary\0ours".as_slice(), &[0xff, 0xfe], large.as_slice()] {
+        let repo = conflicted_repo("data", Some(bytes), Some(b"theirs\n")).await;
+        let before = std::fs::read(repo.path.join("data")).unwrap();
+        assert!(get_conflict_stages(repo.path_str().into(), "data".into())
+            .await
+            .is_err());
+        assert!(
+            save_merged_resolution(repo.path_str().into(), "data".into(), "".into())
+                .await
+                .is_err()
+        );
+        assert_eq!(std::fs::read(repo.path.join("data")).unwrap(), before);
+        assert!(git2::Repository::open(repo.path_str())
+            .unwrap()
+            .index()
+            .unwrap()
+            .has_conflicts());
+    }
+    let repo = conflicted_repo("data", Some(b"ours\n"), Some(b"theirs\n")).await;
+    let before = std::fs::read(repo.path.join("data")).unwrap();
+    for result in [
+        "<<<<<<< ours\npartial",
+        "||||||||| ancestor\nleftover",
+        "resolved\0binary",
+    ] {
+        assert!(
+            save_merged_resolution(repo.path_str().into(), "data".into(), result.into())
+                .await
+                .is_err()
+        );
+        assert_eq!(std::fs::read(repo.path.join("data")).unwrap(), before);
+        assert!(git2::Repository::open(repo.path_str())
+            .unwrap()
+            .index()
+            .unwrap()
+            .has_conflicts());
+    }
+    for bytes in [large.as_slice(), &[0xff, 0xfe], b"binary\0working"] {
+        std::fs::write(repo.path.join("data"), bytes).unwrap();
+        let pair = basilico_lib::commands::diff::get_file_content_pair(
+            repo.path_str().into(),
+            "data".into(),
+            false,
+            None,
+        )
+        .await
+        .unwrap();
+        assert!(pair.too_large || pair.is_binary);
+        assert!(
+            save_merged_resolution(repo.path_str().into(), "data".into(), "".into())
+                .await
+                .is_err()
+        );
+        assert_eq!(std::fs::read(repo.path.join("data")).unwrap(), bytes);
+    }
+    std::fs::write(repo.path.join("data"), &before).unwrap();
+    save_merged_resolution(repo.path_str().into(), "data".into(), "resolved\n".into())
+        .await
+        .unwrap();
+    assert_eq!(
+        std::fs::read(repo.path.join("data")).unwrap(),
+        b"resolved\n"
+    );
+    assert!(!git2::Repository::open(repo.path_str())
+        .unwrap()
+        .index()
+        .unwrap()
+        .has_conflicts());
+    assert!(
+        save_merged_resolution(repo.path_str().into(), "data".into(), "overwrite".into())
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn test_amend_uses_pinned_head_and_preserves_parents() {
+    let repo = TempRepo::new();
+    repo.write_file("a", "one");
+    repo.commit("parent");
+    let parent = repo.repo.head().unwrap().target().unwrap();
+    repo.write_file("a", "two");
+    repo.commit("HEAD message\n\nbody");
+    let snapshot = get_amend_commit(repo.path_str().into()).await.unwrap();
+    assert_eq!(snapshot.message, "HEAD message\n\nbody");
+    let amended = amend_commit(
+        repo.path_str().into(),
+        snapshot.message.clone(),
+        None,
+        None,
+        true,
+        snapshot.oid.clone(),
+    )
+    .await
+    .unwrap();
+    let commit = repo
+        .repo
+        .find_commit(git2::Oid::from_str(&amended).unwrap())
+        .unwrap();
+    assert_eq!(commit.parent_count(), 1);
+    assert_eq!(commit.parent_id(0).unwrap(), parent);
+    assert_eq!(commit.message().unwrap(), snapshot.message);
+    repo.write_file("a", "three");
+    repo.commit("moved externally");
+    let moved = repo.repo.head().unwrap().target().unwrap();
+    assert!(amend_commit(
+        repo.path_str().into(),
+        "stale".into(),
+        None,
+        None,
+        true,
+        snapshot.oid
+    )
+    .await
+    .is_err());
+    assert_eq!(repo.repo.head().unwrap().target(), Some(moved));
+}
+
+#[tokio::test]
+async fn test_resolution_honors_custom_short_markers() {
+    let repo = conflicted_repo("data", Some(b"ours\n"), Some(b"theirs\n")).await;
+    repo.write_file(".gitattributes", "data conflict-marker-size=2\n");
+    let stages = get_conflict_stages(repo.path_str().into(), "data".into())
+        .await
+        .unwrap();
+    assert_eq!(stages.marker_size, 2);
+    let before = std::fs::read(repo.path.join("data")).unwrap();
+    assert!(save_merged_resolution(
+        repo.path_str().into(),
+        "data".into(),
+        "<< ours\npartial".into()
+    )
+    .await
+    .is_err());
+    assert_eq!(std::fs::read(repo.path.join("data")).unwrap(), before);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_amend_refuses_head_moved_by_a_hook() {
+    use std::os::unix::fs::PermissionsExt;
+    let repo = TempRepo::new();
+    repo.write_file("a", "one");
+    repo.commit("parent");
+    let parent = repo.repo.head().unwrap().target().unwrap();
+    repo.write_file("a", "two");
+    repo.commit("tip");
+    let snapshot = get_amend_commit(repo.path_str().into()).await.unwrap();
+    let hook = repo.repo.path().join("hooks/pre-commit");
+    std::fs::write(
+        &hook,
+        format!("#!/bin/sh\ngit update-ref HEAD {}\n", parent),
+    )
+    .unwrap();
+    std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(amend_commit(
+        repo.path_str().into(),
+        "stale".into(),
+        None,
+        None,
+        false,
+        snapshot.oid
+    )
+    .await
+    .is_err());
+    assert_eq!(repo.repo.head().unwrap().target(), Some(parent));
+}
+
+#[tokio::test]
+async fn test_discard_rejects_root_and_metadata_selections() {
+    let repo = TempRepo::new();
+    repo.write_file("precious", "keep");
+    repo.commit("baseline");
+    for path in ["", ".", "./", ".git", ".git/config"] {
+        assert!(discard_changes(repo.path_str().into(), vec![path.into()])
+            .await
+            .is_err());
+        assert_eq!(std::fs::read(repo.path.join("precious")).unwrap(), b"keep");
+        assert!(repo.repo.path().join("config").exists());
+    }
+}
+
+fn phase2_app() -> tauri::AppHandle<tauri::test::MockRuntime> {
+    tauri::test::mock_builder()
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap()
+        .handle()
+        .clone()
+}
+
+fn sweep_entry(name: &str, remote: bool, oid: git2::Oid) -> BranchDeletion {
+    BranchDeletion {
+        name: name.into(),
+        is_remote: remote,
+        oid: oid.to_string(),
+    }
+}
+
+#[tokio::test]
+async fn test_sweep_refuses_changed_branch_and_target() {
+    let repo = TempRepo::new();
+    repo.write_file("a", "base");
+    repo.commit("base");
+    let base = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    repo.repo.branch("done", &base, false).unwrap();
+    repo.write_file("a", "target");
+    repo.commit("target");
+    let target = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    let scan = scan_merged_branches(repo.path_str().into(), "HEAD".into())
+        .await
+        .unwrap();
+    assert!(scan.branches.iter().any(|b| b.name == "done"));
+    repo.repo
+        .find_reference("refs/heads/done")
+        .unwrap()
+        .set_target(target.id(), "moved")
+        .unwrap();
+    let results = delete_merged_branches(
+        phase2_app(),
+        repo.path_str().into(),
+        scan.target_ref.clone(),
+        scan.target_oid.clone(),
+        vec![sweep_entry("done", false, base.id())],
+    )
+    .await
+    .unwrap();
+    assert!(results[0].error.is_some());
+    assert_eq!(
+        repo.repo
+            .find_reference("refs/heads/done")
+            .unwrap()
+            .target(),
+        Some(target.id())
+    );
+    repo.write_file("a", "new target");
+    repo.commit("new target");
+    let results = delete_merged_branches(
+        phase2_app(),
+        repo.path_str().into(),
+        scan.target_ref,
+        scan.target_oid,
+        vec![sweep_entry("done", false, target.id())],
+    )
+    .await
+    .unwrap();
+    assert!(results[0]
+        .error
+        .as_deref()
+        .unwrap()
+        .contains("target changed"));
+    assert!(repo
+        .repo
+        .find_branch("done", git2::BranchType::Local)
+        .is_ok());
+    let scan = scan_merged_branches(repo.path_str().into(), "HEAD".into())
+        .await
+        .unwrap();
+    let results = delete_merged_branches(
+        phase2_app(),
+        repo.path_str().into(),
+        scan.target_ref,
+        scan.target_oid,
+        vec![sweep_entry("done", false, target.id())],
+    )
+    .await
+    .unwrap();
+    assert!(results[0].error.is_none(), "{:?}", results[0].error);
+    assert!(repo
+        .repo
+        .find_branch("done", git2::BranchType::Local)
+        .is_err());
+}
+
+#[tokio::test]
+async fn test_remote_sweep_lease_preserves_new_work_and_handles_slash_remote() {
+    let scratch = TempRepo::new();
+    let server_path = scratch.path.join("server.git");
+    let server = git2::Repository::init_bare(&server_path).unwrap();
+    let repo = TempRepo::new();
+    repo.write_file("a", "base");
+    repo.commit("base");
+    let base = repo.repo.head().unwrap().peel_to_commit().unwrap();
+    repo.repo.branch("done", &base, false).unwrap();
+    repo.repo
+        .remote("team/origin", server_path.to_str().unwrap())
+        .unwrap()
+        .push(&["refs/heads/done:refs/heads/done"], None)
+        .unwrap();
+    let scan = scan_merged_branches(repo.path_str().into(), "HEAD".into())
+        .await
+        .unwrap();
+    assert!(scan.branches.iter().any(|b| b.name == "team/origin/done"));
+    let old = server.find_commit(base.id()).unwrap();
+    let sig = git2::Signature::now("Other", "other@example.com").unwrap();
+    let moved = server
+        .commit(
+            Some("refs/heads/done"),
+            &sig,
+            &sig,
+            "new work",
+            &old.tree().unwrap(),
+            &[&old],
+        )
+        .unwrap();
+    let results = delete_merged_branches(
+        phase2_app(),
+        repo.path_str().into(),
+        scan.target_ref.clone(),
+        scan.target_oid.clone(),
+        vec![sweep_entry("team/origin/done", true, base.id())],
+    )
+    .await
+    .unwrap();
+    assert!(results[0].error.is_some());
+    assert_eq!(
+        server.find_reference("refs/heads/done").unwrap().target(),
+        Some(moved)
+    );
+    assert!(repo
+        .repo
+        .find_reference("refs/remotes/team/origin/done")
+        .is_ok());
+    server
+        .find_reference("refs/heads/done")
+        .unwrap()
+        .set_target(base.id(), "restore fixture")
+        .unwrap();
+    let results = delete_merged_branches(
+        phase2_app(),
+        repo.path_str().into(),
+        scan.target_ref,
+        scan.target_oid,
+        vec![sweep_entry("team/origin/done", true, base.id())],
+    )
+    .await
+    .unwrap();
+    assert!(results[0].error.is_none(), "{:?}", results[0].error);
+    assert!(server.find_reference("refs/heads/done").is_err());
+    assert!(repo
+        .repo
+        .find_reference("refs/remotes/team/origin/done")
+        .is_err());
+}
+
+#[tokio::test]
+async fn test_branch_from_stash_pins_oid_and_restores_index() {
+    let repo = TempRepo::new();
+    repo.write_file("a", "base");
+    repo.commit("base");
+    repo.write_file("a", "staged");
+    stage_files(repo.path_str().into(), vec!["a".into()])
+        .await
+        .unwrap();
+    repo.write_file("a", "unstaged");
+    save_stash(repo.path_str().into(), "chosen".into(), false)
+        .await
+        .unwrap();
+    let chosen = list_stashes(repo.path_str().into()).await.unwrap()[0]
+        .oid
+        .clone();
+    repo.write_file("b", "other stash");
+    save_stash(repo.path_str().into(), "newer".into(), true)
+        .await
+        .unwrap();
+    branch_from_stash(repo.path_str().into(), "from-chosen".into(), chosen.clone())
+        .await
+        .unwrap();
+    let reopened = git2::Repository::open(repo.path_str()).unwrap();
+    assert_eq!(reopened.head().unwrap().shorthand().unwrap(), "from-chosen");
+    assert_eq!(std::fs::read(repo.path.join("a")).unwrap(), b"unstaged");
+    let entry = reopened
+        .index()
+        .unwrap()
+        .get_path(std::path::Path::new("a"), 0)
+        .unwrap();
+    assert_eq!(reopened.find_blob(entry.id).unwrap().content(), b"staged");
+    let remaining = list_stashes(repo.path_str().into()).await.unwrap();
+    assert_eq!(remaining.len(), 1);
+    assert!(remaining[0].message.contains("newer"));
+    assert_ne!(remaining[0].oid, chosen);
+    assert!(!repo.path.join("b").exists());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_local_force_push_lease_survives_remote_movement_during_pre_push() {
+    use std::os::unix::fs::PermissionsExt;
+    let scratch = TempRepo::new();
+    let server_path = scratch.path.join("server.git");
+    let server = git2::Repository::init_bare(&server_path).unwrap();
+    let repo = TempRepo::new();
+    repo.write_file("a", "base");
+    repo.commit("base");
+    let branch = repo.repo.head().unwrap().shorthand().unwrap().to_string();
+    let refname = format!("refs/heads/{}", branch);
+    repo.repo
+        .remote("origin", server_path.to_str().unwrap())
+        .unwrap()
+        .push(&[&format!("{}:{}", refname, refname)], None)
+        .unwrap();
+    let expected = server.find_reference(&refname).unwrap().target().unwrap();
+    let base = server.find_commit(expected).unwrap();
+    let sig = git2::Signature::now("Other", "other@example.com").unwrap();
+    let concurrent = server
+        .commit(
+            None,
+            &sig,
+            &sig,
+            "concurrent remote work",
+            &base.tree().unwrap(),
+            &[&base],
+        )
+        .unwrap();
+    repo.write_file("a", "local rewrite");
+    repo.commit("rewrite");
+    let quote = |s: &str| format!("'{}'", s.replace('\'', "'\\''"));
+    let hook = repo.repo.path().join("hooks/pre-push");
+    std::fs::write(
+        &hook,
+        format!(
+            "#!/bin/sh\ngit --git-dir={} update-ref {} {}\n",
+            quote(server_path.to_str().unwrap()),
+            quote(&refname),
+            concurrent
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let result = basilico_lib::commands::remote::push(
+        phase2_app(),
+        repo.path_str().into(),
+        "origin".into(),
+        branch,
+        true,
+        Some(expected.to_string()),
+    )
+    .await;
+    assert!(result.is_err());
+    assert_eq!(
+        server.find_reference(&refname).unwrap().target(),
+        Some(concurrent)
+    );
+    std::fs::remove_file(hook).unwrap();
+    repo.repo
+        .find_remote("origin")
+        .unwrap()
+        .fetch(&[] as &[&str], None, None)
+        .unwrap();
+    let result = basilico_lib::commands::remote::push(
+        phase2_app(),
+        repo.path_str().into(),
+        "origin".into(),
+        repo.repo.head().unwrap().shorthand().unwrap().into(),
+        true,
+        Some(concurrent.to_string()),
+    )
+    .await;
+    assert!(result.is_ok(), "{:?}", result);
+    assert_eq!(
+        server.find_reference(&refname).unwrap().target(),
+        repo.repo.head().unwrap().target()
+    );
+    assert_eq!(
+        repo.repo
+            .find_reference(&format!(
+                "refs/remotes/origin/{}",
+                repo.repo.head().unwrap().shorthand().unwrap()
+            ))
+            .unwrap()
+            .target(),
+        repo.repo.head().unwrap().target(),
+        "successful push updates the tracking ref"
+    );
+}
+
+#[tokio::test]
+async fn test_mutations_wait_for_the_repository_lock_but_other_repos_continue() {
+    let repo = TempRepo::new();
+    repo.write_file("a", "one");
+    repo.write_file("b", "two");
+    let other = TempRepo::new();
+    other.write_file("other", "independent");
+    let lock = basilico_lib::state::repository_mutation_lock(repo.path_str());
+    let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let holder = std::thread::spawn(move || {
+        let _guard = lock.lock();
+        ready_tx.send(()).unwrap();
+        let _ = release_rx.recv();
+    });
+    ready_rx
+        .recv_timeout(std::time::Duration::from_secs(2))
+        .unwrap();
+    let mut first = tokio::spawn(stage_files(repo.path_str().into(), vec!["a".into()]));
+    let second = tokio::spawn(stage_files(repo.path_str().into(), vec!["b".into()]));
+    tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        stage_files(other.path_str().into(), vec!["other".into()]),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(25), &mut first)
+            .await
+            .is_err()
+    );
+    release_tx.send(()).unwrap();
+    holder.join().unwrap();
+    first.await.unwrap().unwrap();
+    second.await.unwrap().unwrap();
+    let reopened = git2::Repository::open(repo.path_str()).unwrap();
+    let index = reopened.index().unwrap();
+    assert!(index.get_path(std::path::Path::new("a"), 0).is_some());
+    assert!(index.get_path(std::path::Path::new("b"), 0).is_some());
+}
+
+#[tokio::test]
+async fn test_sweep_refuses_a_branch_checked_out_in_a_linked_worktree() {
+    let scratch = TempRepo::new();
+    let repo = TempRepo::new();
+    repo.write_file("a", "base");
+    repo.commit("base");
+    create_branch(repo.path_str().into(), "linked".into(), None)
+        .await
+        .unwrap();
+    let reference = repo.repo.find_reference("refs/heads/linked").unwrap();
+    let mut options = git2::WorktreeAddOptions::new();
+    options.reference(Some(&reference));
+    let linked_path = scratch.path.join("linked");
+    repo.repo
+        .worktree("linked", &linked_path, Some(&options))
+        .unwrap();
+    let original_lock = basilico_lib::state::repository_mutation_lock(repo.path_str());
+    let linked_lock = basilico_lib::state::repository_mutation_lock(linked_path.to_str().unwrap());
+    assert!(std::sync::Arc::ptr_eq(&original_lock, &linked_lock));
+    let scan = scan_merged_branches(repo.path_str().into(), "HEAD".into())
+        .await
+        .unwrap();
+    let oid = repo.repo.head().unwrap().target().unwrap();
+    let results = delete_merged_branches(
+        phase2_app(),
+        repo.path_str().into(),
+        scan.target_ref,
+        scan.target_oid,
+        vec![sweep_entry("linked", false, oid)],
+    )
+    .await
+    .unwrap();
+    assert!(results[0].error.as_deref().unwrap().contains("worktree"));
+    assert!(repo.repo.find_reference("refs/heads/linked").is_ok());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_grep_preserves_colons_digits_and_newlines_in_filenames() {
+    let repo = TempRepo::new();
+    let name = "a:12:b\nquoted\".txt";
+    repo.write_file(name, "first\nneedle:42:content\n");
+    repo.commit("unusual path");
+    let matches =
+        basilico_lib::commands::search::grep_code(repo.path_str().into(), "needle".into())
+            .await
+            .unwrap();
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].file_path, name);
+    assert_eq!(matches[0].line_number, 2);
+    assert_eq!(matches[0].content, "needle:42:content");
+    assert!(!matches[0].truncated);
+}
+
+#[tokio::test]
+async fn test_grep_rejects_a_single_oversized_record() {
+    let repo = TempRepo::new();
+    repo.write_file("huge.txt", &"needle".repeat(20_000));
+    repo.commit("long line");
+    let error = basilico_lib::commands::search::grep_code(repo.path_str().into(), "needle".into())
+        .await
+        .unwrap_err();
+    assert!(error.message.contains("display limit"));
+}
+
+#[tokio::test]
+async fn test_blame_rejects_large_working_and_historical_content() {
+    let repo = TempRepo::new();
+    repo.write_file("huge.txt", &"line\n".repeat(1_100_000));
+    repo.commit("oversized text");
+    for revision in [None, Some("HEAD".to_string())] {
+        let error = basilico_lib::commands::blame::get_file_blame(
+            repo.path_str().into(),
+            "huge.txt".into(),
+            revision,
+        )
+        .await
+        .unwrap_err();
+        assert!(error.message.contains("5 MB"));
+    }
+}
+
+#[tokio::test]
+async fn test_blame_rejects_excessive_line_count_before_computation() {
+    let repo = TempRepo::new();
+    repo.write_file("lines.txt", &"x\n".repeat(20_001));
+    let error = basilico_lib::commands::blame::get_file_blame(
+        repo.path_str().into(),
+        "lines.txt".into(),
+        None,
+    )
+    .await
+    .unwrap_err();
+    assert!(error.message.contains("line limits"));
+}
+
+#[tokio::test]
+async fn test_content_pair_rejects_root_and_nul_selections_without_panicking() {
+    let repo = TempRepo::new();
+    repo.write_file("valid.txt", "content\n");
+    repo.commit("initial");
+    for selection in ["", ".", "./", "invalid\0name.txt"] {
+        for staged in [false, true] {
+            let error = basilico_lib::commands::diff::get_file_content_pair(
+                repo.path_str().to_string(),
+                selection.to_string(),
+                staged,
+                None,
+            )
+            .await
+            .unwrap_err();
+            assert!(matches!(
+                error.kind,
+                basilico_lib::error::ErrorKind::InvalidState
+            ));
+            assert_eq!(error.message, "Select a working-tree file.");
+        }
+    }
 }

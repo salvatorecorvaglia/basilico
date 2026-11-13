@@ -56,8 +56,11 @@ pub async fn clone_repo(
 ) -> Result<repository::RepoInfo, AppError> {
     let ssh_key_path = crate::commands::settings::get_custom_ssh_path(&app);
     let info = tokio::task::spawn_blocking(move || {
-        // Keyed by the destination: there is no repository path yet.
         let op = crate::git::progress::NetworkOperation::begin(&path, "clone", app);
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = op.lock_repository(&mutation)?;
+
+        // Keyed by the destination: there is no repository path yet.
         let reporter = std::rc::Rc::new(std::cell::RefCell::new(op.reporter()));
         let callbacks = crate::git::credentials::make_callbacks_with_progress(
             ssh_key_path,
@@ -82,6 +85,9 @@ pub async fn clone_repo(
 #[tauri::command]
 pub async fn init_repo(path: String) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&path);
+        let _mutation_guard = mutation.lock();
+
         git2::Repository::init(std::path::Path::new(&path))?;
         Ok(())
     })

@@ -93,6 +93,10 @@ fn run_submodule_subcommand(
 pub async fn init_submodules(repo_path: String, paths: Vec<String>) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         run_submodule_subcommand(
             &repo_path,
             vec!["submodule".to_string(), "init".to_string()],
@@ -110,6 +114,10 @@ pub async fn update_submodules(
 ) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         let mut args = vec![
             "submodule".to_string(),
             "update".to_string(),
@@ -127,6 +135,10 @@ pub async fn update_submodules(
 pub async fn sync_submodules(repo_path: String, paths: Vec<String>) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         run_submodule_subcommand(
             &repo_path,
             vec!["submodule".to_string(), "sync".to_string()],
@@ -140,6 +152,10 @@ pub async fn sync_submodules(repo_path: String, paths: Vec<String>) -> Result<()
 pub async fn add_submodule(repo_path: String, url: String, path: String) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         let repo = Repository::open(&repo_path)?;
         let workdir = repo
             .workdir()

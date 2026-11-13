@@ -33,6 +33,7 @@ const MATCH: GrepMatch = {
 describe("RepoSearch", () => {
   beforeEach(() => {
     useRepoStore.setState({
+      activeTabId: "/repo",
       commitSearchResults: [],
       grepSearchResults: [],
       searchCommits: vi.fn(async () => {
@@ -92,7 +93,7 @@ describe("RepoSearch", () => {
     );
     expect(useRepoStore.getState().searchCommits).toHaveBeenCalledWith("fix(");
     expect(
-      await screen.findByText("Found 1 matching commits"),
+      await screen.findByText("Showing 1 matching commits"),
     ).toBeInTheDocument();
 
     await user.click(screen.getByText("fix(parser): handle ("));
@@ -120,11 +121,14 @@ describe("RepoSearch", () => {
     row.focus();
     await user.keyboard("{Enter}");
 
-    expect(useRepoStore.getState().selectLocalFile).toHaveBeenCalledWith(
-      "src/parse.ts",
-      false,
-    );
+    expect(useRepoStore.getState().selectedFilePath).toBe("src/parse.ts");
+    expect(useRepoStore.getState().selectLocalFile).not.toHaveBeenCalled();
     expect(useUIStore.getState().activeView).toBe("blame");
+    expect(useUIStore.getState().blameTarget).toEqual({
+      repoPath: "/repo",
+      filePath: MATCH.filePath,
+      line: 12,
+    });
   });
 
   it("clears the query and results", async () => {
@@ -133,7 +137,7 @@ describe("RepoSearch", () => {
 
     const input = screen.getByPlaceholderText("Search messages or authors...");
     await user.type(input, "fix{Enter}");
-    await screen.findByText("Found 1 matching commits");
+    await screen.findByText("Showing 1 matching commits");
 
     await user.click(screen.getByRole("button", { name: "Clear search" }));
     expect(input).toHaveValue("");
@@ -141,5 +145,42 @@ describe("RepoSearch", () => {
     expect(
       screen.getByText("Search commit messages and authors"),
     ).toBeInTheDocument();
+  });
+  it("identifies limited code search results", async () => {
+    useRepoStore.setState({
+      grepCode: vi.fn(async () => {
+        useRepoStore.setState({
+          grepSearchResults: [{ ...MATCH, truncated: true }],
+        });
+      }),
+    });
+    const user = userEvent.setup();
+    render(<RepoSearch />);
+    await user.click(screen.getByRole("button", { name: /Code \(Grep\)/ }));
+    await user.type(
+      screen.getByLabelText("Search working-tree code"),
+      "token{Enter}",
+    );
+    expect(
+      await screen.findByText(/results limited; narrow your query/),
+    ).toBeInTheDocument();
+  });
+  it("opens unchanged search hits without requiring a working-tree diff", async () => {
+    useRepoStore.setState({
+      selectLocalFile: vi
+        .fn()
+        .mockRejectedValue(new Error("No diff found for unchanged file")),
+    });
+    const user = userEvent.setup();
+    render(<RepoSearch />);
+    await user.click(screen.getByRole("button", { name: /Code \(Grep\)/ }));
+    await user.type(
+      screen.getByLabelText("Search working-tree code"),
+      "needle{Enter}",
+    );
+    await user.click(await screen.findByText(MATCH.filePath));
+    expect(useUIStore.getState().activeView).toBe("blame");
+    expect(useRepoStore.getState().selectedFilePath).toBe(MATCH.filePath);
+    expect(useRepoStore.getState().selectLocalFile).not.toHaveBeenCalled();
   });
 });

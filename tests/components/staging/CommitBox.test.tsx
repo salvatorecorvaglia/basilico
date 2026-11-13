@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -53,14 +53,14 @@ const descriptionInput = () =>
 
 describe("CommitBox", () => {
   let commitMock: ReturnType<
-    typeof vi.fn<(m: string, a?: boolean) => Promise<void>>
+    typeof vi.fn<(m: string, a?: boolean, expected?: string) => Promise<void>>
   >;
 
   beforeEach(() => {
     invokeMock.mockReset();
     invokeMock.mockImplementation((cmd: string) =>
-      cmd === "get_commit_message"
-        ? Promise.resolve(FULL_MESSAGE)
+      cmd === "get_amend_commit"
+        ? Promise.resolve({ oid: HEAD.oid, message: FULL_MESSAGE })
         : Promise.resolve(undefined),
     );
     commitMock = vi
@@ -68,6 +68,8 @@ describe("CommitBox", () => {
       .mockResolvedValue(undefined);
     useRepoStore.setState({
       activeTabId: "/repo",
+      commitDrafts: {},
+      repoInfo: null,
       status: status(2),
       commits: [HEAD],
       isLoading: false,
@@ -132,9 +134,8 @@ describe("CommitBox", () => {
 
     await user.click(screen.getByLabelText("Amend last commit"));
 
-    expect(invokeMock).toHaveBeenCalledWith("get_commit_message", {
+    expect(invokeMock).toHaveBeenCalledWith("get_amend_commit", {
       path: "/repo",
-      oid: HEAD.oid,
     });
     await waitFor(() =>
       expect(descriptionInput().value).toBe(
@@ -147,6 +148,7 @@ describe("CommitBox", () => {
     expect(commitMock).toHaveBeenCalledWith(
       "fix: handle empty input\n\nThe parser assumed at least one token.\n\nRefs: #42",
       true,
+      HEAD.oid,
     );
   });
 
@@ -188,31 +190,65 @@ describe("CommitBox", () => {
     expect(summaryInput().value).toBe("fix: handle empty input!");
   });
 
-  it("does not overwrite what the user typed before the full message arrived", async () => {
+  it("blocks submission while HEAD loads and after a failed lookup", async () => {
     const user = userEvent.setup();
-    let release: (m: string) => void = () => {};
-    invokeMock.mockImplementation((cmd: string) =>
-      cmd === "get_commit_message"
-        ? new Promise((r) => {
-            release = r;
-          })
-        : Promise.resolve(undefined),
+    let reject: (reason: Error) => void = () => {};
+    invokeMock.mockReturnValue(
+      new Promise((_, r) => {
+        reject = r;
+      }),
     );
     render(<CommitBox />);
-
+    await user.type(summaryInput(), "draft");
     await user.click(screen.getByLabelText("Amend last commit"));
-    await user.type(summaryInput(), " now");
-    release(FULL_MESSAGE);
-
-    await waitFor(() =>
-      expect(descriptionInput().value).toContain("Refs: #42"),
-    );
-    expect(summaryInput().value).toBe("fix: handle empty input now");
+    expect(summaryInput()).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Amend Commit/ })).toBeDisabled();
+    await act(async () => reject(new Error("read failed")));
+    expect(screen.getByRole("button", { name: /Amend Commit/ })).toBeDisabled();
+    expect(commitMock).not.toHaveBeenCalled();
   });
 
-  it("disables Amend when there is no commit yet", () => {
+  it("does not use another branch's first visible commit as the amend message", async () => {
+    useRepoStore.setState({
+      commits: [{ ...HEAD, oid: "b".repeat(40), message: "another branch" }],
+    });
+    render(<CommitBox />);
+    await userEvent.click(screen.getByLabelText("Amend last commit"));
+    await waitFor(() =>
+      expect(summaryInput().value).toBe("fix: handle empty input"),
+    );
+    expect(descriptionInput().value).toContain("Refs: #42");
+  });
+
+  it("amends HEAD even when the filtered graph is empty", async () => {
     useRepoStore.setState({ commits: [] });
     render(<CommitBox />);
-    expect(screen.getByLabelText("Amend last commit")).toBeDisabled();
+    await userEvent.click(screen.getByLabelText("Amend last commit"));
+    await waitFor(() =>
+      expect(summaryInput().value).toBe("fix: handle empty input"),
+    );
+    expect(screen.getByRole("button", { name: /Amend Commit/ })).toBeEnabled();
+  });
+
+  it("keeps repository drafts and ignores a late amend response after switching", async () => {
+    const user = userEvent.setup();
+    let release: (value: { oid: string; message: string }) => void = () => {};
+    invokeMock.mockReturnValue(
+      new Promise((r) => {
+        release = r;
+      }),
+    );
+    render(<CommitBox />);
+    await user.type(summaryInput(), "repository A draft");
+    await user.click(screen.getByLabelText("Amend last commit"));
+    act(() => useRepoStore.setState({ activeTabId: "/other" }));
+    expect(summaryInput().value).toBe("");
+    expect(screen.getByLabelText("Amend last commit")).not.toBeChecked();
+    await user.type(summaryInput(), "repository B draft");
+    await act(async () => release({ oid: HEAD.oid, message: FULL_MESSAGE }));
+    expect(summaryInput().value).toBe("repository B draft");
+    act(() => useRepoStore.setState({ activeTabId: "/repo" }));
+    expect(summaryInput().value).toBe("repository A draft");
+    expect(screen.getByLabelText("Amend last commit")).not.toBeChecked();
   });
 });

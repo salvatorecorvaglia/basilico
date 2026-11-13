@@ -50,7 +50,7 @@ pub struct FileContentPair {
 /// Both versions of a file used to cross IPC whole, however large — a
 /// multi-hundred-megabyte log or dataset froze the window while Monaco tried
 /// to lay it out. Beyond this the UI says the file is too large instead.
-pub const MAX_EDITOR_BYTES: usize = 5 * 1024 * 1024;
+pub const MAX_EDITOR_BYTES: usize = crate::git::content_limits::MAX_TEXT_BYTES;
 
 /// What one side of a diff holds, as the editor can use it.
 enum Side {
@@ -66,7 +66,10 @@ impl Side {
         } else if looks_binary(bytes) {
             Side::Binary
         } else {
-            Side::Text(String::from_utf8_lossy(bytes).into_owned())
+            match std::str::from_utf8(bytes) {
+                Ok(text) => Side::Text(text.to_owned()),
+                Err(_) => Side::Binary,
+            }
         }
     }
 
@@ -78,7 +81,7 @@ impl Side {
         } else if blob.is_binary() {
             Side::Binary
         } else {
-            Side::Text(String::from_utf8_lossy(blob.content()).into_owned())
+            Side::from_bytes(blob.content())
         }
     }
 }
@@ -91,7 +94,24 @@ fn looks_binary(bytes: &[u8]) -> bool {
 /// Combine two sides into the pair the UI receives.
 fn content_pair(original: Option<Side>, modified: Option<Side>) -> FileContentPair {
     let sides = [&original, &modified];
-    let too_large = sides.iter().any(|s| matches!(s, Some(Side::TooLarge)));
+    // Charge JSON escaping before either string crosses IPC. Two ordinary
+    // UTF-8 sides fit within 10 MB; control-heavy text must fit that budget too.
+    let ipc_bytes: usize = sides
+        .iter()
+        .map(|side| match side {
+            Some(Side::Text(text)) => text
+                .bytes()
+                .map(|byte| match byte {
+                    b'"' | b'\\' => 2,
+                    0..=31 => 6,
+                    _ => 1,
+                })
+                .sum::<usize>(),
+            _ => 0,
+        })
+        .sum();
+    let too_large =
+        ipc_bytes > 2 * MAX_EDITOR_BYTES || sides.iter().any(|s| matches!(s, Some(Side::TooLarge)));
     let is_binary = !too_large && sides.iter().any(|s| matches!(s, Some(Side::Binary)));
     let text = |side: Option<Side>| match side {
         Some(Side::Text(t)) if !too_large && !is_binary => t,
@@ -105,33 +125,61 @@ fn content_pair(original: Option<Side>, modified: Option<Side>) -> FileContentPa
     }
 }
 
-/// The blob at `file_path` in `tree`, if there is one.
-///
-/// This lookup chain was written out four times across the commands below.
-fn blob_in_tree<'r>(
-    repo: &'r git2::Repository,
+fn read_blob_side(repo: &git2::Repository, oid: git2::Oid) -> Result<Side, AppError> {
+    if !crate::git::content_limits::check_blob(repo, oid)? {
+        return Ok(Side::TooLarge);
+    }
+    Ok(Side::from_blob(&repo.find_blob(oid)?))
+}
+
+fn blob_in_tree(
+    repo: &git2::Repository,
     tree: &git2::Tree,
     file_path: &str,
-) -> Option<git2::Blob<'r>> {
-    let entry = tree.get_path(std::path::Path::new(file_path)).ok()?;
-    repo.find_blob(entry.id()).ok()
+) -> Result<Option<Side>, AppError> {
+    match tree.get_path(std::path::Path::new(file_path)) {
+        Ok(entry) if entry.kind() == Some(git2::ObjectType::Blob) => {
+            read_blob_side(repo, entry.id()).map(Some)
+        }
+        Ok(_) => Ok(None),
+        Err(error) if error.code() == git2::ErrorCode::NotFound => Ok(None),
+        Err(error) => Err(error.into()),
+    }
 }
 
-/// The blob at `file_path` in the tree `rev` resolves to.
-fn blob_at_revision<'r>(
-    repo: &'r git2::Repository,
+fn blob_at_revision(
+    repo: &git2::Repository,
     rev: &str,
     file_path: &str,
-) -> Option<git2::Blob<'r>> {
-    let tree = repo.revparse_single(rev).ok()?.peel_to_tree().ok()?;
-    blob_in_tree(repo, &tree, file_path)
+) -> Result<Option<Side>, AppError> {
+    let object = match repo.revparse_single(rev) {
+        Ok(object) => object,
+        Err(error)
+            if rev == "HEAD"
+                && matches!(
+                    error.code(),
+                    git2::ErrorCode::UnbornBranch | git2::ErrorCode::NotFound
+                ) =>
+        {
+            return Ok(None)
+        }
+        Err(error) => return Err(error.into()),
+    };
+    blob_in_tree(repo, &object.peel_to_tree()?, file_path)
 }
 
-/// The stage-0 index entry's blob for `file_path`.
-fn blob_in_index<'r>(repo: &'r git2::Repository, file_path: &str) -> Option<git2::Blob<'r>> {
-    let index = repo.index().ok()?;
-    let entry = index.get_path(std::path::Path::new(file_path), 0)?;
-    repo.find_blob(entry.id).ok()
+fn blob_in_index(repo: &git2::Repository, file_path: &str) -> Result<Option<Side>, AppError> {
+    let index = repo.index()?;
+    index
+        .get_path(std::path::Path::new(file_path), 0)
+        .map(|entry| {
+            if entry.mode == 0o160000 {
+                Ok(Side::Binary)
+            } else {
+                read_blob_side(repo, entry.id)
+            }
+        })
+        .transpose()
 }
 
 /// `original_path` is where the file was before a staged rename. Without it the
@@ -145,6 +193,15 @@ pub async fn get_file_content_pair(
     original_path: Option<String>,
 ) -> Result<FileContentPair, AppError> {
     crate::state::ensure_open_repo(&path)?;
+    // git2's index lookup unwraps its path conversion. Reject root-only and
+    // NUL-containing file selections before they can panic in a worker task.
+    if file_path.contains('\0')
+        || !std::path::Path::new(&file_path)
+            .components()
+            .any(|part| matches!(part, std::path::Component::Normal(_)))
+    {
+        return Err(AppError::invalid_state("Select a working-tree file."));
+    }
     tokio::task::spawn_blocking(move || {
         let repo = git2::Repository::open(&path)?;
         let workdir = repo
@@ -163,34 +220,44 @@ pub async fn get_file_content_pair(
             crate::git::utils::validate_path(workdir, std::path::Path::new(original_path))?;
         }
 
-        let head_blob = || blob_at_revision(&repo, "HEAD", &file_path);
-
         let (original, modified) = if is_staged {
             // HEAD → index
             let head_path = original_path.as_deref().unwrap_or(&file_path);
             (
-                blob_at_revision(&repo, "HEAD", head_path).map(|b| Side::from_blob(&b)),
-                blob_in_index(&repo, &file_path).map(|b| Side::from_blob(&b)),
+                blob_at_revision(&repo, "HEAD", head_path)?,
+                blob_in_index(&repo, &file_path)?,
             )
         } else {
             // Index (falling back to HEAD) → working directory
-            let original = blob_in_index(&repo, &file_path)
-                .or_else(head_blob)
-                .map(|b| Side::from_blob(&b));
+            let original = match blob_in_index(&repo, &file_path)? {
+                Some(side) => Some(side),
+                None => blob_at_revision(&repo, "HEAD", &file_path)?,
+            };
 
             let modified = match std::fs::symlink_metadata(&full_path) {
-                Ok(meta) if meta.file_type().is_symlink() => std::fs::read_link(&full_path)
-                    .ok()
-                    .map(|target| Side::Text(target.to_string_lossy().into_owned())),
+                Ok(meta) if meta.file_type().is_symlink() => Some(Side::Text(
+                    std::fs::read_link(&full_path)?
+                        .to_string_lossy()
+                        .into_owned(),
+                )),
                 Ok(meta) if meta.is_file() => {
                     if meta.len() as usize > MAX_EDITOR_BYTES {
                         // Not read at all.
                         Some(Side::TooLarge)
                     } else {
-                        std::fs::read(&full_path).ok().map(|b| Side::from_bytes(&b))
+                        Some(
+                            match crate::git::content_limits::read_file(&full_path)
+                                .map_err(|e| AppError::io(e.to_string()))?
+                            {
+                                Some(bytes) => Side::from_bytes(&bytes),
+                                None => Side::TooLarge,
+                            },
+                        )
                     }
                 }
-                _ => None,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                Err(error) => return Err(error.into()),
+                Ok(_) => None,
             };
             (original, modified)
         };
@@ -215,21 +282,37 @@ pub async fn get_file_content_at_revision(
         let _validated_full_path =
             crate::git::utils::validate_path(workdir, std::path::Path::new(&file_path))?;
 
-        // Resolve revision spec (like commit SHA or SHA^)
-        let obj = repo.revparse_single(&revision)?;
-
-        let blob = if let Some(blob) = obj.as_blob() {
-            blob.clone()
+        // Resolve to an id first: revparse_single would inflate a blob before
+        // we could reject an oversized `HEAD:path` or raw blob-id revision.
+        let args = [
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            revision.as_str(),
+        ];
+        let output = crate::commands::git_output(&args, &path)?;
+        if !output.status.success() {
+            return Err(AppError::git(crate::commands::git_failure_message(
+                &args, &output,
+            )));
+        }
+        let oid = git2::Oid::from_str(String::from_utf8_lossy(&output.stdout).trim())?;
+        let (size, kind) = repo.odb()?.read_header(oid)?;
+        let blob = if size > MAX_EDITOR_BYTES {
+            Side::TooLarge
+        } else if kind == git2::ObjectType::Blob {
+            read_blob_side(&repo, oid)?
         } else {
-            let tree = obj
+            let tree = repo
+                .find_object(oid, None)?
                 .peel_to_tree()
                 .map_err(|_| AppError::invalid_state("Unable to resolve object to a blob"))?;
-            blob_in_tree(&repo, &tree, &file_path).ok_or_else(|| {
+            blob_in_tree(&repo, &tree, &file_path)?.ok_or_else(|| {
                 AppError::not_found(format!("'{}' does not exist at {}", file_path, revision))
             })?
         };
 
-        match Side::from_blob(&blob) {
+        match blob {
             Side::Text(text) => Ok(text),
             Side::Binary => Err(AppError::invalid_state(format!(
                 "'{}' is a binary file and cannot be shown as text.",
@@ -280,9 +363,21 @@ pub async fn get_file_content_pair_revisions(
         }
 
         let base_path = base_path.as_deref().unwrap_or(&file_path);
-        let original = blob_at_revision(&repo, &base, base_path).map(|b| Side::from_blob(&b));
-        let modified = blob_at_revision(&repo, &target, &file_path).map(|b| Side::from_blob(&b));
+        let original = blob_at_revision(&repo, &base, base_path)?;
+        let modified = blob_at_revision(&repo, &target, &file_path)?;
         Ok(content_pair(original, modified))
     })
     .await?
+}
+
+#[cfg(test)]
+mod display_budget_tests {
+    use super::*;
+    #[test]
+    fn json_escaping_is_charged_before_sending_editor_content() {
+        let text = "\u{1f}".repeat(2 * 1024 * 1024);
+        let pair = content_pair(Some(Side::Text(text)), None);
+        assert!(pair.too_large);
+        assert!(pair.original.is_empty());
+    }
 }

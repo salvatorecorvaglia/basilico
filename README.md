@@ -41,9 +41,9 @@
 
 To build Basilico from source, you will need the following tools installed on your system:
 
-1. **Node.js** (v18 or higher recommended)
-2. **pnpm** (fast, disk-efficient package manager)
-3. **Rust** toolchain (Rustup, cargo, compiler)
+1. **Node.js**
+2. **pnpm**
+3. **Rust**
 4. System dependencies for Tauri compilation (refer to the [Tauri v2 Setup Guide](https://v2.tauri.app/start/prerequisites/) for your operating system).
 
 ### Development Setup

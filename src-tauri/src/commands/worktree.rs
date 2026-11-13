@@ -105,6 +105,10 @@ pub async fn add_worktree(
 ) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         // Worktrees are conventionally created *outside* the repository (a
         // sibling directory), so absolute paths and `..` are both legitimate
         // here. What must be prevented is placing one inside the working tree,
@@ -177,6 +181,10 @@ pub async fn remove_worktree(
 ) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         let mut args = vec!["worktree", "remove"];
 
         if force {
@@ -198,6 +206,10 @@ pub async fn remove_worktree(
 pub async fn prune_worktrees(repo_path: String) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         crate::commands::run_git_cmd(&["worktree", "prune"], &repo_path)?;
 
         Ok(())
@@ -213,6 +225,10 @@ pub async fn lock_worktree(
 ) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         let mut args = vec!["worktree".to_string(), "lock".to_string()];
 
         if let Some(ref r) = reason {
@@ -235,6 +251,10 @@ pub async fn lock_worktree(
 pub async fn unlock_worktree(repo_path: String, worktree_name: String) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         crate::commands::run_git_cmd(&["worktree", "unlock", "--", &worktree_name], &repo_path)?;
 
         Ok(())

@@ -126,13 +126,7 @@ pub fn git_output(
     args: &[&str],
     cwd: &str,
 ) -> Result<std::process::Output, crate::error::AppError> {
-    let mut cmd = new_command("git");
-    cmd.current_dir(cwd);
-    cmd.args(args);
-
-    cmd.output().map_err(|e| {
-        crate::error::AppError::command(format!("Failed to execute git {:?}: {}", args, e))
-    })
+    git_output_cancellable(args, cwd, None)
 }
 
 /// Build a diagnostic from a failed git invocation, preferring stderr but
@@ -146,5 +140,256 @@ pub fn git_failure_message(args: &[&str], output: &std::process::Output) -> Stri
         format!("git {:?} failed with no output", args)
     } else {
         format!("git {:?} failed: {}", args, detail)
+    }
+}
+
+/// Run a captured subprocess with a deadline and optional operation cancellation.
+/// Drain both pipes concurrently so a verbose child cannot deadlock the caller.
+pub fn command_output(
+    mut command: std::process::Command,
+    timeout: std::time::Duration,
+    cancelled: Option<&std::sync::atomic::AtomicBool>,
+) -> Result<std::process::Output, crate::error::AppError> {
+    use std::sync::atomic::Ordering;
+    if cancelled.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+        return Err(crate::error::AppError::invalid_state(
+            "The operation was cancelled.",
+        ));
+    }
+    let child = command
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()?;
+    wait_for_command_output(child, timeout, cancelled)
+}
+
+pub fn wait_for_command_output(
+    mut child: std::process::Child,
+    timeout: std::time::Duration,
+    cancelled: Option<&std::sync::atomic::AtomicBool>,
+) -> Result<std::process::Output, crate::error::AppError> {
+    use std::io::Read;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let oversized = Arc::new(AtomicBool::new(false));
+    let read = |pipe: Option<Box<dyn Read + Send>>| {
+        let oversized = Arc::clone(&oversized);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let result = (|| {
+                let mut bytes = Vec::new();
+                if let Some(mut pipe) = pipe {
+                    const OUTPUT_LIMIT: u64 = 16 * 1024 * 1024;
+                    pipe.by_ref()
+                        .take(OUTPUT_LIMIT + 1)
+                        .read_to_end(&mut bytes)?;
+                    if bytes.len() as u64 > OUTPUT_LIMIT {
+                        oversized.store(true, Ordering::SeqCst);
+                        // Drain while the supervisor stops the process tree.
+                        std::io::copy(&mut pipe, &mut std::io::sink())?;
+                    }
+                }
+                Ok::<_, std::io::Error>(bytes)
+            })();
+            let _ = tx.send(result);
+        });
+        (worker, rx)
+    };
+    let (stdout_worker, stdout_rx) =
+        read(stdout.map(|pipe| Box::new(pipe) as Box<dyn Read + Send>));
+    let (stderr_worker, stderr_rx) =
+        read(stderr.map(|pipe| Box::new(pipe) as Box<dyn Read + Send>));
+    let deadline = Instant::now() + timeout;
+    let mut status = None;
+    let mut stdout = None;
+    let mut stderr = None;
+    let mut stopped = None;
+    loop {
+        if stdout.is_none() {
+            stdout = stdout_rx.try_recv().ok();
+        }
+        if stderr.is_none() {
+            stderr = stderr_rx.try_recv().ok();
+        }
+        if status.is_none() {
+            match child.try_wait() {
+                Ok(Some(value)) => status = Some(Ok(value)),
+                Ok(None) => {}
+                Err(error) => {
+                    stop_child(&mut child);
+                    let _ = child.wait();
+                    status = Some(Err(error));
+                    break;
+                }
+            }
+        }
+        if status.is_some() && stdout.is_some() && stderr.is_some() {
+            break;
+        }
+        if oversized.load(Ordering::SeqCst) {
+            stopped = Some("Command output exceeds the 16 MB display limit. Narrow the operation.");
+        } else if cancelled.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+            stopped = Some("The operation was cancelled.");
+        } else if Instant::now() >= deadline {
+            stopped = Some("The command timed out. Check the repository state before retrying.");
+        }
+        if stopped.is_some() {
+            stop_child(&mut child);
+            if status.is_none() {
+                status = Some(child.wait());
+            }
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    // On success leave properly detached hook/helper processes alone. On cancellation
+    // or timeout the process group has been stopped before its pipes are joined.
+    stdout_worker
+        .join()
+        .map_err(|_| crate::error::AppError::command("Could not collect command output"))?;
+    stderr_worker
+        .join()
+        .map_err(|_| crate::error::AppError::command("Could not collect command errors"))?;
+    if oversized.load(Ordering::SeqCst) {
+        return Err(crate::error::AppError::command(
+            "Command output exceeds the 16 MB display limit. Narrow the operation.",
+        ));
+    }
+    if let Some(message) = stopped {
+        return Err(crate::error::AppError::command(message));
+    }
+    let stdout = stdout
+        .or_else(|| stdout_rx.try_recv().ok())
+        .ok_or_else(|| crate::error::AppError::command("Command output reader stopped"))??;
+    let stderr = stderr
+        .or_else(|| stderr_rx.try_recv().ok())
+        .ok_or_else(|| crate::error::AppError::command("Command error reader stopped"))??;
+    Ok(std::process::Output {
+        status: status.ok_or_else(|| crate::error::AppError::command("Command did not exit"))??,
+        stdout,
+        stderr,
+    })
+}
+
+/// Feed stdin concurrently with output collection (signers may write before reading).
+pub fn command_output_with_input(
+    mut command: std::process::Command,
+    input: Vec<u8>,
+    timeout: std::time::Duration,
+) -> Result<std::process::Output, crate::error::AppError> {
+    use std::io::Write;
+    let mut child = command
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()?;
+    let stdin = child.stdin.take();
+    let writer = std::thread::spawn(move || -> std::io::Result<()> {
+        if let Some(mut stdin) = stdin {
+            stdin.write_all(&input)?;
+        }
+        Ok(())
+    });
+    let result = wait_for_command_output(child, timeout, None);
+    let written = writer
+        .join()
+        .map_err(|_| crate::error::AppError::command("Command input writer stopped"))?;
+    let output = result?;
+    if output.status.success() {
+        written?;
+    }
+    Ok(output)
+}
+
+fn stop_child(child: &mut std::process::Child) {
+    #[cfg(windows)]
+    {
+        let _ = new_command("taskkill")
+            .args(["/F", "/T", "/PID", &child.id().to_string()])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+    #[cfg(unix)]
+    stop_process_group(child.id());
+    let _ = child.kill();
+}
+
+#[cfg(unix)]
+fn stop_process_group(pid: u32) {
+    unsafe extern "C" {
+        fn kill(pid: i32, signal: i32) -> i32;
+    }
+    // `new_command` starts Unix children in their own session; never signal our own group.
+    unsafe {
+        kill(-(pid as i32), 9);
+    }
+}
+
+pub fn git_output_cancellable(
+    args: &[&str],
+    cwd: &str,
+    cancelled: Option<&std::sync::atomic::AtomicBool>,
+) -> Result<std::process::Output, crate::error::AppError> {
+    let mut command = new_command("git");
+    command.current_dir(cwd).args(args);
+    command_output(command, std::time::Duration::from_secs(300), cancelled)
+}
+
+#[cfg(all(test, unix))]
+mod command_lifecycle_tests {
+    use super::*;
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    };
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn timeout_terminates_the_child_and_its_pipe_holding_descendants() {
+        let mut command = new_command("sh");
+        command.args(["-c", "sleep 30 & wait"]);
+        let start = Instant::now();
+        let error = command_output(command, Duration::from_millis(60), None).unwrap_err();
+        assert!(error.message.contains("timed out"));
+        assert!(start.elapsed() < Duration::from_secs(5));
+    }
+
+    #[test]
+    fn cancellation_terminates_a_running_subprocess() {
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let flag = cancelled.clone();
+        let cancelling = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(80));
+            flag.store(true, Ordering::SeqCst);
+        });
+        let mut command = new_command("sh");
+        command.args(["-c", "sleep 30"]);
+        let start = Instant::now();
+        let error = command_output(command, Duration::from_secs(10), Some(&cancelled)).unwrap_err();
+        cancelling.join().unwrap();
+        assert!(error.message.contains("cancelled"));
+        assert!(start.elapsed() < Duration::from_secs(5));
+    }
+
+    #[test]
+    fn oversized_output_is_rejected_and_the_child_is_reaped() {
+        let mut command = new_command("sh");
+        command.args(["-c", "head -c 20000000 /dev/zero"]);
+        let error = command_output(command, Duration::from_secs(10), None).unwrap_err();
+        assert!(error.message.contains("display limit"));
+    }
+
+    #[test]
+    fn both_captured_pipes_are_drained_without_deadlock() {
+        let mut command = new_command("sh");
+        command.args(["-c", "i=0; while [ $i -lt 10000 ]; do echo output-line; echo error-line >&2; i=$((i+1)); done"]);
+        let output = command_output(command, Duration::from_secs(10), None).unwrap();
+        assert!(output.status.success());
+        assert!(output.stdout.len() > 65536);
+        assert!(output.stderr.len() > 65536);
     }
 }

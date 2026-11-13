@@ -78,6 +78,10 @@ pub async fn bisect_start(
     crate::commands::validate_git_argument(&bad, "Bisect revision")?;
     crate::commands::validate_git_argument(&good, "Bisect revision")?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         // Refuse rather than silently discarding an in-progress bisect: the
         // reset would check out the original branch and throw away the search
         // the user had already narrowed down.
@@ -104,6 +108,10 @@ pub async fn bisect_mark(
         return Err(AppError::invalid_state("Invalid bisect status"));
     }
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         let output = run_bisect_cmd(&repo_path, &["bisect", &status])?;
         Ok(get_bisect_state(&repo_path, output))
     })
@@ -114,6 +122,10 @@ pub async fn bisect_mark(
 pub async fn bisect_reset(repo_path: String) -> Result<(), AppError> {
     crate::state::ensure_open_repo(&repo_path)?;
     tokio::task::spawn_blocking(move || {
+        let mutation = crate::state::repository_mutation_lock(&repo_path);
+        let _mutation_guard = mutation.lock();
+        crate::state::ensure_open_repo(&repo_path)?;
+
         run_bisect_cmd(&repo_path, &["bisect", "reset"])?;
         Ok(())
     })
