@@ -35,6 +35,10 @@ impl TempRepo {
         let mut config = repo.config().unwrap();
         config.set_str("user.name", "Test User").unwrap();
         config.set_str("user.email", "test@example.com").unwrap();
+        // Fixtures write LF bytes and assert exact contents after Git restores
+        // files. Do not inherit Windows/global checkout conversion settings.
+        config.set_bool("core.autocrlf", false).unwrap();
+        config.set_str("core.eol", "lf").unwrap();
 
         Self { path, repo }
     }
