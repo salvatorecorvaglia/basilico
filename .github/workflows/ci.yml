@@ -300,7 +300,7 @@ jobs:
             exit 1
           fi
           if [[ -z "$TAURI_SIGNING_PRIVATE_KEY" ]]; then
-            node -e 'const fs = require("node:fs"); const path = "src-tauri/tauri.conf.json"; const config = JSON.parse(fs.readFileSync(path)); config.bundle.createUpdaterArtifacts = false; delete config.plugins.updater; fs.writeFileSync(path, JSON.stringify(config, null, 2));'
+            node -e 'const fs = require("node:fs"); const path = "src-tauri/tauri.conf.json"; const config = JSON.parse(fs.readFileSync(path)); config.bundle.createUpdaterArtifacts = false; config.plugins.updater.endpoints = []; fs.writeFileSync(path, JSON.stringify(config, null, 2));'
           fi
       - name: Build installers without publishing
         id: installers
