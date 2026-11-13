@@ -268,12 +268,19 @@ try {
   await screenshot("light-blame");
   // Use the actual preference action, including Monaco/theme synchronization.
   await click('button[aria-label^="Color scheme:"]');
-  await until("dark scheme", () =>
-    evaluate(
-      "return getComputedStyle(document.documentElement).colorScheme === 'dark'",
-    ),
-  );
-  const darkPalette = await palette();
+  // WKWebView can report the root's new color-scheme before descendants
+  // reflect the updated custom properties. Wait for the rendered surface too;
+  // a broken palette must still fail rather than passing on the root alone.
+  const darkPalette = await until("rendered dark palette", async () => {
+    const rendered = await palette();
+    return (
+      rendered.scheme === "dark" &&
+      rendered.preference === "dark" &&
+      rendered.background !== lightPalette.background &&
+      rendered.color !== lightPalette.color &&
+      rendered
+    );
+  });
   writeFileSync(
     join(output, "dark-palette.json"),
     JSON.stringify(darkPalette, null, 2),
