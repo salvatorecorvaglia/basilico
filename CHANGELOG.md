@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Code search uses NUL-delimited filenames, bounded records and a timeout;
   search results now indicate when the display limit is reached.
 - Update frontend and Rust dependencies, including Vite `8.3.8`, Zustand
-  `5.1.0`, lucide-react `1.72.0`, react-resizable-panels `4.22.0` and
+  `5.1.0`, lucide-react `1.72.0`, react-resizable-panels `4.22.1` and
   parking_lot `0.13.0`. Align Vitest and V8 coverage tooling at `5.1.0` and
   declare supported Node.js versions.
 - CI enforces frontend coverage floors, uploads coverage and desktop diagnostics,
@@ -52,6 +52,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   working-tree changes.
 - Search failures are reported in the view, and clearing or changing a search
   prevents an earlier request from restoring obsolete results.
+- Windows integration-test executables embed the Common Controls manifest
+  required by native dialogs, and Git test fixtures use consistent LF line endings.
+- Native desktop smoke tests wait for rendered theme changes and enabled,
+  focused commit inputs, and replace amend messages through keyboard events so
+  macOS WebKit and React observe the same edit.
+- Unsigned CI installer builds retain the updater configuration with empty
+  endpoints while disabling updater artifacts.
 
 ## [1.2.0] - 2026-10-28
 
