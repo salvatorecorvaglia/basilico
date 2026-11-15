@@ -494,6 +494,20 @@ try {
     JSON.stringify(repositories, null, 2),
   );
   if (session) {
+    const commitForm = await evaluate(`
+      const button = document.querySelector('.commit-submit-btn');
+      const input = document.querySelector('.commit-summary-input');
+      return {
+        submitted: window.__nativeCommitSubmitted ?? null,
+        disabled: button?.disabled ?? null,
+        title: input?.value ?? null,
+        valid: input?.validity.valid ?? null,
+      };
+    `).catch((error) => ({ error: String(error) }));
+    writeFileSync(
+      join(output, "commit-form.json"),
+      JSON.stringify(commitForm, null, 2),
+    );
     await screenshot("failure").catch(() => {});
     const source = await command("GET", "/source").catch(
       () => "Page source unavailable",
