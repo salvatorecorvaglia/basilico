@@ -149,13 +149,41 @@ async function focusInput(selector) {
   return until(`enabled and focused input: ${selector}`, async () => {
     const id = await element(selector);
     if (!(await command("GET", `/element/${id}/enabled`))) return false;
-    await command("POST", `/element/${id}/click`, {});
-    const focused = await evaluate(
-      "return document.activeElement === arguments[0] && !arguments[0].disabled",
-      [{ [elementKey]: id }],
-    );
-    return focused && id;
+    const isFocused = () =>
+      evaluate(
+        "return document.activeElement === arguments[0] && !arguments[0].disabled",
+        [{ [elementKey]: id }],
+      );
+    // Repeated clicks can move the caret into the middle of an existing title.
+    if (!(await isFocused())) await command("POST", `/element/${id}/click`, {});
+    return (await isFocused()) && id;
   });
+}
+async function typeInput(selector, text, { replace = false } = {}) {
+  const id = await focusInput(selector);
+  const value = () => command("GET", `/element/${id}/property/value`);
+  if (replace) {
+    // Use real keyboard events: WebKit's element-clear can leave React's
+    // controlled value unchanged.
+    await command("POST", `/element/${id}/value`, {
+      text: `${embedded ? "\uE03D" : "\uE009"}a\uE000\uE003`,
+    });
+  }
+  await until(`empty input: ${selector}`, async () => (await value()) === "");
+  // WebKitWebDriver can dispatch a whole string faster than React reconciles
+  // controlled input events, losing characters. Acknowledge each keystroke
+  // before sending the next; never repair or resend a dropped character.
+  let expected = "";
+  for (const character of text) {
+    await focusInput(selector);
+    await command("POST", `/element/${id}/value`, { text: character });
+    expected += character;
+    await until(
+      `input ${selector} equals ${JSON.stringify(expected)}`,
+      async () => (await value()) === expected,
+    );
+  }
+  assert.equal(await value(), text);
 }
 async function submitCommit(label) {
   // Watcher/staging refreshes can disable the button between WebDriver's
@@ -360,14 +388,7 @@ try {
     ),
   );
   assert.ok(!git(a, "show", ":partial.txt").includes("second edited line"));
-  const summary = await focusInput(".commit-summary-input");
-  await command("POST", `/element/${summary}/value`, {
-    text: "Native partial commit",
-  });
-  assert.equal(
-    await command("GET", `/element/${summary}/property/value`),
-    "Native partial commit",
-  );
+  await typeInput(".commit-summary-input", "Native partial commit");
   await submitCommit("commit");
   await until(
     "partial commit persisted",
@@ -384,20 +405,9 @@ try {
         `/element/${await element(".commit-summary-input")}/property/value`,
       )) === "Native partial commit",
   );
-  const amendSummary = await focusInput(".commit-summary-input");
-  // WebKit's element-clear can leave React's controlled value unchanged and
-  // the next keystrokes append to the old title. Replace it through keyboard
-  // events so the browser and React observe the same edit.
-  await command("POST", `/element/${amendSummary}/value`, {
-    text: `${embedded ? "\uE03D" : "\uE009"}a\uE000\uE003`,
+  await typeInput(".commit-summary-input", "Native amended commit", {
+    replace: true,
   });
-  await command("POST", `/element/${amendSummary}/value`, {
-    text: "Native amended commit",
-  });
-  assert.equal(
-    await command("GET", `/element/${amendSummary}/property/value`),
-    "Native amended commit",
-  );
   await submitCommit("amend");
   await until(
     "amended commit persisted",
