@@ -413,7 +413,12 @@ try {
   );
   writeFileSync(join(output, "workers.json"), JSON.stringify(workers, null, 2));
   await command("POST", "/window/rect", { width: 800, height: 600 });
-  const layout = await evaluate(`
+  // Native resize completion precedes WKWebView layout and the panels' resize
+  // observer. Poll the actual small viewport and its bounds before asserting.
+  let layout;
+  try {
+    await until("minimum-size staging layout", async () => {
+      layout = await evaluate(`
     const rect = selector => {
         const r = document.querySelector(selector).getBoundingClientRect();
         return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width };
@@ -421,24 +426,37 @@ try {
     return { left: rect('.toolbar-left'), center: rect('.toolbar-center'),
       right: rect('.toolbar-right'), commit: rect('.commit-submit-btn'), width: innerWidth, height: innerHeight };
   `);
-  assert.ok(
-    layout.left.right <= layout.center.left + 1,
-    "Toolbar sections must not overlap",
-  );
-  assert.ok(
-    layout.center.right <= layout.right.left + 1,
-    "Toolbar actions must remain reachable",
-  );
-  assert.ok(
-    layout.commit.left >= 0 &&
-      layout.commit.right <= layout.width &&
-      layout.commit.bottom <= layout.height,
-    "Commit action must remain inside the minimum-size viewport",
-  );
-  writeFileSync(
-    join(output, "minimum-layout.json"),
-    JSON.stringify(layout, null, 2),
-  );
+      assert.ok(
+        layout.width > 0 &&
+          layout.width <= 800 &&
+          layout.height > 0 &&
+          layout.height <= 600,
+        "Webview must reach the minimum-size viewport",
+      );
+      assert.ok(
+        layout.left.right <= layout.center.left + 1,
+        "Toolbar sections must not overlap",
+      );
+      assert.ok(
+        layout.center.right <= layout.right.left + 1,
+        "Toolbar actions must remain reachable",
+      );
+      assert.ok(
+        layout.commit.left >= 0 &&
+          layout.commit.top >= 0 &&
+          layout.commit.width > 0 &&
+          layout.commit.right <= layout.width &&
+          layout.commit.bottom <= layout.height,
+        "Commit action must remain inside the minimum-size viewport",
+      );
+      return true;
+    });
+  } finally {
+    writeFileSync(
+      join(output, "minimum-layout.json"),
+      JSON.stringify(layout ?? null, null, 2),
+    );
+  }
   await screenshot("minimum-size-staging");
   await command("POST", "/window/rect", { width: 1400, height: 900 });
 
