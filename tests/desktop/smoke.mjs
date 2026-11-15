@@ -157,6 +157,24 @@ async function focusInput(selector) {
     return focused && id;
   });
 }
+async function submitCommit(label) {
+  // Watcher/staging refreshes can disable the button between WebDriver's
+  // enabled check and its click. Retry only until a real form submit arrives;
+  // once dispatched, a slow or failed commit must fail the persistence check.
+  await evaluate(`
+    window.__nativeCommitSubmitted = false;
+    document.querySelector('.commit-box').addEventListener('submit', () => {
+      window.__nativeCommitSubmitted = true;
+    }, { once: true });
+  `);
+  await until(`${label} form submitted`, async () => {
+    if (await evaluate("return window.__nativeCommitSubmitted")) return true;
+    const id = await element(".commit-submit-btn");
+    if (!(await command("GET", `/element/${id}/enabled`))) return false;
+    await command("POST", `/element/${id}/click`, {});
+    return evaluate("return window.__nativeCommitSubmitted");
+  });
+}
 async function palette() {
   // Style reads flush layout even when an unfocused WKWebView throttles RAF.
   return evaluate(
@@ -350,10 +368,7 @@ try {
     await command("GET", `/element/${summary}/property/value`),
     "Native partial commit",
   );
-  await until("commit enabled", async () =>
-    command("GET", `/element/${await element(".commit-submit-btn")}/enabled`),
-  );
-  await click(".commit-submit-btn");
+  await submitCommit("commit");
   await until(
     "partial commit persisted",
     () => git(a, "log", "-1", "--format=%s") === "Native partial commit",
@@ -383,10 +398,7 @@ try {
     await command("GET", `/element/${amendSummary}/property/value`),
     "Native amended commit",
   );
-  await until("amend enabled", async () =>
-    command("GET", `/element/${await element(".commit-submit-btn")}/enabled`),
-  );
-  await click(".commit-submit-btn");
+  await submitCommit("amend");
   await until(
     "amended commit persisted",
     () => git(a, "log", "-1", "--format=%s") === "Native amended commit",
