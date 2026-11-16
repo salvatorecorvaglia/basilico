@@ -2,7 +2,7 @@
   <img src="resources/basilico.svg" alt="Basilico logo" width="96" height="96">
 </p>
 
-# Basilico 🌿
+# Basilico
 
 **Fast, modern and beautiful Git GUI client**
 
