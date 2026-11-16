@@ -11,7 +11,7 @@ name = "basilico_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.7.3", features = [] }
+tauri-build = { version = "2.7.5", features = [] }
 
 [features]
 # Exposes `test_utils` (and Tauri's mock runtime) to the integration tests in
@@ -22,7 +22,7 @@ test-utils = ["tauri/test"]
 desktop-tests = ["dep:tauri-plugin-wdio-webdriver"]
 
 [dependencies]
-tauri = { version = "2.12.4", features = [] }
+tauri = { version = "2.12.6", features = [] }
 tauri-plugin-opener = "2.7.3"
 tauri-plugin-dialog = "2.8.3"
 # `createUpdaterArtifacts = true` uses native v2 installers; legacy ZIP support
