@@ -398,3 +398,13 @@ jobs:
           cargo metadata --locked --all-features --format-version 1 --manifest-path src-tauri/Cargo.toml > "$RUNNER_TEMP/cargo-metadata.json"
           du -sh src-tauri/target | tee -a "$GITHUB_STEP_SUMMARY"
           test -n "$(find src-tauri/target -name '*.rlib' -print -quit)"
+
+  homebrew-tests:
+    name: Homebrew manifest contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s tests/homebrew -v

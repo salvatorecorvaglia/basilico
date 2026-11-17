@@ -1,0 +1,9 @@
+{
+  "name": "basilico",
+  "kind": "cask",
+  "description": "Git desktop client",
+  "title": "Basilico",
+  "pattern": "Basilico_{version}_{arch}.dmg",
+  "arm": "aarch64",
+  "intel": "x64"
+}

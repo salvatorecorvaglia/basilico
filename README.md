@@ -10,6 +10,14 @@
 
 ---
 
+## Homebrew
+
+Stable releases are distributed through the personal tap:
+
+```sh
+brew install --cask salvatorecorvaglia/tap/basilico
+```
+
 ## Features ✨
 
 - **🚀 Push & Force-Push with Safety Guards**: Fetch, pull, and push against whichever remote your repository actually uses — `origin`, the remote your branch tracks, or a custom name — with dedicated right-click force-push options protected by danger confirmation dialogs and a `--force-with-lease` equivalent that refuses to overwrite commits pushed since your last fetch.
