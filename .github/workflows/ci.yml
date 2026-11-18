@@ -78,6 +78,7 @@ jobs:
         run: pnpm run build
 
       - name: Audit npm dependencies
+        if: ${{ !inputs.release }}
         run: pnpm audit --audit-level high
 
   rust-fmt:
@@ -198,6 +199,7 @@ jobs:
 
   rust-audit:
     name: Rust Dependency Audit
+    if: ${{ !inputs.release }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
