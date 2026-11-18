@@ -64,7 +64,7 @@ jobs:
 
       - name: Upload frontend coverage
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-coverage
           path: coverage/
@@ -190,7 +190,7 @@ jobs:
         run: pnpm test:desktop src-tauri/target/debug/basilico
       - name: Upload macOS native screenshots and diagnostics
         if: always() && runner.os == 'macOS'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: native-desktop-macos
           path: test-results/desktop/
@@ -320,7 +320,7 @@ jobs:
 
       - name: Upload native smoke screenshots and diagnostics
         if: always() && matrix.platform == 'ubuntu-22.04'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: native-desktop-smoke
           path: test-results/desktop/
@@ -391,7 +391,7 @@ jobs:
 
           stage({ paths: JSON.parse(process.env.ARTIFACT_PATHS), platform: process.env.UPDATER_PLATFORM, output: 'release-assets', version: process.env.APP_VERSION, commit: process.env.GITHUB_SHA, signed: process.env.UPDATER_SIGNED === 'true' });
           NODE
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           compression-level: 0
           name: tauri-${{ matrix.updater-platform }}
