@@ -139,6 +139,10 @@ describe("Toolbar — force push", () => {
 });
 
 describe("Toolbar — remote selection", () => {
+  beforeEach(() => {
+    seed({ selectedFilePath: null });
+    useUIStore.setState({ activeView: "graph" });
+  });
   function seed(
     overrides: Partial<Parameters<typeof useRepoStore.setState>[0]>,
   ) {
@@ -336,6 +340,34 @@ describe("Toolbar — remote selection", () => {
       expect(screen.getByRole("button", { name: label })).toBeDisabled();
     }
   });
+  it("refreshes stale status when opening staging and selects the new file", async () => {
+    const user = userEvent.setup();
+    const selectLocalFile = vi.fn().mockResolvedValue(undefined);
+    const refreshStatus = vi.fn().mockImplementation(async () => {
+      const status = useRepoStore.getState().status;
+      if (status)
+        useRepoStore.setState({
+          status: {
+            ...status,
+            unstaged: [
+              { path: "partial.txt", status: "modified", isStaged: false },
+            ],
+          },
+        });
+    });
+    useRepoStore.setState({
+      refreshStatus,
+      selectLocalFile,
+      selectedFilePath: null,
+    });
+    render(<Toolbar />);
+    await user.click(screen.getByRole("tab", { name: "Staging" }));
+    expect(refreshStatus).toHaveBeenCalledOnce();
+    await waitFor(() =>
+      expect(selectLocalFile).toHaveBeenCalledWith("partial.txt", false),
+    );
+  });
+
   it("exposes the view switcher as a tab list", () => {
     render(<Toolbar />);
 

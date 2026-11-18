@@ -53,6 +53,7 @@ function RepositoryCommitBox({ path }: { path: string }) {
   const [amendOid, setAmendOid] = useState<string | null>(null);
   const [amendLoading, setAmendLoading] = useState(false);
   const [amend, setAmend] = useState(false);
+  const [committing, setCommitting] = useState(false);
 
   // Backup of user message before checking Amend
   const [userSummaryBackup, setUserSummaryBackup] = useState("");
@@ -133,6 +134,7 @@ function RepositoryCommitBox({ path }: { path: string }) {
       ? `${summary.trim()}\n\n${description.trim()}`
       : summary.trim();
 
+    setCommitting(true);
     try {
       if (amend) await commit(fullMessage, true, amendOid ?? undefined);
       else await commit(fullMessage, false);
@@ -144,6 +146,8 @@ function RepositoryCommitBox({ path }: { path: string }) {
       setUserDescriptionBackup("");
     } catch (err) {
       reportError(err, "Failed to commit");
+    } finally {
+      setCommitting(false);
     }
   };
 
@@ -174,6 +178,7 @@ function RepositoryCommitBox({ path }: { path: string }) {
     summary.trim().length > 0 &&
     (hasStaged || amend) &&
     !isLoading &&
+    !committing &&
     !amendLoading &&
     (!amend || amendOid !== null);
 
@@ -187,7 +192,7 @@ function RepositoryCommitBox({ path }: { path: string }) {
             key={type.label}
             type="button"
             className="conventional-btn"
-            disabled={isLoading || amendLoading}
+            disabled={committing || amendLoading}
             onClick={() => handlePrefixClick(type.label)}
             title={type.desc}
           >
@@ -205,7 +210,7 @@ function RepositoryCommitBox({ path }: { path: string }) {
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={isLoading || amendLoading}
+          disabled={committing || amendLoading}
           maxLength={72}
           required
         />
@@ -215,7 +220,7 @@ function RepositoryCommitBox({ path }: { path: string }) {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={isLoading || amendLoading}
+          disabled={committing || amendLoading}
           rows={3}
         />
       </div>
@@ -227,7 +232,7 @@ function RepositoryCommitBox({ path }: { path: string }) {
             type="checkbox"
             checked={amend}
             onChange={(e) => handleAmendToggle(e.target.checked)}
-            disabled={isLoading || isEmpty}
+            disabled={isLoading || committing || isEmpty}
           />
           <span>Amend last commit</span>
         </label>
