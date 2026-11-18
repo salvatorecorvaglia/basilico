@@ -93,6 +93,48 @@ describe("CommitBox", () => {
     ).toBeEnabled();
   });
 
+  it("keeps the draft editable and focused during repository refreshes", async () => {
+    const user = userEvent.setup();
+    render(<CommitBox />);
+    await user.type(summaryInput(), "N");
+    act(() => useRepoStore.setState({ isLoading: true }));
+    expect(summaryInput()).toBeEnabled();
+    expect(summaryInput()).toHaveFocus();
+    await user.keyboard("ative partial commit");
+    await user.type(descriptionInput(), "Draft body");
+    expect(summaryInput()).toHaveValue("Native partial commit");
+    expect(descriptionInput()).toHaveValue("Draft body");
+    expect(screen.getByRole("button", { name: "" })).toBeDisabled();
+    expect(commitMock).not.toHaveBeenCalled();
+    act(() => useRepoStore.setState({ isLoading: false }));
+    await user.click(screen.getByRole("button", { name: /Commit Changes/ }));
+    expect(commitMock).toHaveBeenCalledWith(
+      "Native partial commit\n\nDraft body",
+      false,
+    );
+  });
+
+  it("locks draft editing while the commit is being saved", async () => {
+    const user = userEvent.setup();
+    let finish = () => {};
+    commitMock.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    render(<CommitBox />);
+    await user.type(summaryInput(), "Saved draft");
+    await user.click(screen.getByRole("button", { name: /Commit Changes/ }));
+    expect(summaryInput()).toBeDisabled();
+    expect(descriptionInput()).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /Commit Changes/ }),
+    ).toBeDisabled();
+    await act(async () => finish());
+    expect(summaryInput()).toBeEnabled();
+    expect(summaryInput()).toHaveValue("");
+  });
+
   it("commits title and description as one message, then clears the form", async () => {
     const user = userEvent.setup();
     render(<CommitBox />);
