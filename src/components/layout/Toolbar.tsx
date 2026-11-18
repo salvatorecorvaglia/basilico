@@ -527,21 +527,30 @@ export function Toolbar() {
             role="tab"
             aria-selected={activeView === "staging"}
             className={`toolbar-segment-btn ${activeView === "staging" ? "active" : ""}`}
-            onClick={() => {
+            onClick={async () => {
               setActiveView("staging");
-              // Automatically select first file if staging opens and none selected
-              if (status && !useRepoStore.getState().selectedFilePath) {
-                const firstFile =
-                  status.conflicted[0] ||
-                  status.staged[0]?.path ||
-                  status.unstaged[0]?.path ||
-                  status.untracked[0];
-                if (firstFile) {
-                  const isStaged = status.staged.some(
-                    (f) => f.path === firstFile,
-                  );
-                  useRepoStore.getState().selectLocalFile(firstFile, isStaged);
+              // A filesystem notification may still be pending when the user
+              // opens staging. Read the current index and working tree first.
+              try {
+                await useRepoStore.getState().refreshStatus();
+                const current = useRepoStore.getState();
+                if (current.activeTabId !== activeTabId) return;
+                const freshStatus = current.status;
+                if (freshStatus && !current.selectedFilePath) {
+                  const firstFile =
+                    freshStatus.conflicted[0] ||
+                    freshStatus.staged[0]?.path ||
+                    freshStatus.unstaged[0]?.path ||
+                    freshStatus.untracked[0];
+                  if (firstFile) {
+                    await current.selectLocalFile(
+                      firstFile,
+                      freshStatus.staged.some((f) => f.path === firstFile),
+                    );
+                  }
                 }
+              } catch (err) {
+                reportError(err, "Failed to refresh staging");
               }
             }}
           >
