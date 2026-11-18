@@ -48,7 +48,7 @@ jobs:
         uses: pnpm/action-setup@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -174,7 +174,7 @@ jobs:
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib --test backend_integration_test --test watcher_tests --test editor_process_test
       - uses: pnpm/action-setup@v6
         if: runner.os == 'macOS'
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         if: runner.os == 'macOS'
         with:
           node-version: 22
@@ -255,7 +255,7 @@ jobs:
         uses: pnpm/action-setup@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
