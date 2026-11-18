@@ -7,6 +7,10 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   publicDir: "resources",
+  // Expose BASILICO_DISABLE_UPDATE_CHECK to the webview. Tauri has no runtime
+  // environment to read, so the update-check opt-out is set at build time,
+  // with the same name the Electron apps read at launch.
+  envPrefix: ["VITE_", "BASILICO_"],
   plugins: [react(), tailwindcss()],
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

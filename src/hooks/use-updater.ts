@@ -1,22 +1,21 @@
 import { useEffect, useRef } from "react";
+import { scheduleStartupUpdateCheck } from "../lib/startup-update-check";
 import { useUpdaterStore } from "../store/updater-store";
 
 /**
- * Hook to automatically check for application updates.
- * Mount this once at the app level.
+ * Mount once at the app level: the automatic check runs five seconds after
+ * startup (see `scheduleStartupUpdateCheck`).
  */
 export function useUpdater(): void {
   const checkForUpdates = useUpdaterStore((s) => s.checkForUpdates);
-  const checkedRef = useRef(false);
+  const scheduledRef = useRef(false);
 
   useEffect(() => {
-    if (checkedRef.current) return;
-    checkedRef.current = true;
+    if (scheduledRef.current) return;
+    scheduledRef.current = true;
 
-    const timer = setTimeout(() => {
-      checkForUpdates();
-    }, 5000);
-
-    return () => clearTimeout(timer);
+    return scheduleStartupUpdateCheck(checkForUpdates, {
+      disabled: import.meta.env.BASILICO_DISABLE_UPDATE_CHECK === "1",
+    });
   }, [checkForUpdates]);
 }
