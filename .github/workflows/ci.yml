@@ -310,7 +310,7 @@ jobs:
           fi
       - name: Build installers without publishing
         id: installers
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         with:
           args: ${{ matrix.args }}
           retryAttempts: ${{ runner.os == 'macOS' && 3 || 0 }}
