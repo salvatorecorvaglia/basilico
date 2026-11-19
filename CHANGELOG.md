@@ -14,12 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Update Tauri JavaScript API and CLI to `2.12.5`, the Rust runtime to `2.12.6`, tauri-build to `2.7.5`, and UUID to `1.29.3`; refresh lockfiles.
-- Update Lucide to `1.75.0`, react-resizable-panels to `4.24.0`, Biome to `2.6.8`, Testing Library user-event to `14.6.12`, and Vitest with V8 coverage to `5.1.1`; refresh dependency overrides and the lockfile.
+- Update Tauri JavaScript API to `2.12.5`, the CLI to `2.12.6`, the Rust runtime to `2.12.7`, tauri-build to `2.7.5`, and UUID to `1.29.3`; refresh lockfiles.
+- Update Lucide to `1.75.0`, react-resizable-panels to `4.24.1`, Biome to `2.6.8`, Testing Library user-event to `14.6.12`, and Vitest with V8 coverage to `5.1.1`; refresh dependency overrides and the lockfile.
+- Add weekly Dependabot checks for GitHub Actions, frontend and Rust dependencies, and desktop test images; refresh CI actions and test toolchains.
+- Keep tag-triggered CI runs active and skip dependency audits during release checks.
 
 ### Fixed
 
 - Stabilize native desktop smoke tests by acknowledging each input keystroke, waiting for actual commit form submission, and polling webview layout after resizing. Save commit-form and minimum-layout diagnostics on failure.
+- Keep commit summary and description editable during background repository loading, disabling them only while committing or loading an amend message.
+- Refresh repository status when opening staging and select files from the refreshed state without applying results to a different tab.
+- Run required CI checks for Markdown-only pull requests.
 
 ## [1.3.0] - 2026-11-15
 
